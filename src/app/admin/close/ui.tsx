@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { closePeriod, markPaid, reopenPeriod } from "./actions";
+import { closePeriod, emailPayslips, markPaid, reopenPeriod } from "./actions";
 import type { ActionResult } from "../employees/actions";
 
 export function CloseActions({
@@ -62,6 +62,20 @@ export function CloseActions({
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {pending ? "処理中..." : "締め処理を実行"}
+            </button>
+          )}
+          {status !== "open" && (
+            <button
+              disabled={pending}
+              onClick={() =>
+                run(
+                  () => emailPayslips(periodKey, false),
+                  "全員に給与明細をメール配信します。よろしいですか?"
+                )
+              }
+              className="rounded-lg border border-blue-300 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+            >
+              明細をメール配信
             </button>
           )}
           {status === "closed" && (

@@ -7,7 +7,7 @@ import {
   formatMinutes,
   periodFromKey,
 } from "@/lib/period";
-import { PrintButton } from "./ui";
+import { PrintButton, SendReportButton } from "./ui";
 
 export default async function ReportPage({
   searchParams,
@@ -79,7 +79,12 @@ export default async function ReportPage({
           >
             翌月 →
           </Link>
-          {rows.length > 0 && <PrintButton />}
+          {rows.length > 0 && (
+            <>
+              <PrintButton />
+              <SendReportButton periodKey={period.key} />
+            </>
+          )}
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { periodFromKey } from "@/lib/period";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
+import { buildPayslipMailText, sendMail } from "@/lib/email";
 import type { ActionResult } from "../employees/actions";
 
 /** 締め処理: 期間をロックし、全員分の給与明細を確定保存する */
@@ -116,6 +117,88 @@ export async function reopenPeriod(periodKey: string): Promise<ActionResult> {
     ok: true,
     message: `${period.label}の締めを解除しました。修正後に再度締めてください(明細は再計算されます)`,
   };
+}
+
+/** 給与明細をメール配信する(全員 or 未配信のみ) */
+export async function emailPayslips(
+  periodKey: string,
+  onlyUnsent: boolean
+): Promise<ActionResult> {
+  await requireAdmin();
+  const period = periodFromKey(periodKey);
+  if (!period) return { ok: false, message: "期間の指定が不正です" };
+
+  const supabase = await createClient();
+  const { data: payPeriod } = await supabase
+    .from("pay_periods")
+    .select("id, period_label, payment_date")
+    .eq("start_date", period.start)
+    .eq("end_date", period.end)
+    .neq("status", "open")
+    .maybeSingle();
+
+  if (!payPeriod) {
+    return { ok: false, message: "先に締め処理を実行してください" };
+  }
+
+  const { data: payslips } = await supabase
+    .from("payslips")
+    .select(
+      `id, work_days, total_minutes, hourly_wage, base_pay, transport_total,
+       lunch_total, gross_pay, income_tax, net_pay, tax_category, emailed_at,
+       employees ( name, email )`
+    )
+    .eq("pay_period_id", payPeriod.id);
+
+  const targets = (payslips ?? []).filter(
+    (p) => !onlyUnsent || !p.emailed_at
+  );
+  if (targets.length === 0) {
+    return { ok: false, message: "配信対象がありません" };
+  }
+
+  let sent = 0;
+  const failed: string[] = [];
+  for (const p of targets) {
+    const emp = p.employees as unknown as { name: string; email: string };
+    const result = await sendMail({
+      to: emp.email,
+      subject: `【給与明細】${payPeriod.period_label}`,
+      text: buildPayslipMailText({
+        name: emp.name,
+        periodLabel: payPeriod.period_label,
+        paymentDate: payPeriod.payment_date,
+        workDays: p.work_days,
+        totalMinutes: p.total_minutes,
+        hourlyWage: p.hourly_wage,
+        basePay: p.base_pay,
+        transportTotal: p.transport_total,
+        lunchTotal: p.lunch_total,
+        grossPay: p.gross_pay,
+        incomeTax: p.income_tax,
+        netPay: p.net_pay,
+        taxCategory: p.tax_category,
+      }),
+    });
+    if (result.ok) {
+      sent += 1;
+      await supabase
+        .from("payslips")
+        .update({ emailed_at: new Date().toISOString() })
+        .eq("id", p.id);
+    } else {
+      failed.push(`${emp.name}(${result.message})`);
+    }
+  }
+
+  revalidatePath("/admin/close");
+  if (failed.length > 0) {
+    return {
+      ok: sent > 0,
+      message: `${sent}件送信 / 失敗: ${failed.join("、")}`,
+    };
+  }
+  return { ok: true, message: `${sent}名に給与明細をメール配信しました` };
 }
 
 /** 支払済みにする */

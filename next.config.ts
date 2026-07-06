@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // worker-mailer は cloudflare:sockets を使うためバンドルせず外部参照にする
+  serverExternalPackages: ["worker-mailer"],
 };
 
 export default nextConfig;

@@ -102,6 +102,10 @@ export function NoticeForm({
             className={inputClass}
           />
         </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="send_email" className="h-4 w-4" />
+          メールでも送信する
+        </label>
         {result && (
           <p
             className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
