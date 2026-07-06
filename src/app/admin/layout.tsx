@@ -19,7 +19,7 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-gray-200 bg-white">
+      <header className="border-b border-gray-200 bg-white print:hidden">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-6">
             <span className="font-bold">給与管理</span>
@@ -44,6 +44,12 @@ export default async function AdminLayout({
                 className="text-gray-600 hover:text-gray-900"
               >
                 連絡
+              </Link>
+              <Link
+                href="/admin/report"
+                className="text-gray-600 hover:text-gray-900"
+              >
+                税理士資料
               </Link>
               <Link
                 href="/admin/settings"
