@@ -1,0 +1,230 @@
+import { describe, expect, it } from "vitest";
+import {
+  computeIncomeTax,
+  computePayslip,
+  effectiveAt,
+  PayrollError,
+  type TaxTableRow,
+} from "./payroll";
+import {
+  currentPeriod,
+  datesInPeriod,
+  periodOf,
+  workMinutes,
+} from "./period";
+
+describe("period", () => {
+  it("25日締め・月末払いの期間を返す", () => {
+    const p = periodOf(2026, 7);
+    expect(p.start).toBe("2026-06-26");
+    expect(p.end).toBe("2026-07-25");
+    expect(p.paymentDate).toBe("2026-07-31");
+    expect(p.label).toBe("2026年7月分");
+  });
+
+  it("1月分は前年12月26日開始", () => {
+    const p = periodOf(2026, 1);
+    expect(p.start).toBe("2025-12-26");
+    expect(p.end).toBe("2026-01-25");
+  });
+
+  it("うるう年2月の支払日は29日", () => {
+    expect(periodOf(2028, 2).paymentDate).toBe("2028-02-29");
+  });
+
+  it("26日以降は翌月分の期間になる(JST)", () => {
+    // JST 2026-07-26 00:00 = UTC 2026-07-25 15:00
+    const p = currentPeriod(new Date("2026-07-25T15:00:00Z"));
+    expect(p.key).toBe("2026-08");
+    // JST 2026-07-25 23:59 = UTC 2026-07-25 14:59
+    const p2 = currentPeriod(new Date("2026-07-25T14:59:00Z"));
+    expect(p2.key).toBe("2026-07");
+  });
+
+  it("期間の日数が正しい", () => {
+    expect(datesInPeriod(periodOf(2026, 7))).toHaveLength(30);
+  });
+
+  it("勤務分数を計算する", () => {
+    expect(workMinutes("09:00", "17:00", 60)).toBe(420);
+    expect(workMinutes("09:30", "12:00", 0)).toBe(150);
+  });
+});
+
+describe("effectiveAt", () => {
+  const rates = [
+    { hourly_wage: 1100, effective_from: "2026-01-01" },
+    { hourly_wage: 1200, effective_from: "2026-07-01" },
+  ];
+
+  it("適用開始日以前は古い時給、以後は新しい時給", () => {
+    expect(effectiveAt(rates, "2026-06-30")?.hourly_wage).toBe(1100);
+    expect(effectiveAt(rates, "2026-07-01")?.hourly_wage).toBe(1200);
+  });
+
+  it("最古の適用開始日より前は null", () => {
+    expect(effectiveAt(rates, "2025-12-31")).toBeNull();
+  });
+});
+
+const taxRows: TaxTableRow[] = [
+  {
+    min_amount: 88000,
+    max_amount: 89000,
+    tax_kou_0: 130,
+    tax_kou_1: 0,
+    tax_kou_2: 0,
+    tax_kou_3: 0,
+    tax_otsu: 3200,
+  },
+  {
+    min_amount: 89000,
+    max_amount: 90000,
+    tax_kou_0: 180,
+    tax_kou_1: 0,
+    tax_kou_2: 0,
+    tax_kou_3: 0,
+    tax_otsu: 3200,
+  },
+];
+
+describe("computeIncomeTax", () => {
+  it("乙欄88,000円未満は3.063%切り捨て", () => {
+    expect(computeIncomeTax(80000, "otsu", 0, [])).toBe(
+      Math.floor(80000 * 0.03063)
+    );
+    expect(computeIncomeTax(87999, "otsu", 0, [])).toBe(
+      Math.floor(87999 * 0.03063)
+    );
+  });
+
+  it("甲欄88,000円未満は0円", () => {
+    expect(computeIncomeTax(87999, "kou", 0, [])).toBe(0);
+  });
+
+  it("0円以下は0円", () => {
+    expect(computeIncomeTax(0, "otsu", 0, [])).toBe(0);
+  });
+
+  it("88,000円以上は税額表を参照する", () => {
+    expect(computeIncomeTax(88500, "otsu", 0, taxRows)).toBe(3200);
+    expect(computeIncomeTax(88500, "kou", 0, taxRows)).toBe(130);
+    expect(computeIncomeTax(89000, "kou", 0, taxRows)).toBe(180);
+  });
+
+  it("税額表にデータがなければエラー", () => {
+    expect(() => computeIncomeTax(100000, "otsu", 0, taxRows)).toThrow(
+      PayrollError
+    );
+  });
+});
+
+describe("computePayslip", () => {
+  const base = {
+    wageRates: [{ hourly_wage: 1200, effective_from: "2026-01-01" }],
+    taxSettings: [
+      {
+        tax_category: "otsu" as const,
+        dependents: 0,
+        effective_from: "2026-01-01",
+      },
+    ],
+    allowances: [{ lunch_allowance_per_day: 500, effective_from: "2026-01-01" }],
+    taxRows: [],
+    periodEnd: "2026-07-25",
+  };
+
+  it("基本給・交通費・昼食補助・所得税を計算する", () => {
+    const result = computePayslip({
+      ...base,
+      entries: [
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "17:00",
+          break_minutes: 60,
+          transport_cost: 500,
+        },
+        {
+          work_date: "2026-07-02",
+          start_time: "10:00",
+          end_time: "15:30",
+          break_minutes: 30,
+          transport_cost: 500,
+        },
+      ],
+    });
+
+    // 1日目: 420分 → 8,400円 / 2日目: 300分 → 6,000円
+    expect(result.base_pay).toBe(14400);
+    expect(result.total_minutes).toBe(720);
+    expect(result.work_days).toBe(2);
+    expect(result.transport_total).toBe(1000);
+    expect(result.lunch_total).toBe(1000);
+    expect(result.taxable_amount).toBe(15400);
+    expect(result.income_tax).toBe(Math.floor(15400 * 0.03063));
+    expect(result.gross_pay).toBe(16400);
+    expect(result.net_pay).toBe(16400 - result.income_tax);
+  });
+
+  it("時給の値上げが勤務日ごとに適用される", () => {
+    const result = computePayslip({
+      ...base,
+      wageRates: [
+        { hourly_wage: 1000, effective_from: "2026-01-01" },
+        { hourly_wage: 1200, effective_from: "2026-07-01" },
+      ],
+      entries: [
+        {
+          work_date: "2026-06-30",
+          start_time: "09:00",
+          end_time: "12:00",
+          break_minutes: 0,
+          transport_cost: 0,
+        },
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "12:00",
+          break_minutes: 0,
+          transport_cost: 0,
+        },
+      ],
+    });
+    // 6/30: 3h × 1000 = 3000 / 7/1: 3h × 1200 = 3600
+    expect(result.base_pay).toBe(6600);
+    expect(result.hourly_wage).toBe(1200); // 期間末時点
+  });
+
+  it("勤務0日なら全額0円", () => {
+    const result = computePayslip({ ...base, entries: [] });
+    expect(result.gross_pay).toBe(0);
+    expect(result.income_tax).toBe(0);
+    expect(result.net_pay).toBe(0);
+  });
+
+  it("時給未設定はエラー", () => {
+    expect(() =>
+      computePayslip({ ...base, wageRates: [], entries: [] })
+    ).toThrow(PayrollError);
+  });
+
+  it("日割り計算は日単位で切り捨て", () => {
+    const result = computePayslip({
+      ...base,
+      wageRates: [{ hourly_wage: 1000, effective_from: "2026-01-01" }],
+      allowances: [],
+      entries: [
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "09:50",
+          break_minutes: 0,
+          transport_cost: 0,
+        },
+      ],
+    });
+    // 50分 × 1000 / 60 = 833.33 → 833
+    expect(result.base_pay).toBe(833);
+  });
+});
