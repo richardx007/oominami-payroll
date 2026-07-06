@@ -13,11 +13,29 @@ npm install
 npm run dev                  # http://localhost:3000
 ```
 
-## デプロイ(Cloudflare)
+## デプロイ(Cloudflare Workers Builds / Git連携)
+
+Cloudflare ダッシュボード > Workers & Pages > Create > 「Import a repository」で
+このリポジトリを接続すると、プッシュのたびに自動デプロイされる。
+
+- ビルドコマンド: `npx opennextjs-cloudflare build`
+- デプロイコマンド: `npx opennextjs-cloudflare deploy`
+
+Secrets(Workers > 設定 > 変数と Secrets):
+
+| 変数 | 用途 |
+|------|------|
+| `GMAIL_USER` | 送信元 Gmail アドレス |
+| `GMAIL_APP_PASSWORD` | Gmail のアプリパスワード(2段階認証必須) |
+| `TAX_ACCOUNTANT_EMAIL` | 税理士宛てメールアドレス |
+
+デプロイ後、Supabase ダッシュボード > Authentication > URL Configuration の
+Site URL / Redirect URLs に本番URL(`https://…workers.dev` など)を追加すること。
+
+手動デプロイする場合(要 `wrangler login`):
 
 ```bash
-npm run preview   # ローカルで Workers ランタイム確認
-npm run deploy    # Cloudflare へデプロイ(要 wrangler login)
+npm run deploy
 ```
 
 ## Supabase

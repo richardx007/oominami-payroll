@@ -11,9 +11,7 @@
   "vars": {
     "NEXT_PUBLIC_SUPABASE_URL": "https://zvrwkmriosaldjqpxdwi.supabase.co",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_57jbknnlco87_n8QxQHjxA_X-RvOUp1"
-  },
-  // Supabase 無料プロジェクトの休止対策: 毎日1回 ping
-  "triggers": {
-    "crons": ["0 0 * * *"]
   }
+  // メール用の GMAIL_USER / GMAIL_APP_PASSWORD / TAX_ACCOUNTANT_EMAIL は
+  // Secrets として設定する(ダッシュボード > Workers > 設定 > 変数、または wrangler secret put)
 }
