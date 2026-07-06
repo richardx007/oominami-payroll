@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -77,6 +78,12 @@ export default function LoginPage() {
             {loading ? "ログイン中..." : "ログイン"}
           </button>
         </form>
+        <p className="mt-6 text-center text-sm text-gray-500">
+          初めての方は{" "}
+          <Link href="/register" className="text-blue-600 hover:underline">
+            初回登録
+          </Link>
+        </p>
       </div>
     </main>
   );
