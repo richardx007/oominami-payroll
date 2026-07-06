@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireEmployee } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { EmployeeNav } from "./nav";
 
 async function signOut() {
   "use server";
@@ -10,7 +11,7 @@ async function signOut() {
   redirect("/login");
 }
 
-export default async function TimesheetLayout({
+export default async function EmployeeLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -18,10 +19,10 @@ export default async function TimesheetLayout({
   const employee = await requireEmployee();
 
   return (
-    <div className="min-h-screen pb-16">
+    <div className="min-h-screen pb-20">
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white">
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
-          <span className="font-bold">勤務表</span>
+          <span className="font-bold">給与管理</span>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-gray-500">{employee.name}</span>
             {employee.is_admin && (
@@ -38,6 +39,7 @@ export default async function TimesheetLayout({
         </div>
       </header>
       <main className="mx-auto max-w-lg px-3 py-4">{children}</main>
+      <EmployeeNav />
     </div>
   );
 }

@@ -1,16 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { LunchAllowanceForm } from "./ui";
+import { LunchAllowanceForm, TaxTableForm } from "./ui";
 
 export default async function SettingsPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const { data: allowances } = await supabase
-    .from("allowance_settings")
-    .select("lunch_allowance_per_day, effective_from")
-    .order("effective_from", { ascending: false })
-    .limit(5);
+  const [{ data: allowances }, { data: taxYears }] = await Promise.all([
+    supabase
+      .from("allowance_settings")
+      .select("lunch_allowance_per_day, effective_from")
+      .order("effective_from", { ascending: false })
+      .limit(5),
+    supabase.from("withholding_tax_table").select("year"),
+  ]);
+
+  const yearCounts = new Map<number, number>();
+  for (const r of taxYears ?? []) {
+    yearCounts.set(r.year, (yearCounts.get(r.year) ?? 0) + 1);
+  }
 
   return (
     <div className="space-y-8">
@@ -21,6 +29,9 @@ export default async function SettingsPage() {
         </p>
       </div>
       <LunchAllowanceForm history={allowances ?? []} />
+      <TaxTableForm
+        years={[...yearCounts.entries()].sort((a, b) => b[0] - a[0])}
+      />
     </div>
   );
 }

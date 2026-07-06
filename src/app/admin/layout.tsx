@@ -40,6 +40,12 @@ export default async function AdminLayout({
                 締め処理
               </Link>
               <Link
+                href="/admin/notices"
+                className="text-gray-600 hover:text-gray-900"
+              >
+                連絡
+              </Link>
+              <Link
                 href="/admin/settings"
                 className="text-gray-600 hover:text-gray-900"
               >
