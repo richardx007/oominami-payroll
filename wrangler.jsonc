@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "oominami-payroll",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://zvrwkmriosaldjqpxdwi.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_57jbknnlco87_n8QxQHjxA_X-RvOUp1"
+  },
+  // Supabase 無料プロジェクトの休止対策: 毎日1回 ping
+  "triggers": {
+    "crons": ["0 0 * * *"]
+  }
+}
