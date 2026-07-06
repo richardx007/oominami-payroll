@@ -73,8 +73,8 @@ export default async function ClosePage({
       <CloseActions periodKey={period.key} status={status} />
 
       <section className="rounded-xl border border-gray-200 bg-white">
-        <div className="border-b border-gray-100 p-4">
-          <h2 className="font-semibold">
+        <div className="rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
+          <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
             {status === "open" ? "給与計算プレビュー" : "確定明細"}
           </h2>
           <p className="mt-1 text-sm text-gray-500">
@@ -86,7 +86,7 @@ export default async function ClosePage({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+              <tr className="border-b border-blue-100 bg-blue-50/60 text-left text-xs text-gray-600">
                 <th className="px-4 py-2">No</th>
                 <th className="px-4 py-2">氏名</th>
                 <th className="px-4 py-2 text-right">日数</th>

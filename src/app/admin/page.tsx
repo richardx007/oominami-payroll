@@ -108,7 +108,7 @@ export default async function AdminDashboardPage({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+              <tr className="border-b border-blue-100 bg-blue-50/60 text-left text-xs text-gray-600">
                 <th className="px-4 py-2">No</th>
                 <th className="px-4 py-2">氏名</th>
                 <th className="px-4 py-2 text-right">勤務日数</th>

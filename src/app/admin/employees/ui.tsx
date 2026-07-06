@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import type { EmployeeRow } from "./page";
 import {
   addEmployee,
+  inviteEmployee,
   updateWage,
   updateTaxSetting,
   toggleEmployeeStatus,
@@ -42,7 +43,7 @@ export function AddEmployeeForm() {
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold">新規登録</h2>
+        <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">新規登録</h2>
         <button
           onClick={() => setOpen(!open)}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -138,8 +139,8 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white">
-      <div className="border-b border-gray-100 p-4">
-        <h2 className="font-semibold">雇用者一覧</h2>
+      <div className="rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
+        <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">雇用者一覧</h2>
         {result && (
           <p
             className={`mt-1 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
@@ -151,7 +152,7 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+            <tr className="border-b border-blue-100 bg-blue-50/60 text-left text-xs text-gray-600">
               <th className="px-4 py-2">No</th>
               <th className="px-4 py-2">氏名</th>
               <th className="hidden px-4 py-2 md:table-cell">メール</th>
@@ -240,12 +241,28 @@ function EmployeeTableRow({
         </td>
         <td className="px-4 py-3">{retired ? "退職" : "在籍"}</td>
         <td className="px-4 py-3 text-right">
-          <button
-            onClick={onEdit}
-            className="text-blue-600 hover:underline"
-          >
-            {editing ? "閉じる" : "編集"}
-          </button>
+          <div className="flex items-center justify-end gap-3 whitespace-nowrap">
+            {!emp.auth_user_id && !retired && (
+              <button
+                disabled={pending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `${emp.name} さん(${emp.email})に初回登録の招待メールを送信します。よろしいですか?`
+                    )
+                  ) {
+                    onRun(() => inviteEmployee(emp.id));
+                  }
+                }}
+                className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+              >
+                招待
+              </button>
+            )}
+            <button onClick={onEdit} className="text-blue-600 hover:underline">
+              {editing ? "閉じる" : "編集"}
+            </button>
+          </div>
         </td>
       </tr>
       {editing && (

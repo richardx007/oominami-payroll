@@ -35,7 +35,7 @@ export function NoticeForm({
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="font-semibold">新規送信</h2>
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">新規送信</h2>
       <form
         ref={formRef}
         action={(fd) =>
