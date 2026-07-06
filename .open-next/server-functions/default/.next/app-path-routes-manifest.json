@@ -1,0 +1,18 @@
+{
+  "/(employee)/notices/page": "/notices",
+  "/(employee)/payslips/page": "/payslips",
+  "/(employee)/timesheet/page": "/timesheet",
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/admin/close/page": "/admin/close",
+  "/admin/employees/page": "/admin/employees",
+  "/admin/notices/page": "/admin/notices",
+  "/admin/page": "/admin",
+  "/admin/report/page": "/admin/report",
+  "/admin/settings/page": "/admin/settings",
+  "/auth/callback/route": "/auth/callback",
+  "/favicon.ico/route": "/favicon.ico",
+  "/login/page": "/login",
+  "/page": "/",
+  "/register/page": "/register"
+}

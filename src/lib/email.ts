@@ -1,5 +1,7 @@
+import { smtpSendMail } from "./smtp";
+
 /**
- * メール送信(Gmail SMTP / worker-mailer)
+ * メール送信(Gmail SMTP)
  *
  * Cloudflare Workers 上で Gmail の SMTP(smtp.gmail.com:465)を使う。
  * 必要な環境変数(Workers の Secrets に設定):
@@ -28,27 +30,22 @@ export async function sendMail(params: {
   }
 
   try {
-    const { WorkerMailer } = await import("worker-mailer");
-    const mailer = await WorkerMailer.connect({
+    await smtpSendMail({
       host: "smtp.gmail.com",
       port: 465,
-      secure: true,
-      authType: "plain",
-      credentials: { username: user, password },
-    });
-    await mailer.send({
-      from: { name: "給与管理システム", email: user },
+      username: user,
+      password,
+      fromName: "給与管理システム",
       to: params.to,
       subject: params.subject,
       text: params.text,
     });
-    await mailer.close();
     return { ok: true, message: "送信しました" };
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     return {
       ok: false,
-      message: `メール送信に失敗しました(${detail.includes("cloudflare") ? "ローカル環境では送信できません" : detail})`,
+      message: `メール送信に失敗しました(${detail.includes("cloudflare") ? "本番環境(Cloudflare)でのみ送信できます" : detail})`,
     };
   }
 }

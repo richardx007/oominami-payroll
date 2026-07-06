@@ -1,0 +1,240 @@
+{
+  "node": {
+    "005990080ae9f1cca4419282f74b8f348aad5bcbe2": {
+      "workers": {
+        "app/(employee)/notices/page": {
+          "moduleId": 23550,
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "src/app/(employee)/layout.tsx"
+        },
+        "app/(employee)/payslips/page": {
+          "moduleId": 39206,
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "src/app/(employee)/layout.tsx"
+        },
+        "app/(employee)/timesheet/page": {
+          "moduleId": 81688,
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "src/app/(employee)/layout.tsx"
+        }
+      },
+      "filename": "src/app/(employee)/layout.tsx",
+      "exportedName": "$$RSC_SERVER_ACTION_0"
+    },
+    "408fc103f1e649d2348e34ceef96fd2f57b3844888": {
+      "workers": {
+        "app/(employee)/timesheet/page": {
+          "moduleId": 81688,
+          "async": false,
+          "exportedName": "upsertWorkEntry",
+          "filename": "src/app/(employee)/timesheet/actions.ts"
+        }
+      },
+      "filename": "src/app/(employee)/timesheet/actions.ts",
+      "exportedName": "upsertWorkEntry"
+    },
+    "4053e54210a998044e09e5b4aacde855801f0da071": {
+      "workers": {
+        "app/(employee)/timesheet/page": {
+          "moduleId": 81688,
+          "async": false,
+          "exportedName": "deleteWorkEntry",
+          "filename": "src/app/(employee)/timesheet/actions.ts"
+        }
+      },
+      "filename": "src/app/(employee)/timesheet/actions.ts",
+      "exportedName": "deleteWorkEntry"
+    },
+    "000e09bc573ec216d06d2bbc9bd4081de9c9a0d8b9": {
+      "workers": {
+        "app/admin/close/page": {
+          "moduleId": 16866,
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "src/app/admin/layout.tsx"
+        },
+        "app/admin/employees/page": {
+          "moduleId": 88790,
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "src/app/admin/layout.tsx"
+        },
+        "app/admin/notices/page": {
+          "moduleId": 97993,
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "src/app/admin/layout.tsx"
+        },
+        "app/admin/page": {
+          "moduleId": 18146,
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "src/app/admin/layout.tsx"
+        },
+        "app/admin/report/page": {
+          "moduleId": 37274,
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "src/app/admin/layout.tsx"
+        },
+        "app/admin/settings/page": {
+          "moduleId": 17559,
+          "async": false,
+          "exportedName": "$$RSC_SERVER_ACTION_0",
+          "filename": "src/app/admin/layout.tsx"
+        }
+      },
+      "filename": "src/app/admin/layout.tsx",
+      "exportedName": "$$RSC_SERVER_ACTION_0"
+    },
+    "4008ce676ebb812d7e2710bc89236d13321155dc2c": {
+      "workers": {
+        "app/admin/close/page": {
+          "moduleId": 16866,
+          "async": false,
+          "exportedName": "closePeriod",
+          "filename": "src/app/admin/close/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/close/actions.ts",
+      "exportedName": "closePeriod"
+    },
+    "60dcf69507384bf8c008ad5ec9c988235e3230235b": {
+      "workers": {
+        "app/admin/close/page": {
+          "moduleId": 16866,
+          "async": false,
+          "exportedName": "emailPayslips",
+          "filename": "src/app/admin/close/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/close/actions.ts",
+      "exportedName": "emailPayslips"
+    },
+    "404e48070a517d137a228031527e0e657b853572e7": {
+      "workers": {
+        "app/admin/close/page": {
+          "moduleId": 16866,
+          "async": false,
+          "exportedName": "markPaid",
+          "filename": "src/app/admin/close/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/close/actions.ts",
+      "exportedName": "markPaid"
+    },
+    "40e522181af9a49208ba19550523bce7232b840220": {
+      "workers": {
+        "app/admin/close/page": {
+          "moduleId": 16866,
+          "async": false,
+          "exportedName": "reopenPeriod",
+          "filename": "src/app/admin/close/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/close/actions.ts",
+      "exportedName": "reopenPeriod"
+    },
+    "409f45484d8a717dffa6ea461151b0d407df639bce": {
+      "workers": {
+        "app/admin/employees/page": {
+          "moduleId": 88790,
+          "async": false,
+          "exportedName": "addEmployee",
+          "filename": "src/app/admin/employees/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/employees/actions.ts",
+      "exportedName": "addEmployee"
+    },
+    "400ed19782716d3a81bd1922029909282eb373791f": {
+      "workers": {
+        "app/admin/employees/page": {
+          "moduleId": 88790,
+          "async": false,
+          "exportedName": "updateWage",
+          "filename": "src/app/admin/employees/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/employees/actions.ts",
+      "exportedName": "updateWage"
+    },
+    "4039ec75d9bee318ba4fc53e13da5ca6260d902aa2": {
+      "workers": {
+        "app/admin/employees/page": {
+          "moduleId": 88790,
+          "async": false,
+          "exportedName": "updateTaxSetting",
+          "filename": "src/app/admin/employees/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/employees/actions.ts",
+      "exportedName": "updateTaxSetting"
+    },
+    "604f3c43625b471bc300ff7f7d39212ce1cc841b1d": {
+      "workers": {
+        "app/admin/employees/page": {
+          "moduleId": 88790,
+          "async": false,
+          "exportedName": "toggleEmployeeStatus",
+          "filename": "src/app/admin/employees/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/employees/actions.ts",
+      "exportedName": "toggleEmployeeStatus"
+    },
+    "40ff315498975df1a0a03e76e267c7486d0f087f1a": {
+      "workers": {
+        "app/admin/notices/page": {
+          "moduleId": 97993,
+          "async": false,
+          "exportedName": "sendNotice",
+          "filename": "src/app/admin/notices/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/notices/actions.ts",
+      "exportedName": "sendNotice"
+    },
+    "40daa37b2df00279e82058efe3f077c39429df0f5a": {
+      "workers": {
+        "app/admin/report/page": {
+          "moduleId": 37274,
+          "async": false,
+          "exportedName": "sendTaxReport",
+          "filename": "src/app/admin/report/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/report/actions.ts",
+      "exportedName": "sendTaxReport"
+    },
+    "400f1aa8b4331a578e76b5e82cc21ff21241f84194": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 17559,
+          "async": false,
+          "exportedName": "importTaxTable",
+          "filename": "src/app/admin/settings/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/settings/actions.ts",
+      "exportedName": "importTaxTable"
+    },
+    "4016d020f4babe343ae3ff6359e1746500e81d00ad": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 17559,
+          "async": false,
+          "exportedName": "updateLunchAllowance",
+          "filename": "src/app/admin/settings/actions.ts"
+        }
+      },
+      "filename": "src/app/admin/settings/actions.ts",
+      "exportedName": "updateLunchAllowance"
+    }
+  },
+  "edge": {},
+  "encryptionKey": "U1B4tYN90JgwSfD0pu1cMjDmNDmereQNx1OXbdEfoOE="
+}

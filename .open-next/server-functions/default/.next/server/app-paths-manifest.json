@@ -1,0 +1,18 @@
+{
+  "/(employee)/notices/page": "app/(employee)/notices/page.js",
+  "/(employee)/payslips/page": "app/(employee)/payslips/page.js",
+  "/(employee)/timesheet/page": "app/(employee)/timesheet/page.js",
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin/close/page": "app/admin/close/page.js",
+  "/admin/employees/page": "app/admin/employees/page.js",
+  "/admin/notices/page": "app/admin/notices/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/admin/report/page": "app/admin/report/page.js",
+  "/admin/settings/page": "app/admin/settings/page.js",
+  "/auth/callback/route": "app/auth/callback/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/register/page": "app/register/page.js"
+}
