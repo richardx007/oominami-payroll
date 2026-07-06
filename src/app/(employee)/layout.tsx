@@ -20,18 +20,18 @@ export default async function EmployeeLayout({
 
   return (
     <div className="min-h-screen pb-20">
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white">
+      <header className="sticky top-0 z-10 bg-blue-700 text-white shadow-md">
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
-          <span className="font-bold">給与管理</span>
+          <span className="text-lg font-bold">給与管理</span>
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-gray-500">{employee.name}</span>
+            <span className="text-blue-100">{employee.name}</span>
             {employee.is_admin && (
-              <Link href="/admin" className="text-blue-600 hover:underline">
+              <Link href="/admin" className="text-blue-100 underline hover:text-white">
                 管理画面
               </Link>
             )}
             <form action={signOut}>
-              <button className="text-gray-500 hover:text-gray-900">
+              <button className="rounded-lg bg-blue-600 px-3 py-1 text-blue-50 hover:bg-blue-500">
                 ログアウト
               </button>
             </form>

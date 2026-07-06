@@ -17,7 +17,7 @@ export function LunchAllowanceForm({
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="font-semibold">昼食補助(勤務日数 × 定額)</h2>
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">昼食補助(勤務日数 × 定額)</h2>
       <form
         action={(fd) =>
           startTransition(async () => setResult(await updateLunchAllowance(fd)))
@@ -77,7 +77,7 @@ export function TaxTableForm({ years }: { years: [number, number][] }) {
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="font-semibold">源泉徴収税額表(月額表)</h2>
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">源泉徴収税額表(月額表)</h2>
       <p className="mt-1 text-sm text-gray-500">
         課税対象額が月88,000円以上の人がいる場合に必要です(88,000円未満は自動計算:
         乙欄3.063%・甲欄0円)。国税庁の月額表をもとに、1行1区分で貼り付けてください。

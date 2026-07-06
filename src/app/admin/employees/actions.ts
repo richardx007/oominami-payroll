@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
+import { sendMail } from "@/lib/email";
 
 const employeeSchema = z.object({
   employee_no: z.string().min(1, "雇用者Noを入力してください"),
@@ -138,6 +140,51 @@ export async function updateTaxSetting(
 
   revalidatePath("/admin/employees");
   return { ok: true, message: "税区分を更新しました" };
+}
+
+/** 未登録の雇用者に初回登録を依頼するメールを送る */
+export async function inviteEmployee(employeeId: string): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("name, email, auth_user_id, status")
+    .eq("id", employeeId)
+    .maybeSingle();
+
+  if (!employee) return { ok: false, message: "雇用者が見つかりません" };
+  if (employee.auth_user_id) {
+    return { ok: false, message: "すでに初回登録が完了しています" };
+  }
+  if (employee.status !== "active") {
+    return { ok: false, message: "退職済みの雇用者には送信できません" };
+  }
+
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const registerUrl = `https://${host}/register`;
+
+  const result = await sendMail({
+    to: employee.email,
+    subject: "【給与管理システム】初回登録のお願い",
+    text: [
+      `${employee.name} 様`,
+      "",
+      "勤務表の入力と給与明細の確認に使う「給与管理システム」の利用登録をお願いします。",
+      "",
+      "▼ 登録手順(スマホで1分で完了します)",
+      `1. 次のリンクを開く: ${registerUrl}`,
+      `2. このメールを受信したメールアドレス(${employee.email})を入力`,
+      "3. お好きなパスワード(8文字以上)を設定して「登録する」",
+      "4. 届いた確認メールのリンクをタップして完了",
+      "",
+      "登録後は同じページからログインして、勤務日・交通費をカレンダーで入力してください。",
+    ].join("\n"),
+  });
+
+  if (!result.ok) return result;
+  return { ok: true, message: `${employee.name} さんに招待メールを送信しました` };
 }
 
 export async function toggleEmployeeStatus(

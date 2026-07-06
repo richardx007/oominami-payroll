@@ -34,8 +34,8 @@ export default async function AdminNoticesPage() {
       <NoticeForm employees={employees ?? []} />
 
       <section className="rounded-xl border border-gray-200 bg-white">
-        <div className="border-b border-gray-100 p-4">
-          <h2 className="font-semibold">送信履歴</h2>
+        <div className="rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
+          <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">送信履歴</h2>
         </div>
         <ul className="divide-y divide-gray-50">
           {(notices ?? []).map((n) => {
