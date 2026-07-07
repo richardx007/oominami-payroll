@@ -1,11 +1,102 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { importTaxTable, updateLunchAllowance } from "./actions";
+import {
+  importTaxTable,
+  updateEmailSettings,
+  updateLunchAllowance,
+} from "./actions";
 import type { ActionResult } from "../employees/actions";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+export function EmailSettingsForm({
+  companyName,
+  gmailUser,
+  taxEmail,
+}: {
+  companyName: string;
+  gmailUser: string;
+  taxEmail: string;
+}) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
+        メール設定
+      </h2>
+      <p className="mt-1 text-sm text-gray-500">
+        給与明細や連絡メールの送信元・宛先を設定します。パスワード(アプリパスワード)のみ、
+        安全のためシステム管理者がサーバー側で管理します。
+      </p>
+      <form
+        action={(fd) =>
+          startTransition(async () => setResult(await updateEmailSettings(fd)))
+        }
+        className="mt-4 max-w-lg space-y-4"
+      >
+        <div>
+          <label className="mb-1 block text-sm font-medium">会社名・事業者名</label>
+          <input
+            name="company_name"
+            defaultValue={companyName}
+            placeholder="例: 大波株式会社"
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            メールの差出人名に使われます(未入力なら「給与管理システム」)
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            送信元メールアドレス(Gmail)
+          </label>
+          <input
+            name="gmail_user"
+            type="email"
+            defaultValue={gmailUser}
+            placeholder="例: oominami2026@gmail.com"
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            このGmailアカウントのアプリパスワードがサーバー側に設定されている必要があります
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            税理士のメールアドレス
+          </label>
+          <input
+            name="tax_accountant_email"
+            type="email"
+            defaultValue={taxEmail}
+            placeholder="例: zeirishi@example.com"
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            「税理士資料」画面からの送付先に使われます
+          </p>
+        </div>
+        {result && (
+          <p
+            className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
+          >
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
+    </section>
+  );
+}
 
 export function LunchAllowanceForm({
   history,

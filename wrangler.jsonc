@@ -10,13 +10,9 @@
   },
   "vars": {
     "NEXT_PUBLIC_SUPABASE_URL": "https://zvrwkmriosaldjqpxdwi.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_57jbknnlco87_n8QxQHjxA_X-RvOUp1",
-    // 送信元Gmail(秘密情報ではないためコードに固定。変更する場合はここを書き換える)
-    "GMAIL_USER": "oominami2026@gmail.com",
-    // 税理士の送付先(秘密情報ではないためコードに固定。変更する場合はここを書き換える)
-    "TAX_ACCOUNTANT_EMAIL": "newrich.western@gmail.com"
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_57jbknnlco87_n8QxQHjxA_X-RvOUp1"
   }
+  // 送信元Gmail・税理士アドレス・会社名は管理画面の「設定」から変更する(DB: app_settings に保存)。
   // GMAIL_APP_PASSWORD(アプリパスワード)のみ秘密情報のため、
   // Cloudflareダッシュボードで「Secret(暗号化)」として登録すること。
-  // Secretはデプロイをまたいで保持される(Plaintext変数はビルドで消えるため使わない)。
 }

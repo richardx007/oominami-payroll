@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { periodFromKey } from "@/lib/period";
-import { sendMail } from "@/lib/email";
+import { getTaxEmail, sendMail } from "@/lib/email";
 import type { ActionResult } from "../employees/actions";
 
 /** 税理士宛てに給与支給一覧(テキスト)をメール送信する */
@@ -13,12 +13,12 @@ export async function sendTaxReport(periodKey: string): Promise<ActionResult> {
   const period = periodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
-  const to = process.env.TAX_ACCOUNTANT_EMAIL;
+  const to = await getTaxEmail();
   if (!to) {
     return {
       ok: false,
       message:
-        "税理士のメールアドレスが未設定です(TAX_ACCOUNTANT_EMAIL を設定してください)",
+        "税理士のメールアドレスが未設定です(設定画面で登録してください)",
     };
   }
 

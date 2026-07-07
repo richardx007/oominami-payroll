@@ -6,6 +6,42 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import type { ActionResult } from "../employees/actions";
 
+const emailSettingsSchema = z.object({
+  company_name: z.string().max(100),
+  gmail_user: z.union([z.literal(""), z.email("送信元メールの形式が正しくありません")]),
+  tax_accountant_email: z.union([
+    z.literal(""),
+    z.email("税理士メールの形式が正しくありません"),
+  ]),
+});
+
+export async function updateEmailSettings(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = emailSettingsSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const rows = [
+    { key: "company_name", value: d.company_name.trim() },
+    { key: "gmail_user", value: d.gmail_user.trim() },
+    { key: "tax_accountant_email", value: d.tax_accountant_email.trim() },
+  ];
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(rows, { onConflict: "key" });
+
+  if (error) return { ok: false, message: "更新に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "メール設定を更新しました" };
+}
+
 const allowanceSchema = z.object({
   lunch_allowance_per_day: z.coerce.number().int().min(0, "0以上で入力してください"),
   effective_from: z.string().min(1, "適用開始日を入力してください"),

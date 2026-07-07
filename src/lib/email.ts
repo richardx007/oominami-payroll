@@ -1,31 +1,69 @@
 import { smtpSendMail } from "./smtp";
+import { createClient } from "./supabase/server";
 
 /**
  * メール送信(Gmail SMTP)
  *
  * Cloudflare Workers 上で Gmail の SMTP(smtp.gmail.com:465)を使う。
- * 必要な環境変数(Workers の Secrets に設定):
- * - GMAIL_USER: 送信元 Gmail アドレス
- * - GMAIL_APP_PASSWORD: Google アカウントの「アプリパスワード」(2段階認証が必要)
- *
- * 未設定の場合やローカル開発時は送信せずエラーメッセージを返す(アプリ内通知は動く)。
+ * - 送信元アドレス・税理士アドレス・会社名は app_settings(DB)から取得(管理画面で変更可)
+ *   DB が空の場合は環境変数(GMAIL_USER / TAX_ACCOUNTANT_EMAIL)をフォールバックに使う
+ * - GMAIL_APP_PASSWORD(アプリパスワード)のみ環境変数(Secret)で管理
  */
 
 export type MailResult = { ok: boolean; message: string };
+
+/** app_settings から値を取得(管理者コンテキストで呼ばれる前提) */
+async function getSetting(key: string): Promise<string | null> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", key)
+      .maybeSingle();
+    const v = data?.value?.trim();
+    return v ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 送信元Gmailアドレス(DB → 環境変数の順) */
+export async function getSenderEmail(): Promise<string | null> {
+  return (await getSetting("gmail_user")) || process.env.GMAIL_USER || null;
+}
+
+/** 税理士の送付先アドレス(DB → 環境変数の順) */
+export async function getTaxEmail(): Promise<string | null> {
+  return (
+    (await getSetting("tax_accountant_email")) ||
+    process.env.TAX_ACCOUNTANT_EMAIL ||
+    null
+  );
+}
+
+/** 会社名(メール差出人名・帳票見出しに使用) */
+export async function getCompanyName(): Promise<string> {
+  return (await getSetting("company_name")) || "給与管理システム";
+}
 
 export async function sendMail(params: {
   to: string;
   subject: string;
   text: string;
 }): Promise<MailResult> {
-  const user = process.env.GMAIL_USER;
+  const [user, fromName] = await Promise.all([
+    getSenderEmail(),
+    getCompanyName(),
+  ]);
   const password = process.env.GMAIL_APP_PASSWORD;
 
   if (!user || !password) {
     return {
       ok: false,
-      message:
-        "メール未設定(GMAIL_USER / GMAIL_APP_PASSWORD を設定してください)",
+      message: !user
+        ? "送信元Gmailが未設定です(設定画面で登録してください)"
+        : "アプリパスワードが未設定です(CloudflareでGMAIL_APP_PASSWORDをSecret登録してください)",
     };
   }
 
@@ -35,7 +73,7 @@ export async function sendMail(params: {
       port: 465,
       username: user,
       password,
-      fromName: "給与管理システム",
+      fromName,
       to: params.to,
       subject: params.subject,
       text: params.text,
