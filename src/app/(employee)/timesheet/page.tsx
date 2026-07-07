@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
-import { currentPeriod, periodFromKey } from "@/lib/period";
+import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
+import { fetchJapaneseHolidays } from "@/lib/holidays";
 import { TimesheetCalendar } from "./ui";
 
 export type WorkEntry = {
@@ -71,12 +72,20 @@ export default async function TimesheetPage({
     if (e.station_to) stationSet.add(e.station_to);
   }
 
+  // 期間がまたぐ年の祝日を取得
+  const years = Array.from(
+    new Set([Number(period.start.slice(0, 4)), Number(period.end.slice(0, 4))])
+  );
+  const holidays = await fetchJapaneseHolidays(years);
+
   return (
     <TimesheetCalendar
       period={period}
       entries={normalized as WorkEntry[]}
       closed={!!closedPeriod}
       stations={[...stationSet].sort()}
+      holidays={holidays}
+      today={todayJST()}
     />
   );
 }

@@ -93,10 +93,59 @@ export async function sendTaxReport(periodKey: string): Promise<ActionResult> {
     "(単位: 円。給与管理システムより自動送信)",
   ];
 
+  // CSV(Excelで文字化けしないよう先頭にBOMを付与)
+  const csvHeader = [
+    "従業員No",
+    "氏名",
+    "勤務日数",
+    "基本給",
+    "交通費",
+    "昼食補助",
+    "総支給額",
+    "源泉所得税",
+    "差引支給額",
+    "税区分",
+  ].join(",");
+  const csvBody = rows.map((r) =>
+    [
+      r.emp.employee_no,
+      `"${r.emp.name.replace(/"/g, '""')}"`,
+      r.work_days,
+      r.base_pay,
+      r.transport_total,
+      r.lunch_total,
+      r.gross_pay,
+      r.income_tax,
+      r.net_pay,
+      r.tax_category === "kou" ? "甲" : "乙",
+    ].join(",")
+  );
+  const csvTotal = [
+    "合計",
+    `"${rows.length}名"`,
+    "",
+    "",
+    "",
+    "",
+    totals.gross,
+    totals.tax,
+    totals.net,
+    "",
+  ].join(",");
+  const csv =
+    "﻿" + [csvHeader, ...csvBody, csvTotal].join("\r\n") + "\r\n";
+
   const result = await sendMail({
     to,
     subject: `【給与支給一覧】${payPeriod.period_label}`,
     text: lines.join("\n"),
+    attachments: [
+      {
+        filename: `payroll_${period.key}.csv`,
+        content: csv,
+        contentType: "text/csv",
+      },
+    ],
   });
 
   if (!result.ok) return result;

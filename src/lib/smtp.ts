@@ -48,6 +48,12 @@ function wrap76(s: string): string {
 
 class SmtpError extends Error {}
 
+export type MailAttachment = {
+  filename: string; // ASCII推奨
+  content: string; // テキスト内容(UTF-8)
+  contentType: string; // 例: "text/csv"
+};
+
 export async function smtpSendMail(params: {
   host: string;
   port: number;
@@ -57,6 +63,7 @@ export async function smtpSendMail(params: {
   to: string;
   subject: string;
   text: string;
+  attachments?: MailAttachment[];
 }): Promise<void> {
   const socket = await connectTls(params.host, params.port);
   const writer = socket.writable.getWriter();
@@ -103,18 +110,60 @@ export async function smtpSendMail(params: {
 
     const domain = params.username.split("@")[1] ?? "localhost";
     const messageId = `<${crypto.randomUUID()}@${domain}>`;
-    const headers = [
-      `From: ${mimeWord(params.fromName)} <${params.username}>`,
-      `To: <${params.to}>`,
-      `Subject: ${mimeWord(params.subject)}`,
-      `Message-ID: ${messageId}`,
-      "MIME-Version: 1.0",
-      'Content-Type: text/plain; charset="UTF-8"',
-      "Content-Transfer-Encoding: base64",
-      `Date: ${new Date().toUTCString()}`,
-    ];
-    const body = wrap76(b64(params.text));
-    await send(headers.join("\r\n") + "\r\n\r\n" + body + "\r\n.");
+    const attachments = params.attachments ?? [];
+
+    let message: string;
+    if (attachments.length === 0) {
+      // 添付なし: シンプルな text/plain
+      const headers = [
+        `From: ${mimeWord(params.fromName)} <${params.username}>`,
+        `To: <${params.to}>`,
+        `Subject: ${mimeWord(params.subject)}`,
+        `Message-ID: ${messageId}`,
+        "MIME-Version: 1.0",
+        'Content-Type: text/plain; charset="UTF-8"',
+        "Content-Transfer-Encoding: base64",
+        `Date: ${new Date().toUTCString()}`,
+      ];
+      message = headers.join("\r\n") + "\r\n\r\n" + wrap76(b64(params.text));
+    } else {
+      // 添付あり: multipart/mixed
+      const boundary = `b_${crypto.randomUUID().replace(/-/g, "")}`;
+      const headers = [
+        `From: ${mimeWord(params.fromName)} <${params.username}>`,
+        `To: <${params.to}>`,
+        `Subject: ${mimeWord(params.subject)}`,
+        `Message-ID: ${messageId}`,
+        "MIME-Version: 1.0",
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        `Date: ${new Date().toUTCString()}`,
+      ];
+      const parts: string[] = [];
+      // 本文パート
+      parts.push(
+        `--${boundary}\r\n` +
+          'Content-Type: text/plain; charset="UTF-8"\r\n' +
+          "Content-Transfer-Encoding: base64\r\n\r\n" +
+          wrap76(b64(params.text))
+      );
+      // 添付パート
+      for (const att of attachments) {
+        parts.push(
+          `--${boundary}\r\n` +
+            `Content-Type: ${att.contentType}; charset="UTF-8"; name="${att.filename}"\r\n` +
+            "Content-Transfer-Encoding: base64\r\n" +
+            `Content-Disposition: attachment; filename="${att.filename}"\r\n\r\n` +
+            wrap76(b64(att.content))
+        );
+      }
+      message =
+        headers.join("\r\n") +
+        "\r\n\r\n" +
+        parts.join("\r\n") +
+        `\r\n--${boundary}--`;
+    }
+
+    await send(message + "\r\n.");
     await expect([250]);
     await send("QUIT");
   } finally {

@@ -27,7 +27,7 @@ export default async function PayslipsPage() {
   const rows = (payslips ?? []) as Slip[];
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-lg space-y-4">
       <h1 className="text-lg font-bold">給与明細</h1>
       {rows.length === 0 && (
         <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">

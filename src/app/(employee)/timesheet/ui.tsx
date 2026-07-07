@@ -24,11 +24,15 @@ export function TimesheetCalendar({
   entries,
   closed,
   stations,
+  holidays,
+  today,
 }: {
   period: Period;
   entries: WorkEntry[];
   closed: boolean;
   stations: string[];
+  holidays: Record<string, string>;
+  today: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -99,146 +103,165 @@ export function TimesheetCalendar({
   }
 
   return (
-    <div className="space-y-4">
-      {/* 期間ナビ(月を大きく目立たせる) */}
-      <div className="flex items-center justify-between gap-2">
-        <button
-          onClick={() =>
-            router.push(`/timesheet?p=${adjacentPeriodKey(period.key, -1)}`)
-          }
-          aria-label="前月"
-          className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
-        >
-          ←
-        </button>
-        <div className="text-center">
-          <div className="text-3xl font-extrabold tracking-tight text-blue-800">
-            {period.label}
+    <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start">
+      {/* 左カラム: 期間ナビ・サマリ・カレンダー */}
+      <div className="space-y-4">
+        {/* 期間ナビ(月を大きく目立たせる) */}
+        <div className="flex items-center justify-between gap-2">
+          <button
+            onClick={() =>
+              router.push(`/timesheet?p=${adjacentPeriodKey(period.key, -1)}`)
+            }
+            aria-label="前月"
+            className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
+          >
+            ←
+          </button>
+          <div className="text-center">
+            <div className="text-3xl font-extrabold tracking-tight text-blue-800">
+              {period.label}
+            </div>
+            <div className="mt-0.5 text-xs text-gray-500">
+              {period.start.replaceAll("-", "/")} 〜{" "}
+              {period.end.replaceAll("-", "/")}
+            </div>
           </div>
-          <div className="mt-0.5 text-xs text-gray-500">
-            {period.start.replaceAll("-", "/")} 〜{" "}
-            {period.end.replaceAll("-", "/")}
+          <button
+            onClick={() =>
+              router.push(`/timesheet?p=${adjacentPeriodKey(period.key, 1)}`)
+            }
+            aria-label="翌月"
+            className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
+          >
+            →
+          </button>
+        </div>
+
+        {closed && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            この期間は締め済みのため入力・修正できません
+          </p>
+        )}
+
+        {/* サマリ */}
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="text-xs text-gray-500">勤務日数</div>
+            <div className="text-lg font-bold">{summary.days}日</div>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="text-xs text-gray-500">勤務時間</div>
+            <div className="text-lg font-bold">
+              {formatMinutes(summary.minutes) || "0時間"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="text-xs text-gray-500">交通費</div>
+            <div className="text-lg font-bold">
+              ¥{summary.transport.toLocaleString()}
+            </div>
           </div>
         </div>
-        <button
-          onClick={() =>
-            router.push(`/timesheet?p=${adjacentPeriodKey(period.key, 1)}`)
-          }
-          aria-label="翌月"
-          className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
-        >
-          →
-        </button>
-      </div>
 
-      {closed && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          この期間は締め済みのため入力・修正できません
-        </p>
-      )}
+        {result && !result.ok && (
+          <p className="text-sm text-red-600">{result.message}</p>
+        )}
 
-      {/* サマリ */}
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl border border-gray-200 bg-white p-3">
-          <div className="text-xs text-gray-500">勤務日数</div>
-          <div className="text-lg font-bold">{summary.days}日</div>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-3">
-          <div className="text-xs text-gray-500">勤務時間</div>
-          <div className="text-lg font-bold">
-            {formatMinutes(summary.minutes) || "0時間"}
+        {/* カレンダー */}
+        <div className="rounded-xl border border-gray-200 bg-white p-2">
+          <div className="grid grid-cols-7 text-center text-xs text-gray-500">
+            {WEEKDAYS.map((w, i) => (
+              <div
+                key={w}
+                className={`py-1 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
+              >
+                {w}
+              </div>
+            ))}
           </div>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-3">
-          <div className="text-xs text-gray-500">交通費</div>
-          <div className="text-lg font-bold">
-            ¥{summary.transport.toLocaleString()}
-          </div>
-        </div>
-      </div>
-
-      {result && !result.ok && (
-        <p className="text-sm text-red-600">{result.message}</p>
-      )}
-
-      {/* カレンダー */}
-      <div className="rounded-xl border border-gray-200 bg-white p-2">
-        <div className="grid grid-cols-7 text-center text-xs text-gray-500">
-          {WEEKDAYS.map((w, i) => (
-            <div
-              key={w}
-              className={`py-1 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
-            >
-              {w}
+          {weeks.map((week, wi) => (
+            <div key={wi} className="grid grid-cols-7">
+              {week.map((date, di) => {
+                if (!date) return <div key={di} />;
+                const entry = entryMap.get(date);
+                const day = Number(date.slice(8, 10));
+                const isSelected = selected === date;
+                const isToday = date === today;
+                const isHoliday = !!holidays[date];
+                // 文字色: 選択中は白、それ以外は 祝日/日曜=赤、土曜=青
+                const textColor = isSelected
+                  ? ""
+                  : isHoliday || di === 0
+                    ? "text-red-500"
+                    : di === 6
+                      ? "text-blue-500"
+                      : "";
+                return (
+                  <button
+                    key={date}
+                    onClick={() => {
+                      setResult(null);
+                      setSelected(isSelected ? null : date);
+                    }}
+                    title={holidays[date] ?? undefined}
+                    className={`m-0.5 flex min-h-14 flex-col items-center rounded-lg p-1 text-sm transition ${
+                      isSelected
+                        ? "bg-blue-600 text-white"
+                        : entry
+                          ? "bg-blue-50 text-blue-900"
+                          : isToday
+                            ? "bg-gray-200"
+                            : "hover:bg-gray-50"
+                    } ${isToday && !isSelected ? "ring-2 ring-gray-400" : ""}`}
+                  >
+                    <span className={textColor}>{day}</span>
+                    {entry && (
+                      <span
+                        className={`mt-0.5 text-[10px] leading-tight ${isSelected ? "text-blue-100" : "text-blue-700"}`}
+                      >
+                        {entry.start_time}
+                        <br />
+                        {entry.end_time}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           ))}
         </div>
-        {weeks.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7">
-            {week.map((date, di) => {
-              if (!date) return <div key={di} />;
-              const entry = entryMap.get(date);
-              const day = Number(date.slice(8, 10));
-              const isSelected = selected === date;
-              return (
-                <button
-                  key={date}
-                  onClick={() => {
-                    setResult(null);
-                    setSelected(isSelected ? null : date);
-                  }}
-                  className={`m-0.5 flex min-h-14 flex-col items-center rounded-lg p-1 text-sm transition ${
-                    isSelected
-                      ? "bg-blue-600 text-white"
-                      : entry
-                        ? "bg-blue-50 text-blue-900"
-                        : "hover:bg-gray-50"
-                  }`}
-                >
-                  <span
-                    className={`${di === 0 && !isSelected ? "text-red-500" : ""} ${di === 6 && !isSelected ? "text-blue-500" : ""}`}
-                  >
-                    {day}
-                  </span>
-                  {entry && (
-                    <span
-                      className={`mt-0.5 text-[10px] leading-tight ${isSelected ? "text-blue-100" : "text-blue-700"}`}
-                    >
-                      {entry.start_time}
-                      <br />
-                      {entry.end_time}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ))}
       </div>
 
-      {/* 入力フォーム */}
-      {selected && !closed && (
-        <EntryForm
-          key={selected}
-          date={selected}
-          entry={selectedEntry}
-          defaults={lastEntry}
-          pending={pending}
-          stations={stations}
-          onSave={save}
-          onDelete={remove}
-        />
-      )}
-      {selected && closed && selectedEntry && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm">
-          <h3 className="font-semibold">{formatDateJa(selected)}</h3>
-          <p className="mt-2 text-gray-600">
-            {selectedEntry.start_time}〜{selectedEntry.end_time}(休憩
-            {selectedEntry.break_minutes}分)/ 交通費 ¥
-            {selectedEntry.transport_cost.toLocaleString()}
-          </p>
-        </div>
-      )}
+      {/* 右カラム: 入力フォーム(PC/iPadでは右、スマホでは下) */}
+      <div className="lg:sticky lg:top-20">
+        {selected && !closed && (
+          <EntryForm
+            key={selected}
+            date={selected}
+            entry={selectedEntry}
+            defaults={lastEntry}
+            pending={pending}
+            stations={stations}
+            onSave={save}
+            onDelete={remove}
+          />
+        )}
+        {selected && closed && selectedEntry && (
+          <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm">
+            <h3 className="font-semibold">{formatDateJa(selected)}</h3>
+            <p className="mt-2 text-gray-600">
+              {selectedEntry.start_time}〜{selectedEntry.end_time}(休憩
+              {selectedEntry.break_minutes}分)/ 交通費 ¥
+              {selectedEntry.transport_cost.toLocaleString()}
+            </p>
+          </div>
+        )}
+        {!selected && (
+          <div className="hidden rounded-xl border border-dashed border-gray-300 bg-white/50 p-8 text-center text-sm text-gray-400 lg:block">
+            カレンダーの日付を選ぶと、ここに入力欄が表示されます
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -283,7 +306,7 @@ function EntryForm({
               name="start_time"
               type="time"
               required
-              defaultValue={init?.start_time ?? "09:00"}
+              defaultValue={init?.start_time ?? "10:00"}
               className={inputClass}
             />
           </div>
@@ -295,7 +318,7 @@ function EntryForm({
               name="end_time"
               type="time"
               required
-              defaultValue={init?.end_time ?? "17:00"}
+              defaultValue={init?.end_time ?? "18:00"}
               className={inputClass}
             />
           </div>
@@ -347,6 +370,7 @@ function EntryForm({
                   type="number"
                   inputMode="numeric"
                   min={0}
+                  step={10}
                   required
                   defaultValue={init?.transport_cost ?? 0}
                   className={inputClass}
