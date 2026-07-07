@@ -38,7 +38,9 @@ export default async function EmployeeLayout({
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-lg px-3 py-4">{children}</main>
+      <main className="mx-auto w-full max-w-lg px-3 py-4 lg:max-w-5xl">
+        {children}
+      </main>
       <EmployeeNav />
     </div>
   );

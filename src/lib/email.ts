@@ -1,4 +1,4 @@
-import { smtpSendMail } from "./smtp";
+import { smtpSendMail, type MailAttachment } from "./smtp";
 import { createClient } from "./supabase/server";
 
 /**
@@ -51,6 +51,7 @@ export async function sendMail(params: {
   to: string;
   subject: string;
   text: string;
+  attachments?: MailAttachment[];
 }): Promise<MailResult> {
   const [user, fromName] = await Promise.all([
     getSenderEmail(),
@@ -77,6 +78,7 @@ export async function sendMail(params: {
       to: params.to,
       subject: params.subject,
       text: params.text,
+      attachments: params.attachments,
     });
     return { ok: true, message: "送信しました" };
   } catch (e) {

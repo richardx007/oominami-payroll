@@ -13,7 +13,7 @@ export default async function NoticesPage() {
     .limit(50);
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-lg space-y-4">
       <h1 className="text-lg font-bold">お知らせ</h1>
       {(notices ?? []).length === 0 && (
         <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
