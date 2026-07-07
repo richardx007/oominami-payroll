@@ -101,10 +101,13 @@ export async function smtpSendMail(params: {
     await send("DATA");
     await expect([354]);
 
+    const domain = params.username.split("@")[1] ?? "localhost";
+    const messageId = `<${crypto.randomUUID()}@${domain}>`;
     const headers = [
       `From: ${mimeWord(params.fromName)} <${params.username}>`,
       `To: <${params.to}>`,
       `Subject: ${mimeWord(params.subject)}`,
+      `Message-ID: ${messageId}`,
       "MIME-Version: 1.0",
       'Content-Type: text/plain; charset="UTF-8"',
       "Content-Transfer-Encoding: base64",
