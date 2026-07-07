@@ -9,7 +9,15 @@ export type WorkEntry = {
   end_time: string;
   break_minutes: number;
   transport_cost: number;
+  transport_mode: string | null;
+  station_from: string | null;
+  station_to: string | null;
+  round_trip: boolean;
   note: string | null;
+};
+
+export type TransportHistory = {
+  stations: string[]; // 過去に入力した駅名の候補
 };
 
 export default async function TimesheetPage({
@@ -23,24 +31,32 @@ export default async function TimesheetPage({
 
   const supabase = await createClient();
 
-  const [{ data: entries }, { data: closedPeriod }] = await Promise.all([
-    supabase
-      .from("work_entries")
-      .select(
-        "work_date, start_time, end_time, break_minutes, transport_cost, note"
-      )
-      .eq("employee_id", employee.id)
-      .gte("work_date", period.start)
-      .lte("work_date", period.end)
-      .order("work_date"),
-    supabase
-      .from("pay_periods")
-      .select("status")
-      .eq("start_date", period.start)
-      .eq("end_date", period.end)
-      .neq("status", "open")
-      .maybeSingle(),
-  ]);
+  const [{ data: entries }, { data: closedPeriod }, { data: pastEntries }] =
+    await Promise.all([
+      supabase
+        .from("work_entries")
+        .select(
+          "work_date, start_time, end_time, break_minutes, transport_cost, transport_mode, station_from, station_to, round_trip, note"
+        )
+        .eq("employee_id", employee.id)
+        .gte("work_date", period.start)
+        .lte("work_date", period.end)
+        .order("work_date"),
+      supabase
+        .from("pay_periods")
+        .select("status")
+        .eq("start_date", period.start)
+        .eq("end_date", period.end)
+        .neq("status", "open")
+        .maybeSingle(),
+      // 過去の交通費入力から駅名候補を集める(直近200件)
+      supabase
+        .from("work_entries")
+        .select("station_from, station_to")
+        .eq("employee_id", employee.id)
+        .order("work_date", { ascending: false })
+        .limit(200),
+    ]);
 
   // time型は "HH:MM:SS" で返るため "HH:MM" に整形
   const normalized = (entries ?? []).map((e) => ({
@@ -49,11 +65,18 @@ export default async function TimesheetPage({
     end_time: e.end_time.slice(0, 5),
   }));
 
+  const stationSet = new Set<string>();
+  for (const e of pastEntries ?? []) {
+    if (e.station_from) stationSet.add(e.station_from);
+    if (e.station_to) stationSet.add(e.station_to);
+  }
+
   return (
     <TimesheetCalendar
       period={period}
       entries={normalized as WorkEntry[]}
       closed={!!closedPeriod}
+      stations={[...stationSet].sort()}
     />
   );
 }
