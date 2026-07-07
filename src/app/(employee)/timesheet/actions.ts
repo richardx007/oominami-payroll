@@ -14,6 +14,10 @@ const entrySchema = z
     end_time: z.string().regex(/^\d{2}:\d{2}$/),
     break_minutes: z.coerce.number().int().min(0).max(600),
     transport_cost: z.coerce.number().int().min(0).max(100000),
+    transport_mode: z.string().max(20).optional(),
+    station_from: z.string().max(50).optional(),
+    station_to: z.string().max(50).optional(),
+    round_trip: z.string().optional(), // "on" or undefined(checkbox)
     note: z.string().max(200).optional(),
   })
   .refine((d) => d.end_time > d.start_time, {
@@ -40,6 +44,10 @@ export async function upsertWorkEntry(
       end_time: d.end_time,
       break_minutes: d.break_minutes,
       transport_cost: d.transport_cost,
+      transport_mode: d.transport_mode?.trim() || null,
+      station_from: d.station_from?.trim() || null,
+      station_to: d.station_to?.trim() || null,
+      round_trip: d.round_trip === "on",
       note: d.note || null,
     },
     { onConflict: "employee_id,work_date" }

@@ -15,16 +15,20 @@ import { upsertWorkEntry, deleteWorkEntry, type ActionResult } from "./actions";
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
 const inputClass =
-  "w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
 
 export function TimesheetCalendar({
   period,
   entries,
   closed,
+  stations,
 }: {
   period: Period;
   entries: WorkEntry[];
   closed: boolean;
+  stations: string[];
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -96,19 +100,22 @@ export function TimesheetCalendar({
 
   return (
     <div className="space-y-4">
-      {/* 期間ナビ */}
-      <div className="flex items-center justify-between">
+      {/* 期間ナビ(月を大きく目立たせる) */}
+      <div className="flex items-center justify-between gap-2">
         <button
           onClick={() =>
             router.push(`/timesheet?p=${adjacentPeriodKey(period.key, -1)}`)
           }
-          className="rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+          aria-label="前月"
+          className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
         >
-          ← 前月
+          ←
         </button>
         <div className="text-center">
-          <div className="font-bold">{period.label}</div>
-          <div className="text-xs text-gray-500">
+          <div className="text-3xl font-extrabold tracking-tight text-blue-800">
+            {period.label}
+          </div>
+          <div className="mt-0.5 text-xs text-gray-500">
             {period.start.replaceAll("-", "/")} 〜{" "}
             {period.end.replaceAll("-", "/")}
           </div>
@@ -117,9 +124,10 @@ export function TimesheetCalendar({
           onClick={() =>
             router.push(`/timesheet?p=${adjacentPeriodKey(period.key, 1)}`)
           }
-          className="rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+          aria-label="翌月"
+          className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
         >
-          翌月 →
+          →
         </button>
       </div>
 
@@ -216,6 +224,7 @@ export function TimesheetCalendar({
           entry={selectedEntry}
           defaults={lastEntry}
           pending={pending}
+          stations={stations}
           onSave={save}
           onDelete={remove}
         />
@@ -244,6 +253,7 @@ function EntryForm({
   entry,
   defaults,
   pending,
+  stations,
   onSave,
   onDelete,
 }: {
@@ -251,6 +261,7 @@ function EntryForm({
   entry: WorkEntry | undefined;
   defaults: WorkEntry | null;
   pending: boolean;
+  stations: string[];
   onSave: (fd: FormData) => void;
   onDelete: (date: string) => void;
 }) {
@@ -258,9 +269,11 @@ function EntryForm({
 
   return (
     <div className="rounded-xl border border-blue-200 bg-white p-4">
-      <h3 className="font-semibold">{formatDateJa(date)}</h3>
-      <form action={onSave} className="mt-3 space-y-3">
+      <h3 className="text-lg font-bold text-blue-800">{formatDateJa(date)}</h3>
+      <form action={onSave} className="mt-3 space-y-4">
         <input type="hidden" name="work_date" value={date} />
+
+        {/* 勤務時間 */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">
@@ -300,20 +313,107 @@ function EntryForm({
               className={inputClass}
             />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">
-              交通費(円)
-            </label>
-            <input
-              name="transport_cost"
-              type="number"
-              min={0}
-              required
-              defaultValue={init?.transport_cost ?? 0}
-              className={inputClass}
-            />
-          </div>
         </div>
+
+        {/* 交通費(1つの枠にまとめる) */}
+        <fieldset className="rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+          <legend className="px-1 text-sm font-semibold text-gray-700">
+            交通費
+          </legend>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  手段
+                </label>
+                <select
+                  name="transport_mode"
+                  defaultValue={init?.transport_mode ?? "鉄道"}
+                  className={inputClass}
+                >
+                  {TRANSPORT_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  金額(円)
+                </label>
+                <input
+                  name="transport_cost"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  required
+                  defaultValue={init?.transport_cost ?? 0}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  区間(駅1)
+                </label>
+                <input
+                  name="station_from"
+                  list="station-list"
+                  defaultValue={init?.station_from ?? ""}
+                  placeholder="例: 大波駅"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  区間(駅2)
+                </label>
+                <input
+                  name="station_to"
+                  list="station-list"
+                  defaultValue={init?.station_to ?? ""}
+                  placeholder="例: 新世界駅"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <datalist id="station-list">
+              {stations.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+            <div>
+              <span className="mb-1 block text-xs font-medium text-gray-500">
+                片道 / 往復
+              </span>
+              <div className="flex gap-4 text-sm">
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="round_trip"
+                    value="on"
+                    defaultChecked={init?.round_trip ?? true}
+                    className="h-4 w-4"
+                  />
+                  往復
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="round_trip"
+                    value="off"
+                    defaultChecked={init ? !init.round_trip : false}
+                    className="h-4 w-4"
+                  />
+                  片道
+                </label>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-500">
             メモ(任意)
@@ -324,6 +424,7 @@ function EntryForm({
             className={inputClass}
           />
         </div>
+
         <div className="flex gap-2">
           <button
             type="submit"
