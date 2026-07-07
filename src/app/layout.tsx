@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "給与管理システム",
-  description: "アルバイト勤務表・給与計算システム",
+  description: "アル従業員勤務表・給与計算システム",
 };
 
 export const viewport: Viewport = {

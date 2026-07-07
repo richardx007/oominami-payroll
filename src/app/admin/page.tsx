@@ -168,12 +168,12 @@ export default async function AdminDashboardPage({
                     colSpan={6}
                     className="px-4 py-8 text-center text-gray-400"
                   >
-                    バイトの雇用者が登録されていません。
+                    従業員の従業員が登録されていません。
                     <Link
                       href="/admin/employees"
                       className="ml-1 text-blue-600 hover:underline"
                     >
-                      雇用者管理
+                      従業員管理
                     </Link>
                     から登録してください。
                   </td>

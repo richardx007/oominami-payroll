@@ -56,7 +56,7 @@ export function CloseActions({
               onClick={() =>
                 run(
                   () => closePeriod(periodKey),
-                  "この期間を締めます。バイトの入力がロックされ、給与明細が確定されます。よろしいですか?"
+                  "この期間を締めます。従業員の入力がロックされ、給与明細が確定されます。よろしいですか?"
                 )
               }
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"

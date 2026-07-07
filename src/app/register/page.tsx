@@ -28,13 +28,13 @@ export default function RegisterPage() {
     setLoading(true);
     const supabase = createClient();
 
-    // 雇用者として登録済みのメールアドレスのみ受け付ける
+    // 従業員として登録済みのメールアドレスのみ受け付ける
     const { data: registered } = await supabase.rpc("email_registered", {
       p_email: email,
     });
     if (!registered) {
       setError(
-        "このメールアドレスは雇用者として登録されていないか、すでに利用開始済みです。管理者にお問い合わせください。"
+        "このメールアドレスは従業員として登録されていないか、すでに利用開始済みです。管理者にお問い合わせください。"
       );
       setLoading(false);
       return;

@@ -34,9 +34,9 @@ export default async function EmployeesPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-bold">雇用者管理</h1>
+        <h1 className="text-xl font-bold">従業員管理</h1>
         <p className="mt-1 text-sm text-gray-500">
-          雇用者の登録・時給・税区分の設定を行います
+          従業員の登録・時給・税区分の設定を行います
         </p>
       </div>
       <AddEmployeeForm />

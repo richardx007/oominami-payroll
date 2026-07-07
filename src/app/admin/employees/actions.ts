@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/auth";
 import { sendMail } from "@/lib/email";
 
 const employeeSchema = z.object({
-  employee_no: z.string().min(1, "雇用者Noを入力してください"),
+  employee_no: z.string().min(1, "従業員Noを入力してください"),
   name: z.string().min(1, "氏名を入力してください"),
   email: z.email("メールアドレスの形式が正しくありません"),
   hourly_wage: z.coerce.number().int().positive("時給は正の整数で入力してください"),
@@ -42,7 +42,7 @@ export async function addEmployee(formData: FormData): Promise<ActionResult> {
 
   if (error) {
     const message = error.code === "23505"
-      ? "雇用者Noまたはメールアドレスがすでに登録されています"
+      ? "従業員Noまたはメールアドレスがすでに登録されています"
       : "登録に失敗しました: " + error.message;
     return { ok: false, message };
   }
@@ -65,7 +65,7 @@ export async function addEmployee(formData: FormData): Promise<ActionResult> {
     return {
       ok: false,
       message:
-        "雇用者は登録しましたが、時給/税区分の設定に失敗しました。編集画面から設定してください。",
+        "従業員は登録しましたが、時給/税区分の設定に失敗しました。編集画面から設定してください。",
     };
   }
 
@@ -142,7 +142,7 @@ export async function updateTaxSetting(
   return { ok: true, message: "税区分を更新しました" };
 }
 
-/** 未登録の雇用者に初回登録を依頼するメールを送る */
+/** 未登録の従業員に初回登録を依頼するメールを送る */
 export async function inviteEmployee(employeeId: string): Promise<ActionResult> {
   await requireAdmin();
   const supabase = await createClient();
@@ -153,12 +153,12 @@ export async function inviteEmployee(employeeId: string): Promise<ActionResult> 
     .eq("id", employeeId)
     .maybeSingle();
 
-  if (!employee) return { ok: false, message: "雇用者が見つかりません" };
+  if (!employee) return { ok: false, message: "従業員が見つかりません" };
   if (employee.auth_user_id) {
     return { ok: false, message: "すでに初回登録が完了しています" };
   }
   if (employee.status !== "active") {
-    return { ok: false, message: "退職済みの雇用者には送信できません" };
+    return { ok: false, message: "退職済みの従業員には送信できません" };
   }
 
   const h = await headers();

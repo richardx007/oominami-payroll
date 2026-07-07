@@ -48,7 +48,7 @@ export function AddEmployeeForm() {
           onClick={() => setOpen(!open)}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
-          {open ? "閉じる" : "+ 雇用者を追加"}
+          {open ? "閉じる" : "+ 従業員を追加"}
         </button>
       </div>
       {result && (
@@ -61,7 +61,7 @@ export function AddEmployeeForm() {
       {open && (
         <form action={handleSubmit} className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium">雇用者No</label>
+            <label className="mb-1 block text-sm font-medium">従業員No</label>
             <input name="employee_no" required className={inputClass} />
           </div>
           <div>
@@ -140,7 +140,7 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
   return (
     <section className="rounded-xl border border-gray-200 bg-white">
       <div className="rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
-        <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">雇用者一覧</h2>
+        <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">従業員一覧</h2>
         {result && (
           <p
             className={`mt-1 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
@@ -184,7 +184,7 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
             {employees.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
-                  雇用者が登録されていません
+                  従業員が登録されていません
                 </td>
               </tr>
             )}

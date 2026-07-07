@@ -31,7 +31,7 @@ export default async function AdminLayout({
                 href="/admin/employees"
                 className="text-blue-100 hover:text-white"
               >
-                雇用者
+                従業員
               </Link>
               <Link
                 href="/admin/close"

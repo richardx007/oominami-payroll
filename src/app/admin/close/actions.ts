@@ -19,7 +19,7 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
   if (errors.length > 0) {
     return {
       ok: false,
-      message: `計算できない雇用者がいるため締められません: ${errors
+      message: `計算できない従業員がいるため締められません: ${errors
         .map((e) => `${e.name}(${e.error})`)
         .join(" / ")}`,
     };

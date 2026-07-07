@@ -15,7 +15,7 @@ export type EmployeePayroll = {
   error: string | null;
 };
 
-/** 指定期間の全バイトの給与を計算する(プレビュー/締め共通) */
+/** 指定期間の全従業員の給与を計算する(プレビュー/締め共通) */
 export async function calculatePeriodPayroll(
   period: Period
 ): Promise<EmployeePayroll[]> {

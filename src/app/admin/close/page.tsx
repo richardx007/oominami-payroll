@@ -144,7 +144,7 @@ export default async function ClosePage({
                     colSpan={10}
                     className="px-4 py-8 text-center text-gray-400"
                   >
-                    対象の雇用者がいません
+                    対象の従業員がいません
                   </td>
                 </tr>
               )}
