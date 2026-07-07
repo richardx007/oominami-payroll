@@ -12,7 +12,7 @@
     "NEXT_PUBLIC_SUPABASE_URL": "https://zvrwkmriosaldjqpxdwi.supabase.co",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_57jbknnlco87_n8QxQHjxA_X-RvOUp1",
     // 送信元Gmail(秘密情報ではないためコードに固定。変更する場合はここを書き換える)
-    "GMAIL_USER": "richard.nishikawa@gmail.com"
+    "GMAIL_USER": "oominami2026@gmail.com"
   }
   // GMAIL_APP_PASSWORD(アプリパスワード)と TAX_ACCOUNTANT_EMAIL(税理士アドレス)は
   // 秘密情報のため、Cloudflareダッシュボードで必ず「Secret(暗号化)」として登録すること。
