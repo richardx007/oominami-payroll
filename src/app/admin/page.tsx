@@ -68,24 +68,33 @@ export default async function AdminDashboardPage({
   const status = payPeriod?.status ?? "open";
   const statusLabel =
     status === "open" ? "入力受付中" : status === "closed" ? "締め済み" : "支払済み";
+  const statusClass =
+    status === "open"
+      ? "bg-green-50 text-green-700"
+      : status === "closed"
+        ? "bg-orange-500 text-white"
+        : "bg-gray-100 text-gray-600";
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-bold">入力状況ダッシュボード</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {period.label}({period.start.replaceAll("-", "/")} 〜{" "}
-            {period.end.replaceAll("-", "/")})
+          <h1 className="text-sm font-medium text-gray-500">
+            入力状況ダッシュボード
+          </h1>
+          <div className="mt-0.5 flex flex-wrap items-center gap-3">
+            <span className="text-3xl font-bold tracking-tight text-gray-900">
+              {period.label}
+            </span>
             <span
-              className={`ml-2 rounded px-1.5 py-0.5 text-xs ${
-                status === "open"
-                  ? "bg-green-50 text-green-700"
-                  : "bg-gray-100 text-gray-600"
-              }`}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass}`}
             >
               {statusLabel}
             </span>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            {period.start.replaceAll("-", "/")} 〜{" "}
+            {period.end.replaceAll("-", "/")}
           </p>
         </div>
         <div className="flex gap-2 text-sm">
