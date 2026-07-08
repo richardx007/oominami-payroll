@@ -111,3 +111,107 @@ export async function buildTaxReportMail(
     body: lines.join("\n"),
   };
 }
+
+export type TaxReportCsv =
+  | { ok: true; filename: string; csv: string }
+  | { ok: false; message: string };
+
+/**
+ * 税理士向け支給一覧の CSV(BOM付き)を生成して返す。
+ * mailto では添付できないため、ダウンロードして手動でメールに添付できるようにする。
+ */
+export async function buildTaxReportCsv(
+  periodKey: string
+): Promise<TaxReportCsv> {
+  await requireAdmin();
+  const period = periodFromKey(periodKey);
+  if (!period) return { ok: false, message: "期間の指定が不正です" };
+
+  const supabase = await createClient();
+  const { data: payPeriod } = await supabase
+    .from("pay_periods")
+    .select("id, period_label")
+    .eq("start_date", period.start)
+    .eq("end_date", period.end)
+    .neq("status", "open")
+    .maybeSingle();
+
+  if (!payPeriod) {
+    return { ok: false, message: "先に締め処理を実行してください" };
+  }
+
+  const { data: payslips } = await supabase
+    .from("payslips")
+    .select(
+      `work_days, total_minutes, base_pay, transport_total, lunch_total,
+       gross_pay, income_tax, net_pay, tax_category,
+       employees ( employee_no, name )`
+    )
+    .eq("pay_period_id", payPeriod.id);
+
+  const rows = (payslips ?? [])
+    .map((r) => ({
+      ...r,
+      emp: r.employees as unknown as { employee_no: string; name: string },
+    }))
+    .sort((a, b) => a.emp.employee_no.localeCompare(b.emp.employee_no));
+
+  if (rows.length === 0) {
+    return { ok: false, message: "明細データがありません" };
+  }
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      base: acc.base + r.base_pay,
+      transport: acc.transport + r.transport_total,
+      lunch: acc.lunch + r.lunch_total,
+      gross: acc.gross + r.gross_pay,
+      tax: acc.tax + r.income_tax,
+      net: acc.net + r.net_pay,
+    }),
+    { base: 0, transport: 0, lunch: 0, gross: 0, tax: 0, net: 0 }
+  );
+
+  const header = [
+    "従業員No",
+    "氏名",
+    "勤務日数",
+    "基本給",
+    "交通費",
+    "昼食補助",
+    "総支給額",
+    "源泉所得税",
+    "差引支給額",
+    "税区分",
+  ].join(",");
+  const body = rows.map((r) =>
+    [
+      r.emp.employee_no,
+      `"${r.emp.name.replace(/"/g, '""')}"`,
+      r.work_days,
+      r.base_pay,
+      r.transport_total,
+      r.lunch_total,
+      r.gross_pay,
+      r.income_tax,
+      r.net_pay,
+      r.tax_category === "kou" ? "甲" : "乙",
+    ].join(",")
+  );
+  const total = [
+    "合計",
+    `"${rows.length}名"`,
+    "",
+    "",
+    totals.transport,
+    totals.lunch,
+    totals.gross,
+    totals.tax,
+    totals.net,
+    "",
+  ].join(",");
+  // Excelで文字化けしないよう先頭にBOMを付与
+  const csv = "﻿" + [header, ...body, total].join("\r\n") + "\r\n";
+
+  return { ok: true, filename: `payroll_${period.key}.csv`, csv };
+}
