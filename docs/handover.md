@@ -24,14 +24,15 @@
 
 ### 実装済み・本番稼働中
 - ✅ 認証（初回登録=メールのみ→マジックリンク→パスワード設定、ログイン、ロール別リダイレクト）
-- ✅ 従業員管理（登録・時給変更・税区分変更・退職・招待メール）
+- ✅ 従業員管理（登録・氏名/メール編集・時給変更・税区分変更・退職・招待メール、区分別No自動採番）
 - ✅ 勤務表入力（スマホ向けカレンダーUI。当日背景/祝日赤字/交通費内訳/PC・iPad 2カラム）
-- ✅ 入力状況ダッシュボード（管理者）
+- ✅ 入力状況ダッシュボード（管理者。年月大表示・状態バッジ）
 - ✅ 給与計算エンジン + Vitest テスト18件
-- ✅ 締め処理（プレビュー・締め・締め解除・支払済み）
+- ✅ 締め処理（プレビュー・締め・締め解除・支払済み。状態表示はダッシュボードと統一）
 - ✅ 給与明細閲覧（従業員）・メール配信
-- ✅ 連絡・催促・一斉報知
-- ✅ 税理士向け支給一覧（画面印刷/PDF・メール送信・CSV添付）
+- ✅ 連絡・催促・一斉報知（全員/個別、メール併送）
+- ✅ 税理士向け支給一覧（画面印刷/PDF・CSVダウンロード・mailtoメール作成）
+- ✅ 管理画面レイアウト（md以上=左サイドバー/スマホ=上部ナビ、ネイビー、ロゴ表示）
 - ✅ 源泉徴収税額表のCSV取込
 - ✅ メール設定の画面管理化（会社名・送信元・税理士アドレス）
 - ✅ Supabase 認証メールのカスタムSMTP化（自社Gmail送信、無料でテンプレ編集可）
@@ -44,18 +45,34 @@
 ### 未確認・これからテストする領域
 - 勤務表の複数日入力 → ダッシュボード反映
 - 締め処理 → 明細生成 → 従業員の明細閲覧 → メール配信
-- 税理士資料のPDF出力・CSV添付メール送信
+- 税理士資料のPDF出力・CSVダウンロード・mailtoメール作成（実機でmailto起動を確認）
 - 88,000円以上の従業員での源泉税額表を使った計算
 - 新・初回登録フロー（メールのみ→マジックリンク→パスワード設定）の実機通し
 
-### 最近の主な変更（このセッションで実施）
+### 最近の主な変更（やや過去のセッション）
 - UI用語を「雇用者/バイト」→「従業員」に統一（DBカラム名は `employee_*` のまま）
-- 配色メリハリ・フォント拡大（globals.css の html font-size:17px、青ヘッダー）
+- 配色メリハリ・フォント拡大（globals.css の html font-size:17px）
 - 初回登録をマジックリンク方式に変更（/register はメールのみ、/set-password 追加）
 - 交通費に 手段/駅1/駅2/往復 を追加（work_entries にカラム追加、駅名はdatalist履歴）
 - カレンダー: 当日背景・祝日赤字・デフォルト10:00-18:00・金額10円刻み・2カラム
 - 下部ナビを単色フラットSVGアイコンに
-- 税理士メールにCSV添付（smtp.tsをmultipart対応に拡張）
+
+### 直近セッションで実施した変更
+- **従業員管理**: 氏名・メール編集を追加（メール変更で `auth_user_id` を null 化＝「未登録」に戻し再招待が必要）。
+  区分（管理者M/従業員E）を選んで**従業員No自動採番**（`nextEmployeeNo`）。管理者は時給等の入力不要。
+  編集UIを吹き出しパネル化し、更新成功で自動的に閉じる。
+- **状態表示の統一**: `src/lib/period-status.ts` を新設し、ダッシュボード（`admin/page.tsx`）と
+  締め処理（`admin/close/ui.tsx`）で同一表示（緑=受付中 / オレンジ=締め済み / グレー=支払済み）。
+- **管理レイアウト**: md以上=左サイドバー、スマホ=上部ヘッダー（`admin/nav.tsx` + `admin/layout.tsx`）。
+  メニュー文字拡大。ロゴ（`public/logo.svg`）表示、メニューバーをネイビー `#152449` に統一。
+- **遷移体感の改善**: `admin/loading.tsx`・`(employee)/loading.tsx`（スピナー）追加、
+  リンクに `touch-manipulation`＋押下フィードバック（iPadの連打対策）。
+- **連絡バグ修正**: 全員宛て＋種別「連絡」でも送信できるようバリデーション修正。併送失敗理由を画面表示。
+- **メール堅牢化**: `sendMail` を最大2回リトライ、`smtp.ts` の応答読み取りに15秒タイムアウト。
+- **登録エラー日本語化**: `register/page.tsx` の `friendlyOtpError()` で英語エラーを日本語に。
+- **税理士資料**: SMTP直接送信→**mailto方式**（`buildTaxReportMail`）＋**CSVダウンロード**（`buildTaxReportCsv`）。
+  mailtoは添付不可のためCSVは手動添付。`tax_reports` テーブルへの書き込みは廃止（将来用に残置）。
+- **スキル**: `.claude/skills/pwa-auto-update/` を追加（Vite+React前提のため本アプリ=Next.jsへの統合は見送り）。
 
 ---
 
@@ -119,10 +136,14 @@ npm test           # Vitest（給与計算ロジック）
 - 給与計算を変えるとき: `src/lib/payroll.ts`（純粋関数）+ `payroll.test.ts` を必ず更新。
   DB集計は `src/lib/payroll-data.ts`。
 - 給与期間（26日〜25日）の定義: `src/lib/period.ts`。締め日・支払日ルール・`todayJST()` はここ。
-- メール本文・送信: `src/lib/email.ts`（設定取得・本文生成・添付）、`src/lib/smtp.ts`（SMTP・multipart）。
+- メール本文・送信: `src/lib/email.ts`（設定取得・本文生成・添付・リトライ）、`src/lib/smtp.ts`（SMTP・multipart・タイムアウト）。
 - 交通費の内訳・カレンダー表示: `src/app/(employee)/timesheet/ui.tsx`。祝日は `src/lib/holidays.ts`。
-- 初回登録フロー: `/register`（メールのみ・OTP送信）→ `/auth/callback`（setup=1判定）→ `/set-password`。
+- 初回登録フロー: `/register`（メールのみ・OTP送信・`friendlyOtpError`）→ `/auth/callback`（setup=1判定）→ `/set-password`。
 - RLS/権限: DBの関数 `is_admin()` 等（Supabase側）。画面ガードは `src/lib/auth.ts`。
+- 従業員の登録/編集・No自動採番: `src/app/admin/employees/{actions,ui}.tsx`（`addEmployee`/`nextEmployeeNo`/`updateEmployeeProfile`）。
+- 期間ステータス表示: `src/lib/period-status.ts`（ダッシュボード・締め処理で共用。配色を変えるならここ1か所）。
+- 管理ナビ/ロゴ/配色: `src/app/admin/nav.tsx`・`src/app/admin/layout.tsx`。ロゴ実体は `public/logo.svg`。
+- 税理士資料のmailto/CSV: `src/app/admin/report/{actions,ui,page}.tsx`（`buildTaxReportMail`/`buildTaxReportCsv`）。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
 ---
@@ -134,10 +155,11 @@ npm test           # Vitest（給与計算ロジック）
 - [ ] **Supabase 休止対策**: 無料プロジェクトは長期未アクセスで一時停止。
       Cloudflare Cron Trigger で定期 ping する仕組みが未実装（当初計画にはあった）。
 - [ ] **E2Eテスト**: 締め〜配信の一連フローの自動テストは未整備。
-- [ ] 従業員の氏名編集UI（現状、編集は時給・税区分・退職のみ）。
-- [ ] **税理士へPDF自動添付メール**: 現状はCSV添付＋画面からの手動PDF。オーナーから
+- [ ] **税理士へPDF自動添付メール**: 現状は mailto作成＋CSV手動添付＋画面からの手動PDF。オーナーから
       「PDF添付にできないか」という要望あり。サーバー側PDF生成（@react-pdf等）が必要な
       中規模作業のため保留中。必要になったら実装検討。
+- [ ] **PWA自動更新**: `.claude/skills/pwa-auto-update` はVite前提。本アプリ(Next.js)版として
+      next-pwa / @serwist/next で作り直す想定（来週以降の大きめ作業として保留）。
 - [ ] 給与明細のPDF体裁（現状はブラウザ印刷。専用レイアウトが必要なら @react-pdf 等）。
 - [ ] 会社名・住所などを給与明細/税理士資料の帳票ヘッダーに反映（company_name は
       メール差出人名のみ利用中）。締め処理/税理士画面には交通費内訳（手段/区間）は未表示。
