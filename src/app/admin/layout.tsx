@@ -20,7 +20,7 @@ export default async function AdminLayout({
   return (
     <div className="min-h-screen md:flex">
       {/* サイドバー(タブレット・PC) */}
-      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col bg-blue-700 text-white shadow-md md:flex print:hidden">
+      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col bg-[#152449] text-white shadow-md md:flex print:hidden">
         <div className="flex items-center gap-2 px-4 py-4">
           <Logo />
           <span className="text-lg font-bold">給与管理</span>
@@ -28,10 +28,10 @@ export default async function AdminLayout({
         <div className="flex-1 px-3">
           <AdminSidebarNav />
         </div>
-        <div className="border-t border-blue-600/60 px-4 py-3 text-sm">
+        <div className="border-t border-white/15 px-4 py-3 text-sm">
           <div className="mb-2 truncate text-blue-100">{admin.name}</div>
           <form action={signOut}>
-            <button className="w-full rounded-lg bg-blue-600 px-3 py-1.5 text-blue-50 hover:bg-blue-500">
+            <button className="w-full rounded-lg bg-white/15 px-3 py-1.5 text-blue-50 hover:bg-white/25">
               ログアウト
             </button>
           </form>
@@ -39,7 +39,7 @@ export default async function AdminLayout({
       </aside>
 
       {/* モバイル用ヘッダー */}
-      <header className="bg-blue-700 text-white shadow-md md:hidden print:hidden">
+      <header className="bg-[#152449] text-white shadow-md md:hidden print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-y-1 px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
             <div className="flex items-center gap-2">
@@ -51,7 +51,7 @@ export default async function AdminLayout({
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden text-blue-100 sm:inline">{admin.name}</span>
             <form action={signOut}>
-              <button className="rounded-lg bg-blue-600 px-3 py-1 text-blue-50 hover:bg-blue-500">
+              <button className="rounded-lg bg-white/15 px-3 py-1 text-blue-50 hover:bg-white/25">
                 ログアウト
               </button>
             </form>

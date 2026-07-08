@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="新世界オオミナミ">
+  <!-- 暫定プレースホルダー。public/logo.svg / public/logo.png を実ファイルで上書きしてください -->
+  <circle cx="60" cy="60" r="54" fill="#ffffff" stroke="#F6DB6B" stroke-width="7"/>
+  <text x="60" y="46" text-anchor="middle" font-family="'Hiragino Sans','Yu Gothic',sans-serif" font-weight="700" font-size="20" fill="#1a1a1a">新世界</text>
+  <text x="60" y="74" text-anchor="middle" font-family="'Hiragino Sans','Yu Gothic',sans-serif" font-weight="800" font-size="17" fill="#1a1a1a">オオミナミ</text>
+  <path d="M60 86 l4 8 h-8 z" fill="#1a1a1a"/>
+  <path d="M74 92 a6 6 0 1 1 -3 -10 a5 5 0 0 0 3 10z" fill="#1a1a1a"/>
+</svg>

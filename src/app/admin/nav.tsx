@@ -17,15 +17,16 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-/** アプリのロゴ(暫定・後で差し替え可) */
+/** アプリのロゴ(public/logo.svg を表示。差し替えは public/ のファイルを置換) */
 export function Logo({ className = "" }: { className?: string }) {
+  // Next の Image ではなく素の img。円形ロゴ(白背景)がネイビーのバー上でも映える。
+  // eslint-disable-next-line @next/next/no-img-element
   return (
-    <span
-      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-lg font-bold ${className}`}
-      aria-hidden
-    >
-      ¥
-    </span>
+    <img
+      src="/logo.svg"
+      alt="新世界オオミナミ"
+      className={`h-10 w-10 shrink-0 rounded-full bg-white object-contain ${className}`}
+    />
   );
 }
 
@@ -38,10 +39,10 @@ export function AdminSidebarNav() {
         <Link
           key={l.href}
           href={l.href}
-          className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+          className={`touch-manipulation rounded-lg px-3 py-2.5 text-lg font-medium transition-colors active:opacity-70 ${
             isActive(pathname, l.href)
-              ? "bg-white text-blue-800"
-              : "text-blue-100 hover:bg-blue-600/60 hover:text-white"
+              ? "bg-white text-[#152449]"
+              : "text-blue-50 hover:bg-white/10 hover:text-white"
           }`}
         >
           {l.label}
@@ -62,8 +63,8 @@ export function AdminTopNav() {
           href={l.href}
           className={
             isActive(pathname, l.href)
-              ? "font-semibold text-white underline"
-              : "text-blue-100 hover:text-white"
+              ? "touch-manipulation font-semibold text-white underline"
+              : "touch-manipulation text-blue-50 hover:text-white active:opacity-70"
           }
         >
           {l.label}

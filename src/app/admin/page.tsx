@@ -8,6 +8,7 @@ import {
   periodFromKey,
   workMinutes,
 } from "@/lib/period";
+import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
 
 export default async function AdminDashboardPage({
   searchParams,
@@ -66,14 +67,6 @@ export default async function AdminDashboardPage({
   }
 
   const status = payPeriod?.status ?? "open";
-  const statusLabel =
-    status === "open" ? "入力受付中" : status === "closed" ? "締め済み" : "支払済み";
-  const statusClass =
-    status === "open"
-      ? "bg-green-50 text-green-700"
-      : status === "closed"
-        ? "bg-orange-500 text-white"
-        : "bg-gray-100 text-gray-600";
 
   return (
     <div className="space-y-6">
@@ -86,10 +79,8 @@ export default async function AdminDashboardPage({
             <span className="text-3xl font-bold tracking-tight text-gray-900">
               {period.label}
             </span>
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass}`}
-            >
-              {statusLabel}
+            <span className={periodStatusBadgeClass(status)}>
+              {periodStatusLabel(status)}
             </span>
           </div>
           <p className="mt-1 text-sm text-gray-500">
