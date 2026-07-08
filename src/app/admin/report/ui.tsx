@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { buildTaxReportMail } from "./actions";
+import { buildTaxReportCsv, buildTaxReportMail } from "./actions";
 
 export function PrintButton() {
   return (
@@ -11,6 +11,45 @@ export function PrintButton() {
     >
       印刷 / PDF保存
     </button>
+  );
+}
+
+export function DownloadCsvButton({ periodKey }: { periodKey: string }) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <span className="flex items-center gap-2">
+      <button
+        disabled={pending}
+        onClick={() => {
+          setError(null);
+          startTransition(async () => {
+            const res = await buildTaxReportCsv(periodKey);
+            if (!res.ok) {
+              setError(res.message);
+              return;
+            }
+            // CSV文字列をBlob化してダウンロード(メールに手動添付できる)
+            const blob = new Blob([res.csv], {
+              type: "text/csv;charset=utf-8",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = res.filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          });
+        }}
+        className="rounded-lg border border-gray-300 px-4 py-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+      >
+        {pending ? "作成中..." : "CSVダウンロード"}
+      </button>
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </span>
   );
 }
 
