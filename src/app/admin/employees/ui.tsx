@@ -7,6 +7,7 @@ import {
   inviteEmployee,
   updateWage,
   updateTaxSetting,
+  updateEmployeeProfile,
   toggleEmployeeStatus,
   type ActionResult,
 } from "./actions";
@@ -29,6 +30,7 @@ function currentOf<T extends { effective_from: string }>(rows: T[]): T | null {
 
 export function AddEmployeeForm() {
   const [open, setOpen] = useState(false);
+  const [role, setRole] = useState<"admin" | "employee">("employee");
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -60,9 +62,33 @@ export function AddEmployeeForm() {
       )}
       {open && (
         <form action={handleSubmit} className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium">従業員No</label>
-            <input name="employee_no" required className={inputClass} />
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium">区分</label>
+            <div className="flex gap-4 text-sm">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="role"
+                  value="employee"
+                  checked={role === "employee"}
+                  onChange={() => setRole("employee")}
+                />
+                従業員(No: E___)
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="role"
+                  value="admin"
+                  checked={role === "admin"}
+                  onChange={() => setRole("admin")}
+                />
+                管理者(No: M___)
+              </label>
+            </div>
+            <p className="mt-1 text-xs text-gray-400">
+              従業員Noは区分に応じて自動採番されます
+            </p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">氏名</label>
@@ -74,44 +100,48 @@ export function AddEmployeeForm() {
             </label>
             <input name="email" type="email" required className={inputClass} />
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">時給(円)</label>
-            <input
-              name="hourly_wage"
-              type="number"
-              min={1}
-              required
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">税区分</label>
-            <select name="tax_category" defaultValue="otsu" className={inputClass}>
-              <option value="otsu">乙欄(扶養控除等申告書 提出なし)</option>
-              <option value="kou">甲欄(扶養控除等申告書 提出あり)</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">扶養親族数</label>
-            <input
-              name="dependents"
-              type="number"
-              min={0}
-              defaultValue={0}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">適用開始日</label>
-            <input
-              name="effective_from"
-              type="date"
-              defaultValue={today()}
-              required
-              className={inputClass}
-            />
-          </div>
-          <div className="flex items-end">
+          {role === "employee" && (
+            <>
+              <div>
+                <label className="mb-1 block text-sm font-medium">時給(円)</label>
+                <input
+                  name="hourly_wage"
+                  type="number"
+                  min={1}
+                  required
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">税区分</label>
+                <select name="tax_category" defaultValue="otsu" className={inputClass}>
+                  <option value="otsu">乙欄(扶養控除等申告書 提出なし)</option>
+                  <option value="kou">甲欄(扶養控除等申告書 提出あり)</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">扶養親族数</label>
+                <input
+                  name="dependents"
+                  type="number"
+                  min={0}
+                  defaultValue={0}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">適用開始日</label>
+                <input
+                  name="effective_from"
+                  type="date"
+                  defaultValue={today()}
+                  required
+                  className={inputClass}
+                />
+              </div>
+            </>
+          )}
+          <div className="flex items-end sm:col-span-2">
             <button
               type="submit"
               disabled={pending}
@@ -266,101 +296,159 @@ function EmployeeTableRow({
         </td>
       </tr>
       {editing && (
-        <tr className="border-b border-gray-50 bg-gray-50">
-          <td colSpan={7} className="px-4 py-4">
-            <div className="grid gap-6 md:grid-cols-2">
-              <form
-                action={(fd) => onRun(() => updateWage(fd))}
-                className="space-y-2"
-              >
-                <h3 className="text-xs font-semibold text-gray-500">
-                  時給の変更(値上げは適用開始日を指定)
+        <tr>
+          <td colSpan={7} className="px-4 pb-5 pt-1">
+            {/* 明細行から浮き出した吹き出し風の編集パネル */}
+            <div className="relative rounded-xl border border-blue-200 bg-white p-5 shadow-lg ring-1 ring-blue-100">
+              <span
+                aria-hidden
+                className="absolute -top-2 left-8 h-4 w-4 rotate-45 border-l border-t border-blue-200 bg-white"
+              />
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="font-semibold text-blue-800">
+                  {emp.employee_no} {emp.name} さんの編集
                 </h3>
-                <input type="hidden" name="employee_id" value={emp.id} />
-                <div className="flex gap-2">
-                  <input
-                    name="hourly_wage"
-                    type="number"
-                    min={1}
-                    defaultValue={wage?.hourly_wage}
-                    required
-                    placeholder="時給(円)"
-                    className={inputClass}
-                  />
-                  <input
-                    name="effective_from"
-                    type="date"
-                    defaultValue={today()}
-                    required
-                    className={inputClass}
-                  />
-                  <button
-                    disabled={pending}
-                    className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    更新
-                  </button>
-                </div>
-              </form>
-              <form
-                action={(fd) => onRun(() => updateTaxSetting(fd))}
-                className="space-y-2"
-              >
-                <h3 className="text-xs font-semibold text-gray-500">
-                  税区分の変更
-                </h3>
-                <input type="hidden" name="employee_id" value={emp.id} />
-                <div className="flex gap-2">
-                  <select
-                    name="tax_category"
-                    defaultValue={tax?.tax_category ?? "otsu"}
-                    className={inputClass}
-                  >
-                    <option value="otsu">乙欄</option>
-                    <option value="kou">甲欄</option>
-                  </select>
-                  <input
-                    name="dependents"
-                    type="number"
-                    min={0}
-                    defaultValue={tax?.dependents ?? 0}
-                    className={inputClass}
-                    title="扶養親族数"
-                  />
-                  <input
-                    name="effective_from"
-                    type="date"
-                    defaultValue={today()}
-                    required
-                    className={inputClass}
-                  />
-                  <button
-                    disabled={pending}
-                    className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    更新
-                  </button>
-                </div>
-              </form>
-            </div>
-            {!emp.is_admin && (
-              <div className="mt-4">
                 <button
-                  disabled={pending}
-                  onClick={() =>
-                    onRun(() =>
-                      toggleEmployeeStatus(
-                        emp.id,
-                        retired ? "active" : "retired"
-                      )
-                    )
-                  }
-                  className="text-sm text-red-600 hover:underline disabled:opacity-50"
+                  onClick={onEdit}
+                  className="text-xs text-gray-400 hover:text-gray-600"
                 >
-                  {retired ? "在籍に戻す" : "退職処理する"}
+                  ✕ 閉じる
                 </button>
               </div>
-            )}
+
+              <form
+                action={(fd) => onRun(() => updateEmployeeProfile(fd))}
+                className="mb-5 space-y-2"
+              >
+                <h4 className="text-xs font-semibold text-gray-500">
+                  氏名・メールアドレスの変更
+                </h4>
+                <input type="hidden" name="employee_id" value={emp.id} />
+                <div className="grid gap-2 sm:grid-cols-[1fr_1.5fr_auto]">
+                  <input
+                    name="name"
+                    defaultValue={emp.name}
+                    required
+                    placeholder="氏名"
+                    className={inputClass}
+                  />
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={emp.email}
+                    required
+                    placeholder="メールアドレス"
+                    className={inputClass}
+                  />
+                  <button
+                    disabled={pending}
+                    className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    更新
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400">
+                  ※ メールアドレスを変更すると「未登録」に戻り、再度の招待が必要になります
+                </p>
+              </form>
+
+              {!emp.is_admin && (
+                <div className="grid gap-6 border-t border-gray-100 pt-4 md:grid-cols-2">
+                  <form
+                    action={(fd) => onRun(() => updateWage(fd))}
+                    className="space-y-2"
+                  >
+                    <h4 className="text-xs font-semibold text-gray-500">
+                      時給の変更(値上げは適用開始日を指定)
+                    </h4>
+                    <input type="hidden" name="employee_id" value={emp.id} />
+                    <div className="flex gap-2">
+                      <input
+                        name="hourly_wage"
+                        type="number"
+                        min={1}
+                        defaultValue={wage?.hourly_wage}
+                        required
+                        placeholder="時給(円)"
+                        className={inputClass}
+                      />
+                      <input
+                        name="effective_from"
+                        type="date"
+                        defaultValue={today()}
+                        required
+                        className={inputClass}
+                      />
+                      <button
+                        disabled={pending}
+                        className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        更新
+                      </button>
+                    </div>
+                  </form>
+                  <form
+                    action={(fd) => onRun(() => updateTaxSetting(fd))}
+                    className="space-y-2"
+                  >
+                    <h4 className="text-xs font-semibold text-gray-500">
+                      税区分の変更
+                    </h4>
+                    <input type="hidden" name="employee_id" value={emp.id} />
+                    <div className="flex gap-2">
+                      <select
+                        name="tax_category"
+                        defaultValue={tax?.tax_category ?? "otsu"}
+                        className={inputClass}
+                      >
+                        <option value="otsu">乙欄</option>
+                        <option value="kou">甲欄</option>
+                      </select>
+                      <input
+                        name="dependents"
+                        type="number"
+                        min={0}
+                        defaultValue={tax?.dependents ?? 0}
+                        className={inputClass}
+                        title="扶養親族数"
+                      />
+                      <input
+                        name="effective_from"
+                        type="date"
+                        defaultValue={today()}
+                        required
+                        className={inputClass}
+                      />
+                      <button
+                        disabled={pending}
+                        className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        更新
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {!emp.is_admin && (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <button
+                    disabled={pending}
+                    onClick={() =>
+                      onRun(() =>
+                        toggleEmployeeStatus(
+                          emp.id,
+                          retired ? "active" : "retired"
+                        )
+                      )
+                    }
+                    className="text-sm text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    {retired ? "在籍に戻す" : "退職処理する"}
+                  </button>
+                </div>
+              )}
+            </div>
           </td>
         </tr>
       )}
