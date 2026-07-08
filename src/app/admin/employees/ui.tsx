@@ -163,7 +163,10 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
 
   function run(action: () => Promise<ActionResult>) {
     startTransition(async () => {
-      setResult(await action());
+      const res = await action();
+      setResult(res);
+      // 更新が成功したら編集用の吹き出しを閉じる
+      if (res.ok) setEditing(null);
     });
   }
 

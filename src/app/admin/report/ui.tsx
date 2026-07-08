@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { sendTaxReport } from "./actions";
-import type { ActionResult } from "../employees/actions";
+import { buildTaxReportMail } from "./actions";
 
 export function PrintButton() {
   return (
@@ -16,7 +15,7 @@ export function PrintButton() {
 }
 
 export function SendReportButton({ periodKey }: { periodKey: string }) {
-  const [result, setResult] = useState<ActionResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -24,21 +23,31 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
       <button
         disabled={pending}
         onClick={() => {
-          if (!window.confirm("税理士宛てに支給一覧をメール送信します。よろしいですか?"))
-            return;
-          startTransition(async () => setResult(await sendTaxReport(periodKey)));
+          setError(null);
+          startTransition(async () => {
+            const res = await buildTaxReportMail(periodKey);
+            if (!res.ok) {
+              setError(res.message);
+              return;
+            }
+            // mailto は RFC6068 のパーセントエンコードが必要(空白は %20)。
+            // URLSearchParams だと空白が + になり一部メールアプリで化けるため手組みする。
+            const q = [
+              `subject=${encodeURIComponent(res.subject)}`,
+              res.cc ? `cc=${encodeURIComponent(res.cc)}` : "",
+              `body=${encodeURIComponent(res.body)}`,
+            ]
+              .filter(Boolean)
+              .join("&");
+            // メールアプリの作成画面を開く(送信前に確認・追記が可能)
+            window.location.href = `mailto:${encodeURIComponent(res.to)}?${q}`;
+          });
         }}
         className="rounded-lg border border-blue-300 px-4 py-1.5 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
       >
-        {pending ? "送信中..." : "税理士へメール送信"}
+        {pending ? "作成中..." : "税理士へメール作成"}
       </button>
-      {result && (
-        <span
-          className={`text-xs ${result.ok ? "text-green-700" : "text-red-600"}`}
-        >
-          {result.message}
-        </span>
-      )}
+      {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
   );
 }
