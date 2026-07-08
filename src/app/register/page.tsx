@@ -4,6 +4,20 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
+/** Supabase 認証の英語エラーを日本語の分かりやすい案内に変換する */
+function friendlyOtpError(message: string): string {
+  const m = message.toLowerCase();
+  // 例: "For security purposes, you can only request this after 31 seconds."
+  const sec = /after (\d+) seconds/.exec(message);
+  if (m.includes("after") && sec) {
+    return `確認メールは連続して送信できません。約${sec[1]}秒お待ちいただいてから、もう一度お試しください。`;
+  }
+  if (m.includes("rate limit") || m.includes("too many")) {
+    return "確認メールの送信回数が上限に達しました。しばらく時間をおいてから再度お試しください。";
+  }
+  return "確認メールの送信に失敗しました。しばらくしてから再度お試しください。（" + message + "）";
+}
+
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +52,7 @@ export default function RegisterPage() {
     });
 
     if (otpError) {
-      setError("送信に失敗しました: " + otpError.message);
+      setError(friendlyOtpError(otpError.message));
       setLoading(false);
       return;
     }

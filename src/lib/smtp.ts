@@ -85,7 +85,16 @@ export async function smtpSendMail(params: {
           return;
         }
       }
-      const { value, done } = await reader.read();
+      // 応答が返らないままハングしないよう読み取りにタイムアウトを設ける
+      const { value, done } = await Promise.race([
+        reader.read(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new SmtpError("SMTP応答がタイムアウトしました")),
+            15000
+          )
+        ),
+      ]);
       if (done) throw new SmtpError("接続が切断されました");
       buffer += decoder.decode(value, { stream: true });
     }
