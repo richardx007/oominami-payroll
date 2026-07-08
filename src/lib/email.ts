@@ -68,26 +68,35 @@ export async function sendMail(params: {
     };
   }
 
-  try {
-    await smtpSendMail({
-      host: "smtp.gmail.com",
-      port: 465,
-      username: user,
-      password,
-      fromName,
-      to: params.to,
-      subject: params.subject,
-      text: params.text,
-      attachments: params.attachments,
-    });
-    return { ok: true, message: "送信しました" };
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
-    return {
-      ok: false,
-      message: `メール送信に失敗しました(${detail.includes("cloudflare") ? "本番環境(Cloudflare)でのみ送信できます" : detail})`,
-    };
+  // SMTP接続は一時的に失敗することがあるため最大2回まで再試行する
+  let lastDetail = "";
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await smtpSendMail({
+        host: "smtp.gmail.com",
+        port: 465,
+        username: user,
+        password,
+        fromName,
+        to: params.to,
+        subject: params.subject,
+        text: params.text,
+        attachments: params.attachments,
+      });
+      return { ok: true, message: "送信しました" };
+    } catch (e) {
+      lastDetail = e instanceof Error ? e.message : String(e);
+      if (lastDetail.includes("cloudflare")) {
+        return {
+          ok: false,
+          message: "メール送信に失敗しました(本番環境(Cloudflare)でのみ送信できます)",
+        };
+      }
+      // 次の試行まで少し待つ
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
+    }
   }
+  return { ok: false, message: `メール送信に失敗しました(${lastDetail})` };
 }
 
 /** 複数宛先に順次送信(Gmail無料枠を考慮しシンプルに直列) */
@@ -95,13 +104,13 @@ export async function sendMailToMany(
   recipients: string[],
   subject: string,
   text: string
-): Promise<{ sent: number; failed: string[] }> {
+): Promise<{ sent: number; failed: { to: string; reason: string }[] }> {
   let sent = 0;
-  const failed: string[] = [];
+  const failed: { to: string; reason: string }[] = [];
   for (const to of recipients) {
     const result = await sendMail({ to, subject, text });
     if (result.ok) sent += 1;
-    else failed.push(to);
+    else failed.push({ to, reason: result.message });
   }
   return { sent, failed };
 }

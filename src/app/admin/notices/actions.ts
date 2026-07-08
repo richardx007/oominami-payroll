@@ -24,9 +24,7 @@ export async function sendNotice(formData: FormData): Promise<ActionResult> {
   }
   const d = parsed.data;
 
-  if (!d.recipient_id && d.type === "individual") {
-    return { ok: false, message: "個別連絡は宛先を選択してください" };
-  }
+  // 宛先が空 = 全員(一斉報知)。宛先を選べば個別。どちらも有効なので追加の制約は不要。
 
   const supabase = await createClient();
 
@@ -43,7 +41,9 @@ export async function sendNotice(formData: FormData): Promise<ActionResult> {
     const { data: recipients } = await query;
 
     const emails = (recipients ?? []).map((r) => r.email);
-    if (emails.length > 0) {
+    if (emails.length === 0) {
+      emailInfo = " / メール対象の従業員がいません";
+    } else {
       const { sent, failed } = await sendMailToMany(
         emails,
         d.subject,
@@ -52,7 +52,7 @@ export async function sendNotice(formData: FormData): Promise<ActionResult> {
       emailed = sent > 0;
       emailInfo =
         failed.length > 0
-          ? ` / メール${sent}件送信、${failed.length}件失敗(${failed[0].includes("未設定") || sent === 0 ? "メール設定を確認してください" : failed.join("、")})`
+          ? ` / メール${sent}件送信、${failed.length}件失敗(${failed[0].reason})`
           : ` / メール${sent}件送信`;
     }
   }
