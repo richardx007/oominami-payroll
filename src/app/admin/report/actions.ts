@@ -1,14 +1,23 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { periodFromKey } from "@/lib/period";
-import { getTaxEmail, sendMail } from "@/lib/email";
+import { getSenderEmail, getTaxEmail } from "@/lib/email";
 import type { ActionResult } from "../employees/actions";
 
-/** 税理士宛てに給与支給一覧(テキスト)をメール送信する */
-export async function sendTaxReport(periodKey: string): Promise<ActionResult> {
+export type TaxReportMail =
+  | { ok: true; to: string; cc: string; subject: string; body: string }
+  | { ok: false; message: string };
+
+/**
+ * 税理士宛ての支給一覧メールの内容(宛先・件名・本文)を組み立てて返す。
+ * 直接送信はせず、クライアント側で mailto: を開いて内容確認・追記できるようにする。
+ * CC に送信元アドレスを入れ、送った内容が手元にも残るようにする。
+ */
+export async function buildTaxReportMail(
+  periodKey: string
+): Promise<TaxReportMail> {
   await requireAdmin();
   const period = periodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
@@ -21,6 +30,7 @@ export async function sendTaxReport(periodKey: string): Promise<ActionResult> {
         "税理士のメールアドレスが未設定です(設定画面で登録してください)",
     };
   }
+  const cc = (await getSenderEmail()) ?? "";
 
   const supabase = await createClient();
   const { data: payPeriod } = await supabase
@@ -93,69 +103,11 @@ export async function sendTaxReport(periodKey: string): Promise<ActionResult> {
     "(単位: 円。給与管理システムより自動送信)",
   ];
 
-  // CSV(Excelで文字化けしないよう先頭にBOMを付与)
-  const csvHeader = [
-    "従業員No",
-    "氏名",
-    "勤務日数",
-    "基本給",
-    "交通費",
-    "昼食補助",
-    "総支給額",
-    "源泉所得税",
-    "差引支給額",
-    "税区分",
-  ].join(",");
-  const csvBody = rows.map((r) =>
-    [
-      r.emp.employee_no,
-      `"${r.emp.name.replace(/"/g, '""')}"`,
-      r.work_days,
-      r.base_pay,
-      r.transport_total,
-      r.lunch_total,
-      r.gross_pay,
-      r.income_tax,
-      r.net_pay,
-      r.tax_category === "kou" ? "甲" : "乙",
-    ].join(",")
-  );
-  const csvTotal = [
-    "合計",
-    `"${rows.length}名"`,
-    "",
-    "",
-    "",
-    "",
-    totals.gross,
-    totals.tax,
-    totals.net,
-    "",
-  ].join(",");
-  const csv =
-    "﻿" + [csvHeader, ...csvBody, csvTotal].join("\r\n") + "\r\n";
-
-  const result = await sendMail({
+  return {
+    ok: true,
     to,
+    cc,
     subject: `【給与支給一覧】${payPeriod.period_label}`,
-    text: lines.join("\n"),
-    attachments: [
-      {
-        filename: `payroll_${period.key}.csv`,
-        content: csv,
-        contentType: "text/csv",
-      },
-    ],
-  });
-
-  if (!result.ok) return result;
-
-  await supabase.from("tax_reports").insert({
-    pay_period_id: payPeriod.id,
-    emailed_to: to,
-    emailed_at: new Date().toISOString(),
-  });
-
-  revalidatePath("/admin/report");
-  return { ok: true, message: `税理士(${to})に送信しました` };
+    body: lines.join("\n"),
+  };
 }
