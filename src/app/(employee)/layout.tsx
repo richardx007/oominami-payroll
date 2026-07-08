@@ -20,15 +20,15 @@ export default async function EmployeeLayout({
 
   return (
     <div className="min-h-screen pb-20">
-      <header className="sticky top-0 z-10 bg-blue-700 text-white shadow-md">
+      <header className="sticky top-0 z-10 bg-[#152449] text-white shadow-md">
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <span
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-lg font-bold"
-              aria-hidden
-            >
-              ¥
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.svg"
+              alt="新世界オオミナミ"
+              className="h-10 w-10 shrink-0 rounded-full bg-white object-contain"
+            />
             <span className="text-lg font-bold">給与管理</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
