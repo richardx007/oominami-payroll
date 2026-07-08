@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+  index.html への追記サンプル。要点は次の 2 つ:
+    (A) #root 内の「起動スプラッシュ」= 読み込み中も真っ暗にしない
+    (B) <head> 直後の「起動ウォッチドッグ」= 一定時間マウントできなければ 1 回だけ自動リロード
+  logo.png / 色 / 背景は各アプリに合わせて差し替える。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <!-- (B) 起動ウォッチドッグ: モジュール読込より前に評価される。
+         window.load 後 6 秒たっても window.__APP_MOUNTED__ が未設定なら 1 回だけ reload。
+         sessionStorage でループを防ぐ(30 秒経過で解除し次の異常に備える)。 -->
+    <script>
+      (function () {
+        var KEY = '__boot_recover__'
+        try {
+          var last = Number(sessionStorage.getItem(KEY) || 0)
+          if (last && Date.now() - last > 30000) sessionStorage.removeItem(KEY)
+        } catch (e) {}
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            if (window.__APP_MOUNTED__) return // 正常に起動できている
+            try {
+              if (sessionStorage.getItem(KEY)) return // すでに一度復帰を試みた → ループ防止
+              sessionStorage.setItem(KEY, String(Date.now()))
+            } catch (e) {}
+            window.location.reload() // 真っ暗のまま固まった状態からの自動復帰
+          }, 6000)
+        })
+      })()
+    </script>
+    <title>App</title>
+  </head>
+  <body>
+    <div id="root">
+      <!-- (A) 起動スプラッシュ: JS 読込〜React マウントまでの間に表示。
+           React がマウントすると #root ごと置換されて消える。background は theme に合わせる。 -->
+      <div
+        id="boot-splash"
+        style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#121212"
+      >
+        <img src="/logo.png" alt="" width="72" height="72" style="border-radius:16px" />
+        <div
+          style="width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,255,255,0.2);border-top-color:#E8C66B;animation:boot-spin 0.8s linear infinite"
+        ></div>
+        <style>
+          @keyframes boot-spin {
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        </style>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
