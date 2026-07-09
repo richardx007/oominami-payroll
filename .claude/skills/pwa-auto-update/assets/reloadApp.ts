@@ -11,7 +11,10 @@
 //   3) 待機 SW が無ければそのままリロード
 //
 // 生成 SW 側は「SKIP_WAITING メッセージで self.skipWaiting()」する必要がある。
-// vite-plugin-pwa の generateSW(既定)はこのハンドラを自動で含む(バナー更新と同じ経路)。
+// Serwist(skipWaiting:false)の addEventListeners() はこの SKIP_WAITING ハンドラを含む
+// (ReloadPrompt バナーの更新経路と同一)。
+//
+// フレームワーク非依存(navigator.serviceWorker のみに依存)なので Next.js でもそのまま使える。
 
 export interface ReloadAppOptions {
   /** controllerchange が来ない端末向けの保険リロード時間(ms)。既定 3000。 */
