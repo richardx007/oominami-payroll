@@ -39,6 +39,8 @@ export function ReloadPrompt({
 }: ReloadPromptProps = {}) {
   const [needRefresh, setNeedRefresh] = useState(false);
   const serwistRef = useRef<Serwist | null>(null);
+  // ユーザーが「更新」をタップして更新を開始したか。controlling リロードのガードに使う。
+  const updatingRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -49,9 +51,12 @@ export function ReloadPrompt({
     // 待機中(waiting)の新 SW を検知したらバナーを出す。
     serwist.addEventListener("waiting", () => setNeedRefresh(true));
     // 新 SW が制御を取ったら 1 回だけリロードして最新版に切り替える。
+    // ただし初回インストール(clientsClaim による初掌握)でも controlling は発火するため、
+    // ユーザーが「更新」を押したときだけリロードする。これが無いと導入直後の初回訪問で
+    // バナーを経ずに勝手にリロードが 1 回走ってしまう。
     let reloaded = false;
     serwist.addEventListener("controlling", () => {
-      if (reloaded) return;
+      if (!updatingRef.current || reloaded) return;
       reloaded = true;
       window.location.reload();
     });
@@ -105,7 +110,8 @@ export function ReloadPrompt({
         <button
           type="button"
           onClick={() => {
-            // 待機 SW を有効化。controlling イベントでリロードされる。
+            // ユーザー起点の更新であることを記録 → controlling イベントでリロードされる。
+            updatingRef.current = true;
             serwistRef.current?.messageSkipWaiting();
           }}
           style={{
