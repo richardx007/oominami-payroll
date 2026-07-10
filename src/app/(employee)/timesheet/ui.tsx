@@ -15,7 +15,7 @@ import { upsertWorkEntry, deleteWorkEntry, type ActionResult } from "./actions";
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
 const inputClass =
-  "w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
 const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
 
@@ -143,17 +143,12 @@ export function TimesheetCalendar({
           </p>
         )}
 
-        {/* サマリ(枠なし・文字のみのコンパクト表示) */}
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-gray-600">
-          <span>
-            勤務日数{" "}
-            <span className="font-bold text-gray-900">{summary.days}日</span>
-          </span>
-          <span>
-            勤務時間{" "}
-            <span className="font-bold text-gray-900">
-              {formatMinutes(summary.minutes) || "0時間"}
-            </span>
+        {/* サマリ(枠なし・文字のみ。左端に「合計」、日数/時間の見出しは省略) */}
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-base text-gray-600">
+          <span className="font-semibold text-gray-700">合計</span>
+          <span className="font-bold text-gray-900">{summary.days}日</span>
+          <span className="font-bold text-gray-900">
+            {formatMinutes(summary.minutes) || "0時間"}
           </span>
           <span>
             交通費{" "}
@@ -360,10 +355,10 @@ function EntryForm({
       <form ref={formRef} onSubmit={handleSubmit} className="mt-3 space-y-4">
         <input type="hidden" name="work_date" value={date} />
 
-        {/* 勤務時間(出勤・退勤は間隔を広めに) */}
-        <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+        {/* 勤務時間(出勤・退勤は間隔を広めに。[&>div]:min-w-0 で列の重なりを防ぐ) */}
+        <div className="grid grid-cols-2 gap-x-5 gap-y-3 [&>div]:min-w-0">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">
+            <label className="mb-1 block text-sm font-medium text-gray-600">
               出勤
             </label>
             <input
@@ -375,7 +370,7 @@ function EntryForm({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">
+            <label className="mb-1 block text-sm font-medium text-gray-600">
               退勤
             </label>
             <input
@@ -387,7 +382,7 @@ function EntryForm({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">
+            <label className="mb-1 block text-sm font-medium text-gray-600">
               休憩(分)
             </label>
             <input
@@ -403,23 +398,25 @@ function EntryForm({
         </div>
 
         {/* 交通費(1つの枠にまとめる。塗りを少し濃く + 右上に×クリア) */}
-        <fieldset className="relative rounded-xl border border-gray-200 bg-gray-100 p-3">
-          <legend className="px-1 text-sm font-semibold text-gray-700">
-            交通費
-          </legend>
-          <button
-            type="button"
-            onClick={clearTransport}
-            aria-label="交通費をクリア"
-            title="交通費をクリア"
-            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-          >
-            ✕
-          </button>
+        <fieldset className="rounded-xl border border-gray-200 bg-gray-100 p-3 pt-2">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="px-1 text-base font-semibold text-gray-700">
+              交通費
+            </span>
+            <button
+              type="button"
+              onClick={clearTransport}
+              aria-label="交通費をクリア"
+              title="交通費をクリア"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 active:opacity-70"
+            >
+              ✕
+            </button>
+          </div>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 [&>div]:min-w-0">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">
+                <label className="mb-1 block text-sm font-medium text-gray-600">
                   手段
                 </label>
                 <select
@@ -437,7 +434,7 @@ function EntryForm({
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">
+                <label className="mb-1 block text-sm font-medium text-gray-600">
                   金額(円)
                 </label>
                 <input
@@ -453,9 +450,9 @@ function EntryForm({
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 [&>div]:min-w-0">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">
+                <label className="mb-1 block text-sm font-medium text-gray-600">
                   区間(駅1)
                 </label>
                 <input
@@ -469,7 +466,7 @@ function EntryForm({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">
+                <label className="mb-1 block text-sm font-medium text-gray-600">
                   区間(駅2)
                 </label>
                 <input
@@ -489,7 +486,7 @@ function EntryForm({
               ))}
             </datalist>
             <div>
-              <span className="mb-1 block text-xs font-medium text-gray-500">
+              <span className="mb-1 block text-sm font-medium text-gray-600">
                 片道 / 往復
               </span>
               <div className="flex gap-4 text-sm">
@@ -519,7 +516,7 @@ function EntryForm({
         </fieldset>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
+          <label className="mb-1 block text-sm font-medium text-gray-600">
             メモ(任意)
           </label>
           <input
