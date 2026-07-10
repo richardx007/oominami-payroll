@@ -72,7 +72,23 @@
 - **登録エラー日本語化**: `register/page.tsx` の `friendlyOtpError()` で英語エラーを日本語に。
 - **税理士資料**: SMTP直接送信→**mailto方式**（`buildTaxReportMail`）＋**CSVダウンロード**（`buildTaxReportCsv`）。
   mailtoは添付不可のためCSVは手動添付。`tax_reports` テーブルへの書き込みは廃止（将来用に残置）。
-- **スキル**: `.claude/skills/pwa-auto-update/` を追加（Vite+React前提のため本アプリ=Next.jsへの統合は見送り）。
+- **スキル**: `.claude/skills/pwa-auto-update/` を追加。当初 Vite 前提だったものを **Next.js(App Router)版に組み替え**。
+
+### 本セッションで実施した変更（PWA自動更新）
+- **PWA自動更新を実装**（要件: ロゴ1タップ更新 / 更新バナー）。当初 `@serwist/next` で導入したが、
+  **Cloudflare Workers + opennext で全メニュー遷移が「This page couldn't load」になる本番障害**が発生。
+  原因は2つ: ①`@serwist/next` の `defaultCache` がページ遷移/RSC を横取り、②SW 生成のため
+  `next build --webpack` に切り替えたこと。**両要因を排除した最小構成で再導入**した。
+  - `scripts/generate-sw.mjs` がビルド時に `public/sw.js` を生成（`SW_VERSION`=git SHA を刻印）。
+    この SW は **`fetch` を持たない**＝リクエスト非介入で遷移を壊さない。
+  - `src/app/pwa/ReloadPrompt.tsx`（素の `navigator.serviceWorker`・約1分ポーリング）で更新バナー。
+  - `src/app/pwa/reloadApp.ts` + `admin/nav.tsx` の `LogoButton` でロゴ1タップ更新。
+  - `src/app/manifest.ts` 復活・`viewport-fit=cover`。middleware で `/sw.js`・`/manifest.webmanifest` を除外。
+  - ビルドは **`next build`（Turbopack）を維持**（webpack 切替は廃止）。Serwist 依存は削除。
+  - 実ブラウザ(Chromium)で登録・遷移・更新検知バナー・更新適用を検証（エラー0）。詳細は設計書
+    「5. デプロイ / 運用 > PWA / 自動更新」の教訓ボックス参照。
+  - 障害収束時に一時的に配った**キルスイッチ SW**（自己 unregister＋全キャッシュ削除）は、現在は
+    生成される最小 SW に置き換わっている（最小 SW も activate で旧キャッシュを掃除する）。
 
 ---
 
@@ -158,8 +174,10 @@ npm test           # Vitest（給与計算ロジック）
 - [ ] **税理士へPDF自動添付メール**: 現状は mailto作成＋CSV手動添付＋画面からの手動PDF。オーナーから
       「PDF添付にできないか」という要望あり。サーバー側PDF生成（@react-pdf等）が必要な
       中規模作業のため保留中。必要になったら実装検討。
-- [ ] **PWA自動更新**: `.claude/skills/pwa-auto-update` はVite前提。本アプリ(Next.js)版として
-      next-pwa / @serwist/next で作り直す想定（来週以降の大きめ作業として保留）。
+- [x] **PWA自動更新**: 実装済み（fetch非介入の最小SW + 更新バナー + ロゴ1タップ更新）。
+      ⚠️ Cloudflareでは `@serwist/next` の `defaultCache`／webpackビルド切替は使わないこと（本番障害の原因）。
+      残・任意課題: iOSホーム画面用の PNG アイコン（192/512・apple-touch-icon）整備、
+      オフラインキャッシュが必要になった場合の設計（現状は更新通知のみでキャッシュしない）。
 - [ ] 給与明細のPDF体裁（現状はブラウザ印刷。専用レイアウトが必要なら @react-pdf 等）。
 - [ ] 会社名・住所などを給与明細/税理士資料の帳票ヘッダーに反映（company_name は
       メール差出人名のみ利用中）。締め処理/税理士画面には交通費内訳（手段/区間）は未表示。

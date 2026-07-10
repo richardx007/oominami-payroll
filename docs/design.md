@@ -119,7 +119,11 @@ app/
   register/              初回登録（メールのみ入力→マジックリンク送信）
   set-password/          マジックリンク後のパスワード設定
   auth/callback/         Supabase 認証コールバック（setup=1で/set-passwordへ）
-  layout.tsx, page.tsx, globals.css
+  manifest.ts            PWA マニフェスト（/manifest.webmanifest）
+  pwa/
+    ReloadPrompt.tsx     更新バナー（新版検知→ワンタップ更新）
+    reloadApp.ts         ロゴ1タップ最新化（LogoButtonから使用）
+  layout.tsx             ルート（ReloadPrompt常設・viewport-fit=cover）, page.tsx, globals.css
 lib/
   supabase/              client.ts / server.ts / middleware.ts
   auth.ts                requireEmployee() / requireAdmin()
@@ -206,6 +210,33 @@ middleware.ts            未認証は /login へ
 ### 無料枠での運用
 - Supabase 無料 / Cloudflare Workers 無料 / Gmail SMTP（無料枠）で運用。
 - Supabase 無料プロジェクトは長期未アクセスで一時停止する点に注意（現状 cron ping は未設定 → 未実装事項参照）。
+
+### PWA / 自動更新（Service Worker）
+ホーム画面追加した PWA で、エンドユーザーが**ロゴ1タップで最新化**でき、新版デプロイ時に
+**「新しいバージョンがあります」バナー**で更新を促す仕組み。
+
+- **最小 Service Worker**: `scripts/generate-sw.mjs` がビルド時に `public/sw.js` を生成し、
+  `SW_VERSION`（git 短縮SHA）を刻印する。この SW は **`fetch` ハンドラを持たない**（＝リクエストを
+  一切横取りしない）ため、App Router のナビゲーション/RSC を壊さない。役割は「更新検知」と
+  `SKIP_WAITING` による有効化のみ。`activate` で旧キャッシュを掃除し `clients.claim()`。
+- **更新バナー**: `src/app/pwa/ReloadPrompt.tsx`（素の `navigator.serviceWorker`）。ルート
+  `layout.tsx` に常設。登録後は約1分間隔で `registration.update()` をポーリングし、`SW_VERSION` が
+  変わった新版を検知するとバナー表示 → タップで `SKIP_WAITING` → `controllerchange` でリロード。
+  初回インストール時は誤リロードしないよう `controller` の有無でガード。
+- **ロゴ1タップ更新**: `src/app/pwa/reloadApp.ts` を `admin/nav.tsx` の `LogoButton` に配線
+  （管理・従業員ヘッダー）。待機/インストール中の新 SW を有効化して確実に最新化する。
+- **マニフェスト**: `src/app/manifest.ts`（`/manifest.webmanifest`）。`viewport-fit=cover`。
+- **ビルド**: `build` は `node scripts/generate-sw.mjs && next build`。**Turbopack のまま**（重要）。
+- **middleware**: `/sw.js`・`/manifest.webmanifest` は matcher から除外（未ログイン時に /login へ
+  リダイレクトされると SW 登録が壊れるため）。
+
+> ⚠️ **Cloudflare Workers + opennext での重要な教訓**（過去に本番障害を起こした）
+> - `@serwist/next` の `defaultCache` は**ページ遷移/RSC を横取り**し、この環境では全メニュー遷移が
+>   「This page couldn't load」で失敗する（リロードでのみ復帰）。**使用禁止**。SW は fetch 非介入に保つ。
+> - `@serwist/next` は webpack ビルドを要求し、Next16 既定の Turbopack から切り替わること自体もリスク。
+>   本構成は Serwist を使わず Turbopack を維持している。
+> - iOS standalone は SW 更新の反映が鈍い。壊れた SW を配ってしまった場合は、`/sw.js` を自己解除する
+>   **キルスイッチ SW**（unregister＋全キャッシュ削除＋再読込）に差し替えて回収する。
 
 ---
 
