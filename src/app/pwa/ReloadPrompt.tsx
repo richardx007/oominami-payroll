@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { reloadApp } from "./reloadApp";
 
 // ReloadPrompt — 新しいバージョン(Service Worker)を検知したら画面上部にバナーを出し、
 // ワンタップで有効化＋リロードする。素の navigator.serviceWorker のみで実装(依存追加なし)。
@@ -118,8 +119,11 @@ export function ReloadPrompt({
         <button
           type="button"
           onClick={() => {
-            // 待機中の新 SW を有効化。controllerchange でリロードされる。
-            waitingRef.current?.postMessage({ type: "SKIP_WAITING" });
+            setNeedRefresh(false);
+            // 待機中の新 SW を有効化しつつ、controllerchange が来ない端末(iOS標準)でも
+            // 保険タイマーで確実にリロードする reloadApp に委譲する。
+            // この SW はキャッシュしないため、リロードすれば必ず最新版が読み込まれる。
+            void reloadApp({ fallbackMs: 1500 });
           }}
           style={{
             display: "inline-flex",
