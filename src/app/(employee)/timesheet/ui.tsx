@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
 import {
@@ -113,9 +113,9 @@ export function TimesheetCalendar({
               router.push(`/timesheet?p=${adjacentPeriodKey(period.key, -1)}`)
             }
             aria-label="前月"
-            className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-3 py-1 text-3xl font-bold text-gray-600 hover:bg-gray-100"
           >
-            ←
+            ＜
           </button>
           <div className="text-center">
             <div className="text-3xl font-extrabold tracking-tight text-blue-800">
@@ -131,9 +131,9 @@ export function TimesheetCalendar({
               router.push(`/timesheet?p=${adjacentPeriodKey(period.key, 1)}`)
             }
             aria-label="翌月"
-            className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-3 py-1 text-3xl font-bold text-gray-600 hover:bg-gray-100"
           >
-            →
+            ＞
           </button>
         </div>
 
@@ -143,24 +143,24 @@ export function TimesheetCalendar({
           </p>
         )}
 
-        {/* サマリ */}
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl border border-gray-200 bg-white p-3">
-            <div className="text-xs text-gray-500">勤務日数</div>
-            <div className="text-lg font-bold">{summary.days}日</div>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-3">
-            <div className="text-xs text-gray-500">勤務時間</div>
-            <div className="text-lg font-bold">
+        {/* サマリ(枠なし・文字のみのコンパクト表示) */}
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-gray-600">
+          <span>
+            勤務日数{" "}
+            <span className="font-bold text-gray-900">{summary.days}日</span>
+          </span>
+          <span>
+            勤務時間{" "}
+            <span className="font-bold text-gray-900">
               {formatMinutes(summary.minutes) || "0時間"}
-            </div>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-3">
-            <div className="text-xs text-gray-500">交通費</div>
-            <div className="text-lg font-bold">
+            </span>
+          </span>
+          <span>
+            交通費{" "}
+            <span className="font-bold text-gray-900">
               ¥{summary.transport.toLocaleString()}
-            </div>
-          </div>
+            </span>
+          </span>
         </div>
 
         {result && !result.ok && (
@@ -290,14 +290,78 @@ function EntryForm({
 }) {
   const init = entry ?? defaults;
 
+  const formRef = useRef<HTMLFormElement>(null);
+  const modeRef = useRef<HTMLSelectElement>(null);
+  const costRef = useRef<HTMLInputElement>(null);
+  const fromRef = useRef<HTMLInputElement>(null);
+  const toRef = useRef<HTMLInputElement>(null);
+
+  // カスタムバリデーション(吹き出し)をリセット
+  function resetValidity() {
+    fromRef.current?.setCustomValidity("");
+    toRef.current?.setCustomValidity("");
+    costRef.current?.setCustomValidity("");
+  }
+
+  // × ボタン: 交通費フィールドを全てクリア
+  function clearTransport() {
+    resetValidity();
+    if (modeRef.current) modeRef.current.value = "";
+    if (costRef.current) costRef.current.value = "";
+    if (fromRef.current) fromRef.current.value = "";
+    if (toRef.current) toRef.current.value = "";
+    formRef.current
+      ?.querySelectorAll<HTMLInputElement>('input[name="round_trip"]')
+      .forEach((r) => (r.checked = false));
+  }
+
+  // 交通費は「区間1・区間2・金額(>0)」を全てセットで入力する(金額0=空欄扱い)。
+  // 何か1つでも入力されていれば不足分をネイティブの吹き出しで促す。全空欄はOK。
+  function validateTransport(): boolean {
+    resetValidity();
+    const from = fromRef.current?.value.trim() ?? "";
+    const to = toRef.current?.value.trim() ?? "";
+    const cost = Number(costRef.current?.value || "0") || 0;
+    const anyEntered = from !== "" || to !== "" || cost > 0;
+    if (!anyEntered) return true;
+
+    let firstInvalid: HTMLElement | null = null;
+    if (!from) {
+      fromRef.current?.setCustomValidity("この欄に入力してください");
+      firstInvalid ??= fromRef.current;
+    }
+    if (!to) {
+      toRef.current?.setCustomValidity("この欄に入力してください");
+      firstInvalid ??= toRef.current;
+    }
+    if (cost <= 0) {
+      costRef.current?.setCustomValidity("この欄に入力してください");
+      firstInvalid ??= costRef.current;
+    }
+    if (firstInvalid) {
+      formRef.current?.reportValidity();
+      return false;
+    }
+    return true;
+  }
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!validateTransport()) return;
+    onSave(new FormData(e.currentTarget));
+  }
+
   return (
     <div className="rounded-xl border border-blue-200 bg-white p-4">
-      <h3 className="text-lg font-bold text-blue-800">{formatDateJa(date)}</h3>
-      <form action={onSave} className="mt-3 space-y-4">
+      <h3 className="text-lg font-bold text-blue-800">
+        {formatDateJa(date)}
+        <span className="ml-2 text-sm font-medium text-gray-500">勤務記録</span>
+      </h3>
+      <form ref={formRef} onSubmit={handleSubmit} className="mt-3 space-y-4">
         <input type="hidden" name="work_date" value={date} />
 
-        {/* 勤務時間 */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* 勤務時間(出勤・退勤は間隔を広めに) */}
+        <div className="grid grid-cols-2 gap-x-5 gap-y-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">
               出勤
@@ -338,11 +402,20 @@ function EntryForm({
           </div>
         </div>
 
-        {/* 交通費(1つの枠にまとめる) */}
-        <fieldset className="rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+        {/* 交通費(1つの枠にまとめる。塗りを少し濃く + 右上に×クリア) */}
+        <fieldset className="relative rounded-xl border border-gray-200 bg-gray-100 p-3">
           <legend className="px-1 text-sm font-semibold text-gray-700">
             交通費
           </legend>
+          <button
+            type="button"
+            onClick={clearTransport}
+            aria-label="交通費をクリア"
+            title="交通費をクリア"
+            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+          >
+            ✕
+          </button>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -350,10 +423,12 @@ function EntryForm({
                   手段
                 </label>
                 <select
+                  ref={modeRef}
                   name="transport_mode"
                   defaultValue={init?.transport_mode ?? "鉄道"}
                   className={inputClass}
                 >
+                  <option value="">選択</option>
                   {TRANSPORT_MODES.map((m) => (
                     <option key={m} value={m}>
                       {m}
@@ -366,13 +441,14 @@ function EntryForm({
                   金額(円)
                 </label>
                 <input
+                  ref={costRef}
                   name="transport_cost"
                   type="number"
                   inputMode="numeric"
                   min={0}
                   step={10}
-                  required
                   defaultValue={init?.transport_cost ?? 0}
+                  onInput={() => costRef.current?.setCustomValidity("")}
                   className={inputClass}
                 />
               </div>
@@ -383,10 +459,12 @@ function EntryForm({
                   区間(駅1)
                 </label>
                 <input
+                  ref={fromRef}
                   name="station_from"
                   list="station-list"
                   defaultValue={init?.station_from ?? ""}
                   placeholder="例: 大波駅"
+                  onInput={() => fromRef.current?.setCustomValidity("")}
                   className={inputClass}
                 />
               </div>
@@ -395,10 +473,12 @@ function EntryForm({
                   区間(駅2)
                 </label>
                 <input
+                  ref={toRef}
                   name="station_to"
                   list="station-list"
                   defaultValue={init?.station_to ?? ""}
                   placeholder="例: 新世界駅"
+                  onInput={() => toRef.current?.setCustomValidity("")}
                   className={inputClass}
                 />
               </div>
