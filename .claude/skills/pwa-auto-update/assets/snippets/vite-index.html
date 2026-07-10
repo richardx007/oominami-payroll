@@ -1,0 +1,18 @@
+<!--
+  index.html への追記サンプル(Vite + React)。<head> に次の2行を足すだけ。
+  - manifest リンク(public/manifest.webmanifest を配信)
+  - iOS standalone 用に viewport-fit=cover
+  SW の登録は <script> ではなく ReloadPrompt(アプリ内)が行うので、ここに登録タグは不要。
+-->
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#152449" />
+  <!-- iOS ホーム画面用(任意): -->
+  <link rel="apple-touch-icon" href="/logo.svg" />
+  <title>アプリ名</title>
+</head>

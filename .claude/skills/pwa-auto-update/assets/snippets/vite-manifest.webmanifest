@@ -1,0 +1,13 @@
+{
+  "name": "アプリ名",
+  "short_name": "アプリ",
+  "lang": "ja",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#152449",
+  "theme_color": "#152449",
+  "icons": [
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
