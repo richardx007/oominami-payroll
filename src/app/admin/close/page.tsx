@@ -8,6 +8,7 @@ import {
   periodFromKey,
 } from "@/lib/period";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
+import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
 import { CloseActions } from "./ui";
 
 export default async function ClosePage({
@@ -47,26 +48,34 @@ export default async function ClosePage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-bold">締め処理</h1>
+          <h1 className="text-sm font-medium text-gray-500">締め処理</h1>
+          <div className="mt-0.5 flex flex-wrap items-center gap-3">
+            <span className="text-3xl font-bold tracking-tight text-gray-900">
+              {period.label}
+            </span>
+            <span className={periodStatusBadgeClass(status)}>
+              {periodStatusLabel(status)}
+            </span>
+            <div className="flex gap-2 text-sm">
+              <Link
+                href={`/admin/close?p=${adjacentPeriodKey(period.key, -1)}`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
+              >
+                ← 前月
+              </Link>
+              <Link
+                href={`/admin/close?p=${adjacentPeriodKey(period.key, 1)}`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
+              >
+                翌月 →
+              </Link>
+            </div>
+          </div>
           <p className="mt-1 text-sm text-gray-500">
-            {period.label}({period.start.replaceAll("-", "/")} 〜{" "}
-            {period.end.replaceAll("-", "/")}、支払日{" "}
-            {period.paymentDate.replaceAll("-", "/")})
+            {period.start.replaceAll("-", "/")} 〜{" "}
+            {period.end.replaceAll("-", "/")} / 支払日{" "}
+            {period.paymentDate.replaceAll("-", "/")}
           </p>
-        </div>
-        <div className="flex gap-2 text-sm">
-          <Link
-            href={`/admin/close?p=${adjacentPeriodKey(period.key, -1)}`}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
-          >
-            ← 前月
-          </Link>
-          <Link
-            href={`/admin/close?p=${adjacentPeriodKey(period.key, 1)}`}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
-          >
-            翌月 →
-          </Link>
         </div>
       </div>
 
@@ -86,7 +95,7 @@ export default async function ClosePage({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-blue-100 bg-blue-50/60 text-left text-xs text-gray-600">
+              <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
                 <th className="px-4 py-2">No</th>
                 <th className="px-4 py-2">氏名</th>
                 <th className="px-4 py-2 text-right">日数</th>

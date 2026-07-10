@@ -112,25 +112,25 @@ export default async function AdminDashboardPage({
             <span className={periodStatusBadgeClass(status)}>
               {periodStatusLabel(status)}
             </span>
+            <div className="flex gap-2 text-sm">
+              <Link
+                href={`/admin?p=${adjacentPeriodKey(period.key, -1)}`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
+              >
+                ← 前月
+              </Link>
+              <Link
+                href={`/admin?p=${adjacentPeriodKey(period.key, 1)}`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
+              >
+                翌月 →
+              </Link>
+            </div>
           </div>
           <p className="mt-1 text-sm text-gray-500">
             {period.start.replaceAll("-", "/")} 〜{" "}
             {period.end.replaceAll("-", "/")}
           </p>
-        </div>
-        <div className="flex gap-2 text-sm">
-          <Link
-            href={`/admin?p=${adjacentPeriodKey(period.key, -1)}`}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
-          >
-            ← 前月
-          </Link>
-          <Link
-            href={`/admin?p=${adjacentPeriodKey(period.key, 1)}`}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
-          >
-            翌月 →
-          </Link>
         </div>
       </div>
 
@@ -147,7 +147,7 @@ export default async function AdminDashboardPage({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-blue-100 bg-blue-50/60 text-left text-xs text-gray-600">
+              <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
                 <th className="px-4 py-2">No</th>
                 <th className="px-4 py-2">氏名</th>
                 <th className="px-4 py-2 text-right">勤務日数</th>

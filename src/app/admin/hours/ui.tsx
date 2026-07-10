@@ -50,31 +50,34 @@ export function HoursView({
 
   return (
     <div className="space-y-4">
-      {/* 年月ナビ */}
-      <div className="flex items-center justify-between gap-2">
-        <Link
-          href={`/admin/hours?p=${adjacentPeriodKey(period.key, -1)}`}
-          aria-label="前月"
-          className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
-        >
-          ←
-        </Link>
-        <div className="text-center">
-          <div className="text-2xl font-extrabold tracking-tight text-blue-800">
-            {period.label}
+      {/* タイトル行(ダッシュボードと同じ表現に統一) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-sm font-medium text-gray-500">勤務時間</h1>
+          <div className="mt-0.5 flex flex-wrap items-center gap-3">
+            <span className="text-3xl font-bold tracking-tight text-gray-900">
+              {period.label}
+            </span>
+            <div className="flex gap-2 text-sm">
+              <Link
+                href={`/admin/hours?p=${adjacentPeriodKey(period.key, -1)}`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
+              >
+                ← 前月
+              </Link>
+              <Link
+                href={`/admin/hours?p=${adjacentPeriodKey(period.key, 1)}`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
+              >
+                翌月 →
+              </Link>
+            </div>
           </div>
-          <div className="mt-0.5 text-xs text-gray-500">
+          <p className="mt-1 text-sm text-gray-500">
             {period.start.replaceAll("-", "/")} 〜{" "}
             {period.end.replaceAll("-", "/")}
-          </div>
+          </p>
         </div>
-        <Link
-          href={`/admin/hours?p=${adjacentPeriodKey(period.key, 1)}`}
-          aria-label="翌月"
-          className="shrink-0 rounded-lg px-3 py-2 text-lg text-gray-500 hover:bg-gray-100"
-        >
-          →
-        </Link>
       </div>
 
       {workers.length === 0 ? (
@@ -135,16 +138,31 @@ function EmployeeMonth({ employee }: { employee: EmployeeHours }) {
     <section className="rounded-xl border border-gray-200 bg-white">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <h2 className="text-lg font-bold text-gray-900">{employee.name}</h2>
-        <div className="text-sm text-gray-500">
-          {employee.entries.length}日 / 勤務{" "}
-          {formatMinutes(totals.minutes) || "0時間"} / 交通費 ¥
-          {totals.transport.toLocaleString()}
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-gray-600">
+          <span>
+            勤務日数{" "}
+            <span className="font-bold text-gray-900">
+              {employee.entries.length}日
+            </span>
+          </span>
+          <span>
+            勤務時間{" "}
+            <span className="font-bold text-gray-900">
+              {formatMinutes(totals.minutes) || "0時間"}
+            </span>
+          </span>
+          <span>
+            交通費{" "}
+            <span className="font-bold text-gray-900">
+              ¥{totals.transport.toLocaleString()}
+            </span>
+          </span>
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full whitespace-nowrap text-sm">
           <thead>
-            <tr className="border-b border-blue-100 bg-blue-50/60 text-left text-xs text-gray-600">
+            <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
               <th className="px-3 py-2">年月日</th>
               <th className="px-2 py-2">曜日</th>
               <th className="px-2 py-2">開始</th>

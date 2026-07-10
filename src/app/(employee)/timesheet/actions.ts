@@ -22,7 +22,24 @@ const entrySchema = z
   })
   .refine((d) => d.end_time > d.start_time, {
     message: "退勤時刻は出勤時刻より後にしてください",
-  });
+  })
+  .refine(
+    (d) => {
+      // 交通費は「手段・区間1・区間2・往復/片道・金額」を全てセットで入力する。
+      // 何か1つでも入力されていれば全て必須、全て空欄(金額0・区間未入力)ならOK。
+      const from = d.station_from?.trim() ?? "";
+      const to = d.station_to?.trim() ?? "";
+      const mode = d.transport_mode?.trim() ?? "";
+      const cost = d.transport_cost;
+      const anyEntered = from !== "" || to !== "" || cost > 0;
+      if (!anyEntered) return true;
+      return from !== "" && to !== "" && mode !== "" && cost > 0;
+    },
+    {
+      message:
+        "交通費は手段・区間1・区間2・往復/片道・金額をすべて入力してください(不要な場合はすべて空欄・0円に)",
+    }
+  );
 
 export async function upsertWorkEntry(
   formData: FormData

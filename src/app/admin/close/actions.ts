@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { periodFromKey } from "@/lib/period";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
-import { buildPayslipMailText, sendMail } from "@/lib/email";
+import { buildPayslipMailText, getSenderEmail, sendMail } from "@/lib/email";
 import type { ActionResult } from "../employees/actions";
 
 /** 締め処理: 期間をロックし、全員分の給与明細を確定保存する */
@@ -150,9 +150,18 @@ export async function emailPayslips(
     )
     .eq("pay_period_id", payPeriod.id);
 
-  const targets = (payslips ?? []).filter(
-    (p) => !onlyUnsent || !p.emailed_at
-  );
+  // 送信元アドレス(会社Gmail)には配信しない。従業員として送信元と同じメールが
+  // 登録されていると 0 円明細などが自分宛に届いてしまうため除外する。
+  const senderEmail = (await getSenderEmail())?.trim().toLowerCase();
+
+  const targets = (payslips ?? []).filter((p) => {
+    if (onlyUnsent && p.emailed_at) return false;
+    const emp = p.employees as unknown as { name: string; email: string };
+    const email = emp.email?.trim().toLowerCase();
+    if (!email) return false;
+    if (senderEmail && email === senderEmail) return false;
+    return true;
+  });
   if (targets.length === 0) {
     return { ok: false, message: "配信対象がありません" };
   }

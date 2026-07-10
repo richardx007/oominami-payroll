@@ -185,7 +185,7 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-blue-100 bg-blue-50/60 text-left text-xs text-gray-600">
+            <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
               <th className="px-4 py-2">No</th>
               <th className="px-4 py-2">氏名</th>
               <th className="hidden px-4 py-2 md:table-cell">メール</th>
