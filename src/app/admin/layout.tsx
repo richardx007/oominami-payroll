@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { AdminSidebarNav, AdminTopNav, LogoButton } from "./nav";
+import { AdminSidebarNav, AdminTopNav, Logo } from "./nav";
 
 async function signOut() {
   "use server";
@@ -22,7 +22,7 @@ export default async function AdminLayout({
       {/* サイドバー(タブレット・PC) */}
       <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col bg-[#152449] text-white shadow-md md:flex print:hidden">
         <div className="flex items-center gap-2 px-4 py-4">
-          <LogoButton />
+          <Logo />
           <span className="text-lg font-bold">給与管理</span>
         </div>
         <div className="flex-1 px-3">
@@ -43,7 +43,7 @@ export default async function AdminLayout({
         <div className="flex flex-wrap items-center justify-between gap-y-1 px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
             <div className="flex items-center gap-2">
-              <LogoButton />
+              <Logo />
               <span className="text-lg font-bold">給与管理</span>
             </div>
             <AdminTopNav />
