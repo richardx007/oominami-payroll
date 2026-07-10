@@ -5,6 +5,7 @@ import type { EmployeeRow } from "./page";
 import {
   addEmployee,
   inviteEmployee,
+  resetEmployeePassword,
   updateWage,
   updateTaxSetting,
   updateEmployeeProfile,
@@ -290,6 +291,23 @@ function EmployeeTableRow({
                 className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
               >
                 招待
+              </button>
+            )}
+            {emp.auth_user_id && !retired && (
+              <button
+                disabled={pending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `${emp.name} さん(${emp.email})にパスワード再設定メールを送信します。よろしいですか?`
+                    )
+                  ) {
+                    onRun(() => resetEmployeePassword(emp.id));
+                  }
+                }}
+                className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                パスワード再設定
               </button>
             )}
             <button onClick={onEdit} className="text-blue-600 hover:underline">

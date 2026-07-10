@@ -279,6 +279,52 @@ export async function inviteEmployee(employeeId: string): Promise<ActionResult> 
   return { ok: true, message: `${employee.name} さんに招待メールを送信しました` };
 }
 
+/** 登録済み従業員にパスワード再設定メールを送る(本人が /set-password で再設定) */
+export async function resetEmployeePassword(
+  employeeId: string
+): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("name, email, auth_user_id, status")
+    .eq("id", employeeId)
+    .maybeSingle();
+
+  if (!employee) return { ok: false, message: "従業員が見つかりません" };
+  if (!employee.auth_user_id) {
+    return {
+      ok: false,
+      message: "まだ初回登録が完了していません。先に「招待」を送ってください。",
+    };
+  }
+  if (employee.status !== "active") {
+    return { ok: false, message: "退職済みの従業員には送信できません" };
+  }
+
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  // 再設定リンクをクリック → /auth/callback でセッション確立 → /set-password へ
+  const redirectTo = `https://${host}/auth/callback?setup=1`;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(employee.email, {
+    redirectTo,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      message: "再設定メールの送信に失敗しました: " + error.message,
+    };
+  }
+
+  return {
+    ok: true,
+    message: `${employee.name} さんにパスワード再設定メールを送信しました`,
+  };
+}
+
 export async function toggleEmployeeStatus(
   employeeId: string,
   newStatus: "active" | "retired"
