@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { reloadApp } from "./reloadApp";
 
 // ReloadPrompt — 新しいバージョン(Service Worker)を検知したら画面上部にバナーを出し、
 // ワンタップで有効化＋リロードする。素の navigator.serviceWorker のみで実装(依存追加なし)。
@@ -119,11 +118,16 @@ export function ReloadPrompt({
         <button
           type="button"
           onClick={() => {
-            setNeedRefresh(false);
-            // 待機中の新 SW を有効化しつつ、controllerchange が来ない端末(iOS標準)でも
-            // 保険タイマーで確実にリロードする reloadApp に委譲する。
-            // この SW はキャッシュしないため、リロードすれば必ず最新版が読み込まれる。
-            void reloadApp({ fallbackMs: 1500 });
+            // iOS Safari(standalone)では controllerchange や非同期処理が確実に動かない
+            // ことがあるため、最小限かつ同期的に処理する:
+            //   1) 待機中の新 SW に SKIP_WAITING を投げる(ベストエフォート)
+            //   2) 直ちにリロード。この SW はキャッシュしないので、リロード＝最新版取得。
+            try {
+              waitingRef.current?.postMessage({ type: "SKIP_WAITING" });
+            } catch {
+              /* 失敗してもリロードする */
+            }
+            window.location.reload();
           }}
           style={{
             display: "inline-flex",
@@ -133,10 +137,13 @@ export function ReloadPrompt({
             border: "none",
             background: accentColor,
             color: "#fff",
-            padding: "6px 12px",
-            fontSize: 14,
-            fontWeight: 600,
+            padding: "10px 18px",
+            minHeight: 40,
+            fontSize: 15,
+            fontWeight: 700,
             cursor: "pointer",
+            touchAction: "manipulation",
+            WebkitTapHighlightColor: "rgba(255,255,255,0.3)",
           }}
         >
           {buttonLabel}
@@ -149,10 +156,12 @@ export function ReloadPrompt({
             border: "none",
             background: "transparent",
             color: "rgba(255,255,255,0.6)",
-            padding: 4,
-            fontSize: 16,
+            padding: 10,
+            minHeight: 40,
+            fontSize: 18,
             lineHeight: 1,
             cursor: "pointer",
+            touchAction: "manipulation",
           }}
         >
           ✕
