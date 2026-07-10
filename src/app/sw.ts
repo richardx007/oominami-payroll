@@ -68,7 +68,10 @@ const runtimeCaching: RuntimeCaching[] = [
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
-  skipWaiting: false, // ← 自動適用しない(更新バナー/ロゴタップで有効化)
+  // 復旧措置: 旧(ナビゲーションを壊す)SW を確実に置き換えるため、この版は
+  // 自動で有効化して即座に制御を奪う。テスターがバナーをタップし損ねても直る。
+  // ※ フリート復旧後、更新バナー運用に戻すなら skipWaiting を false に戻す。
+  skipWaiting: true,
   clientsClaim: true,
   // navigationPreload は使わない(ナビゲーションを SW で扱わないため不要)。
   navigationPreload: false,
@@ -76,3 +79,24 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// 旧 SW(@serwist/next の defaultCache)が作った、ナビゲーション/RSC を含む
+// 壊れたランタイムキャッシュを有効化時に削除する。現行の SW はこれらを読まないが、
+// 残しても無駄なので掃除しておく。現行のキャッシュ名は残す。
+const KEEP_CACHES = new Set(["next-static", "static-assets"]);
+const STALE_CACHE_RE =
+  /^(pages|pages-rsc|pages-rsc-prefetch|others|apis|next-data|static-data-assets|cross-origin|start-url|static-(image|js|style|font|audio|video)-assets|google-fonts)/;
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      const names = await caches.keys();
+      await Promise.all(
+        names.map((name) =>
+          !KEEP_CACHES.has(name) && STALE_CACHE_RE.test(name)
+            ? caches.delete(name)
+            : Promise.resolve(false)
+        )
+      );
+    })()
+  );
+});
