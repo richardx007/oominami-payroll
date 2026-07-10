@@ -6,9 +6,12 @@ import {
   currentPeriod,
   formatMinutes,
   periodFromKey,
+  todayJST,
   workMinutes,
 } from "@/lib/period";
+import { fetchJapaneseHolidays } from "@/lib/holidays";
 import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
+import { DashboardCalendar, type DayPerson } from "./DashboardCalendar";
 
 export default async function AdminDashboardPage({
   searchParams,
@@ -44,11 +47,25 @@ export default async function AdminDashboardPage({
         .maybeSingle(),
     ]);
 
+  const nameById = new Map(
+    (employees ?? []).map((e) => [e.id, e.name] as const)
+  );
+
+  // 人別集計(カレンダー下の一覧用)
   const byEmployee = new Map<
     string,
     { days: number; minutes: number; transport: number; lastUpdated: string }
   >();
+  // 日別の勤務者(カレンダー用)
+  const personsByDate: Record<string, DayPerson[]> = {};
+
   for (const e of entries ?? []) {
+    const minutes = workMinutes(
+      e.start_time.slice(0, 5),
+      e.end_time.slice(0, 5),
+      e.break_minutes
+    );
+
     const cur = byEmployee.get(e.employee_id) ?? {
       days: 0,
       minutes: 0,
@@ -56,15 +73,28 @@ export default async function AdminDashboardPage({
       lastUpdated: "",
     };
     cur.days += 1;
-    cur.minutes += workMinutes(
-      e.start_time.slice(0, 5),
-      e.end_time.slice(0, 5),
-      e.break_minutes
-    );
+    cur.minutes += minutes;
     cur.transport += e.transport_cost;
     if (e.updated_at > cur.lastUpdated) cur.lastUpdated = e.updated_at;
     byEmployee.set(e.employee_id, cur);
+
+    (personsByDate[e.work_date] ??= []).push({
+      employee_id: e.employee_id,
+      name: nameById.get(e.employee_id) ?? "(不明)",
+      start: e.start_time.slice(0, 5),
+      end: e.end_time.slice(0, 5),
+      minutes,
+      transport: e.transport_cost,
+    });
   }
+  for (const list of Object.values(personsByDate)) {
+    list.sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  }
+
+  const years = Array.from(
+    new Set([Number(period.start.slice(0, 4)), Number(period.end.slice(0, 4))])
+  );
+  const holidays = await fetchJapaneseHolidays(years);
 
   const status = payPeriod?.status ?? "open";
 
@@ -104,6 +134,15 @@ export default async function AdminDashboardPage({
         </div>
       </div>
 
+      {/* 上部: 勤務カレンダー(日別の勤務人数 + 日クリックで勤務者一覧) */}
+      <DashboardCalendar
+        period={period}
+        personsByDate={personsByDate}
+        holidays={holidays}
+        today={todayJST()}
+      />
+
+      {/* 下部: 人別の入力状況一覧 */}
       <section className="rounded-xl border border-gray-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

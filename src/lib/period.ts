@@ -106,3 +106,21 @@ export function workMinutes(
 export function formatMinutes(min: number): string {
   return `${Math.floor(min / 60)}時間${min % 60 > 0 ? `${min % 60}分` : ""}`;
 }
+
+export const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+/** "YYYY-MM-DD" の曜日(日=0) */
+export function weekdayOf(date: string): number {
+  return new Date(date + "T00:00:00Z").getUTCDay();
+}
+
+/** 交通区間を「区間1 ⇔/→ 区間2」形式で表す(往復=⇔ / 片道=→)。駅未入力なら空文字 */
+export function formatRoute(
+  stationFrom: string | null,
+  stationTo: string | null,
+  roundTrip: boolean
+): string {
+  if (!stationFrom && !stationTo) return "";
+  const arrow = roundTrip ? "⇔" : "→";
+  return `${stationFrom ?? ""} ${arrow} ${stationTo ?? ""}`.trim();
+}
