@@ -54,6 +54,8 @@ Wrap the existing `nextConfig` with `withSerwistInit`. See `assets/snippets/next
 
 The SW itself (`app/sw.ts`, from `assets/snippets/sw.ts`) uses `skipWaiting: false` so a new version waits until the user taps update. `serwist.addEventListeners()` includes the `SKIP_WAITING` message handler that both the banner (`messageSkipWaiting()`) and `reloadApp()` rely on.
 
+> **Do NOT use `@serwist/next`'s `defaultCache` on Cloudflare Workers / opennext.** `defaultCache` intercepts same-origin navigations (HTML) and RSC requests with `NetworkFirst` — it is tuned for Vercel/Node and, on Cloudflare + opennext, breaks App Router client navigation (every menu tap shows "This page couldn't load"; a hard reload works). `assets/snippets/sw.ts` therefore ships a **navigation-safe** `runtimeCaching`: it caches only static assets (`/_next/static`, images/fonts/CSS) and leaves navigations, RSC, and API requests untouched (`NetworkOnly`). Keep it that way unless you are on Vercel/Node and have verified `defaultCache` works there.
+
 ### 4. Add the web app manifest
 
 Add `app/manifest.ts` from `assets/snippets/manifest.ts` (Next serves it at `/manifest.webmanifest` and injects the `<link>` automatically). Fill in name/colors from the project and point `icons` at real PNGs (add 192/512 icons to `public/` if absent).
