@@ -355,8 +355,9 @@ function EntryForm({
       <form ref={formRef} onSubmit={handleSubmit} className="mt-3 space-y-4">
         <input type="hidden" name="work_date" value={date} />
 
-        {/* 勤務時間(出勤・退勤は間隔を広めに。[&>div]:min-w-0 で列の重なりを防ぐ) */}
-        <div className="grid grid-cols-2 gap-x-5 gap-y-3 [&>div]:min-w-0">
+        {/* 勤務時間。iOS Safari の time 入力は幅指定を無視して内容幅に広がり
+            横並びだと重なるため、出勤・退勤・休憩は縦積みにする(可読性も向上)。 */}
+        <div className="space-y-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-600">
               出勤
