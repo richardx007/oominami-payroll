@@ -35,6 +35,7 @@ export function ReloadPrompt({
     const hadController = !!navigator.serviceWorker.controller;
     let timer: number | undefined;
     let reloaded = false;
+    let visibilityCleanup: (() => void) | undefined;
 
     const showBanner = (sw: ServiceWorker) => {
       waitingRef.current = sw;
@@ -44,16 +45,22 @@ export function ReloadPrompt({
     navigator.serviceWorker
       .register("/sw.js")
       .then((reg) => {
-        // 既に待機中の新版があれば即バナー表示
-        if (reg.waiting && navigator.serviceWorker.controller) {
+        // 既に待機中の新版があれば即バナー表示。
+        // waiting は「有効な active がある状態で新版が控えている」ときだけ立つので、
+        // これ自体が更新の証拠。iOS standalone で controller が null でも判定できるよう、
+        // navigator.serviceWorker.controller には依存しない。
+        if (reg.waiting) {
           showBanner(reg.waiting);
         }
-        // 新版のインストールを検知したらバナー表示(初回インストールは除く)
+        // 新版のインストールを検知したらバナー表示(初回インストールは除く)。
+        // 初回インストール時は reg.active が無い(まだ何も有効化されていない)ため、
+        // reg.active の有無で「更新」か「初回」かを判別する(controller 非依存)。
         reg.addEventListener("updatefound", () => {
           const nw = reg.installing;
           if (!nw) return;
+          const hadActive = !!reg.active;
           nw.addEventListener("statechange", () => {
-            if (nw.state === "installed" && navigator.serviceWorker.controller) {
+            if (nw.state === "installed" && hadActive) {
               showBanner(reg.waiting ?? nw);
             }
           });
@@ -62,6 +69,20 @@ export function ReloadPrompt({
         timer = window.setInterval(() => {
           reg.update().catch(() => {});
         }, intervalMs);
+        // iOS standalone はバックグラウンドから復帰(再表示)することが多いので、
+        // 可視化のたびに更新チェックし、待機中の新版があればバナーを出す。
+        const onVisible = () => {
+          if (document.visibilityState !== "visible") return;
+          reg
+            .update()
+            .then(() => {
+              if (reg.waiting) showBanner(reg.waiting);
+            })
+            .catch(() => {});
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        visibilityCleanup = () =>
+          document.removeEventListener("visibilitychange", onVisible);
       })
       .catch(() => {});
 
@@ -76,6 +97,7 @@ export function ReloadPrompt({
 
     return () => {
       if (timer) window.clearInterval(timer);
+      visibilityCleanup?.();
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
     };
   }, [intervalMs]);

@@ -38,63 +38,71 @@ export function EmailSettingsForm({
         action={(fd) =>
           startTransition(async () => setResult(await updateEmailSettings(fd)))
         }
-        className="mt-4 max-w-lg space-y-4"
+        className="mt-4 max-w-2xl space-y-4"
       >
-        <div>
-          <label className="mb-1 block text-sm font-medium">会社名・事業者名</label>
-          <input
-            name="company_name"
-            defaultValue={companyName}
-            placeholder="例: 大波株式会社"
-            className={inputClass}
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            メールの差出人名に使われます(未入力なら「給与管理システム」)
-          </p>
+        {/* 会社名 + 送信元メールを1行に横並び(スマホでは縦積み) */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              会社名・事業者名
+            </label>
+            <input
+              name="company_name"
+              defaultValue={companyName}
+              placeholder="例: 大波株式会社"
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              メールの差出人名に使われます(未入力なら「給与管理システム」)
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              送信元メールアドレス(Gmail)
+            </label>
+            <input
+              name="gmail_user"
+              type="email"
+              defaultValue={gmailUser}
+              placeholder="例: oominami2026@gmail.com"
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              このGmailアカウントのアプリパスワードがサーバー側に設定されている必要があります
+            </p>
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            送信元メールアドレス(Gmail)
-          </label>
-          <input
-            name="gmail_user"
-            type="email"
-            defaultValue={gmailUser}
-            placeholder="例: oominami2026@gmail.com"
-            className={inputClass}
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            このGmailアカウントのアプリパスワードがサーバー側に設定されている必要があります
-          </p>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            税理士の氏名
-          </label>
-          <input
-            name="tax_accountant_name"
-            defaultValue={taxName}
-            placeholder="例: 山田太郎"
-            className={inputClass}
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            税理士へのメール冒頭の宛名(「〇〇 様」)に使われます(未入力なら「税理士 御中」)
-          </p>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            税理士のメールアドレス
-          </label>
-          <input
-            name="tax_accountant_email"
-            type="email"
-            defaultValue={taxEmail}
-            placeholder="例: zeirishi@example.com"
-            className={inputClass}
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            「税理士資料」画面からの送付先に使われます
-          </p>
+        {/* 税理士の氏名 + メールアドレスを1行に横並び(スマホでは縦積み) */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              税理士の氏名
+            </label>
+            <input
+              name="tax_accountant_name"
+              defaultValue={taxName}
+              placeholder="例: 山田太郎"
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              メール冒頭の宛名(「〇〇 様」)に使われます(未入力なら「税理士 御中」)
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              税理士のメールアドレス
+            </label>
+            <input
+              name="tax_accountant_email"
+              type="email"
+              defaultValue={taxEmail}
+              placeholder="例: zeirishi@example.com"
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              「税理士資料」画面からの送付先に使われます
+            </p>
+          </div>
         </div>
         {result && (
           <p
