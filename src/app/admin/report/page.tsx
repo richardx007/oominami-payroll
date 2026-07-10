@@ -63,7 +63,7 @@ export default async function ReportPage({
         <div>
           <h1 className="text-xl font-bold">税理士向け資料</h1>
           <p className="mt-1 text-sm text-gray-500">
-            締め済みの期間の給与集計を表示します。「印刷 / PDF保存」でPDF化、「CSVダウンロード」で表計算用データを保存、「税理士へメール作成」でメールアプリの作成画面が開きます(送信前に確認・追記でき、ダウンロードしたCSVを添付できます)
+            締め済みの期間の給与集計を表示します。「印刷 / PDF保存」でPDF化、「CSVダウンロード」で表計算用データを保存、「税理士へメール送信」で支給一覧CSVを添付して税理士へ自動送信します(送信時に補足事項を追記できます)
           </p>
         </div>
         <div className="flex gap-2 text-sm">

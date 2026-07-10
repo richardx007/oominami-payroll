@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { sendMailToMany } from "@/lib/email";
+import { getAdminEmails, sendMail, sendMailToMany } from "@/lib/email";
 import type { ActionResult } from "../employees/actions";
 
 const noticeSchema = z.object({
@@ -32,28 +32,59 @@ export async function sendNotice(formData: FormData): Promise<ActionResult> {
   let emailInfo = "";
   let emailed = false;
   if (d.send_email === "on") {
-    let query = supabase
-      .from("employees")
-      .select("email")
-      .eq("status", "active")
-      .eq("is_admin", false);
-    if (d.recipient_id) query = query.eq("id", d.recipient_id);
-    const { data: recipients } = await query;
+    const mailBody = d.body + "\n\n(給与管理システムからのお知らせです)";
+    const adminEmails = await getAdminEmails();
 
-    const emails = (recipients ?? []).map((r) => r.email);
-    if (emails.length === 0) {
-      emailInfo = " / メール対象の従業員がいません";
+    if (d.recipient_id) {
+      // 個別連絡: 対象従業員へ送信し、管理者を CC に列挙する
+      const { data: target } = await supabase
+        .from("employees")
+        .select("email")
+        .eq("status", "active")
+        .eq("id", d.recipient_id)
+        .maybeSingle();
+
+      const to = target?.email;
+      if (!to) {
+        emailInfo = " / メール対象の従業員がいません";
+      } else {
+        const res = await sendMail({
+          to,
+          cc: adminEmails.filter((a) => a !== to),
+          subject: d.subject,
+          text: mailBody,
+        });
+        emailed = res.ok;
+        emailInfo = res.ok
+          ? ` / メール送信(管理者CC ${adminEmails.filter((a) => a !== to).length}名)`
+          : ` / メール送信失敗(${res.message})`;
+      }
     } else {
-      const { sent, failed } = await sendMailToMany(
-        emails,
-        d.subject,
-        d.body + "\n\n(給与管理システムからのお知らせです)"
-      );
-      emailed = sent > 0;
-      emailInfo =
-        failed.length > 0
-          ? ` / メール${sent}件送信、${failed.length}件失敗(${failed[0].reason})`
-          : ` / メール${sent}件送信`;
+      // 全員通知: 全従業員に加えて管理者にも送信する
+      const { data: recipients } = await supabase
+        .from("employees")
+        .select("email")
+        .eq("status", "active")
+        .eq("is_admin", false);
+
+      const emails = (recipients ?? []).map((r) => r.email);
+      // 管理者を重複なく宛先に追加
+      for (const a of adminEmails) if (!emails.includes(a)) emails.push(a);
+
+      if (emails.length === 0) {
+        emailInfo = " / メール対象の従業員がいません";
+      } else {
+        const { sent, failed } = await sendMailToMany(
+          emails,
+          d.subject,
+          mailBody
+        );
+        emailed = sent > 0;
+        emailInfo =
+          failed.length > 0
+            ? ` / メール${sent}件送信、${failed.length}件失敗(${failed[0].reason})`
+            : ` / メール${sent}件送信(管理者含む)`;
+      }
     }
   }
 

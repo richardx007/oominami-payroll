@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,8 +10,50 @@ const items = [
   { href: "/notices", label: "お知らせ", icon: BellIcon },
 ];
 
-export function EmployeeNav() {
+const SEEN_KEY = "notices_seen_at";
+const SEEN_EVENT = "notices-seen-changed";
+
+// localStorage の既読時刻を外部ストアとして購読する(SSR安全)
+function subscribeSeen(cb: () => void) {
+  window.addEventListener(SEEN_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(SEEN_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+function getSeen(): string | null {
+  try {
+    return localStorage.getItem(SEEN_KEY);
+  } catch {
+    return null;
+  }
+}
+function markSeen(value: string) {
+  try {
+    localStorage.setItem(SEEN_KEY, value);
+  } catch {
+    // localStorage 不可の環境では何もしない
+  }
+  window.dispatchEvent(new Event(SEEN_EVENT));
+}
+
+export function EmployeeNav({
+  latestNoticeAt,
+}: {
+  latestNoticeAt: string | null;
+}) {
   const pathname = usePathname();
+  const seenAt = useSyncExternalStore(subscribeSeen, getSeen, () => null);
+
+  // お知らせ画面を開いたら既読にする(最新受信時刻を localStorage に保存)
+  useEffect(() => {
+    if (pathname.startsWith("/notices") && latestNoticeAt) {
+      markSeen(latestNoticeAt);
+    }
+  }, [pathname, latestNoticeAt]);
+
+  const hasUnread = !!latestNoticeAt && (!seenAt || latestNoticeAt > seenAt);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-gray-200 bg-white">
@@ -18,6 +61,7 @@ export function EmployeeNav() {
         {items.map((item) => {
           const active = pathname.startsWith(item.href);
           const Icon = item.icon;
+          const showBadge = item.href === "/notices" && hasUnread;
           return (
             <Link
               key={item.href}
@@ -26,7 +70,15 @@ export function EmployeeNav() {
                 active ? "text-blue-600" : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              <Icon className="h-6 w-6" />
+              <span className="relative">
+                <Icon className="h-6 w-6" />
+                {showBadge && (
+                  <span
+                    aria-label="未読あり"
+                    className="absolute -right-1.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"
+                  />
+                )}
+              </span>
               {item.label}
             </Link>
           );

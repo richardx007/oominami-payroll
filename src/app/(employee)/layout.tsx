@@ -19,6 +19,17 @@ export default async function EmployeeLayout({
 }) {
   const employee = await requireEmployee();
 
+  // 最新のお知らせ受信時刻(未読バッジの判定に使う)
+  const supabase = await createClient();
+  const { data: latestNotice } = await supabase
+    .from("notifications")
+    .select("sent_at")
+    .or(`recipient_id.eq.${employee.id},recipient_id.is.null`)
+    .order("sent_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const latestNoticeAt = latestNotice?.sent_at ?? null;
+
   return (
     <div className="min-h-screen pb-20">
       <header className="sticky top-0 z-10 bg-[#152449] text-white shadow-md">
@@ -45,7 +56,7 @@ export default async function EmployeeLayout({
       <main className="mx-auto w-full max-w-lg px-3 py-4 lg:max-w-5xl">
         {children}
       </main>
-      <EmployeeNav />
+      <EmployeeNav latestNoticeAt={latestNoticeAt} />
     </div>
   );
 }

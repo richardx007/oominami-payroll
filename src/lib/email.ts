@@ -42,6 +42,28 @@ export async function getTaxEmail(): Promise<string | null> {
   );
 }
 
+/** 税理士の氏名(メール冒頭の宛名に使用) */
+export async function getTaxName(): Promise<string | null> {
+  return await getSetting("tax_accountant_name");
+}
+
+/** 管理者のメールアドレス一覧(個別連絡のCC・全員通知の送付先に使用) */
+export async function getAdminEmails(): Promise<string[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("employees")
+      .select("email")
+      .eq("status", "active")
+      .eq("is_admin", true);
+    return (data ?? [])
+      .map((r) => r.email?.trim())
+      .filter((e): e is string => !!e);
+  } catch {
+    return [];
+  }
+}
+
 /** 会社名(メール差出人名・帳票見出しに使用) */
 export async function getCompanyName(): Promise<string> {
   return (await getSetting("company_name")) || "給与管理システム";
@@ -49,6 +71,7 @@ export async function getCompanyName(): Promise<string> {
 
 export async function sendMail(params: {
   to: string;
+  cc?: string[];
   subject: string;
   text: string;
   attachments?: MailAttachment[];
@@ -79,6 +102,7 @@ export async function sendMail(params: {
         password,
         fromName,
         to: params.to,
+        cc: params.cc,
         subject: params.subject,
         text: params.text,
         attachments: params.attachments,

@@ -14,10 +14,12 @@ const inputClass =
 export function EmailSettingsForm({
   companyName,
   gmailUser,
+  taxName,
   taxEmail,
 }: {
   companyName: string;
   gmailUser: string;
+  taxName: string;
   taxEmail: string;
 }) {
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -63,6 +65,20 @@ export function EmailSettingsForm({
           />
           <p className="mt-1 text-xs text-gray-400">
             このGmailアカウントのアプリパスワードがサーバー側に設定されている必要があります
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            税理士の氏名
+          </label>
+          <input
+            name="tax_accountant_name"
+            defaultValue={taxName}
+            placeholder="例: 山田太郎"
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            税理士へのメール冒頭の宛名(「〇〇 様」)に使われます(未入力なら「税理士 御中」)
           </p>
         </div>
         <div>

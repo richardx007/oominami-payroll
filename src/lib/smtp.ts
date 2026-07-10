@@ -61,10 +61,12 @@ export async function smtpSendMail(params: {
   password: string;
   fromName: string;
   to: string;
+  cc?: string[];
   subject: string;
   text: string;
   attachments?: MailAttachment[];
 }): Promise<void> {
+  const ccList = (params.cc ?? []).filter((c) => c && c !== params.to);
   const socket = await connectTls(params.host, params.port);
   const writer = socket.writable.getWriter();
   const reader = socket.readable.getReader();
@@ -114,6 +116,11 @@ export async function smtpSendMail(params: {
     await expect([250]);
     await send(`RCPT TO:<${params.to}>`);
     await expect([250, 251]);
+    // CC 宛先も配送対象として RCPT に加える
+    for (const cc of ccList) {
+      await send(`RCPT TO:<${cc}>`);
+      await expect([250, 251]);
+    }
     await send("DATA");
     await expect([354]);
 
@@ -127,6 +134,7 @@ export async function smtpSendMail(params: {
       const headers = [
         `From: ${mimeWord(params.fromName)} <${params.username}>`,
         `To: <${params.to}>`,
+        ...(ccList.length ? [`Cc: ${ccList.map((c) => `<${c}>`).join(", ")}`] : []),
         `Subject: ${mimeWord(params.subject)}`,
         `Message-ID: ${messageId}`,
         "MIME-Version: 1.0",
@@ -141,6 +149,7 @@ export async function smtpSendMail(params: {
       const headers = [
         `From: ${mimeWord(params.fromName)} <${params.username}>`,
         `To: <${params.to}>`,
+        ...(ccList.length ? [`Cc: ${ccList.map((c) => `<${c}>`).join(", ")}`] : []),
         `Subject: ${mimeWord(params.subject)}`,
         `Message-ID: ${messageId}`,
         "MIME-Version: 1.0",

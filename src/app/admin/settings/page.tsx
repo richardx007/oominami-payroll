@@ -35,6 +35,7 @@ export default async function SettingsPage() {
       <EmailSettingsForm
         companyName={settingsMap.get("company_name") ?? ""}
         gmailUser={settingsMap.get("gmail_user") ?? ""}
+        taxName={settingsMap.get("tax_accountant_name") ?? ""}
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
       />
       <LunchAllowanceForm history={allowances ?? []} />

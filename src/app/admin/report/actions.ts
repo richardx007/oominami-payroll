@@ -2,35 +2,40 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { periodFromKey } from "@/lib/period";
-import { getSenderEmail, getTaxEmail } from "@/lib/email";
-import type { ActionResult } from "../employees/actions";
+import { periodFromKey, type Period } from "@/lib/period";
+import {
+  getCompanyName,
+  getTaxEmail,
+  getTaxName,
+  sendMail,
+} from "@/lib/email";
 
-export type TaxReportMail =
-  | { ok: true; to: string; cc: string; subject: string; body: string }
+type PayRow = {
+  work_days: number;
+  base_pay: number;
+  transport_total: number;
+  lunch_total: number;
+  gross_pay: number;
+  income_tax: number;
+  net_pay: number;
+  tax_category: string;
+  emp: { employee_no: string; name: string };
+};
+
+type LoadedReport =
+  | {
+      ok: true;
+      period: Period;
+      periodLabel: string;
+      paymentDate: string;
+      rows: PayRow[];
+    }
   | { ok: false; message: string };
 
-/**
- * 税理士宛ての支給一覧メールの内容(宛先・件名・本文)を組み立てて返す。
- * 直接送信はせず、クライアント側で mailto: を開いて内容確認・追記できるようにする。
- * CC に送信元アドレスを入れ、送った内容が手元にも残るようにする。
- */
-export async function buildTaxReportMail(
-  periodKey: string
-): Promise<TaxReportMail> {
-  await requireAdmin();
+/** 締め済み期間の支給明細を取得(CSV生成・メール送信で共用) */
+async function loadReport(periodKey: string): Promise<LoadedReport> {
   const period = periodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
-
-  const to = await getTaxEmail();
-  if (!to) {
-    return {
-      ok: false,
-      message:
-        "税理士のメールアドレスが未設定です(設定画面で登録してください)",
-    };
-  }
-  const cc = (await getSenderEmail()) ?? "";
 
   const supabase = await createClient();
   const { data: payPeriod } = await supabase
@@ -65,111 +70,26 @@ export async function buildTaxReportMail(
     return { ok: false, message: "明細データがありません" };
   }
 
-  const yen = (n: number) => n.toLocaleString();
-  const totals = rows.reduce(
-    (acc, r) => ({
-      gross: acc.gross + r.gross_pay,
-      tax: acc.tax + r.income_tax,
-      net: acc.net + r.net_pay,
-    }),
-    { gross: 0, tax: 0, net: 0 }
-  );
-
-  const lines = [
-    "税理士 御中",
-    "",
-    `${payPeriod.period_label}の給与支給一覧をお送りします。`,
-    `対象期間: ${period.start.replaceAll("-", "/")}〜${period.end.replaceAll("-", "/")} / 支給日: ${payPeriod.payment_date.replaceAll("-", "/")}`,
-    "",
-    "No / 氏名 / 勤務日数 / 基本給 / 交通費 / 昼食補助 / 総支給 / 源泉所得税 / 差引支給 / 税区分",
-    "-".repeat(60),
-    ...rows.map((r) =>
-      [
-        r.emp.employee_no,
-        r.emp.name,
-        `${r.work_days}日`,
-        yen(r.base_pay),
-        yen(r.transport_total),
-        yen(r.lunch_total),
-        yen(r.gross_pay),
-        yen(r.income_tax),
-        yen(r.net_pay),
-        r.tax_category === "kou" ? "甲" : "乙",
-      ].join(" / ")
-    ),
-    "-".repeat(60),
-    `合計(${rows.length}名): 総支給 ${yen(totals.gross)}円 / 源泉所得税 ${yen(totals.tax)}円 / 差引支給 ${yen(totals.net)}円`,
-    "",
-    "(単位: 円。給与管理システムより自動送信)",
-  ];
-
   return {
     ok: true,
-    to,
-    cc,
-    subject: `【給与支給一覧】${payPeriod.period_label}`,
-    body: lines.join("\n"),
+    period,
+    periodLabel: payPeriod.period_label,
+    paymentDate: payPeriod.payment_date,
+    rows: rows as PayRow[],
   };
 }
 
-export type TaxReportCsv =
-  | { ok: true; filename: string; csv: string }
-  | { ok: false; message: string };
-
-/**
- * 税理士向け支給一覧の CSV(BOM付き)を生成して返す。
- * mailto では添付できないため、ダウンロードして手動でメールに添付できるようにする。
- */
-export async function buildTaxReportCsv(
-  periodKey: string
-): Promise<TaxReportCsv> {
-  await requireAdmin();
-  const period = periodFromKey(periodKey);
-  if (!period) return { ok: false, message: "期間の指定が不正です" };
-
-  const supabase = await createClient();
-  const { data: payPeriod } = await supabase
-    .from("pay_periods")
-    .select("id, period_label")
-    .eq("start_date", period.start)
-    .eq("end_date", period.end)
-    .neq("status", "open")
-    .maybeSingle();
-
-  if (!payPeriod) {
-    return { ok: false, message: "先に締め処理を実行してください" };
-  }
-
-  const { data: payslips } = await supabase
-    .from("payslips")
-    .select(
-      `work_days, total_minutes, base_pay, transport_total, lunch_total,
-       gross_pay, income_tax, net_pay, tax_category,
-       employees ( employee_no, name )`
-    )
-    .eq("pay_period_id", payPeriod.id);
-
-  const rows = (payslips ?? [])
-    .map((r) => ({
-      ...r,
-      emp: r.employees as unknown as { employee_no: string; name: string },
-    }))
-    .sort((a, b) => a.emp.employee_no.localeCompare(b.emp.employee_no));
-
-  if (rows.length === 0) {
-    return { ok: false, message: "明細データがありません" };
-  }
-
+/** 支給一覧の CSV(BOM付き)文字列を生成 */
+function buildCsv(rows: PayRow[]): string {
   const totals = rows.reduce(
     (acc, r) => ({
-      base: acc.base + r.base_pay,
       transport: acc.transport + r.transport_total,
       lunch: acc.lunch + r.lunch_total,
       gross: acc.gross + r.gross_pay,
       tax: acc.tax + r.income_tax,
       net: acc.net + r.net_pay,
     }),
-    { base: 0, transport: 0, lunch: 0, gross: 0, tax: 0, net: 0 }
+    { transport: 0, lunch: 0, gross: 0, tax: 0, net: 0 }
   );
 
   const header = [
@@ -211,7 +131,83 @@ export async function buildTaxReportCsv(
     "",
   ].join(",");
   // Excelで文字化けしないよう先頭にBOMを付与
-  const csv = "﻿" + [header, ...body, total].join("\r\n") + "\r\n";
+  return "﻿" + [header, ...body, total].join("\r\n") + "\r\n";
+}
 
-  return { ok: true, filename: `payroll_${period.key}.csv`, csv };
+export type TaxReportCsv =
+  | { ok: true; filename: string; csv: string }
+  | { ok: false; message: string };
+
+/** 税理士向け支給一覧の CSV(BOM付き)を生成して返す(手動ダウンロード用) */
+export async function buildTaxReportCsv(
+  periodKey: string
+): Promise<TaxReportCsv> {
+  await requireAdmin();
+  const loaded = await loadReport(periodKey);
+  if (!loaded.ok) return loaded;
+  return {
+    ok: true,
+    filename: `payroll_${loaded.period.key}.csv`,
+    csv: buildCsv(loaded.rows),
+  };
+}
+
+export type SendResult = { ok: boolean; message: string };
+
+/**
+ * 税理士へ支給一覧CSVを添付して自動送信する。
+ * - メール冒頭は「(税理士名) 様」(未設定時は「税理士 御中」)
+ * - 本文に勤務データの表は載せず、明細は添付CSVに委ねる
+ * - note(申し送り事項)があれば本文に追記する
+ */
+export async function sendTaxReport(
+  periodKey: string,
+  note: string
+): Promise<SendResult> {
+  await requireAdmin();
+
+  const to = await getTaxEmail();
+  if (!to) {
+    return {
+      ok: false,
+      message: "税理士のメールアドレスが未設定です(設定画面で登録してください)",
+    };
+  }
+
+  const loaded = await loadReport(periodKey);
+  if (!loaded.ok) return loaded;
+
+  const [taxName, companyName] = await Promise.all([
+    getTaxName(),
+    getCompanyName(),
+  ]);
+
+  const greeting = taxName?.trim() ? `${taxName.trim()} 様` : "税理士 御中";
+  const trimmedNote = (note ?? "").trim();
+
+  const lines = [
+    greeting,
+    "",
+    "いつもお世話になっております。",
+    `${loaded.periodLabel}の給与支給一覧をお送りします。`,
+    `対象期間: ${loaded.period.start.replaceAll("-", "/")}〜${loaded.period.end.replaceAll("-", "/")} / 支給日: ${loaded.paymentDate.replaceAll("-", "/")}`,
+    "詳細は添付のCSVファイル(支給一覧)をご確認ください。",
+  ];
+  if (trimmedNote) {
+    lines.push("", "【申し送り事項】", trimmedNote);
+  }
+  lines.push("", companyName);
+
+  return await sendMail({
+    to,
+    subject: `【給与支給一覧】${loaded.periodLabel}`,
+    text: lines.join("\n"),
+    attachments: [
+      {
+        filename: `payroll_${loaded.period.key}.csv`,
+        content: buildCsv(loaded.rows),
+        contentType: "text/csv",
+      },
+    ],
+  });
 }
