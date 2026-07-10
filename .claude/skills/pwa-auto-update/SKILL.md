@@ -1,113 +1,88 @@
 ---
 name: pwa-auto-update
-description: Add a battle-tested PWA auto-update UX to a Next.js (App Router) + React app — an "update available" banner for one-tap updating, a logo/button tap that safely refreshes to the latest version, and automatic recovery from the blank/black screen that sometimes appears right after a PWA updates (especially on iOS/iPadOS). Use this whenever the user wants to add or port PWA update prompts, a "new version available" toast/banner, one-tap or tap-to-refresh updating, service worker skipWaiting/update handling, or fix a blank/white/black screen after a PWA or service worker update, in a Next.js + React (App Router, + @serwist/next) project. Trigger even if the user only describes the symptom ("my PWA goes blank after updating", "users don't get the new version until I reload a bunch") without naming the mechanism.
+description: Add a battle-tested PWA update UX to a Next.js (App Router) + React app — a logo/button tap that refreshes to the latest version, and an "update available" banner prompting a one-tap update. Built as a minimal, cache-free service worker that NEVER intercepts navigation, so it is safe on Cloudflare Workers / opennext (where cache-based service workers break App Router navigation). Use this whenever the user wants to add or port PWA update prompts, a "new version available" toast/banner, one-tap or tap-to-refresh updating, service-worker skipWaiting/update handling, or fix "This page couldn't load" on every menu tap after adding a PWA/service worker, in a Next.js + React (App Router) project. Trigger even if the user only describes the symptom ("users don't get the new version until I reload", "menu navigation shows 'This page couldn't load' after I added a PWA").
 ---
 
-# PWA Auto-Update (Next.js App Router + Serwist)
+# PWA Auto-Update (Next.js App Router — minimal, cache-free SW)
 
-Add a small, self-contained kit to a Next.js (App Router) PWA so users reliably get new versions. It provides three things:
+Give a Next.js (App Router) PWA two things:
 
-1. **"Update available" banner** (`ReloadPrompt.tsx`) — detects a new service worker and lets the user update with one tap.
-2. **Tap-to-refresh** (`reloadApp.ts`) — wire to a logo or button; safely activates a waiting new version and reloads.
-3. **Blank-screen auto-recovery** — a boot splash + watchdog in the root `layout.tsx` plus `pwaRecovery.ts` / `PwaBoot.tsx`, so a botched update self-heals instead of leaving a black/white screen.
+1. **"Update available" banner** (`ReloadPrompt.tsx`) — detects a new deploy and lets the user update with one tap.
+2. **Tap-to-refresh** (`reloadApp.ts`) — wire to a logo/button; activates a waiting new version and reloads.
 
-The bundled files live in `assets/`. Service Worker generation uses **`@serwist/next`** (Workbox-based, App Router compatible); the client pieces depend only on React + `@serwist/window`.
+The service worker is **generated at build time** (`generate-sw.mjs`) and is deliberately **minimal: it has NO `fetch` handler and caches nothing.** Its only jobs are (a) letting the browser detect a new version (via a stamped `SW_VERSION`) and (b) honoring `SKIP_WAITING`. Because it never intercepts requests, it cannot break navigation, and because it caches nothing, the app is always served fresh from the server — normal navigation already gets the latest; the banner/logo-tap are the "update right now" affordances.
 
-> This is the **Next.js** variant. There is a separate Vite + `vite-plugin-pwa` lineage this was ported from; the concepts are identical, only the SW plumbing differs (Serwist instead of vite-plugin-pwa, `layout.tsx` instead of `index.html`, `ChunkLoadError` instead of `vite:preloadError`).
+> **Why not `@serwist/next` / `next-pwa` / Workbox `defaultCache`?**
+> This skill was first built on `@serwist/next`. On **Cloudflare Workers + opennext** it caused a production outage: `defaultCache` intercepts same-origin navigations and RSC requests with `NetworkFirst`, and **every App Router menu tap failed with "This page couldn't load"** (only a hard reload worked). It also forces a `webpack` build (`@serwist/next` doesn't support Turbopack), swapping out Next 16's default build — another risk. The minimal cache-free SW below avoids **both** failure modes and is host-agnostic. Only reach for a caching SW (Serwist/Workbox) if you genuinely need offline support AND have verified navigation/RSC caching on your actual host.
 
 ## Before you start: confirm the project fits
 
-This kit targets **Next.js (App Router) + React**. Verify before changing anything:
-
-- There is a `next.config.*` and the `app/` directory (App Router). If it's a `pages/` router or a non-Next React app, stop and adapt — the layout/manifest wiring differs.
-- Check dependencies. Plan to add: `npm i -D @serwist/next serwist` and `npm i @serwist/window`.
-- Find the root `app/layout.tsx`, where the app logo/header lives (for tap-to-refresh), and any existing `viewport`/`metadata` exports so you merge rather than overwrite.
-- **Cloudflare Workers note:** if the app deploys via `@opennextjs/cloudflare` (check for `wrangler`/`open-next` in the repo), the SW is emitted to `public/sw.js` and served as a static asset. This works, but the update flow can only be truly verified across two real deployments — flag that to the user.
-
-Don't assume paths — inspect the repo first. Match the surrounding code's conventions (this repo uses double quotes, brand navy `#152449`, and `public/logo.svg`).
+- Next.js **App Router** (`app/` dir). Find the root `app/layout.tsx` and where the app logo/header lives.
+- No extra runtime deps are needed (plain `navigator.serviceWorker`). **Do not** add `@serwist/*`, `next-pwa`, or `workbox-*`.
+- **Keep the existing build tool.** If the project builds with Turbopack (`next build` on Next ≥16), leave it. Do **not** switch to `--webpack`.
+- **Cloudflare / opennext note:** the SW is emitted to `public/sw.js` and served as a static asset. If the project has middleware, make sure `/sw.js` and `/manifest.webmanifest` are **excluded from the middleware matcher** (otherwise unauthenticated requests get redirected to `/login` and SW registration breaks).
 
 ## Integration steps
 
-Do these in order. After each edit, keep the project building (`npm run build`).
+Do these in order; keep the project building (`npm run build`) after each.
 
-### 1. Install dependencies
+### 1. Copy the files
 
+- `assets/reloadApp.ts` → `src/app/pwa/reloadApp.ts`
+- `assets/ReloadPrompt.tsx` → `src/app/pwa/ReloadPrompt.tsx`
+- `assets/generate-sw.mjs` → `scripts/generate-sw.mjs`
+
+### 2. Generate the SW at build time
+
+Prepend the generator to the build script so `public/sw.js` is (re)written before Next builds, and gitignore the generated file:
+
+```jsonc
+// package.json
+"scripts": { "build": "node scripts/generate-sw.mjs && next build" }
 ```
-npm i -D @serwist/next serwist
-npm i @serwist/window
-```
-
-### 2. Copy the source files
-
-Copy from this skill's `assets/` into the project, conventionally under `app/pwa/`:
-`reloadApp.ts`, `ReloadPrompt.tsx`, `pwaRecovery.ts`, `PwaBoot.tsx`, `pwa-globals.d.ts`.
-
-Make sure `pwa-globals.d.ts` is covered by the project's `tsconfig.json` `include` (Next's default `**/*.ts` covers it). Also copy `assets/snippets/sw.ts` to **`app/sw.ts`** (the SW source; not under `pwa/` because `swSrc` points at it directly).
-
-### 3. Configure `@serwist/next` (`registerType`-equivalent = manual prompt)
-
-Wrap the existing `nextConfig` with `withSerwistInit`. See `assets/snippets/next.config.ts`. Key options:
-
-- `swSrc: "app/sw.ts"`, `swDest: "public/sw.js"` (matches `ReloadPrompt`'s `swUrl` default `/sw.js`).
-- `register: false` — **essential**. Registration is handled by `ReloadPrompt` via `@serwist/window` so the update is user-controlled. Letting `@serwist/next` auto-register would double-register and bypass the banner.
-- `disable: process.env.NODE_ENV === "development"` — keeps SW out of the dev loop.
-
-The SW itself (`app/sw.ts`, from `assets/snippets/sw.ts`) uses `skipWaiting: false` so a new version waits until the user taps update. `serwist.addEventListeners()` includes the `SKIP_WAITING` message handler that both the banner (`messageSkipWaiting()`) and `reloadApp()` rely on.
-
-> **Do NOT use `@serwist/next`'s `defaultCache` on Cloudflare Workers / opennext.** `defaultCache` intercepts same-origin navigations (HTML) and RSC requests with `NetworkFirst` — it is tuned for Vercel/Node and, on Cloudflare + opennext, breaks App Router client navigation (every menu tap shows "This page couldn't load"; a hard reload works). `assets/snippets/sw.ts` therefore ships a **navigation-safe** `runtimeCaching`: it caches only static assets (`/_next/static`, images/fonts/CSS) and leaves navigations, RSC, and API requests untouched (`NetworkOnly`). Keep it that way unless you are on Vercel/Node and have verified `defaultCache` works there.
-
-### 4. Add the web app manifest
-
-Add `app/manifest.ts` from `assets/snippets/manifest.ts` (Next serves it at `/manifest.webmanifest` and injects the `<link>` automatically). Fill in name/colors from the project and point `icons` at real PNGs (add 192/512 icons to `public/` if absent).
-
-### 5. Edit the root `layout.tsx` (splash + watchdog + mounts)
-
-From `assets/snippets/layout.tsx`, merge into the existing `app/layout.tsx`:
-
-- The **watchdog** inline `<script>` in `<head>` (raw `<script dangerouslySetInnerHTML>`, not `next/script`) — it reloads once if the app hasn't mounted after ~6s. It must be inline so it runs even if the main bundle fails.
-- The **boot-splash** `<div id="boot-splash">` at the top of `<body>` — a branded loading overlay (swap logo path/background to match). `markAppMounted()` removes it on mount.
-- Add `viewportFit: "cover"` to the `viewport` export for iOS standalone safe-areas.
-- Render `<PwaBoot />` (recovery + mount flag) and `<ReloadPrompt />` inside `<body>`.
-
-### 6. Wire tap-to-refresh
-
-On the app logo (or a "refresh"/"check for updates" control), call `reloadApp()`:
-
-```tsx
-<button onClick={() => reloadApp()} aria-label="最新に更新">
-  <Logo />
-</button>
+```gitignore
+/public/sw.js
 ```
 
-In this repo the logo lives in `src/app/admin/nav.tsx` (`Logo`) and the employee header — good targets.
+`generate-sw.mjs` stamps `SW_VERSION` with the git short SHA (fallback: `Date.now()`), so each deploy produces a byte-different `/sw.js` → the browser detects an update → the banner shows. The generated SW has **no `fetch` listener**; on `activate` it clears any stale caches (e.g. from a previous Serwist install) and `clients.claim()`s.
+
+### 3. Add the web app manifest (optional but recommended)
+
+Add `app/manifest.ts` from `assets/snippets/manifest.ts` (served at `/manifest.webmanifest`; Next injects the `<link>`). Fill in name/colors/icons.
+
+### 4. Wire the root layout
+
+From `assets/snippets/layout.tsx`: render `<ReloadPrompt />` inside `<body>`, and add `viewportFit: "cover"` to the `viewport` export for iOS safe areas. **No boot splash / watchdog is needed** with a cache-free SW (there's no stale-chunk blank-screen failure mode to recover from).
+
+### 5. Wire tap-to-refresh on the logo
+
+Wrap the app logo in a client `LogoButton` that calls `reloadApp()` (see the comment at the bottom of `assets/snippets/layout.tsx`). Place it in the admin/employee headers.
+
+### 6. Exclude `/sw.js` & `/manifest.webmanifest` from middleware (if any)
+
+```ts
+// middleware matcher — add sw.js and manifest.webmanifest to the negative lookahead
+"/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+```
 
 ### 7. Verify
 
-Run `npm run build` and fix any type/import errors. A clean production build is the key gate; the full update flow only truly exercises across two real deployments (and, on Cloudflare, that `/sw.js` and `/manifest.webmanifest` return 200 in production).
+`npm run build` must pass and emit `public/sw.js` **without a `fetch` handler** (`grep -c 'addEventListener("fetch"' public/sw.js` → 0). For a real check, drive a headless browser against `npm run start`: confirm the SW registers, client-side navigation still works, then bump `SW_VERSION` on disk + call `registration.update()` and confirm the banner appears and "更新" reloads. Note the full cross-deploy update flow only truly exercises across **two real deployments**.
 
-## Why it's built this way (so you can adapt confidently)
+## Design notes / gotchas (learned the hard way)
 
-- **`register: false` + `@serwist/window`** hands update timing to the user (banner) instead of silently reloading.
-- **`reloadApp()`** avoids two failure modes: a plain `location.reload()` won't activate a waiting new service worker (user stays on the old version), while reloading *during* the new SW's install can serve a mismatched mix of old/new assets and paint a blank screen. So it sends `SKIP_WAITING`, waits for `controllerchange`, then reloads once (with a fallback timer). The SW honors `SKIP_WAITING` because Serwist's `addEventListeners()` registers that handler.
-- **Splash + watchdog + `ChunkLoadError` capture** turn "rare hard-stuck blank screen after update" into "shows a logo, then self-reloads once." The splash removes the black paint; the watchdog recovers a never-mounted app; `installPwaRecovery` recovers a failed dynamic chunk import (Next's equivalent of Vite's `vite:preloadError`).
-
-## Known caveats to tell the user
-
-- The splash/watchdog only take effect **from the next update onward** — the copy carrying them has to land on the device first.
-- If a device is *already* stuck blank (pre-kit), recovery is: force-quit and relaunch the PWA; if still stuck, iOS → Settings → Safari → Advanced → Website Data → delete the site's data → relaunch.
-- On iOS standalone, `viewport-fit=cover` + `env(safe-area-inset-*)` padding on top bars keeps headers clear of the status bar.
-- **Cloudflare / `@opennextjs/cloudflare`:** confirm the build emits `public/sw.js` into the deployed output and that `/sw.js` is served with a JS content-type at the site root (needed for root scope). If a custom route/middleware intercepts `/sw.js`, exclude it.
+- **No `fetch` handler = cannot break navigation.** This is the whole point. Keep it that way. Do not add runtime/navigation caching to this SW.
+- **iOS standalone: the update button must reload synchronously.** iOS Safari (standalone/home-screen) does **not** reliably fire `controllerchange`, so relying on it to trigger the reload makes "更新" look dead. The banner's button therefore posts `SKIP_WAITING` best-effort and then calls `window.location.reload()` **synchronously** in the click handler. It also uses a large tap target + `touch-action: manipulation`. (`reloadApp()` for the logo keeps a fallback timer for the same reason.)
+- **Update detection needs the SW script to change per deploy.** That's why `SW_VERSION` is stamped. A byte-identical `/sw.js` would never trigger an update. Browsers fetch the SW script bypassing the HTTP cache (default `updateViaCache: 'imports'`), so a new deploy is picked up on the next update check (navigation, or the ~1-minute poll in `ReloadPrompt`).
+- **First install must not auto-reload.** `ReloadPrompt` guards its `controllerchange` reload behind "was there a controller at mount?" so the very first install (via `clients.claim()`) doesn't spuriously reload.
+- **Recovering a fleet stuck on a bad (caching) SW:** deploy a `/sw.js` that unregisters itself and clears caches (kill-switch), or — as here — deploy this minimal SW, which replaces the bad one and, having no `fetch` handler, immediately restores navigation. iOS may need a full quit+relaunch (or Settings → Safari → Website Data) to pick up the new SW.
 
 ## Files in this skill
 
 | File | Purpose |
 | --- | --- |
-| `assets/reloadApp.ts` | `reloadApp()` — safe tap-to-refresh (SKIP_WAITING → controllerchange → reload). Framework-agnostic. |
-| `assets/ReloadPrompt.tsx` | `<ReloadPrompt />` update banner (client component); registers the SW via `@serwist/window`. Props for color/text/position/interval/swUrl. |
-| `assets/pwaRecovery.ts` | `installPwaRecovery()` (ChunkLoadError capture) + `markAppMounted()`. |
-| `assets/PwaBoot.tsx` | `"use client"` component that runs recovery + mount flag from `layout.tsx`. |
-| `assets/pwa-globals.d.ts` | Type for `Window.__APP_MOUNTED__`. |
-| `assets/snippets/next.config.ts` | `withSerwistInit({ register: false, … })` reference. |
-| `assets/snippets/sw.ts` | Serwist SW source → copy to `app/sw.ts`. |
-| `assets/snippets/layout.tsx` | Root layout with boot-splash + watchdog + `<PwaBoot/>` + `<ReloadPrompt/>`. |
-| `assets/snippets/manifest.ts` | `app/manifest.ts` web app manifest reference. |
+| `assets/generate-sw.mjs` | Build-time generator for `public/sw.js` (minimal, no `fetch`, version-stamped). |
+| `assets/reloadApp.ts` | `reloadApp()` — tap-to-refresh for the logo (SKIP_WAITING → controllerchange → reload, with fallback timer). |
+| `assets/ReloadPrompt.tsx` | `<ReloadPrompt />` update banner (plain `navigator.serviceWorker`; synchronous-reload button for iOS). |
+| `assets/snippets/layout.tsx` | Root-layout wiring reference (`<ReloadPrompt/>` + `viewport-fit`, LogoButton sketch). |
+| `assets/snippets/manifest.ts` | `app/manifest.ts` web-app-manifest reference. |

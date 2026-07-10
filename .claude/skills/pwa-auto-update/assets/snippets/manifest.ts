@@ -1,8 +1,8 @@
-// app/manifest.ts — Next.js の Metadata Files 機能で /manifest.webmanifest を配信する。
-// これを置くと layout の metadata に自動で <link rel="manifest"> が挿入される。
-// icons は各アプリのロゴに合わせて差し替える(PNG 推奨。SVG は maskable 用途に不向き)。
 import type { MetadataRoute } from "next";
 
+// app/manifest.ts — /manifest.webmanifest として配信され、layout の metadata に
+// <link rel="manifest"> が自動挿入される。name/色/アイコンは各アプリに合わせて差し替える。
+// アイコンは PNG(192/512) が理想。SVG でも可(下記は SVG ロゴを流用する例)。
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "アプリ名",
@@ -13,14 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#152449",
     theme_color: "#152449",
     icons: [
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-      {
-        src: "/icon-512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "maskable",
-      },
+      { src: "/logo.svg", sizes: "any", type: "image/svg+xml" },
+      { src: "/logo.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
     ],
   };
 }
