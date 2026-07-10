@@ -40,6 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Serwist generated service worker (public/sw.js is now a committed kill-switch)
+# Service worker is generated at build time by scripts/generate-sw.mjs
+/public/sw.js
 /public/sw.js.map
 /public/swe-worker-*.js
