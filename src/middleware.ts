@@ -8,8 +8,10 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * 静的ファイル・画像以外のすべてのパスに適用
+     * 静的ファイル・画像・PWA関連(Service Worker / マニフェスト)以外のすべてのパスに適用。
+     * sw.js と manifest.webmanifest を除外しないと未ログイン時に /login へリダイレクトされ、
+     * SW 登録やインストールが機能しなくなる。
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|swe-worker-.*\\.js|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

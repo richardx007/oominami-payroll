@@ -3,8 +3,8 @@
 //
 /// <reference lib="webworker" />
 //
-// ↑ ServiceWorkerGlobalScope など Worker 系の型を読み込む(tsconfig の lib が dom のみの場合に必要)。
-//   skipLibCheck:true なら dom lib との併存でも型の重複エラーは出ない。
+// ↑ ServiceWorkerGlobalScope など Worker 系の型を読み込む(tsconfig の lib は dom のみのため)。
+//   skipLibCheck:true なので dom lib との併存でも型の重複エラーは出ない。
 //
 // 要点: skipWaiting:false にして「新版を勝手に適用しない」。ReloadPrompt バナーの
 // 「更新」ボタン(= messageSkipWaiting / SKIP_WAITING メッセージ)で初めて有効化される。

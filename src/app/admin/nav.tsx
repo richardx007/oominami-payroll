@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { reloadApp } from "@/app/pwa/reloadApp";
 
 const links = [
   { href: "/admin", label: "ダッシュボード" },
@@ -20,13 +21,31 @@ function isActive(pathname: string, href: string) {
 /** アプリのロゴ(public/logo.svg を表示。差し替えは public/ のファイルを置換) */
 export function Logo({ className = "" }: { className?: string }) {
   // Next の Image ではなく素の img。円形ロゴ(白背景)がネイビーのバー上でも映える。
-  // eslint-disable-next-line @next/next/no-img-element
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src="/logo.svg"
       alt="新世界オオミナミ"
       className={`h-10 w-10 shrink-0 rounded-full bg-white object-contain ${className}`}
     />
+  );
+}
+
+/**
+ * ロゴボタン。タップすると PWA を最新版に更新する(新版があれば有効化してリロード)。
+ * エンドユーザーがロゴを 1 回押すだけで確実に更新できるようにするための入口。
+ */
+export function LogoButton({ className = "" }: { className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => reloadApp()}
+      aria-label="最新の状態に更新"
+      title="最新の状態に更新"
+      className="touch-manipulation rounded-full active:opacity-70"
+    >
+      <Logo className={className} />
+    </button>
   );
 }
 
