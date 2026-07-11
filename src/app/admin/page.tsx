@@ -115,13 +115,13 @@ export default async function AdminDashboardPage({
             <div className="flex gap-2 text-sm">
               <Link
                 href={`/admin?p=${adjacentPeriodKey(period.key, -1)}`}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
+                className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-200"
               >
                 ← 前月
               </Link>
               <Link
                 href={`/admin?p=${adjacentPeriodKey(period.key, 1)}`}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
+                className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-200"
               >
                 翌月 →
               </Link>

@@ -57,50 +57,59 @@ export default async function ReportPage({
     { base: 0, transport: 0, lunch: 0, gross: 0, tax: 0, net: 0 }
   );
 
+  const prevNextNav = (
+    <div className="flex gap-2 text-sm print:hidden">
+      <Link
+        href={`/admin/report?p=${adjacentPeriodKey(period.key, -1)}`}
+        className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-200"
+      >
+        ← 前月
+      </Link>
+      <Link
+        href={`/admin/report?p=${adjacentPeriodKey(period.key, 1)}`}
+        className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-200"
+      >
+        翌月 →
+      </Link>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+      <div className="flex flex-wrap items-start justify-between gap-2 print:hidden">
         <div>
           <h1 className="text-xl font-bold">税理士向け資料</h1>
           <p className="mt-1 text-sm text-gray-500">
             締め済みの期間の給与集計を表示します。「印刷 / PDF保存」でPDF化、「CSVダウンロード」で表計算用データを保存、「税理士へメール送信」で支給一覧CSVを添付して税理士へ自動送信します(送信時に補足事項を追記できます)
           </p>
         </div>
-        <div className="flex gap-2 text-sm">
-          <Link
-            href={`/admin/report?p=${adjacentPeriodKey(period.key, -1)}`}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
-          >
-            ← 前月
-          </Link>
-          <Link
-            href={`/admin/report?p=${adjacentPeriodKey(period.key, 1)}`}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50"
-          >
-            翌月 →
-          </Link>
-          {rows.length > 0 && (
-            <>
-              <PrintButton />
-              <DownloadCsvButton periodKey={period.key} />
-              <SendReportButton periodKey={period.key} />
-            </>
-          )}
-        </div>
+        {rows.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-2 text-sm">
+            <SendReportButton periodKey={period.key} />
+            <PrintButton />
+            <DownloadCsvButton periodKey={period.key} />
+          </div>
+        )}
       </div>
 
       {!payPeriod || rows.length === 0 ? (
-        <p className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
-          {period.label}
-          はまだ締められていません。締め処理を実行すると集計が表示されます。
-        </p>
+        <div className="space-y-4">
+          <div className="flex justify-end">{prevNextNav}</div>
+          <p className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+            {period.label}
+            はまだ締められていません。締め処理を実行すると集計が表示されます。
+          </p>
+        </div>
       ) : (
         <section className="rounded-xl border border-gray-200 bg-white p-6 print:border-0 print:p-0">
           {/* 帳票ヘッダー */}
           <div className="border-b border-gray-200 pb-4">
-            <h2 className="text-lg font-bold">
-              給与支給一覧表 {payPeriod.period_label}
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-bold">
+                給与支給一覧表 {payPeriod.period_label}
+              </h2>
+              {prevNextNav}
+            </div>
             <p className="mt-1 text-sm text-gray-500">
               対象期間: {period.start.replaceAll("-", "/")} 〜{" "}
               {period.end.replaceAll("-", "/")} / 支給日:{" "}
@@ -186,7 +195,7 @@ export default async function ReportPage({
             </table>
           </div>
 
-          <p className="mt-4 text-xs text-gray-400">
+          <p className="mt-4 text-xs text-gray-600">
             単位: 円 / 源泉所得税は月額表(甲欄・乙欄)による / 本表は{" "}
             {new Date().toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" })}{" "}
             に出力

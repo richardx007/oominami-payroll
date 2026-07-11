@@ -39,10 +39,6 @@ export default function LoginPage() {
   async function handleForgotPassword() {
     setError(null);
     setResetMessage(null);
-    if (!email) {
-      setError("メールアドレスを入力してから「パスワードを忘れたら」を押してください");
-      return;
-    }
     setResetLoading(true);
     const fd = new FormData();
     fd.set("email", email);

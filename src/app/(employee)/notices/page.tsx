@@ -1,5 +1,13 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
+
+async function signOut() {
+  "use server";
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/login");
+}
 
 export default async function NoticesPage() {
   const employee = await requireEmployee();
@@ -14,6 +22,16 @@ export default async function NoticesPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-400">
+          ver.{process.env.NEXT_PUBLIC_BUILD_TIME ?? "dev"}
+        </span>
+        <form action={signOut}>
+          <button className="rounded-lg bg-[#152449] px-3 py-1.5 text-sm text-white hover:bg-[#1f3260]">
+            ログアウト
+          </button>
+        </form>
+      </div>
       <h1 className="text-lg font-bold">お知らせ</h1>
       {(notices ?? []).length === 0 && (
         <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">

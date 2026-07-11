@@ -1,16 +1,8 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireEmployee } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { EmployeeNav } from "./nav";
 import { LogoButton } from "@/app/admin/nav";
-
-async function signOut() {
-  "use server";
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect("/login");
-}
 
 export default async function EmployeeLayout({
   children,
@@ -36,7 +28,7 @@ export default async function EmployeeLayout({
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <LogoButton />
-            <span className="text-lg font-bold">給与管理</span>
+            <span className="text-lg font-bold">勤務管理</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-blue-100">{employee.name}</span>
@@ -45,11 +37,6 @@ export default async function EmployeeLayout({
                 管理画面
               </Link>
             )}
-            <form action={signOut}>
-              <button className="rounded-lg bg-blue-600 px-3 py-1 text-blue-50 hover:bg-blue-500">
-                ログアウト
-              </button>
-            </form>
           </div>
         </div>
       </header>

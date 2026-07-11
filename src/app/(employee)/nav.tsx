@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/timesheet", label: "勤務表", icon: CalendarIcon },
-  { href: "/payslips", label: "給与明細", icon: WalletIcon },
-  { href: "/notices", label: "お知らせ", icon: BellIcon },
+  { href: "/payslips", label: "給与明細", icon: YenIcon },
+  { href: "/notices", label: "管理", icon: PersonIcon },
 ];
 
 const SEEN_KEY = "notices_seen_at";
@@ -107,7 +107,7 @@ function CalendarIcon({ className }: { className?: string }) {
   );
 }
 
-function WalletIcon({ className }: { className?: string }) {
+function YenIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -119,14 +119,13 @@ function WalletIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18a2 2 0 0 1 2 2v1" />
-      <path d="M3 7.5V17a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-3" />
-      <path d="M20 10.5h-4a2 2 0 0 0 0 4h4a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1Z" />
+      <path d="M6 4l6 8 6-8" />
+      <path d="M12 12v8M8 14h8M8 17.5h8" />
     </svg>
   );
 }
 
-function BellIcon({ className }: { className?: string }) {
+function PersonIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -138,8 +137,8 @@ function BellIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20c0-4 3.5-6 8-6s8 2 8 6" />
     </svg>
   );
 }

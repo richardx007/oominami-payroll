@@ -44,7 +44,7 @@ export function DownloadCsvButton({ periodKey }: { periodKey: string }) {
             URL.revokeObjectURL(url);
           });
         }}
-        className="rounded-lg border border-gray-300 px-4 py-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        className="rounded-lg bg-blue-600 px-4 py-1.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
       >
         {pending ? "作成中..." : "CSVダウンロード"}
       </button>
@@ -79,7 +79,7 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
           setResult(null);
           setOpen(true);
         }}
-        className="rounded-lg border border-blue-300 px-4 py-1.5 text-blue-700 hover:bg-blue-50"
+        className="rounded-lg bg-blue-600 px-4 py-1.5 font-medium text-white hover:bg-blue-700"
       >
         税理士へメール送信
       </button>
