@@ -29,7 +29,7 @@ function currentOf<T extends { effective_from: string }>(rows: T[]): T | null {
   return applicable[0] ?? rows.sort((a, b) => a.effective_from.localeCompare(b.effective_from))[0] ?? null;
 }
 
-export function AddEmployeeForm() {
+function AddEmployeePanel() {
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<"admin" | "employee">("employee");
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -44,116 +44,120 @@ export function AddEmployeeForm() {
   }
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">新規登録</h2>
-        <button
-          onClick={() => setOpen(!open)}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          {open ? "閉じる" : "+ 従業員を追加"}
-        </button>
-      </div>
-      {result && (
-        <p
-          className={`mt-3 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
-        >
-          {result.message}
-        </p>
-      )}
-      {open && (
-        <form action={handleSubmit} className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium">区分</label>
-            <div className="flex gap-4 text-sm">
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="radio"
-                  name="role"
-                  value="employee"
-                  checked={role === "employee"}
-                  onChange={() => setRole("employee")}
-                />
-                従業員(No: E___)
-              </label>
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="radio"
-                  name="role"
-                  value="admin"
-                  checked={role === "admin"}
-                  onChange={() => setRole("admin")}
-                />
-                管理者(No: M___)
-              </label>
-            </div>
-            <p className="mt-1 text-xs text-gray-400">
-              従業員Noは区分に応じて自動採番されます
-            </p>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">氏名</label>
-            <input name="name" required className={inputClass} />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              メールアドレス
-            </label>
-            <input name="email" type="email" required className={inputClass} />
-          </div>
-          {role === "employee" && (
-            <>
-              <div>
-                <label className="mb-1 block text-sm font-medium">時給(円)</label>
-                <input
-                  name="hourly_wage"
-                  type="number"
-                  min={1}
-                  required
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">税区分</label>
-                <select name="tax_category" defaultValue="otsu" className={inputClass}>
-                  <option value="otsu">乙欄(扶養控除等申告書 提出なし)</option>
-                  <option value="kou">甲欄(扶養控除等申告書 提出あり)</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">扶養親族数</label>
-                <input
-                  name="dependents"
-                  type="number"
-                  min={0}
-                  defaultValue={0}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">適用開始日</label>
-                <input
-                  name="effective_from"
-                  type="date"
-                  defaultValue={today()}
-                  required
-                  className={inputClass}
-                />
-              </div>
-            </>
-          )}
-          <div className="flex items-end sm:col-span-2">
-            <button
-              type="submit"
-              disabled={pending}
-              className="w-full rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+    <>
+      <button
+        onClick={() => setOpen(!open)}
+        className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+      >
+        {open ? "閉じる" : "+ 従業員を追加"}
+      </button>
+      {(open || result) && (
+        <div className="mt-3 w-full basis-full">
+          {result && (
+            <p
+              className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
             >
-              {pending ? "登録中..." : "登録する"}
-            </button>
-          </div>
-        </form>
+              {result.message}
+            </p>
+          )}
+          {open && (
+            <form
+              action={handleSubmit}
+              className="mt-3 grid gap-4 rounded-lg border border-blue-100 bg-white p-4 sm:grid-cols-2"
+            >
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-sm font-medium">区分</label>
+                <div className="flex gap-4 text-sm">
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="role"
+                      value="employee"
+                      checked={role === "employee"}
+                      onChange={() => setRole("employee")}
+                    />
+                    従業員(No: E___)
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="role"
+                      value="admin"
+                      checked={role === "admin"}
+                      onChange={() => setRole("admin")}
+                    />
+                    管理者(No: M___)
+                  </label>
+                </div>
+                <p className="mt-1 text-xs text-gray-400">
+                  従業員Noは区分に応じて自動採番されます
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">氏名</label>
+                <input name="name" required className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  メールアドレス
+                </label>
+                <input name="email" type="email" required className={inputClass} />
+              </div>
+              {role === "employee" && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">時給(円)</label>
+                    <input
+                      name="hourly_wage"
+                      type="number"
+                      min={1}
+                      required
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">税区分</label>
+                    <select name="tax_category" defaultValue="otsu" className={inputClass}>
+                      <option value="otsu">乙欄(扶養控除等申告書 提出なし)</option>
+                      <option value="kou">甲欄(扶養控除等申告書 提出あり)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">扶養親族数</label>
+                    <input
+                      name="dependents"
+                      type="number"
+                      min={0}
+                      defaultValue={0}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">適用開始日</label>
+                    <input
+                      name="effective_from"
+                      type="date"
+                      defaultValue={today()}
+                      required
+                      className={inputClass}
+                    />
+                  </div>
+                </>
+              )}
+              <div className="flex items-end sm:col-span-2">
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className="w-full rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {pending ? "登録中..." : "登録する"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       )}
-    </section>
+    </>
   );
 }
 
@@ -174,7 +178,10 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
   return (
     <section className="rounded-xl border border-gray-200 bg-white">
       <div className="rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
-        <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">従業員一覧</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">従業員一覧</h2>
+          <AddEmployeePanel />
+        </div>
         {result && (
           <p
             className={`mt-1 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}

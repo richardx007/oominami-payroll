@@ -104,7 +104,7 @@ export default async function ReportPage({
         <section className="rounded-xl border border-gray-200 bg-white p-6 print:border-0 print:p-0">
           {/* 帳票ヘッダー */}
           <div className="border-b border-gray-200 pb-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-bold">
                 給与支給一覧表 {payPeriod.period_label}
               </h2>

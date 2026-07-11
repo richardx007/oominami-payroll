@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { EmployeeList, AddEmployeeForm } from "./ui";
+import { EmployeeList } from "./ui";
 
 export type EmployeeRow = {
   id: string;
@@ -39,7 +39,6 @@ export default async function EmployeesPage() {
           従業員の登録・時給・税区分の設定を行います
         </p>
       </div>
-      <AddEmployeeForm />
       <EmployeeList employees={(employees ?? []) as EmployeeRow[]} />
     </div>
   );
