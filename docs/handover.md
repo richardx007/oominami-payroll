@@ -1,6 +1,6 @@
 # 引き継ぎ書（次セッション向け）
 
-最終更新: 2026-07-08
+最終更新: 2026-07-11
 
 このドキュメントは、別セッション（別の開発者・AIエージェント）が本プロジェクトを
 継続開発するための引き継ぎ資料です。あわせて `docs/design.md`（設計書）と
@@ -20,7 +20,7 @@
 
 ---
 
-## 2. 現在の状態（2026-07-08 時点）
+## 2. 現在の状態（2026-07-11 時点）
 
 ### 実装済み・本番稼働中
 - ✅ 認証（初回登録=メールのみ→マジックリンク→パスワード設定、ログイン、ロール別リダイレクト）
@@ -31,10 +31,14 @@
 - ✅ 締め処理（プレビュー・締め・締め解除・支払済み。状態表示はダッシュボードと統一）
 - ✅ 給与明細閲覧（従業員）・メール配信
 - ✅ 連絡・催促・一斉報知（全員/個別、メール併送）
-- ✅ 税理士向け支給一覧（画面印刷/PDF・CSVダウンロード・mailtoメール作成）
-- ✅ 管理画面レイアウト（md以上=左サイドバー/スマホ=上部ナビ、ネイビー、ロゴ表示）
+- ✅ 税理士向け支給一覧（画面印刷/PDF・CSVダウンロード・**CSV添付の自動メール送信**＋申し送り追記）
+- ✅ 管理画面レイアウト（md以上=左サイドバー/スマホ=上部ナビ、ネイビー、ロゴ表示、ver.表示）
+- ✅ ダッシュボードの勤務カレンダー（日別勤務者数ドット→日クリックで勤務者一覧）
+- ✅ 勤務時間画面（従業員別の月次勤務明細・交通手段/区間表示）
+- ✅ 従業員のパスワード再設定（管理者発行・token_hash方式）
+- ✅ お知らせ未読の赤ドット（従業員ナビ）
 - ✅ 源泉徴収税額表のCSV取込
-- ✅ メール設定の画面管理化（会社名・送信元・税理士アドレス）
+- ✅ メール設定の画面管理化（会社名・送信元・税理士氏名・税理士アドレス）
 - ✅ Supabase 認証メールのカスタムSMTP化（自社Gmail送信、無料でテンプレ編集可）
 - ✅ Cloudflare 自動デプロイ（main push）
 
@@ -89,6 +93,46 @@
     「5. デプロイ / 運用 > PWA / 自動更新」の教訓ボックス参照。
   - 障害収束時に一時的に配った**キルスイッチ SW**（自己 unregister＋全キャッシュ削除）は、現在は
     生成される最小 SW に置き換わっている（最小 SW も activate で旧キャッシュを掃除する）。
+
+### 本セッションで実施した変更（2026-07-11・UI刷新／税理士自動送信／パスワード再設定）
+- **ダッシュボード刷新**: `admin/DashboardCalendar.tsx` を新設。給与期間カレンダーで日ごとに勤務者数の
+  ドット、日クリックでその日の勤務者一覧（氏名/開始〜終了/勤務時間/交通費）を右に表示。従来の人別一覧は下に残置。
+- **勤務時間画面を新設**: `admin/hours/{page,ui}.tsx`。年月＜＞ナビ、左=当月勤務した従業員、選択で右に
+  月次明細（曜日・開始〜終了・交通手段/区間1/往復⇔片道→/区間2・交通費）。合計は太字。
+  `lib/period.ts` に `WEEKDAYS`/`weekdayOf()`/`formatRoute()` を追加。
+- **メニュー順変更**: 締め処理と従業員を入れ替え、勤務時間を追加。
+- **税理士資料を自動送信に戻した**: mailto → **CSV添付の自動SMTP送信**。送信時ダイアログで補足/申し送りを
+  入力し本文末尾へ追記。本文から勤務データ表を削除。宛名を「税理士氏名+様」に。設定に `tax_accountant_name`
+  を追加。ボタン名「税理士へメール送信」。CSVダウンロードは維持。（`admin/report/{actions,ui}.tsx`）
+- **連絡のCC**: 個別連絡は管理者にCC、一斉報知は管理者にも配信。`smtp.ts`/`email.ts` に `cc` を追加、
+  `getAdminEmails()`/`getTaxName()` を追加。
+- **お知らせ未読バッジ**: `(employee)/layout.tsx` が最新お知らせ時刻を渡し、`nav.tsx` が localStorage
+  `notices_seen_at` と比較して赤ドット表示。開くと既読化。React19 の set-state-in-effect 規約回避のため
+  `useSyncExternalStore` を使用。
+- **設定2カラム化**: 会社名+送信元、税理士氏名+税理士アドレスをそれぞれ1行に（`admin/settings`）。
+- **PWAアイコン修正**: iOS/macOS はホーム/Dockに SVG 不可 → PNG を用意（`scripts/generate-icons.mjs`、
+  `icon-192/512.png`・`apple-icon.png`、`manifest.ts` を PNG 参照に）。更新バナー未表示（iOS standalone で
+  `controller` が null）を `reg.waiting/active` + `visibilitychange` で修正。
+- **iPad レイアウト修正**: サイドバー `h-screen`→`h-dvh` + overflow + safe-area でログアウトのはみ出し解消。
+- **従業員入力UI改善**: ＜＞大型化、入力欄白背景、交通費クリア×を右上に拡大、フォント拡大（高齢者配慮）、
+  合計行に「合計」表示、iOS の time 入力の重なりを**縦積み**で解消。ロゴSVG/PNG差し替え。
+- **交通費の全入力/全空欄バリデーション**: 手段/区間1/区間2/往復・片道/金額をセット必須（サーバ側 refine、
+  金額0は空扱い）。
+- **締め明細メール**: 送信元アドレス（0円明細）を宛先から除外（`admin/close/actions.ts`）。
+- **パスワード再設定機能を追加 → token_hash 方式に修正**: 管理者が「登録済み・在籍中」の従業員に再設定
+  メールを送る（`resetEmployeePassword`）。当初 PKCE（`?code=`）で実装したが、**管理者サーバー発行では
+  `code_verifier` が従業員側に無く必ず失敗**（ログイン画面に戻る不具合）。`/auth/callback` を
+  **`token_hash`+`verifyOtp`** 対応に変更し解決。**Supabase の「Reset password」テンプレートを
+  `{{ .TokenHash }}` を使うリンクに変更する運用対応が必須**（実施済み）。
+- **バージョン表示**: `next.config.ts` がビルド時刻（JST `yyyy-mm-dd hh:MM`）を `NEXT_PUBLIC_BUILD_TIME`
+  として埋め込み、管理サイドバー最下部に `ver.…` を表示。
+- **スキル追加/更新**: `.claude/skills/supabase-invite-auth/`（招待登録＋パスワード再設定の認証パターンを
+  文書化・実コード同梱）を新設。`.claude/skills/pwa-auto-update/` に「Visible version stamp」を追記
+  （`next.config` スニペット同梱）。両スキルは zip でも配布可能。
+
+> ⚠️ このセッションは**開発ブランチ `claude/payroll-system-plan-8wvobq` に直接コミット・push**して
+> 運用した（Cloudflare のプレビュー/自動デプロイ確認のため）。main への反映状況は次項ワークフローに従い
+> `git fetch origin main` で差分確認のうえ判断すること。
 
 ---
 
@@ -155,11 +199,20 @@ npm test           # Vitest（給与計算ロジック）
 - メール本文・送信: `src/lib/email.ts`（設定取得・本文生成・添付・リトライ）、`src/lib/smtp.ts`（SMTP・multipart・タイムアウト）。
 - 交通費の内訳・カレンダー表示: `src/app/(employee)/timesheet/ui.tsx`。祝日は `src/lib/holidays.ts`。
 - 初回登録フロー: `/register`（メールのみ・OTP送信・`friendlyOtpError`）→ `/auth/callback`（setup=1判定）→ `/set-password`。
+- **パスワード再設定（管理者発行）**: `src/app/admin/employees/actions.ts` の `resetEmployeePassword`、
+  検証は `src/app/auth/callback/route.ts`（`token_hash`+`verifyOtp`）。**Supabase「Reset password」テンプレート依存**。
+  認証パターンの解説はスキル `.claude/skills/supabase-invite-auth/`。
 - RLS/権限: DBの関数 `is_admin()` 等（Supabase側）。画面ガードは `src/lib/auth.ts`。
-- 従業員の登録/編集・No自動採番: `src/app/admin/employees/{actions,ui}.tsx`（`addEmployee`/`nextEmployeeNo`/`updateEmployeeProfile`）。
+- 従業員の登録/編集・No自動採番: `src/app/admin/employees/{actions,ui}.tsx`（`addEmployee`/`nextEmployeeNo`/`updateEmployeeProfile`/`resetEmployeePassword`）。
+- ダッシュボードのカレンダー: `src/app/admin/DashboardCalendar.tsx`。集計は `admin/page.tsx`。
+- 勤務時間画面: `src/app/admin/hours/{page,ui}.tsx`。曜日/区間表示は `src/lib/period.ts`（`weekdayOf`/`formatRoute`）。
 - 期間ステータス表示: `src/lib/period-status.ts`（ダッシュボード・締め処理で共用。配色を変えるならここ1か所）。
-- 管理ナビ/ロゴ/配色: `src/app/admin/nav.tsx`・`src/app/admin/layout.tsx`。ロゴ実体は `public/logo.svg`。
-- 税理士資料のmailto/CSV: `src/app/admin/report/{actions,ui,page}.tsx`（`buildTaxReportMail`/`buildTaxReportCsv`）。
+- 管理ナビ/ロゴ/配色/バージョン表示: `src/app/admin/nav.tsx`・`src/app/admin/layout.tsx`。
+  `ver.` は `NEXT_PUBLIC_BUILD_TIME`（`next.config.ts` で生成）。ロゴ実体は `public/logo.svg`。
+- 税理士資料の自動送信/CSV: `src/app/admin/report/{actions,ui,page}.tsx`（`sendTaxReport`/`buildTaxReportCsv`）。
+- 連絡のCC・管理者宛先: `src/app/admin/notices/actions.ts`・`src/lib/email.ts`（`getAdminEmails`）。
+- お知らせ未読バッジ: `src/app/(employee)/{layout,nav}.tsx`（localStorage `notices_seen_at` + `useSyncExternalStore`）。
+- PWAアイコン生成: `scripts/generate-icons.mjs`（手動実行。sharp で PNG 生成。ビルドには含めない）。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
 ---
@@ -171,13 +224,14 @@ npm test           # Vitest（給与計算ロジック）
 - [ ] **Supabase 休止対策**: 無料プロジェクトは長期未アクセスで一時停止。
       Cloudflare Cron Trigger で定期 ping する仕組みが未実装（当初計画にはあった）。
 - [ ] **E2Eテスト**: 締め〜配信の一連フローの自動テストは未整備。
-- [ ] **税理士へPDF自動添付メール**: 現状は mailto作成＋CSV手動添付＋画面からの手動PDF。オーナーから
-      「PDF添付にできないか」という要望あり。サーバー側PDF生成（@react-pdf等）が必要な
-      中規模作業のため保留中。必要になったら実装検討。
-- [x] **PWA自動更新**: 実装済み（fetch非介入の最小SW + 更新バナー + ロゴ1タップ更新）。
+- [x] **税理士へメール自動送信**: 実装済み（CSV自動添付・申し送り追記・宛名「氏名+様」）。
+      なお添付は **CSV**。PDF での自動添付が必要なら別途サーバー側PDF生成（@react-pdf等）が要る（下記参照）。
+- [x] **PWA自動更新**: 実装済み（fetch非介入の最小SW + 更新バナー + ロゴ1タップ更新 + ver.表示）。
       ⚠️ Cloudflareでは `@serwist/next` の `defaultCache`／webpackビルド切替は使わないこと（本番障害の原因）。
-      残・任意課題: iOSホーム画面用の PNG アイコン（192/512・apple-touch-icon）整備、
-      オフラインキャッシュが必要になった場合の設計（現状は更新通知のみでキャッシュしない）。
+      iOS用 PNG アイコン（192/512・apple-touch-icon）整備済み。
+      残・任意課題: オフラインキャッシュが必要になった場合の設計（現状は更新通知のみでキャッシュしない）。
+- [ ] **Supabase メールテンプレ依存の注意**: パスワード再設定は「Reset password」テンプレートが
+      `{{ .TokenHash }}` リンクであることに依存。テンプレを初期化/変更すると再設定が壊れる（design.md 参照）。
 - [ ] 給与明細のPDF体裁（現状はブラウザ印刷。専用レイアウトが必要なら @react-pdf 等）。
 - [ ] 会社名・住所などを給与明細/税理士資料の帳票ヘッダーに反映（company_name は
       メール差出人名のみ利用中）。締め処理/税理士画面には交通費内訳（手段/区間）は未表示。
