@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { requestPasswordReset } from "./actions";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +12,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +34,25 @@ export default function LoginPage() {
 
     router.push("/");
     router.refresh();
+  }
+
+  async function handleForgotPassword() {
+    setError(null);
+    setResetMessage(null);
+    if (!email) {
+      setError("メールアドレスを入力してから「パスワードを忘れたら」を押してください");
+      return;
+    }
+    setResetLoading(true);
+    const fd = new FormData();
+    fd.set("email", email);
+    const result = await requestPasswordReset(fd);
+    setResetLoading(false);
+    if (result.ok) {
+      setResetMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   return (
@@ -70,12 +92,23 @@ export default function LoginPage() {
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
+          {resetMessage && (
+            <p className="text-sm text-green-700">{resetMessage}</p>
+          )}
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-lg bg-blue-600 py-2.5 font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
           >
             {loading ? "ログイン中..." : "ログイン"}
+          </button>
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={resetLoading}
+            className="w-full text-center text-sm text-blue-600 hover:underline disabled:opacity-50"
+          >
+            {resetLoading ? "送信中..." : "パスワードを忘れたら"}
           </button>
         </form>
         <p className="mt-6 text-center text-sm text-gray-500">
