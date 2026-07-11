@@ -305,12 +305,16 @@ export async function resetEmployeePassword(
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  // 再設定リンクをクリック → /auth/callback でセッション確立 → /set-password へ
-  const redirectTo = `https://${host}/auth/callback?setup=1`;
+  // 管理者側(サーバー)から送るため PKCE の code_verifier は本人ブラウザに存在しない。
+  // implicit フローで再設定リンクを発行し、トークンを URL ハッシュで本人に渡す。
+  // 本人がリンクを開くと /set-password でブラウザがセッションを確立し、そのまま設定できる。
+  const resetClient = await createClient({ flowType: "implicit" });
+  const redirectTo = `https://${host}/set-password`;
 
-  const { error } = await supabase.auth.resetPasswordForEmail(employee.email, {
-    redirectTo,
-  });
+  const { error } = await resetClient.auth.resetPasswordForEmail(
+    employee.email,
+    { redirectTo }
+  );
 
   if (error) {
     return {
