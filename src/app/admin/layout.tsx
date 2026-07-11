@@ -35,6 +35,9 @@ export default async function AdminLayout({
               ログアウト
             </button>
           </form>
+          <div className="mt-3 text-center text-xs text-blue-200/70">
+            ver.{process.env.NEXT_PUBLIC_BUILD_TIME ?? "dev"}
+          </div>
         </div>
       </aside>
 

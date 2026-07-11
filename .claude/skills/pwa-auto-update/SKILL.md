@@ -50,6 +50,35 @@ Common wiring for both:
 - Add a static `public/manifest.webmanifest` (`assets/snippets/vite-manifest.webmanifest`).
 - No middleware/SSR concerns (static SPA). React Router client navigation is unaffected (the SW has no `fetch` handler).
 
+## Visible version stamp (build timestamp in the UI)
+
+Always surface a **human-readable version** somewhere persistent in the UI (footer, sidebar
+bottom, settings). It lets you and users confirm at a glance whether a device actually picked up
+the latest deploy — the single most useful signal when debugging "did the update land?". Use a
+**build timestamp** (not just the git SHA, which means nothing to end users). Recommended format
+`ver.yyyy-mm-dd hh:MM` in the app's local timezone.
+
+Expose the timestamp as a build-time constant so it's baked into the bundle (no runtime clock,
+identical for every viewer):
+
+- **Next.js** — compute it in `next.config.ts` and pass through `env` so
+  `process.env.NEXT_PUBLIC_BUILD_TIME` is inlined at build. See
+  `assets/snippets/next-config-build-time.ts`. Then render it, e.g. at the bottom of the sidebar:
+  ```tsx
+  <div className="text-xs text-gray-400">
+    ver.{process.env.NEXT_PUBLIC_BUILD_TIME ?? "dev"}
+  </div>
+  ```
+  `next.config` runs on every `next build` (including the opennext/Cloudflare build), so the stamp
+  refreshes each deploy. Format in a fixed timezone (e.g. `Asia/Tokyo`) via `Intl.DateTimeFormat`
+  so it doesn't depend on the build machine's TZ.
+- **Vite** — inject via `define` in `vite.config.ts`:
+  `define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString()) }` (add a `declare const
+  __BUILD_TIME__: string;`), then format for display.
+
+Note this is a *display* value; update **detection** still rides on the version-stamped SW
+(`SW_VERSION`). The two are independent and don't need to match.
+
 ## Verify
 
 `npm run build` must pass and emit `public/sw.js` **without a `fetch` handler**:
@@ -76,3 +105,4 @@ For a real check, drive a headless browser against the prod build: confirm the S
 | `assets/snippets/vite-App.tsx` | **Vite** app-root wiring reference (ReloadPrompt + logo). |
 | `assets/snippets/vite-index.html` | **Vite** `index.html` `<head>` additions (manifest link + viewport). |
 | `assets/snippets/vite-manifest.webmanifest` | **Vite** static web-app-manifest. |
+| `assets/snippets/next-config-build-time.ts` | **Next.js** `next.config.ts` exposing `NEXT_PUBLIC_BUILD_TIME` (visible version stamp). |
