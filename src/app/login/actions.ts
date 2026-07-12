@@ -25,7 +25,7 @@ export async function requestPasswordReset(
   // 空欄など明らかに送れない場合も、エラーは出さず案内のみ返す
   if (email) {
     try {
-      const supabase = await createClient();
+      const supabase = await createClient({ flowType: "implicit" });
       const h = await headers();
       const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
       const redirectTo = `https://${host}/auth/callback?setup=1`;

@@ -32,10 +32,20 @@ carries a `?code=`, and `exchangeCodeForSession(code)` needs that same verifier.
 `exchangeCodeForSession`.** `verifyOtp` needs no verifier, so it works from any browser. This
 requires editing the **Reset-password email template** (see below) — it is not code-only.
 
-Do **not** try to fix admin reset by setting the server client to `flowType: 'implicit'`: it
-does not reliably change the generated link format, and implicit delivers tokens in the URL
-**hash**, which server middleware/route handlers never see (they'd bounce a protected
-`/set-password` to `/login` before client JS runs).
+**But `token_hash` alone is not enough.** With a **PKCE** client, `resetPasswordForEmail`
+generates a `pkce_`-prefixed `token_hash` that is **still device-bound**: `verifyOtp` on a
+`pkce_` token requires the `code_verifier` cookie from the browser that *called*
+`resetPasswordForEmail`. The user almost always opens the reset email on a **different device**
+(their phone) → no verifier → `verifyOtp` fails → `/login`. Same URL shape
+(`/auth/callback?token_hash=pkce_...&type=recovery&setup=1`), silent failure.
+
+**Real fix: call `resetPasswordForEmail` from a client created with `flowType: 'implicit'`.**
+That makes Supabase mint a **non-`pkce_`** `token_hash` that `verifyOtp` verifies standalone on
+any device. Keep the default (PKCE) client for the invite/`signInWithOtp` flow — only the
+reset-email *sender* needs implicit. Implicit's URL-hash token concern does **not** apply here:
+we never rely on the hash; the email link carries `token_hash` as a query param and the callback
+route reads it server-side. Apply this to **both** admin-triggered reset and any self-service
+"forgot password" on the login page.
 
 ## Pieces
 
@@ -104,5 +114,7 @@ before a template change keep the old link — always test with a **freshly sent
 - Guard `resetEmployeePassword`: require admin; reject users with no `auth_user_id`
   (invite them first) and retired/inactive users.
 - Show the "reset" button only for **registered + active** users; show "invite" for un-registered.
-- The `token_hash` may be `pkce_`-prefixed even here; `verifyOtp` accepts it — that is expected.
+- A `pkce_`-prefixed `token_hash` is a red flag for reset: it verifies only on the *sending*
+  device. Send reset emails from a `flowType: 'implicit'` client so the `token_hash` is plain
+  and device-independent. (Invite/`signInWithOtp` stays PKCE — the user calls it themselves.)
 - No service-role key is used anywhere; everything runs with the anon/publishable key + user session.
