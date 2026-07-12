@@ -79,18 +79,21 @@ export default async function ClosePage({
         </div>
       </div>
 
-      <CloseActions periodKey={period.key} status={status} />
-
       <section className="rounded-xl border border-gray-200 bg-white">
         <div className="rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
-          <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-            {status === "open" ? "給与計算プレビュー" : "確定明細"}
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            総支給 ¥{totals.gross.toLocaleString()} / 源泉所得税 ¥
-            {totals.tax.toLocaleString()} / 差引支給 ¥
-            {totals.net.toLocaleString()}
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
+                {status === "open" ? "給与計算プレビュー" : "確定明細"}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                総支給 ¥{totals.gross.toLocaleString()} / 源泉所得税 ¥
+                {totals.tax.toLocaleString()} / 差引支給 ¥
+                {totals.net.toLocaleString()}
+              </p>
+            </div>
+            <CloseActions periodKey={period.key} status={status} />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

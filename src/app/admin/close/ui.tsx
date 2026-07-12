@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { closePeriod, emailPayslips, markPaid, reopenPeriod } from "./actions";
 import type { ActionResult } from "../employees/actions";
-import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
 
 export function CloseActions({
   periodKey,
@@ -27,15 +26,8 @@ export function CloseActions({
   }
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 text-sm">
-          状態:
-          <span className={periodStatusBadgeClass(status)}>
-            {periodStatusLabel(status)}
-          </span>
-        </div>
-        <div className="flex gap-2">
+    <div className="flex flex-col items-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
           {status === "open" && (
             <button
               disabled={pending}
@@ -92,15 +84,14 @@ export function CloseActions({
               </button>
             </>
           )}
-        </div>
       </div>
       {result && (
         <p
-          className={`mt-3 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
+          className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
         >
           {result.message}
         </p>
       )}
-    </section>
+    </div>
   );
 }

@@ -53,7 +53,7 @@ export function HoursView({
       {/* タイトル行(ダッシュボードと同じ表現に統一) */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-sm font-medium text-gray-500">勤務時間</h1>
+          <h1 className="text-sm font-medium text-gray-500">勤務実績</h1>
           <div className="mt-0.5 flex flex-wrap items-center gap-3">
             <span className="text-3xl font-bold tracking-tight text-gray-900">
               {period.label}
@@ -85,7 +85,7 @@ export function HoursView({
           この年月に勤務した従業員はいません。
         </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-[minmax(9rem,14rem)_1fr] md:items-start">
+        <div className="grid gap-4 md:grid-cols-[minmax(7rem,11rem)_1fr] md:items-start">
           {/* 左: 従業員リスト */}
           <nav className="rounded-xl border border-gray-200 bg-white p-2">
             <ul className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">

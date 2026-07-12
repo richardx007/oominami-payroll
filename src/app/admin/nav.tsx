@@ -6,7 +6,7 @@ import { reloadApp } from "@/app/pwa/reloadApp";
 
 const links = [
   { href: "/admin", label: "ダッシュボード" },
-  { href: "/admin/hours", label: "勤務時間" },
+  { href: "/admin/hours", label: "勤務実績" },
   { href: "/admin/close", label: "締め処理" },
   { href: "/admin/report", label: "税理士資料" },
   { href: "/admin/employees", label: "従業員" },
