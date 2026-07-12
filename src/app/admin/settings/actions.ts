@@ -80,10 +80,28 @@ const taxTableSchema = z.object({
   csv: z.string().min(1, "データを貼り付けてください"),
 });
 
+type TaxTableInsertRow = {
+  year: number;
+  min_amount: number;
+  max_amount: number | null;
+  tax_otsu: number;
+  tax_kou_0: number | null;
+  tax_kou_1: number | null;
+  tax_kou_2: number | null;
+  tax_kou_3: number | null;
+  tax_kou_4: number | null;
+  tax_kou_5: number | null;
+  tax_kou_6: number | null;
+  tax_kou_7: number | null;
+};
+
 /**
  * 源泉徴収税額表(月額表)のCSV取り込み。
- * 形式(1行1区分): 以上,未満,乙欄税額,甲欄扶養0,甲欄扶養1,甲欄扶養2,甲欄扶養3
- * 未満が空欄の行は上限なし。甲欄は省略可(乙欄のみ運用の場合)。
+ * 国税庁の公開様式に合わせ、甲欄(扶養0〜7人)・乙欄をそのまま保持する。
+ * 形式(1行1区分): 以上,未満,甲0,甲1,甲2,甲3,甲4,甲5,甲6,甲7,乙
+ *   - 甲欄の途中列は空欄可。乙欄(最終列)は必須。
+ *   - 未満が空欄の行は上限なし(最終行)。
+ * 後方互換: 3列「以上,未満,乙」の乙欄のみ運用も受け付ける。
  */
 export async function importTaxTable(
   formData: FormData
@@ -96,44 +114,52 @@ export async function importTaxTable(
   }
   const { year, csv } = parsed.data;
 
-  const rows: {
-    year: number;
-    min_amount: number;
-    max_amount: number | null;
-    tax_otsu: number;
-    tax_kou_0: number | null;
-    tax_kou_1: number | null;
-    tax_kou_2: number | null;
-    tax_kou_3: number | null;
-  }[] = [];
+  const rows: TaxTableInsertRow[] = [];
 
   const lines = csv
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith("#"));
 
+  const num = (s: string | undefined): number | null =>
+    s === undefined || s === "" ? null : Number(s.replaceAll(",", ""));
+
   for (const [i, line] of lines.entries()) {
     const cols = line.split(",").map((c) => c.trim().replaceAll("円", ""));
-    const num = (s: string | undefined): number | null =>
-      s === undefined || s === "" ? null : Number(s.replaceAll(",", ""));
+    const bad = (msg: string): ActionResult => ({
+      ok: false,
+      message: `${i + 1}行目の形式が不正です: ${msg}`,
+    });
 
     const min = num(cols[0]);
-    const otsu = num(cols[2]);
-    if (min === null || Number.isNaN(min) || otsu === null || Number.isNaN(otsu)) {
-      return {
-        ok: false,
-        message: `${i + 1}行目の形式が不正です: 「以上,未満,乙欄税額,甲欄0,甲欄1,甲欄2,甲欄3」の形式で入力してください`,
-      };
+    if (min === null || Number.isNaN(min)) {
+      return bad("「以上」の金額を数値で入力してください");
     }
+
+    // 乙欄のみの3列運用(以上,未満,乙)にも対応する
+    const otsuOnly = cols.length <= 3;
+    const otsu = num(otsuOnly ? cols[2] : cols[10]);
+    if (otsu === null || Number.isNaN(otsu)) {
+      return bad(
+        otsuOnly
+          ? "3列運用では「以上,未満,乙欄税額」で入力してください"
+          : "最終列の乙欄税額を数値で入力してください(以上,未満,甲0〜甲7,乙)"
+      );
+    }
+
     rows.push({
       year,
       min_amount: min,
       max_amount: num(cols[1]),
       tax_otsu: otsu,
-      tax_kou_0: num(cols[3]),
-      tax_kou_1: num(cols[4]),
-      tax_kou_2: num(cols[5]),
-      tax_kou_3: num(cols[6]),
+      tax_kou_0: otsuOnly ? null : num(cols[2]),
+      tax_kou_1: otsuOnly ? null : num(cols[3]),
+      tax_kou_2: otsuOnly ? null : num(cols[4]),
+      tax_kou_3: otsuOnly ? null : num(cols[5]),
+      tax_kou_4: otsuOnly ? null : num(cols[6]),
+      tax_kou_5: otsuOnly ? null : num(cols[7]),
+      tax_kou_6: otsuOnly ? null : num(cols[8]),
+      tax_kou_7: otsuOnly ? null : num(cols[9]),
     });
   }
 

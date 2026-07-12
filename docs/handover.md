@@ -165,6 +165,13 @@
   - 勤務実績の左従業員一覧: 「日数」表示を削除し幅を縮小（`minmax(5.5rem,9rem)`）、右表を拡大。
 - **招待日の記録**: `employees.invited_at`（timestamptz）を追加。`inviteEmployee` が送信成功時に更新。
   一覧で未登録者に「招待日 M/D」を表示、ボタンは初回「招待」/2回目以降「再招待」（`employees/ui.tsx`）。
+- **源泉徴収税額表を国税庁公開様式に拡張**: `withholding_tax_table` に `tax_kou_4..7` を追加し甲欄0〜7人を保持。
+  設定画面の貼付形式を「以上,未満,甲0〜甲7,乙」に変更（乙欄のみ3列も可）。取り込み済みデータを年選択つき
+  の表で表示（`settings/{page,ui,actions}.tsx`）。給与計算は甲欄を `Math.min(dependents,7)` で参照
+  （`payroll.ts`/`payroll-data.ts`）。**国税庁からの自動取得は非対応**（PDF/Excelのみ公開で機械可読源が無く、
+  当環境から nta.go.jp はネットワーク遮断）。年1回の貼付運用。
+- **税理士資料に状態バッジ**: 「給与支給一覧表 yyyy年mm月分」の右隣に期間ステータスバッジ
+  （`period-status.ts` 共用。締め済み/支払済み等）を挿入（`admin/report/page.tsx`）。
 - **スキル更新**: `.claude/skills/supabase-invite-auth/` を「PKCE `pkce_` トークンは送信端末でしか
   検証できない → メール送信は implicit クライアントで」の知見で更新。
 

@@ -7,6 +7,7 @@ import {
   formatMinutes,
   periodFromKey,
 } from "@/lib/period";
+import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
 import { DownloadCsvButton, PrintButton, SendReportButton } from "./ui";
 
 export default async function ReportPage({
@@ -108,6 +109,9 @@ export default async function ReportPage({
               <h2 className="text-lg font-bold">
                 給与支給一覧表 {payPeriod.period_label}
               </h2>
+              <span className={periodStatusBadgeClass(payPeriod.status)}>
+                {periodStatusLabel(payPeriod.status)}
+              </span>
               {prevNextNav}
             </div>
             <p className="mt-1 text-sm text-gray-500">

@@ -55,7 +55,7 @@ export async function calculatePeriodPayroll(
     supabase
       .from("withholding_tax_table")
       .select(
-        "min_amount, max_amount, tax_kou_0, tax_kou_1, tax_kou_2, tax_kou_3, tax_otsu"
+        "min_amount, max_amount, tax_kou_0, tax_kou_1, tax_kou_2, tax_kou_3, tax_kou_4, tax_kou_5, tax_kou_6, tax_kou_7, tax_otsu"
       )
       .eq("year", taxYear),
   ]);

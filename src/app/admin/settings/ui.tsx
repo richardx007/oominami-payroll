@@ -186,9 +186,36 @@ export function LunchAllowanceForm({
   );
 }
 
-export function TaxTableForm({ years }: { years: [number, number][] }) {
+export type TaxTableRow = {
+  year: number;
+  min_amount: number;
+  max_amount: number | null;
+  tax_otsu: number;
+  tax_kou_0: number | null;
+  tax_kou_1: number | null;
+  tax_kou_2: number | null;
+  tax_kou_3: number | null;
+  tax_kou_4: number | null;
+  tax_kou_5: number | null;
+  tax_kou_6: number | null;
+  tax_kou_7: number | null;
+};
+
+function yen(n: number | null) {
+  return n === null || n === undefined ? "—" : n.toLocaleString();
+}
+
+export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // 年ごとに区分数を集計(登録済み表示用)
+  const yearCounts = new Map<number, number>();
+  for (const r of rows) yearCounts.set(r.year, (yearCounts.get(r.year) ?? 0) + 1);
+  const years = [...yearCounts.keys()].sort((a, b) => b - a);
+
+  const [viewYear, setViewYear] = useState<number | null>(years[0] ?? null);
+  const shownRows = rows.filter((r) => r.year === viewYear);
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -198,15 +225,17 @@ export function TaxTableForm({ years }: { years: [number, number][] }) {
         乙欄3.063%・甲欄0円)。国税庁の月額表をもとに、1行1区分で貼り付けてください。
       </p>
       <div className="mt-2 rounded-lg bg-gray-50 p-3 font-mono text-xs text-gray-600">
-        形式: 以上,未満,乙欄税額,甲欄扶養0,甲欄扶養1,甲欄扶養2,甲欄扶養3
+        形式: 以上,未満,甲0,甲1,甲2,甲3,甲4,甲5,甲6,甲7,乙
         <br />
-        例: 88000,89000,3200,130,0,0,0
+        例: 88000,89000,130,0,0,0,0,0,0,0,3200
         <br />
-        (甲欄が不要なら乙欄税額まででOK。最終行の「未満」は空欄で上限なし)
+        (国税庁の公開項目をそのまま保持します。甲欄の途中列は空欄可、乙欄は必須。
+        最終行の「未満」は空欄で上限なし。乙欄のみなら「以上,未満,乙」の3列でも可)
       </div>
       {years.length > 0 && (
         <p className="mt-2 text-sm text-green-700">
-          登録済み: {years.map(([y, c]) => `${y}年(${c}区分)`).join("、")}
+          登録済み:{" "}
+          {years.map((y) => `${y}年(${yearCounts.get(y)}区分)`).join("、")}
         </p>
       )}
       <form
@@ -228,7 +257,9 @@ export function TaxTableForm({ years }: { years: [number, number][] }) {
         <textarea
           name="csv"
           rows={6}
-          placeholder={"88000,89000,3200,130,0,0,0\n89000,90000,3200,180,0,0,0"}
+          placeholder={
+            "88000,89000,130,0,0,0,0,0,0,0,3200\n89000,90000,180,0,0,0,0,0,0,0,3200"
+          }
           className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         {result && (
@@ -245,6 +276,67 @@ export function TaxTableForm({ years }: { years: [number, number][] }) {
           {pending ? "取り込み中..." : "取り込む(同年度は入れ替え)"}
         </button>
       </form>
+
+      {/* 取り込み済みデータの表表示 */}
+      {years.length > 0 && (
+        <div className="mt-6">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-700">取り込み済みデータ</h3>
+            <select
+              value={viewYear ?? ""}
+              onChange={(e) => setViewYear(Number(e.target.value))}
+              className="rounded-lg border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}年
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-gray-400">
+              {shownRows.length}区分
+            </span>
+          </div>
+          <div className="mt-2 max-h-96 overflow-auto rounded-lg border border-gray-200">
+            <table className="w-full text-right text-xs">
+              <thead className="sticky top-0 bg-gray-100 text-gray-600">
+                <tr>
+                  <th className="px-2 py-1.5 text-right">以上</th>
+                  <th className="px-2 py-1.5 text-right">未満</th>
+                  <th className="px-2 py-1.5 text-right">甲0</th>
+                  <th className="px-2 py-1.5 text-right">甲1</th>
+                  <th className="px-2 py-1.5 text-right">甲2</th>
+                  <th className="px-2 py-1.5 text-right">甲3</th>
+                  <th className="px-2 py-1.5 text-right">甲4</th>
+                  <th className="px-2 py-1.5 text-right">甲5</th>
+                  <th className="px-2 py-1.5 text-right">甲6</th>
+                  <th className="px-2 py-1.5 text-right">甲7</th>
+                  <th className="px-2 py-1.5 text-right">乙</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shownRows.map((r, i) => (
+                  <tr key={i} className="border-t border-gray-100">
+                    <td className="px-2 py-1">{yen(r.min_amount)}</td>
+                    <td className="px-2 py-1 text-gray-500">
+                      {r.max_amount === null ? "以上" : yen(r.max_amount)}
+                    </td>
+                    <td className="px-2 py-1">{yen(r.tax_kou_0)}</td>
+                    <td className="px-2 py-1">{yen(r.tax_kou_1)}</td>
+                    <td className="px-2 py-1">{yen(r.tax_kou_2)}</td>
+                    <td className="px-2 py-1">{yen(r.tax_kou_3)}</td>
+                    <td className="px-2 py-1">{yen(r.tax_kou_4)}</td>
+                    <td className="px-2 py-1">{yen(r.tax_kou_5)}</td>
+                    <td className="px-2 py-1">{yen(r.tax_kou_6)}</td>
+                    <td className="px-2 py-1">{yen(r.tax_kou_7)}</td>
+                    <td className="px-2 py-1 font-medium">{yen(r.tax_otsu)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

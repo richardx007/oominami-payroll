@@ -39,6 +39,10 @@ export type TaxTableRow = {
   tax_kou_1: number | null;
   tax_kou_2: number | null;
   tax_kou_3: number | null;
+  tax_kou_4?: number | null;
+  tax_kou_5?: number | null;
+  tax_kou_6?: number | null;
+  tax_kou_7?: number | null;
   tax_otsu: number;
 };
 
@@ -99,8 +103,17 @@ export function computeIncomeTax(
 
   if (category === "otsu") return row.tax_otsu;
 
-  const kouTaxes = [row.tax_kou_0, row.tax_kou_1, row.tax_kou_2, row.tax_kou_3];
-  const tax = kouTaxes[Math.min(dependents, 3)];
+  const kouTaxes = [
+    row.tax_kou_0,
+    row.tax_kou_1,
+    row.tax_kou_2,
+    row.tax_kou_3,
+    row.tax_kou_4,
+    row.tax_kou_5,
+    row.tax_kou_6,
+    row.tax_kou_7,
+  ];
+  const tax = kouTaxes[Math.min(dependents, 7)];
   if (tax === null || tax === undefined) {
     throw new PayrollError(
       `甲欄(扶養${dependents}人)の税額表データがありません。税額表を確認してください。`

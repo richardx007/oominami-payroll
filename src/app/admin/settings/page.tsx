@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { EmailSettingsForm, LunchAllowanceForm, TaxTableForm } from "./ui";
+import {
+  EmailSettingsForm,
+  LunchAllowanceForm,
+  TaxTableForm,
+  type TaxTableRow,
+} from "./ui";
 
 export default async function SettingsPage() {
   await requireAdmin();
@@ -13,14 +18,15 @@ export default async function SettingsPage() {
         .select("lunch_allowance_per_day, effective_from")
         .order("effective_from", { ascending: false })
         .limit(5),
-      supabase.from("withholding_tax_table").select("year"),
+      supabase
+        .from("withholding_tax_table")
+        .select(
+          "year, min_amount, max_amount, tax_otsu, tax_kou_0, tax_kou_1, tax_kou_2, tax_kou_3, tax_kou_4, tax_kou_5, tax_kou_6, tax_kou_7"
+        )
+        .order("year", { ascending: false })
+        .order("min_amount", { ascending: true }),
       supabase.from("app_settings").select("key, value"),
     ]);
-
-  const yearCounts = new Map<number, number>();
-  for (const r of taxYears ?? []) {
-    yearCounts.set(r.year, (yearCounts.get(r.year) ?? 0) + 1);
-  }
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
 
@@ -39,9 +45,7 @@ export default async function SettingsPage() {
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
       />
       <LunchAllowanceForm history={allowances ?? []} />
-      <TaxTableForm
-        years={[...yearCounts.entries()].sort((a, b) => b[0] - a[0])}
-      />
+      <TaxTableForm rows={(taxYears ?? []) as TaxTableRow[]} />
     </div>
   );
 }
