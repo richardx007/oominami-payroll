@@ -335,11 +335,10 @@ export async function countEmployeeWorkEntries(
 ): Promise<number> {
   await requireAdmin();
   const supabase = await createClient();
-  const { count } = await supabase
-    .from("work_entries")
-    .select("id", { count: "exact", head: true })
-    .eq("employee_id", employeeId);
-  return count ?? 0;
+  const { data } = await supabase.rpc("count_employee_work_entries", {
+    p_employee_id: employeeId,
+  });
+  return typeof data === "number" ? data : 0;
 }
 
 /**

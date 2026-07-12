@@ -273,28 +273,43 @@ function EmployeeTableRow({
   onRun: (action: () => Promise<ActionResult>) => void;
 }) {
   const retired = emp.status === "retired";
-  // 削除フロー: null=未確認, number=勤務実績件数を確認済みで確認パネル表示中
-  const [deleteState, setDeleteState] = useState<{ workCount: number } | null>(
-    null
-  );
+  // 削除フロー: 0=非表示, 1=1回目の警告(元に戻せません), 2=2回目の警告(勤務実績も削除)
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
+  const [workCount, setWorkCount] = useState(0);
   const [deleteResult, setDeleteResult] = useState<ActionResult | null>(null);
   const [deletePending, startDelete] = useTransition();
 
-  function beginDelete() {
+  // 1回目の「削除」→ 勤務実績を確認。あれば2回目の警告へ、無ければそのまま削除。
+  function proceedFromFirstWarning() {
     setDeleteResult(null);
     startDelete(async () => {
-      const workCount = await countEmployeeWorkEntries(emp.id);
-      setDeleteState({ workCount });
+      const n = await countEmployeeWorkEntries(emp.id);
+      if (n > 0) {
+        // 勤務実績があるときは2回目の警告を出してから削除する
+        setWorkCount(n);
+        setDeleteStep(2);
+        return;
+      }
+      // 勤務実績が無ければそのまま削除
+      const res = await deleteEmployee(emp.id);
+      setDeleteResult(res);
+      if (!res.ok) setDeleteStep(0);
     });
   }
 
-  function confirmDelete() {
+  function runDelete() {
     startDelete(async () => {
       const res = await deleteEmployee(emp.id);
       setDeleteResult(res);
-      // 成功時は行が消えるので状態リセットは不要(revalidateで再描画)
-      if (!res.ok) setDeleteState(null);
+      // 成功時は行が消える(revalidateで再描画)。失敗時のみパネルを閉じる。
+      if (!res.ok) setDeleteStep(0);
     });
+  }
+
+  function resetDelete() {
+    setDeleteStep(0);
+    setDeleteResult(null);
+    setWorkCount(0);
   }
 
   return (
@@ -523,7 +538,10 @@ function EmployeeTableRow({
 
                 <button
                   disabled={pending || deletePending}
-                  onClick={beginDelete}
+                  onClick={() => {
+                    setDeleteResult(null);
+                    setDeleteStep(1);
+                  }}
                   className="inline-flex items-center gap-1 rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
                 >
                   <TrashIcon className="h-4 w-4" />
@@ -531,17 +549,12 @@ function EmployeeTableRow({
                 </button>
               </div>
 
-              {deleteState && (
+              {/* 1回目の警告 */}
+              {deleteStep === 1 && (
                 <div className="mt-3 rounded-lg border border-red-300 bg-red-50 p-4">
                   <p className="text-sm font-semibold text-red-700">
-                    この操作は元に戻せません。
+                    {emp.name} さんを削除します。この操作は元に戻せません。
                   </p>
-                  {deleteState.workCount > 0 && (
-                    <p className="mt-1 text-sm text-red-700">
-                      この従業員の勤務実績も全て削除されます。（
-                      {deleteState.workCount}件）
-                    </p>
-                  )}
                   {deleteResult && !deleteResult.ok && (
                     <p className="mt-2 text-sm text-red-600">
                       {deleteResult.message}
@@ -550,7 +563,41 @@ function EmployeeTableRow({
                   <div className="mt-3 flex gap-2">
                     <button
                       disabled={deletePending}
-                      onClick={confirmDelete}
+                      onClick={proceedFromFirstWarning}
+                      className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                      {deletePending ? "確認中..." : "削除"}
+                    </button>
+                    <button
+                      disabled={deletePending}
+                      onClick={resetDelete}
+                      className="rounded-lg border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 2回目の警告(勤務実績あり) */}
+              {deleteStep === 2 && (
+                <div className="mt-3 rounded-lg border border-red-300 bg-red-50 p-4">
+                  <p className="text-sm font-semibold text-red-700">
+                    この従業員の勤務実績も全て削除されます。（{workCount}件）
+                  </p>
+                  <p className="mt-1 text-sm text-red-700">
+                    この操作は元に戻せません。本当に削除しますか？
+                  </p>
+                  {deleteResult && !deleteResult.ok && (
+                    <p className="mt-2 text-sm text-red-600">
+                      {deleteResult.message}
+                    </p>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      disabled={deletePending}
+                      onClick={runDelete}
                       className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
                     >
                       <TrashIcon className="h-4 w-4" />
@@ -558,7 +605,7 @@ function EmployeeTableRow({
                     </button>
                     <button
                       disabled={deletePending}
-                      onClick={() => setDeleteState(null)}
+                      onClick={resetDelete}
                       className="rounded-lg border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >
                       キャンセル
