@@ -17,10 +17,10 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const inputClass =
   "w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
-// 出勤・退勤・休憩の3カラム用。横パディングを詰め、iOSのtime入力が
-// はみ出さないよう幅を確実に親セルへ収める。
+// 出勤・退勤・休憩の3カラム用。iOSのtimeコントロールは指定幅より広く描画され
+// 隣と重なるため、フォントをやや小さく・横パディングを詰めて本体幅を抑える。
 const timeInputClass =
-  "w-full min-w-0 box-border rounded-lg border border-gray-300 bg-white px-2 py-2.5 text-center text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "w-full min-w-0 box-border rounded-lg border border-gray-300 bg-white px-1.5 py-2.5 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
 const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
 
@@ -363,7 +363,7 @@ function EntryForm({
         {/* 勤務時間。出勤・退勤・休憩を1行(3カラム)に。iOS Safari の time 入力は
             内容幅に広がりやすいため、各セルに min-w-0、入力は横パディングを詰めて
             はみ出し・重なりを防ぐ。 */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-3">
           <div className="min-w-0">
             <label className="mb-1 block text-sm font-medium text-gray-600">
               出勤
