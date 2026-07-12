@@ -10,7 +10,9 @@ import {
   workMinutes,
 } from "@/lib/period";
 import type { WorkEntry } from "./page";
-import { upsertWorkEntry, deleteWorkEntry, type ActionResult } from "./actions";
+import { type ActionResult } from "./actions";
+
+export type TimesheetEmployee = { id: string; name: string };
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -31,6 +33,12 @@ export function TimesheetCalendar({
   stations,
   holidays,
   today,
+  save,
+  del,
+  basePath = "/timesheet",
+  employees,
+  selectedEmployeeId,
+  employeeName,
 }: {
   period: Period;
   entries: WorkEntry[];
@@ -38,11 +46,28 @@ export function TimesheetCalendar({
   stations: string[];
   holidays: Record<string, string>;
   today: string;
+  /** 勤務記録の保存アクション(従業員=自分, 管理者=対象従業員にバインド済み) */
+  save: (formData: FormData) => Promise<ActionResult>;
+  /** 勤務記録の削除アクション */
+  del: (workDate: string) => Promise<ActionResult>;
+  /** 期間ナビのリンク先ベース("/timesheet" または "/admin/timesheet") */
+  basePath?: string;
+  /** 管理者用: 従業員選択リスト(指定時はセレクトを表示) */
+  employees?: TimesheetEmployee[];
+  selectedEmployeeId?: string;
+  /** 従業員用: 固定表示する自分の氏名 */
+  employeeName?: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // 期間ナビ・従業員切替で保持するクエリ(管理者は従業員IDを引き継ぐ)
+  const empQuery = selectedEmployeeId ? `&e=${selectedEmployeeId}` : "";
+  function periodHref(delta: 1 | -1) {
+    return `${basePath}?p=${adjacentPeriodKey(period.key, delta)}${empQuery}`;
+  }
 
   const entryMap = useMemo(
     () => new Map(entries.map((e) => [e.work_date, e])),
@@ -85,9 +110,9 @@ export function TimesheetCalendar({
   // 入力の既定値: 直近の入力をコピー
   const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
 
-  function save(formData: FormData) {
+  function handleSave(formData: FormData) {
     startTransition(async () => {
-      const res = await upsertWorkEntry(formData);
+      const res = await save(formData);
       setResult(res);
       if (res.ok) {
         setSelected(null);
@@ -98,7 +123,7 @@ export function TimesheetCalendar({
 
   function remove(workDate: string) {
     startTransition(async () => {
-      const res = await deleteWorkEntry(workDate);
+      const res = await del(workDate);
       setResult(res);
       if (res.ok) {
         setSelected(null);
@@ -111,35 +136,56 @@ export function TimesheetCalendar({
     <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-start">
       {/* 左カラム: 期間ナビ・サマリ・カレンダー */}
       <div className="space-y-4">
-        {/* 期間ナビ(月を大きく目立たせる) */}
-        <div className="flex items-center justify-between gap-2">
+        {/* 期間ナビ + 従業員フィールド。iPhone でも 年月・前後ボタン・従業員欄が
+            1行に収まるよう、年月の文字を控えめ(text-xl)にして横一列に並べる。 */}
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={() =>
-              router.push(`/timesheet?p=${adjacentPeriodKey(period.key, -1)}`)
-            }
+            onClick={() => router.push(periodHref(-1))}
             aria-label="前月"
-            className="shrink-0 rounded-lg px-3 py-1 text-3xl font-bold text-gray-600 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
           >
             ＜
           </button>
-          <div className="text-center">
-            <div className="text-3xl font-extrabold tracking-tight text-blue-800">
+          <div className="shrink-0 text-center leading-tight">
+            <div className="text-xl font-extrabold tracking-tight text-blue-800">
               {period.label}
-            </div>
-            <div className="mt-0.5 text-xs text-gray-500">
-              {period.start.replaceAll("-", "/")} 〜{" "}
-              {period.end.replaceAll("-", "/")}
             </div>
           </div>
           <button
-            onClick={() =>
-              router.push(`/timesheet?p=${adjacentPeriodKey(period.key, 1)}`)
-            }
+            onClick={() => router.push(periodHref(1))}
             aria-label="翌月"
-            className="shrink-0 rounded-lg px-3 py-1 text-3xl font-bold text-gray-600 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
           >
             ＞
           </button>
+
+          {/* 右端: 従業員フィールド(管理者=リスト選択 / 従業員=氏名固定) */}
+          <div className="ml-auto min-w-0">
+            {employees ? (
+              <select
+                value={selectedEmployeeId ?? ""}
+                onChange={(e) =>
+                  router.push(`${basePath}?p=${period.key}&e=${e.target.value}`)
+                }
+                aria-label="従業員を選択"
+                className="w-full min-w-0 max-w-[9.5rem] truncate rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm font-medium focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name}
+                  </option>
+                ))}
+              </select>
+            ) : employeeName ? (
+              <span className="block max-w-[9.5rem] truncate text-right text-sm font-semibold text-gray-700">
+                {employeeName}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div className="text-center text-xs text-gray-500 sm:text-left">
+          {period.start.replaceAll("-", "/")} 〜{" "}
+          {period.end.replaceAll("-", "/")}
         </div>
 
         {closed && (
@@ -242,7 +288,7 @@ export function TimesheetCalendar({
             defaults={lastEntry}
             pending={pending}
             stations={stations}
-            onSave={save}
+            onSave={handleSave}
             onDelete={remove}
           />
         )}

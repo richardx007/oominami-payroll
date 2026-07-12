@@ -3,13 +3,75 @@
 import { useState, useTransition } from "react";
 import { buildTaxReportCsv, sendTaxReport } from "./actions";
 
+const iconBtn =
+  "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-blue-300 bg-white text-blue-700 hover:bg-blue-50 disabled:opacity-50";
+
+function MailIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3.5 6.5l8.5 6 8.5-6" />
+    </svg>
+  );
+}
+
+function PrinterIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 9V3h12v6" />
+      <rect x="4" y="9" width="16" height="8" rx="2" />
+      <path d="M7 17h10v4H7z" />
+      <path d="M17 12.5h.01" />
+    </svg>
+  );
+}
+
+function DownloadIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v12" />
+      <path d="M7 10l5 5 5-5" />
+      <path d="M4 20h16" />
+    </svg>
+  );
+}
+
 export function PrintButton() {
   return (
     <button
       onClick={() => window.print()}
-      className="rounded-lg bg-blue-600 px-4 py-1.5 font-medium text-white hover:bg-blue-700"
+      aria-label="印刷 / PDF保存"
+      title="印刷 / PDF保存"
+      className={iconBtn}
     >
-      印刷 / PDF保存
+      <PrinterIcon />
     </button>
   );
 }
@@ -19,9 +81,11 @@ export function DownloadCsvButton({ periodKey }: { periodKey: string }) {
   const [pending, startTransition] = useTransition();
 
   return (
-    <span className="flex items-center gap-2">
+    <span className="inline-flex items-center gap-1">
       <button
         disabled={pending}
+        aria-label="CSVダウンロード"
+        title="CSVダウンロード"
         onClick={() => {
           setError(null);
           startTransition(async () => {
@@ -44,9 +108,9 @@ export function DownloadCsvButton({ periodKey }: { periodKey: string }) {
             URL.revokeObjectURL(url);
           });
         }}
-        className="rounded-lg bg-blue-600 px-4 py-1.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        className={iconBtn}
       >
-        {pending ? "作成中..." : "CSVダウンロード"}
+        <DownloadIcon />
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
@@ -73,15 +137,17 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
   }
 
   return (
-    <span className="flex items-center gap-2">
+    <span className="inline-flex items-center gap-1">
       <button
         onClick={() => {
           setResult(null);
           setOpen(true);
         }}
-        className="rounded-lg bg-blue-600 px-4 py-1.5 font-medium text-white hover:bg-blue-700"
+        aria-label="税理士へメール送信"
+        title="税理士へメール送信"
+        className={iconBtn}
       >
-        税理士へメール送信
+        <MailIcon />
       </button>
       {result && (
         <span

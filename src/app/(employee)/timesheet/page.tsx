@@ -3,6 +3,7 @@ import { requireEmployee } from "@/lib/auth";
 import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
 import { TimesheetCalendar } from "./ui";
+import { upsertWorkEntry, deleteWorkEntry } from "./actions";
 
 export type WorkEntry = {
   work_date: string;
@@ -86,6 +87,9 @@ export default async function TimesheetPage({
       stations={[...stationSet].sort()}
       holidays={holidays}
       today={todayJST()}
+      save={upsertWorkEntry}
+      del={deleteWorkEntry}
+      employeeName={employee.name}
     />
   );
 }

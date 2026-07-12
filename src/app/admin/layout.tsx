@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { AdminSidebarNav, AdminTopNav, LogoButton } from "./nav";
+import { AdminBottomNav, AdminSidebarNav, LogoButton } from "./nav";
 
 async function signOut() {
   "use server";
@@ -41,15 +41,12 @@ export default async function AdminLayout({
         </div>
       </aside>
 
-      {/* モバイル用ヘッダー */}
-      <header className="bg-[#152449] text-white shadow-md md:hidden print:hidden">
-        <div className="flex flex-wrap items-center justify-between gap-y-1 px-4 py-3">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <div className="flex items-center gap-2">
-              <LogoButton />
-              <span className="text-lg font-bold">給与管理</span>
-            </div>
-            <AdminTopNav />
+      {/* モバイル用ヘッダー(下部タブナビは AdminBottomNav) */}
+      <header className="sticky top-0 z-10 bg-[#152449] text-white shadow-md md:hidden print:hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <LogoButton />
+            <span className="text-base font-bold">給与管理</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden text-blue-100 sm:inline">{admin.name}</span>
@@ -62,9 +59,12 @@ export default async function AdminLayout({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 md:pb-6">
         {children}
       </main>
+
+      {/* モバイル用の下部タブナビ */}
+      <AdminBottomNav />
     </div>
   );
 }

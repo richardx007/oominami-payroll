@@ -48,6 +48,17 @@ function formatDate(iso: string) {
   });
 }
 
+/** 招待に関する状態(未招待→招待済→登録済)のバッジ表示情報を返す */
+function inviteStatus(emp: EmployeeRow): { label: string; className: string } {
+  if (emp.auth_user_id) {
+    return { label: "登録済", className: "bg-green-50 text-green-700" };
+  }
+  if (emp.invited_at) {
+    return { label: "招待済", className: "bg-amber-50 text-amber-700" };
+  }
+  return { label: "未招待", className: "bg-gray-100 text-gray-600" };
+}
+
 /** 適用開始日順に並べ、今日時点で有効な設定を返す */
 function currentOf<T extends { effective_from: string }>(rows: T[]): T | null {
   const t = today();
@@ -222,13 +233,9 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
-              <th className="px-4 py-2">No</th>
               <th className="px-4 py-2">氏名</th>
-              <th className="hidden px-4 py-2 md:table-cell">メール</th>
-              <th className="px-4 py-2">時給</th>
-              <th className="px-4 py-2">税区分</th>
+              <th className="px-4 py-2">招待状態</th>
               <th className="px-4 py-2">状態</th>
-              <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -252,7 +259,7 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
             })}
             {employees.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={3} className="px-4 py-8 text-center text-gray-400">
                   従業員が登録されていません
                 </td>
               </tr>
@@ -282,6 +289,7 @@ function EmployeeTableRow({
   onRun: (action: () => Promise<ActionResult>) => void;
 }) {
   const retired = emp.status === "retired";
+  const status = inviteStatus(emp);
   // 削除フロー: 0=非表示, 1=1回目の警告(元に戻せません), 2=2回目の警告(勤務実績も削除)
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
   const [workCount, setWorkCount] = useState(0);
@@ -323,81 +331,39 @@ function EmployeeTableRow({
 
   return (
     <>
-      <tr className={`border-b border-gray-50 ${retired ? "opacity-50" : ""}`}>
-        <td className="px-4 py-3">{emp.employee_no}</td>
+      {/* 明細行をタップすると詳細(吹き出し)を開閉する。iPhone を考慮し
+          列は「氏名 / 招待状態 / 状態」の3つに絞る。 */}
+      <tr
+        onClick={onEdit}
+        className={`cursor-pointer border-b border-gray-50 transition hover:bg-blue-50/40 ${
+          editing ? "bg-blue-50/60" : ""
+        } ${retired ? "opacity-50" : ""}`}
+      >
         <td className="px-4 py-3">
-          {emp.name}
+          <span className="font-medium">{emp.name}</span>
           {emp.is_admin && (
             <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
               管理者
             </span>
           )}
-          {!emp.auth_user_id && !retired && (
-            <span className="ml-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">
-              未登録
-            </span>
-          )}
+        </td>
+        <td className="px-4 py-3">
+          <span
+            className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}
+          >
+            {status.label}
+          </span>
           {!emp.auth_user_id && emp.invited_at && (
-            <span className="ml-1 text-xs text-gray-400">
-              招待日 {formatDate(emp.invited_at)}
+            <span className="ml-1 whitespace-nowrap text-xs text-gray-400">
+              {formatDate(emp.invited_at)}
             </span>
           )}
-        </td>
-        <td className="hidden px-4 py-3 text-gray-500 md:table-cell">
-          {emp.email}
-        </td>
-        <td className="px-4 py-3">
-          {wage ? `¥${wage.hourly_wage.toLocaleString()}` : "—"}
-        </td>
-        <td className="px-4 py-3">
-          {tax ? (tax.tax_category === "kou" ? `甲欄(扶養${tax.dependents})` : "乙欄") : "—"}
         </td>
         <td className="px-4 py-3">{retired ? "退職" : "在籍"}</td>
-        <td className="px-4 py-3 text-right">
-          <div className="flex items-center justify-end gap-3 whitespace-nowrap">
-            {!emp.auth_user_id && !retired && (
-              <button
-                disabled={pending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `${emp.name} さん(${emp.email})に初回登録の招待メールを送信します。よろしいですか?`
-                    )
-                  ) {
-                    onRun(() => inviteEmployee(emp.id));
-                  }
-                }}
-                className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
-              >
-                {emp.invited_at ? "再招待" : "招待"}
-              </button>
-            )}
-            {emp.auth_user_id && !retired && (
-              <button
-                disabled={pending}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `${emp.name} さん(${emp.email})にパスワード再設定メールを送信します。よろしいですか?`
-                    )
-                  ) {
-                    onRun(() => resetEmployeePassword(emp.id));
-                  }
-                }}
-                className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-              >
-                パスワード再設定
-              </button>
-            )}
-            <button onClick={onEdit} className="text-blue-600 hover:underline">
-              {editing ? "閉じる" : "編集"}
-            </button>
-          </div>
-        </td>
       </tr>
       {editing && (
         <tr>
-          <td colSpan={7} className="px-4 pb-5 pt-1">
+          <td colSpan={3} className="px-2 pb-5 pt-1 sm:px-4">
             {/* 明細行から浮き出した吹き出し風の編集パネル */}
             <div className="relative rounded-xl border border-blue-200 bg-white p-5 shadow-lg ring-1 ring-blue-100">
               <span
@@ -415,6 +381,45 @@ function EmployeeTableRow({
                   ✕ 閉じる
                 </button>
               </div>
+
+              {/* 詳細トップの操作: パスワード再設定 / 招待・再招待 */}
+              {!retired && (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {emp.auth_user_id ? (
+                    <button
+                      disabled={pending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `${emp.name} さん(${emp.email})にパスワード再設定メールを送信します。よろしいですか?`
+                          )
+                        ) {
+                          onRun(() => resetEmployeePassword(emp.id));
+                        }
+                      }}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      パスワード再設定
+                    </button>
+                  ) : (
+                    <button
+                      disabled={pending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `${emp.name} さん(${emp.email})に初回登録の招待メールを送信します。よろしいですか?`
+                          )
+                        ) {
+                          onRun(() => inviteEmployee(emp.id));
+                        }
+                      }}
+                      className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+                    >
+                      {emp.invited_at ? "再招待" : "招待"}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <form
                 action={(fd) => onRun(() => updateEmployeeProfile(fd))}
@@ -462,7 +467,7 @@ function EmployeeTableRow({
                       時給の変更(値上げは適用開始日を指定)
                     </h4>
                     <input type="hidden" name="employee_id" value={emp.id} />
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:flex">
                       <input
                         name="hourly_wage"
                         type="number"
@@ -495,7 +500,7 @@ function EmployeeTableRow({
                       税区分の変更
                     </h4>
                     <input type="hidden" name="employee_id" value={emp.id} />
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:flex">
                       <select
                         name="tax_category"
                         defaultValue={tax?.tax_category ?? "otsu"}

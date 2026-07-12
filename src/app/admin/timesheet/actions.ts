@@ -2,15 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireEmployee } from "@/lib/auth";
-import { entrySchema } from "./schema";
+import { requireAdmin } from "@/lib/auth";
+import { entrySchema } from "@/app/(employee)/timesheet/schema";
+import type { ActionResult } from "@/app/(employee)/timesheet/actions";
 
-export type ActionResult = { ok: boolean; message: string };
-
-export async function upsertWorkEntry(
+/**
+ * 管理者が任意の従業員の勤務記録を登録・更新する。
+ * employee_id を明示する以外はロジックは従業員用と同一(スキーマを共用)。
+ * RLS は管理者に全件書き込みを許可しているため期間ロックの影響を受けない。
+ */
+export async function adminUpsertWorkEntry(
+  employeeId: string,
   formData: FormData
 ): Promise<ActionResult> {
-  const employee = await requireEmployee();
+  await requireAdmin();
 
   const parsed = entrySchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -21,7 +26,7 @@ export async function upsertWorkEntry(
 
   const { error } = await supabase.from("work_entries").upsert(
     {
-      employee_id: employee.id,
+      employee_id: employeeId,
       work_date: d.work_date,
       start_time: d.start_time,
       end_time: d.end_time,
@@ -36,30 +41,27 @@ export async function upsertWorkEntry(
     { onConflict: "employee_id,work_date" }
   );
 
-  if (error) {
-    const message =
-      error.code === "42501" || error.message.includes("policy")
-        ? "この期間は締め済みのため入力できません"
-        : "保存に失敗しました";
-    return { ok: false, message };
-  }
+  if (error) return { ok: false, message: "保存に失敗しました" };
 
-  revalidatePath("/timesheet");
+  revalidatePath("/admin/timesheet");
   return { ok: true, message: "保存しました" };
 }
 
-export async function deleteWorkEntry(workDate: string): Promise<ActionResult> {
-  const employee = await requireEmployee();
+export async function adminDeleteWorkEntry(
+  employeeId: string,
+  workDate: string
+): Promise<ActionResult> {
+  await requireAdmin();
   const supabase = await createClient();
 
   const { error } = await supabase
     .from("work_entries")
     .delete()
-    .eq("employee_id", employee.id)
+    .eq("employee_id", employeeId)
     .eq("work_date", workDate);
 
   if (error) return { ok: false, message: "削除に失敗しました" };
 
-  revalidatePath("/timesheet");
+  revalidatePath("/admin/timesheet");
   return { ok: true, message: "削除しました" };
 }

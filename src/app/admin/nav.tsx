@@ -5,13 +5,11 @@ import { usePathname } from "next/navigation";
 import { reloadApp } from "@/app/pwa/reloadApp";
 
 const links = [
-  { href: "/admin", label: "ダッシュボード" },
-  { href: "/admin/hours", label: "勤務実績" },
-  { href: "/admin/close", label: "締め処理" },
-  { href: "/admin/report", label: "税理士資料" },
-  { href: "/admin/employees", label: "従業員" },
-  { href: "/admin/notices", label: "連絡" },
-  { href: "/admin/settings", label: "設定" },
+  { href: "/admin", label: "ホーム", icon: HomeIcon },
+  { href: "/admin/timesheet", label: "勤務表", icon: CalendarIcon },
+  { href: "/admin/close", label: "給与明細", icon: YenIcon },
+  { href: "/admin/employees", label: "従業員", icon: PeopleIcon },
+  { href: "/admin/settings", label: "設定", icon: GearIcon },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -55,41 +53,144 @@ export function AdminSidebarNav() {
   const pathname = usePathname();
   return (
     <nav className="flex flex-col gap-1">
-      {links.map((l) => (
-        <Link
-          key={l.href}
-          href={l.href}
-          className={`touch-manipulation rounded-lg px-3 py-2.5 text-lg font-medium transition-colors active:opacity-70 ${
-            isActive(pathname, l.href)
-              ? "bg-white text-[#152449]"
-              : "text-blue-50 hover:bg-white/10 hover:text-white"
-          }`}
-        >
-          {l.label}
-        </Link>
-      ))}
+      {links.map((l) => {
+        const Icon = l.icon;
+        return (
+          <Link
+            key={l.href}
+            href={l.href}
+            className={`flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-lg font-medium transition-colors active:opacity-70 ${
+              isActive(pathname, l.href)
+                ? "bg-white text-[#152449]"
+                : "text-blue-50 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <Icon className="h-6 w-6 shrink-0" />
+            {l.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }
 
-/** モバイル用の横並びナビ */
-export function AdminTopNav() {
+/** モバイル用の下部タブナビ(従業員画面と同じく画面下に固定) */
+export function AdminBottomNav() {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-      {links.map((l) => (
-        <Link
-          key={l.href}
-          href={l.href}
-          className={
-            isActive(pathname, l.href)
-              ? "touch-manipulation font-semibold text-white underline"
-              : "touch-manipulation text-blue-50 hover:text-white active:opacity-70"
-          }
-        >
-          {l.label}
-        </Link>
-      ))}
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden print:hidden">
+      <div className="mx-auto grid max-w-lg grid-cols-5">
+        {links.map((l) => {
+          const Icon = l.icon;
+          const active = isActive(pathname, l.href);
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={`flex touch-manipulation flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition active:opacity-70 ${
+                active ? "text-blue-600" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Icon className="h-6 w-6" />
+              {l.label}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
+  );
+}
+
+// 単色フラットアイコン(currentColorで色は親から継承)
+function HomeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 11l9-8 9 8" />
+      <path d="M5 10v10h14V10" />
+      <path d="M9 20v-6h6v6" />
+    </svg>
+  );
+}
+
+function CalendarIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4.5" width="18" height="16" rx="2" />
+      <path d="M3 9h18M8 3v3M16 3v3" />
+    </svg>
+  );
+}
+
+function YenIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 4l6 8 6-8" />
+      <path d="M12 12v8M8 14h8M8 17.5h8" />
+    </svg>
+  );
+}
+
+function PeopleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M2.5 20c0-3.3 2.9-5 6.5-5s6.5 1.7 6.5 5" />
+      <path d="M16 5.2a3.2 3.2 0 0 1 0 6.1" />
+      <path d="M17.5 14.4c2.6.5 4 2.2 4 5.6" />
+    </svg>
+  );
+}
+
+function GearIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.5v3M12 18.5v3M4.2 7l2.6 1.5M17.2 15.5l2.6 1.5M4.2 17l2.6-1.5M17.2 8.5l2.6-1.5" />
+    </svg>
   );
 }
