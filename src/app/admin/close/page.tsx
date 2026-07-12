@@ -4,9 +4,15 @@ import { requireAdmin } from "@/lib/auth";
 import {
   adjacentPeriodKey,
   currentPeriod,
-  formatMinutes,
   periodFromKey,
 } from "@/lib/period";
+
+/** 分を「H:MM」表記にする(単位を省いて数字だけ・改行させない用) */
+function hhmm(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
 import { CloseActions } from "./ui";
@@ -99,7 +105,6 @@ export default async function ClosePage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
-                <th className="px-4 py-2">No</th>
                 <th className="px-4 py-2">氏名</th>
                 <th className="px-4 py-2 text-right">日数</th>
                 <th className="px-4 py-2 text-right">時間</th>
@@ -114,15 +119,14 @@ export default async function ClosePage({
             <tbody>
               {payrolls.map((p) => (
                 <tr key={p.employee_id} className="border-b border-gray-50">
-                  <td className="px-4 py-3">{p.employee_no}</td>
-                  <td className="px-4 py-3">{p.name}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{p.name}</td>
                   {p.result ? (
                     <>
-                      <td className="px-4 py-3 text-right">
-                        {p.result.work_days}日
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        {p.result.work_days}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        {formatMinutes(p.result.total_minutes) || "0時間"}
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        {hhmm(p.result.total_minutes)}
                       </td>
                       <td className="px-4 py-3 text-right">
                         ¥{p.result.base_pay.toLocaleString()}
@@ -153,7 +157,7 @@ export default async function ClosePage({
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={9}
                     className="px-4 py-8 text-center text-gray-400"
                   >
                     対象の従業員がいません

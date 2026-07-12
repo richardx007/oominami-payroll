@@ -183,10 +183,6 @@ export function TimesheetCalendar({
             ) : null}
           </div>
         </div>
-        <div className="text-center text-xs text-gray-500 sm:text-left">
-          {period.start.replaceAll("-", "/")} 〜{" "}
-          {period.end.replaceAll("-", "/")}
-        </div>
 
         {closed && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -399,12 +395,24 @@ function EntryForm({
 
   return (
     <div className="rounded-xl border border-blue-200 bg-white p-4">
-      <h3 className="text-lg font-bold text-blue-800">
-        {formatDateJa(date)}
-        <span className="ml-2 text-sm font-medium text-gray-500">勤務記録</span>
-      </h3>
-      <form ref={formRef} onSubmit={handleSubmit} className="mt-3 space-y-4">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
         <input type="hidden" name="work_date" value={date} />
+        {/* 日付タイトルと同じ行の右側に 登録/更新 ボタンを配置 */}
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-lg font-bold text-blue-800">
+            {formatDateJa(date)}
+            <span className="ml-2 text-sm font-medium text-gray-500">
+              勤務記録
+            </span>
+          </h3>
+          <button
+            type="submit"
+            disabled={pending}
+            className="shrink-0 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {pending ? "保存中..." : entry ? "更新" : "登録"}
+          </button>
+        </div>
 
         {/* 勤務時間。出勤・退勤・休憩を1行(3カラム)に。iOS Safari の time 入力は
             内容幅に広がりやすいため、各セルに min-w-0、入力は横パディングを詰めて
@@ -579,15 +587,8 @@ function EntryForm({
           />
         </div>
 
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={pending}
-            className="flex-1 rounded-lg bg-blue-600 py-2.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {pending ? "保存中..." : entry ? "更新する" : "登録する"}
-          </button>
-          {entry && (
+        {entry && (
+          <div className="flex justify-end">
             <button
               type="button"
               disabled={pending}
@@ -596,8 +597,8 @@ function EntryForm({
             >
               削除
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </form>
     </div>
   );

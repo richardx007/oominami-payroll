@@ -76,7 +76,6 @@ export default async function AdminTimesheetPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-sm font-medium text-gray-500">勤務表(管理者)</h1>
       <TimesheetCalendar
         period={period}
         entries={normalized as WorkEntry[]}
