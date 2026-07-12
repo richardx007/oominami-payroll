@@ -329,6 +329,41 @@ export async function resetEmployeePassword(
   };
 }
 
+/** 従業員の勤務実績(work_entries)の件数を返す。削除前の警告表示に使う。 */
+export async function countEmployeeWorkEntries(
+  employeeId: string
+): Promise<number> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("work_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("employee_id", employeeId);
+  return count ?? 0;
+}
+
+/**
+ * 従業員を完全削除する(元に戻せない)。勤務実績・給与明細・時給/税区分は
+ * DB の FK CASCADE で、連絡(notifications)は delete_employee 関数内で削除される。
+ */
+export async function deleteEmployee(
+  employeeId: string
+): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("delete_employee", {
+    p_employee_id: employeeId,
+  });
+
+  if (error) {
+    return { ok: false, message: "削除に失敗しました: " + error.message };
+  }
+
+  revalidatePath("/admin/employees");
+  return { ok: true, message: "従業員と関連データを削除しました" };
+}
+
 export async function toggleEmployeeStatus(
   employeeId: string,
   newStatus: "active" | "retired"

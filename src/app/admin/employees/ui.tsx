@@ -10,8 +10,27 @@ import {
   updateTaxSetting,
   updateEmployeeProfile,
   toggleEmployeeStatus,
+  countEmployeeWorkEntries,
+  deleteEmployee,
   type ActionResult,
 } from "./actions";
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6" />
+    </svg>
+  );
+}
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -254,6 +273,30 @@ function EmployeeTableRow({
   onRun: (action: () => Promise<ActionResult>) => void;
 }) {
   const retired = emp.status === "retired";
+  // 削除フロー: null=未確認, number=勤務実績件数を確認済みで確認パネル表示中
+  const [deleteState, setDeleteState] = useState<{ workCount: number } | null>(
+    null
+  );
+  const [deleteResult, setDeleteResult] = useState<ActionResult | null>(null);
+  const [deletePending, startDelete] = useTransition();
+
+  function beginDelete() {
+    setDeleteResult(null);
+    startDelete(async () => {
+      const workCount = await countEmployeeWorkEntries(emp.id);
+      setDeleteState({ workCount });
+    });
+  }
+
+  function confirmDelete() {
+    startDelete(async () => {
+      const res = await deleteEmployee(emp.id);
+      setDeleteResult(res);
+      // 成功時は行が消えるので状態リセットは不要(revalidateで再描画)
+      if (!res.ok) setDeleteState(null);
+    });
+  }
+
   return (
     <>
       <tr className={`border-b border-gray-50 ${retired ? "opacity-50" : ""}`}>
@@ -458,10 +501,10 @@ function EmployeeTableRow({
                 </div>
               )}
 
-              {!emp.is_admin && (
-                <div className="mt-4 border-t border-gray-100 pt-4">
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                {!emp.is_admin ? (
                   <button
-                    disabled={pending}
+                    disabled={pending || deletePending}
                     onClick={() =>
                       onRun(() =>
                         toggleEmployeeStatus(
@@ -474,6 +517,53 @@ function EmployeeTableRow({
                   >
                     {retired ? "在籍に戻す" : "退職処理する"}
                   </button>
+                ) : (
+                  <span />
+                )}
+
+                <button
+                  disabled={pending || deletePending}
+                  onClick={beginDelete}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  削除
+                </button>
+              </div>
+
+              {deleteState && (
+                <div className="mt-3 rounded-lg border border-red-300 bg-red-50 p-4">
+                  <p className="text-sm font-semibold text-red-700">
+                    この操作は元に戻せません。
+                  </p>
+                  {deleteState.workCount > 0 && (
+                    <p className="mt-1 text-sm text-red-700">
+                      この従業員の勤務実績も全て削除されます。（
+                      {deleteState.workCount}件）
+                    </p>
+                  )}
+                  {deleteResult && !deleteResult.ok && (
+                    <p className="mt-2 text-sm text-red-600">
+                      {deleteResult.message}
+                    </p>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      disabled={deletePending}
+                      onClick={confirmDelete}
+                      className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                      {deletePending ? "削除中..." : "全て削除"}
+                    </button>
+                    <button
+                      disabled={deletePending}
+                      onClick={() => setDeleteState(null)}
+                      className="rounded-lg border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
