@@ -1,5 +1,10 @@
 "use client";
 
+// ⚠️ この参考実装はクライアントから signInWithOtp を呼ぶ(=PKCE)。本人がメールを別端末で
+// 開くと token_hash が pkce_ 付きになり verifyOtp が失敗する。実運用では送信をサーバー
+// アクションに移し、implicit フローのサーバークライアントで signInWithOtp を呼ぶこと
+// (`createClient({ flowType: 'implicit' })`)。詳細は SKILL.md「The core pitfall」参照。
+
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";

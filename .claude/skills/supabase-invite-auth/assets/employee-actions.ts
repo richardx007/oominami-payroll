@@ -305,12 +305,14 @@ export async function resetEmployeePassword(
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  // 再設定リンクをクリック → /auth/callback で token_hash を検証してセッション確立
-  // → /set-password へ。token_hash 方式は PKCE の code_verifier が不要なため、
-  // 管理者(サーバー)側から送っても本人のブラウザで問題なく検証できる。
+  // 再設定リンクをクリック → /auth/callback で token_hash を検証してセッション確立 → /set-password。
+  // 本人は別端末(スマホ等)でメールを開くため、PKCE では code_verifier がその端末に無く
+  // verifyOtp が失敗する。送信は implicit フローのクライアントで行い、端末非依存の token_hash を
+  // 発行させる(createClient がオプションで flowType を受け取れるようにしておくこと)。
   const redirectTo = `https://${host}/auth/callback?setup=1`;
 
-  const { error } = await supabase.auth.resetPasswordForEmail(employee.email, {
+  const mailer = await createClient({ flowType: "implicit" });
+  const { error } = await mailer.auth.resetPasswordForEmail(employee.email, {
     redirectTo,
   });
 

@@ -15,37 +15,39 @@ server. Two flows:
 
 ## The core pitfall (read this first)
 
-Supabase SSR defaults to **PKCE flow**. `signInWithOtp` / `resetPasswordForEmail` generate a
-`code_verifier` stored in a cookie **in the browser that made the call**. The email link later
-carries a `?code=`, and `exchangeCodeForSession(code)` needs that same verifier.
+Supabase SSR defaults to **PKCE flow**. `signInWithOtp` (registration magic link) /
+`resetPasswordForEmail` (password reset) generate a `code_verifier` stored in a cookie **in the
+browser that made the call**. Any email link they produce — whether `?code=` or a `pkce_`-prefixed
+`token_hash` — can then only be completed **on that same browser**.
 
-- **Invite works** with `?code=` + `exchangeCodeForSession` **only because the user calls
-  `signInWithOtp` from their own browser** (client component) — the verifier is in *their*
-  cookies.
-- **Admin-triggered reset breaks** with `?code=`: `resetPasswordForEmail` runs **server-side in
-  the admin's request**, so the verifier lands in the *admin's* cookies. When the user clicks
-  the link, the exchange has no verifier → fails → redirect to `/login`. Symptom reported as
-  *"reset link opens the normal login page and password errors"*, with a URL like
-  `/login?code=...`.
+**The killer fact: users open the email on a different device/browser than the one that requested
+it.** They fill the form in mobile Safari (or an admin triggers it from a laptop), then tap the
+link in the Mail app's in-app browser. That context has no `code_verifier` cookie, so both
+`exchangeCodeForSession(code)` and `verifyOtp(pkce_… token_hash)` fail → redirect to `/login`.
+This breaks **registration magic links AND password resets** — do not assume "the user requested
+it themselves so the verifier is present." It usually isn't.
 
-**Fix for admin-initiated reset: use `token_hash` + `verifyOtp`, not `code` +
-`exchangeCodeForSession`.** `verifyOtp` needs no verifier, so it works from any browser. This
-requires editing the **Reset-password email template** (see below) — it is not code-only.
+Symptom: tapping the email link lands on the normal login page. URL looks like
+`.../auth/v1/verify?token=pkce_...&type=magiclink&redirect_to=.../auth/callback?setup=1`
+(default `{{ .ConfirmationURL }}` template) or `.../auth/callback?token_hash=pkce_...&type=recovery`.
 
-**But `token_hash` alone is not enough.** With a **PKCE** client, `resetPasswordForEmail`
-generates a `pkce_`-prefixed `token_hash` that is **still device-bound**: `verifyOtp` on a
-`pkce_` token requires the `code_verifier` cookie from the browser that *called*
-`resetPasswordForEmail`. The user almost always opens the reset email on a **different device**
-(their phone) → no verifier → `verifyOtp` fails → `/login`. Same URL shape
-(`/auth/callback?token_hash=pkce_...&type=recovery&setup=1`), silent failure.
+**The fix has two halves — both required, neither alone is enough:**
 
-**Real fix: call `resetPasswordForEmail` from a client created with `flowType: 'implicit'`.**
-That makes Supabase mint a **non-`pkce_`** `token_hash` that `verifyOtp` verifies standalone on
-any device. Keep the default (PKCE) client for the invite/`signInWithOtp` flow — only the
-reset-email *sender* needs implicit. Implicit's URL-hash token concern does **not** apply here:
-we never rely on the hash; the email link carries `token_hash` as a query param and the callback
-route reads it server-side. Apply this to **both** admin-triggered reset and any self-service
-"forgot password" on the login page.
+1. **Code — send every auth email from a `flowType: 'implicit'` server client.** Implicit mints a
+   **non-`pkce_`, device-independent `token_hash`** that `verifyOtp` verifies standalone, with no
+   verifier cookie anywhere. Add an options arg to your server `createClient({ flowType })` and use
+   it for **all three senders**: registration (`signInWithOtp`), admin-triggered reset
+   (`resetPasswordForEmail`), and login-page self-service reset. Do the send **server-side** (a
+   Server Action), not from a client component. Keep the *default* PKCE client for normal session
+   management — only the email *senders* switch to implicit. Implicit's URL-hash-token concern does
+   not apply: the email carries `token_hash` as a **query param** and the callback reads it
+   server-side; nothing depends on the URL hash.
+
+2. **Dashboard — both email templates must use `{{ .TokenHash }}`** (see below), not the default
+   `{{ .ConfirmationURL }}`. Otherwise the link routes through `/auth/v1/verify` as a `pkce_` token
+   and re-breaks. The callback's `token_hash` + `verifyOtp` branch then handles both `magiclink`
+   (registration) and `recovery` (reset). The `code` + `exchangeCodeForSession` branch becomes
+   dead/legacy — you can drop it.
 
 ## Pieces
 
@@ -53,10 +55,10 @@ Copy from `assets/`, adapting import paths (`@/lib/...`) to your project:
 
 | File | Role |
 |------|------|
-| `assets/callback-route.ts` | `/auth/callback` — handles **both** `token_hash`+`verifyOtp` (reset) **and** `code`+`exchangeCodeForSession` (invite). Public route. |
-| `assets/register-page.tsx` | `/register` client page — user enters email, `signInWithOtp` (verifier in *their* browser), redirect `→ /auth/callback?setup=1`. |
+| `assets/callback-route.ts` | `/auth/callback` — verifies `token_hash`+`verifyOtp` for **both** `magiclink` (registration) and `recovery` (reset). Public route. (`code`+`exchangeCodeForSession` branch is legacy once templates use TokenHash.) |
+| `assets/register-page.tsx` | `/register` page — user enters email, submits to a **Server Action** that sends `signInWithOtp` via an **implicit** client (NOT a client-component call), redirect `→ /auth/callback?setup=1`. |
 | `assets/set-password-page.tsx` | `/set-password` client page — `getUser()` guard, then `updateUser({ password })`. |
-| `assets/employee-actions.ts` | Server actions: `inviteEmployee` (SMTP email → `/register`) and `resetEmployeePassword` (`resetPasswordForEmail` → `/auth/callback?setup=1`). |
+| `assets/employee-actions.ts` | Server actions: `inviteEmployee` (SMTP email → `/register`) and `resetEmployeePassword` (`resetPasswordForEmail` via **implicit** client → `/auth/callback?setup=1`). |
 | `assets/middleware.ts` | `updateSession` with `publicPaths` including `/login`, `/register`, `/auth`. |
 
 ### Callback route — the key logic
@@ -89,32 +91,43 @@ can stay a **protected** route (no need to make it public).
    this.
 2. **Authentication → URL Configuration → Redirect URLs** must allow the callback, e.g.
    `https://your-app.example.com/auth/callback` (or a wildcard `https://your-app.example.com/**`).
-3. **Authentication → Emails → Reset password** template body must use `{{ .TokenHash }}`, **not**
-   `{{ .ConfirmationURL }}`:
-   ```html
-   <p><a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&setup=1">パスワードを再設定する</a></p>
-   ```
-   Click **Save changes**. (A greyed-out Save button means *already saved*, not an error.)
+3. **Authentication → Emails — BOTH templates** must use `{{ .TokenHash }}`, **not**
+   `{{ .ConfirmationURL }}`. It is easy to fix only "Reset password" and forget "Magic Link";
+   then password reset works but **first-time registration** still breaks the same way.
+   - **Magic Link** (used by `signInWithOtp` / registration):
+     ```html
+     <p><a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=magiclink&setup=1">ログイン / 初回登録を続ける</a></p>
+     ```
+   - **Reset password**:
+     ```html
+     <p><a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&setup=1">パスワードを再設定する</a></p>
+     ```
+   Click **Save changes** on each. (A greyed-out Save button means *already saved*, not an error.)
    > If left as the default `{{ .ConfirmationURL }}`, the link becomes
-   > `.../auth/v1/verify?token=pkce_...&redirect_to=...` (PKCE) and admin reset fails.
-   > `Reset template` reverts it to the default and re-breaks reset.
+   > `.../auth/v1/verify?token=pkce_...&redirect_to=...` (PKCE) and that flow fails on other devices.
+   > "Reset template" reverts a template to the default and re-breaks it.
 
 Template changes are **instant** (no deploy). App code changes deploy normally. Old emails sent
 before a template change keep the old link — always test with a **freshly sent** email.
 
 ## Verification
 
-- Reset email link starts with `https://<your-app>/auth/callback?token_hash=...&type=recovery&setup=1`
-  (app domain), **not** `https://<ref>.supabase.co/auth/v1/verify?...`.
-- Clicking it lands on `/set-password` (not `/login`); user sets password; redirected in logged-in.
-- Invite email → `/register` → magic link → `/set-password` still works via the `code` branch.
+- **Both** email links start with `https://<your-app>/auth/callback?token_hash=...&setup=1`
+  (app domain, `type=magiclink` for registration / `type=recovery` for reset), **not**
+  `https://<ref>.supabase.co/auth/v1/verify?...`. A `pkce_` prefix on the `token_hash` means a
+  sender is still on the PKCE client — fix that before anything else.
+- **Test on a different device** than the one that requested the email (open the link on your
+  phone). Same-browser testing hides the entire PKCE bug.
+- Clicking lands on `/set-password` (not `/login`); user sets password; ends up logged in.
 
 ## Notes / gotchas
 
 - Guard `resetEmployeePassword`: require admin; reject users with no `auth_user_id`
   (invite them first) and retired/inactive users.
 - Show the "reset" button only for **registered + active** users; show "invite" for un-registered.
-- A `pkce_`-prefixed `token_hash` is a red flag for reset: it verifies only on the *sending*
-  device. Send reset emails from a `flowType: 'implicit'` client so the `token_hash` is plain
-  and device-independent. (Invite/`signInWithOtp` stays PKCE — the user calls it themselves.)
+- Every auth email (registration magic link, admin reset, self-service reset) must be sent from a
+  `flowType: 'implicit'` **server-side** client so the `token_hash` is plain and device-independent.
+- Email delivery stops after a few test sends → auth **email rate limit**, not your code. Wait
+  ~30–60 min or raise Authentication → Rate Limits. Surface real send errors instead of always
+  showing "sent", or you'll chase a delivery ghost.
 - No service-role key is used anywhere; everything runs with the anon/publishable key + user session.

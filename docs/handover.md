@@ -1,6 +1,6 @@
 # 引き継ぎ書（次セッション向け）
 
-最終更新: 2026-07-11
+最終更新: 2026-07-12
 
 このドキュメントは、別セッション（別の開発者・AIエージェント）が本プロジェクトを
 継続開発するための引き継ぎ資料です。あわせて `docs/design.md`（設計書）と
@@ -24,7 +24,7 @@
 
 ### 実装済み・本番稼働中
 - ✅ 認証（初回登録=メールのみ→マジックリンク→パスワード設定、ログイン、ロール別リダイレクト）
-- ✅ 従業員管理（登録・氏名/メール編集・時給変更・税区分変更・退職・招待メール、区分別No自動採番）
+- ✅ 従業員管理（登録・氏名/メール編集・時給変更・税区分変更・退職・招待メール・**完全削除（2段階警告）**、区分別No自動採番）
 - ✅ 勤務表入力（スマホ向けカレンダーUI。当日背景/祝日赤字/交通費内訳/PC・iPad 2カラム）
 - ✅ 入力状況ダッシュボード（管理者。年月大表示・状態バッジ）
 - ✅ 給与計算エンジン + Vitest テスト18件
@@ -130,6 +130,42 @@
   文書化・実コード同梱）を新設。`.claude/skills/pwa-auto-update/` に「Visible version stamp」を追記
   （`next.config` スニペット同梱）。両スキルは zip でも配布可能。
 
+### 本セッションで実施した変更（2026-07-12・認証堅牢化／各種UI／従業員削除）
+- **ログイン画面に「パスワードを忘れたら」を追加**: 本人が再設定メールを申請（`login/actions.ts`
+  `requestPasswordReset`）。空欄時は送信せず入力を促し、実際の送信失敗（レート超過等）は画面表示。
+  説明文を廃してバージョン表示（`ver.…`）に変更。
+- **🔑 PKCE 問題を implicit フローで根本解決（最重要）**: パスワード再設定・**初回登録の両方**で、
+  メールを別端末で開くと `token=pkce_...` の verifier が無く `/login` に戻る不具合が発生していた。
+  対策として **メール発行のサーバー処理を `flowType:'implicit'` のクライアントで実行**するよう変更
+  （`src/lib/supabase/server.ts` に `createClient({ flowType })` を追加）。対象:
+  `requestPasswordReset`（ログイン自己申請）/ `resetEmployeePassword`（管理者発行）/
+  **`sendRegisterLink`（新設。`/register` をクライアント signInWithOtp → サーバーアクションへ移行）**。
+  implicit だと `pkce_` の付かない端末非依存の `token_hash` が発行され `verifyOtp` が単独で通る。
+  - **⚠️ Supabase ダッシュボードのテンプレ変更が2つ必須**（コードだけでは直らない）:
+    「**Magic Link**」→ `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=magiclink&setup=1`、
+    「**Reset password**」→ 同 `type=recovery`。既定の `{{ .ConfirmationURL }}` に戻すと再発。
+  - メール未着の切り分け: まず認証メールの**送信レート制限**（テスト連投で数十分届かない）を疑う。
+    `auth.users.recovery_sent_at` 等や Supabase auth ログで送信有無を確認できる。
+- **従業員の完全削除機能を追加**: 従業員編集パネルにゴミ箱アイコンの「削除」。**2段階警告**
+  （1回目「元に戻せません」→ 押下で勤務実績件数を確認 → あれば2回目「勤務実績も全て削除されます（N件）」
+  →「全て削除」）。DB は SECURITY DEFINER 関数 `delete_employee(uuid)`（notifications を先に削除 →
+  employees 削除で work_entries/payslips/wage_rates/tax_settings は CASCADE）と
+  `count_employee_work_entries(uuid)` を新設。件数は RLS 下の head/count が 0 を返す事象があったため
+  RPC 化した。認証アカウントは残る（サービスロール鍵不要方針）。
+- **各種 UI 調整**:
+  - 従業員ナビ刷新: メニュータイトル「勤務管理」、給与明細アイコンを￥、お知らせ→「管理」＋人型アイコン。
+    「管理」画面の左上に `ver.`、ヘッダのログアウトを「管理」画面内へ移動。
+  - 管理メニュー: 税理士資料を締め処理の直後へ。「勤務時間」→「**勤務実績**」に改称。
+  - 「前月／次月」ボタンを濃色（`bg-gray-100`＋太字）に。締め処理の操作ボタンをプレビュー見出し行へ統合し
+    「状態:」枠を廃止。税理士資料は前月/翌月をタイトル右、操作3ボタンを右寄せ・色統一、注釈を濃く。
+  - 従業員「+従業員を追加」を一覧見出し行の右端へ統合（「新規登録」枠を廃止）。
+  - **勤務表の時刻入力を再び1行3カラムに**（以前は iOS 対策で縦積みにしていた）。iOS の time が広がって
+    重なる問題は `grid grid-cols-3 gap-3` + セル `min-w-0` + 専用クラス（`text-sm`・`px-1.5`・中央寄せ・
+    `box-border`）で解消（`timesheet/ui.tsx` の `timeInputClass`）。
+  - 勤務実績の左従業員一覧: 「日数」表示を削除し幅を縮小（`minmax(5.5rem,9rem)`）、右表を拡大。
+- **スキル更新**: `.claude/skills/supabase-invite-auth/` を「PKCE `pkce_` トークンは送信端末でしか
+  検証できない → メール送信は implicit クライアントで」の知見で更新。
+
 > ⚠️ このセッションは**開発ブランチ `claude/payroll-system-plan-8wvobq` に直接コミット・push**して
 > 運用した（Cloudflare のプレビュー/自動デプロイ確認のため）。main への反映状況は次項ワークフローに従い
 > `git fetch origin main` で差分確認のうえ判断すること。
@@ -213,6 +249,14 @@ npm test           # Vitest（給与計算ロジック）
 - 連絡のCC・管理者宛先: `src/app/admin/notices/actions.ts`・`src/lib/email.ts`（`getAdminEmails`）。
 - お知らせ未読バッジ: `src/app/(employee)/{layout,nav}.tsx`（localStorage `notices_seen_at` + `useSyncExternalStore`）。
 - PWAアイコン生成: `scripts/generate-icons.mjs`（手動実行。sharp で PNG 生成。ビルドには含めない）。
+- **認証メールの発行（超重要）**: 初回登録は `src/app/register/actions.ts` の `sendRegisterLink`、
+  再設定は `admin/employees/actions.ts` の `resetEmployeePassword`・`login/actions.ts` の
+  `requestPasswordReset`。**いずれも `createClient({ flowType: 'implicit' })` で送る**こと
+  （PKCE だと別端末で開いたリンクが失敗する）。Supabase の Magic Link / Reset password テンプレートは
+  `{{ .TokenHash }}` リンク必須。認証パターンはスキル `.claude/skills/supabase-invite-auth/`。
+- 従業員の完全削除: `admin/employees/actions.ts`（`deleteEmployee`/`countEmployeeWorkEntries`）＋
+  DB 関数 `delete_employee`/`count_employee_work_entries`。UIの2段階警告は `admin/employees/ui.tsx`。
+- 勤務表の時刻入力（1行3カラム・iOS重なり対策）: `(employee)/timesheet/ui.tsx` の `timeInputClass`。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
 ---
