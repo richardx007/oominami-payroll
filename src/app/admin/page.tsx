@@ -92,7 +92,7 @@ export default async function AdminDashboardPage({
           >
             ＜
           </Link>
-          <span className="text-2xl font-bold tracking-tight text-gray-900">
+          <span className="text-xl font-extrabold tracking-tight text-blue-800">
             {period.label}
           </span>
           <Link

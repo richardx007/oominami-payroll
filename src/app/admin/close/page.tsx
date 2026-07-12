@@ -56,26 +56,29 @@ export default async function ClosePage({
         <div>
           <h1 className="text-sm font-medium text-gray-500">締め処理</h1>
           <div className="mt-0.5 flex flex-wrap items-center gap-3">
-            <span className="text-3xl font-bold tracking-tight text-gray-900">
-              {period.label}
-            </span>
+            {/* 前月/翌月は勤務表と同じ ＜ 年月 ＞ のスタイル・配色に統一 */}
+            <div className="flex items-center gap-1.5">
+              <Link
+                href={`/admin/close?p=${adjacentPeriodKey(period.key, -1)}`}
+                aria-label="前月"
+                className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+              >
+                ＜
+              </Link>
+              <span className="text-xl font-extrabold tracking-tight text-blue-800">
+                {period.label}
+              </span>
+              <Link
+                href={`/admin/close?p=${adjacentPeriodKey(period.key, 1)}`}
+                aria-label="翌月"
+                className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+              >
+                ＞
+              </Link>
+            </div>
             <span className={periodStatusBadgeClass(status)}>
               {periodStatusLabel(status)}
             </span>
-            <div className="flex gap-2 text-sm">
-              <Link
-                href={`/admin/close?p=${adjacentPeriodKey(period.key, -1)}`}
-                className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-200"
-              >
-                ← 前月
-              </Link>
-              <Link
-                href={`/admin/close?p=${adjacentPeriodKey(period.key, 1)}`}
-                className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-200"
-              >
-                翌月 →
-              </Link>
-            </div>
           </div>
           <p className="mt-1 text-sm text-gray-500">
             {period.start.replaceAll("-", "/")} 〜{" "}

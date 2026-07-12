@@ -145,9 +145,10 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
         }}
         aria-label="税理士へメール送信"
         title="税理士へメール送信"
-        className={iconBtn}
+        className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
       >
-        <MailIcon />
+        <MailIcon className="h-5 w-5" />
+        税理士へ
       </button>
       {result && (
         <span
