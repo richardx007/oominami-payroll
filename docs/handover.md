@@ -181,9 +181,30 @@
 - **スキル更新**: `.claude/skills/supabase-invite-auth/` を「PKCE `pkce_` トークンは送信端末でしか
   検証できない → メール送信は implicit クライアントで」の知見で更新。
 
-> ⚠️ このセッションは**開発ブランチ `claude/payroll-system-plan-8wvobq` に直接コミット・push**して
-> 運用した（Cloudflare のプレビュー/自動デプロイ確認のため）。main への反映状況は次項ワークフローに従い
-> `git fetch origin main` で差分確認のうえ判断すること。
+### iPhone 対応のレスポンシブ刷新（ブランチ `claude/responsive-mobile-layout`・未マージ）
+管理者もスマホ利用するため、UIを大幅刷新。**main には未反映（ブランチのみ push）** なので、
+レビュー後に PR/マージ→自動デプロイの判断が必要。主な変更:
+- **ナビ（`admin/nav.tsx`・`admin/layout.tsx`）**: スマホは従業員と同じ**下部タブナビ**化。アイコン+短い
+  キャプションに変更（ホーム=家 / 勤務表=カレンダー / 給与明細=¥ / 従業員=人が重なる / 設定=歯車）。
+  「連絡」はメニュー非表示（画面は `/admin/notices` で存置）、「税理士資料」はメニュー・画面とも廃止。
+- **ホーム（旧ダッシュボード `admin/page.tsx`）**: タイトル・期間表示を廃止、前後月は ＜ 年月 ＞ に。
+  下部の人別一覧表を廃止（締めと重複）。カレンダー右の一覧は iPhone ではカレンダー下に表示。
+- **勤務表（新設 `admin/timesheet/{page,actions}.ts`）**: 旧「勤務実績(`admin/hours`)」を廃止し、従業員用
+  `TimesheetCalendar` を**共用**。右上の従業員セレクトで対象切替（`?e=`）、管理者は任意従業員の勤務記録を
+  CRUD（RLS `work_entries_admin`(ALL/is_admin) で締め済みでも編集可・`closed=false`固定）。
+  共用のため入力スキーマを `(employee)/timesheet/schema.ts` に分離（"use server" は関数しか export 不可）。
+  ヘッダは ＜ 年月 ＞ + 従業員フィールドを1行に。登録/更新ボタンは日付見出しの右上に短縮配置。
+- **締め処理に税理士資料を統合（`admin/close/{page,ui}.tsx`）**: 操作ボタンをヘッダへ移動。締め済み以降は
+  税理士へメール送信(アイコン+「税理士へ」)/印刷PDF(プリンタ)/CSV(下矢印) を表示（`admin/report/ui.tsx`を
+  流用・アイコン化）。`admin/report/page.tsx` は削除（actions/ui は close から利用するため残置）。
+  表は No 省略・氏名1行・日数/時間は単位なし数字(時間は H:MM)で改行させない。
+- **従業員一覧（`admin/employees/ui.tsx`）**: iPhone考慮で「氏名/招待状態/状態」の3列に集約。行タップで
+  吹き出し詳細(レスポンシブ)を開き、詳細トップに パスワード再設定 / 招待・再招待。招待状態=未招待→招待済→登録済。
+- **年月スタイル統一**: ホーム/給与明細の年月を勤務表に合わせ `text-xl` extrabold・青、＜＞は `text-2xl` グレー。
+
+> ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
+> 本レスポンシブ刷新は別ブランチ `claude/responsive-mobile-layout` に切って作業中で **main 未反映**。
+> push 前は必ず `git fetch origin main` で差分確認のこと。
 
 ---
 
@@ -260,11 +281,14 @@ npm test           # Vitest（給与計算ロジック）
 - RLS/権限: DBの関数 `is_admin()` 等（Supabase側）。画面ガードは `src/lib/auth.ts`。
 - 従業員の登録/編集・No自動採番: `src/app/admin/employees/{actions,ui}.tsx`（`addEmployee`/`nextEmployeeNo`/`updateEmployeeProfile`/`resetEmployeePassword`）。
 - ダッシュボードのカレンダー: `src/app/admin/DashboardCalendar.tsx`。集計は `admin/page.tsx`。
-- 勤務時間画面: `src/app/admin/hours/{page,ui}.tsx`。曜日/区間表示は `src/lib/period.ts`（`weekdayOf`/`formatRoute`）。
-- 期間ステータス表示: `src/lib/period-status.ts`（ダッシュボード・締め処理で共用。配色を変えるならここ1か所）。
-- 管理ナビ/ロゴ/配色/バージョン表示: `src/app/admin/nav.tsx`・`src/app/admin/layout.tsx`。
-  `ver.` は `NEXT_PUBLIC_BUILD_TIME`（`next.config.ts` で生成）。ロゴ実体は `public/logo.svg`。
-- 税理士資料の自動送信/CSV: `src/app/admin/report/{actions,ui,page}.tsx`（`sendTaxReport`/`buildTaxReportCsv`）。
+- 勤務表(管理者): `src/app/admin/timesheet/{page,actions}.ts`。UIは従業員用 `src/app/(employee)/timesheet/ui.tsx`
+  の `TimesheetCalendar` を共用（`save`/`del`/`basePath`/`employees` などを props で受ける）。入力スキーマは
+  `(employee)/timesheet/schema.ts`。※旧「勤務実績 `admin/hours`」は廃止済み。
+- 期間ステータス表示: `src/lib/period-status.ts`（ホーム・締め処理・税理士資料で共用。配色を変えるならここ1か所）。
+- 管理ナビ/ロゴ/配色/バージョン表示: `src/app/admin/nav.tsx`（`AdminSidebarNav`/`AdminBottomNav`・アイコン）・
+  `src/app/admin/layout.tsx`。`ver.` は `NEXT_PUBLIC_BUILD_TIME`（`next.config.ts` で生成）。ロゴ実体は `public/logo.svg`。
+- 税理士資料の自動送信/CSV: `src/app/admin/report/{actions,ui}.tsx`（`sendTaxReport`/`buildTaxReportCsv`。
+  page は廃止し、締め処理画面 `admin/close` から ui のアイコンボタンを利用）。
 - 連絡のCC・管理者宛先: `src/app/admin/notices/actions.ts`・`src/lib/email.ts`（`getAdminEmails`）。
 - お知らせ未読バッジ: `src/app/(employee)/{layout,nav}.tsx`（localStorage `notices_seen_at` + `useSyncExternalStore`）。
 - PWAアイコン生成: `scripts/generate-icons.mjs`（手動実行。sharp で PNG 生成。ビルドには含めない）。
