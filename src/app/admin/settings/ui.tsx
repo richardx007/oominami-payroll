@@ -224,6 +224,43 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
         課税対象額が月88,000円以上の人がいる場合に必要です(88,000円未満は自動計算:
         乙欄3.063%・甲欄0円)。国税庁の月額表をもとに、1行1区分で貼り付けてください。
       </p>
+
+      {/* 国税庁のダウンロードページへのリンクとコピペ手順 */}
+      <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/60 p-3 text-sm">
+        <a
+          href="https://www.nta.go.jp/taxes/shiraberu/taxanswer/gensen/2502.htm"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 font-medium text-blue-700 hover:underline"
+        >
+          国税庁「源泉徴収税額表」ダウンロードページを開く
+          <span aria-hidden>↗</span>
+        </a>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-gray-600">
+          <li>
+            開いたページで対象年分の
+            <strong>「給与所得の源泉徴収税額表（月額表）」</strong>
+            のExcel(またはCSV)をダウンロードします。
+          </li>
+          <li>
+            ダウンロードしたファイルをExcel等で開き、
+            <strong>「その月の社会保険料等控除後の給与等の金額」の“以上・未満”</strong>
+            、<strong>甲欄(扶養0〜7人)</strong>、<strong>乙欄</strong>
+            の各列の数値を選択してコピーします。
+          </li>
+          <li>
+            下の入力欄に貼り付けます。列の並びが
+            <strong>「以上,未満,甲0〜甲7,乙」</strong>
+            になるように調整してください(下の形式・例を参照)。
+          </li>
+          <li>「対象年」を合わせて「取り込む」を押すと、その年分に置き換わります。</li>
+        </ol>
+        <p className="mt-2 text-xs text-gray-400">
+          ※ 国税庁は月額表をExcel/PDFで公開しているため、当システムから自動取得はできません。
+          リンク先の様式・URLは年により変わることがあります。
+        </p>
+      </div>
+
       <div className="mt-2 rounded-lg bg-gray-50 p-3 font-mono text-xs text-gray-600">
         形式: 以上,未満,甲0,甲1,甲2,甲3,甲4,甲5,甲6,甲7,乙
         <br />
