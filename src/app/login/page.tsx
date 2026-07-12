@@ -56,7 +56,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <h1 className="mb-2 text-center text-2xl font-bold">給与管理システム</h1>
         <p className="mb-8 text-center text-sm text-gray-500">
-          メールアドレスとパスワードでログイン
+          ver.{process.env.NEXT_PUBLIC_BUILD_TIME ?? "dev"}
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
