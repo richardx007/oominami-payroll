@@ -17,6 +17,11 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const inputClass =
   "w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
+// 出勤・退勤・休憩の3カラム用。横パディングを詰め、iOSのtime入力が
+// はみ出さないよう幅を確実に親セルへ収める。
+const timeInputClass =
+  "w-full min-w-0 box-border rounded-lg border border-gray-300 bg-white px-2 py-2.5 text-center text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
 const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
 
 export function TimesheetCalendar({
@@ -355,10 +360,11 @@ function EntryForm({
       <form ref={formRef} onSubmit={handleSubmit} className="mt-3 space-y-4">
         <input type="hidden" name="work_date" value={date} />
 
-        {/* 勤務時間。iOS Safari の time 入力は幅指定を無視して内容幅に広がり
-            横並びだと重なるため、出勤・退勤・休憩は縦積みにする(可読性も向上)。 */}
-        <div className="space-y-3">
-          <div>
+        {/* 勤務時間。出勤・退勤・休憩を1行(3カラム)に。iOS Safari の time 入力は
+            内容幅に広がりやすいため、各セルに min-w-0、入力は横パディングを詰めて
+            はみ出し・重なりを防ぐ。 */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="min-w-0">
             <label className="mb-1 block text-sm font-medium text-gray-600">
               出勤
             </label>
@@ -367,10 +373,10 @@ function EntryForm({
               type="time"
               required
               defaultValue={init?.start_time ?? "10:00"}
-              className={inputClass}
+              className={timeInputClass}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="mb-1 block text-sm font-medium text-gray-600">
               退勤
             </label>
@@ -379,10 +385,10 @@ function EntryForm({
               type="time"
               required
               defaultValue={init?.end_time ?? "18:00"}
-              className={inputClass}
+              className={timeInputClass}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="mb-1 block text-sm font-medium text-gray-600">
               休憩(分)
             </label>
@@ -393,7 +399,7 @@ function EntryForm({
               step={5}
               required
               defaultValue={init?.break_minutes ?? 60}
-              className={inputClass}
+              className={timeInputClass}
             />
           </div>
         </div>

@@ -85,7 +85,7 @@ export function HoursView({
           この年月に勤務した従業員はいません。
         </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-[minmax(7rem,11rem)_1fr] md:items-start">
+        <div className="grid gap-4 md:grid-cols-[minmax(5.5rem,9rem)_1fr] md:items-start">
           {/* 左: 従業員リスト */}
           <nav className="rounded-xl border border-gray-200 bg-white p-2">
             <ul className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
@@ -102,11 +102,6 @@ export function HoursView({
                       }`}
                     >
                       {w.name}
-                      <span
-                        className={`ml-1.5 text-xs ${active ? "text-blue-100" : "text-gray-400"}`}
-                      >
-                        {w.entries.length}日
-                      </span>
                     </button>
                   </li>
                 );
