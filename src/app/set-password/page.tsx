@@ -40,9 +40,17 @@ export default function SetPasswordPage() {
 
     const { error: updateError } = await supabase.auth.updateUser({ password });
     if (updateError) {
-      setError("設定に失敗しました: " + updateError.message);
-      setLoading(false);
-      return;
+      // 「以前と同じパスワード」は許容する(過去パスワードとの一致チェックは不要)。
+      // Supabase(GoTrue)は同一パスワードだと same_password エラーを返すため、
+      // その場合は設定成功と同等に扱ってそのまま進める。
+      const isSamePassword =
+        (updateError as { code?: string }).code === "same_password" ||
+        /different from the old password/i.test(updateError.message);
+      if (!isSamePassword) {
+        setError("設定に失敗しました: " + updateError.message);
+        setLoading(false);
+        return;
+      }
     }
 
     router.push("/");
