@@ -22,17 +22,37 @@ export async function requestPasswordReset(
     .trim()
     .toLowerCase();
 
-  // 空欄など明らかに送れない場合も、エラーは出さず案内のみ返す
-  if (email) {
-    try {
-      const supabase = await createClient({ flowType: "implicit" });
-      const h = await headers();
-      const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-      const redirectTo = `https://${host}/auth/callback?setup=1`;
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-    } catch {
-      // 送信可否は結果メッセージで区別しない
+  // 空欄のときは形式エラーを出さず、案内のみ返す(ノンチェック運用)
+  if (!email) {
+    return { ok: true, message: NEUTRAL_MESSAGE };
+  }
+
+  try {
+    const supabase = await createClient({ flowType: "implicit" });
+    const h = await headers();
+    const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+    const redirectTo = `https://${host}/auth/callback?setup=1`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+    // 送信レート超過など実際の送信失敗は画面に出して原因を切り分けられるようにする。
+    // 登録の有無では成否が変わらないため、アカウント列挙にはつながらない。
+    if (error) {
+      const rate = /rate|too many|429/i.test(error.message);
+      return {
+        ok: false,
+        message: rate
+          ? "短時間に送信しすぎたため、しばらく(数十分)おいてから再度お試しください。"
+          : "メールの送信に失敗しました: " + error.message,
+      };
     }
+  } catch (e) {
+    return {
+      ok: false,
+      message:
+        "メールの送信に失敗しました: " +
+        (e instanceof Error ? e.message : String(e)),
+    };
   }
 
   return { ok: true, message: NEUTRAL_MESSAGE };
