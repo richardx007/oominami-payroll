@@ -163,6 +163,8 @@
     重なる問題は `grid grid-cols-3 gap-3` + セル `min-w-0` + 専用クラス（`text-sm`・`px-1.5`・中央寄せ・
     `box-border`）で解消（`timesheet/ui.tsx` の `timeInputClass`）。
   - 勤務実績の左従業員一覧: 「日数」表示を削除し幅を縮小（`minmax(5.5rem,9rem)`）、右表を拡大。
+- **招待日の記録**: `employees.invited_at`（timestamptz）を追加。`inviteEmployee` が送信成功時に更新。
+  一覧で未登録者に「招待日 M/D」を表示、ボタンは初回「招待」/2回目以降「再招待」（`employees/ui.tsx`）。
 - **スキル更新**: `.claude/skills/supabase-invite-auth/` を「PKCE `pkce_` トークンは送信端末でしか
   検証できない → メール送信は implicit クライアントで」の知見で更新。
 

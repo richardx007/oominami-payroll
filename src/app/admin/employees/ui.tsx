@@ -39,6 +39,15 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** ISO日時を日本時間の「M/D」表記にする(招待日の簡易表示用) */
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+  });
+}
+
 /** 適用開始日順に並べ、今日時点で有効な設定を返す */
 function currentOf<T extends { effective_from: string }>(rows: T[]): T | null {
   const t = today();
@@ -328,6 +337,11 @@ function EmployeeTableRow({
               未登録
             </span>
           )}
+          {!emp.auth_user_id && emp.invited_at && (
+            <span className="ml-1 text-xs text-gray-400">
+              招待日 {formatDate(emp.invited_at)}
+            </span>
+          )}
         </td>
         <td className="hidden px-4 py-3 text-gray-500 md:table-cell">
           {emp.email}
@@ -355,7 +369,7 @@ function EmployeeTableRow({
                 }}
                 className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
               >
-                招待
+                {emp.invited_at ? "再招待" : "招待"}
               </button>
             )}
             {emp.auth_user_id && !retired && (

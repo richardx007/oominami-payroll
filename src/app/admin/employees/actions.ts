@@ -276,6 +276,14 @@ export async function inviteEmployee(employeeId: string): Promise<ActionResult> 
   });
 
   if (!result.ok) return result;
+
+  // 招待日を記録(再招待で更新)。メール送信成功後に更新する。
+  await supabase
+    .from("employees")
+    .update({ invited_at: new Date().toISOString() })
+    .eq("id", employeeId);
+
+  revalidatePath("/admin/employees");
   return { ok: true, message: `${employee.name} さんに招待メールを送信しました` };
 }
 
