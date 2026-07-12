@@ -22,9 +22,12 @@ export async function requestPasswordReset(
     .trim()
     .toLowerCase();
 
-  // 空欄のときは形式エラーを出さず、案内のみ返す(ノンチェック運用)
+  // 空欄のときは送信できないので、その旨だけ案内する(形式チェックはしない)
   if (!email) {
-    return { ok: true, message: NEUTRAL_MESSAGE };
+    return {
+      ok: false,
+      message: "メールアドレスを入力してから押してください。",
+    };
   }
 
   try {
