@@ -191,7 +191,9 @@ middleware.ts            未認証は /login へ
     テンプレの「Reset template（初期化）」を実行すると既定に戻り再発する。
   - この認証パターンはスキル `.claude/skills/supabase-invite-auth/` に文書化済み。
 - `/set-password` でパスワードを設定（`updateUser`）→ 完了。サービスロールキーは不要
-  （anon/公開キー + ユーザーセッションのみ）。
+  （anon/公開キー + ユーザーセッションのみ）。**過去パスワードとの一致チェックは不要方針**のため、
+  Supabase(GoTrue)が返す `same_password` エラー（「以前と同じパスワード」）は成功扱いにして
+  そのまま進める（同じパスワードでも再設定可）。8文字以上・確認一致の検証は維持。
 - `requireAdmin()` で管理画面を保護。ログイン後、管理者は `/admin`、従業員は `/timesheet` へ。
 - 最初の管理者: employee_no `0001`（seed 投入済み）。
 - **Supabase 認証メール**: カスタムSMTP（自社Gmail）を設定済み。無料枠のままテンプレート編集が可能な状態

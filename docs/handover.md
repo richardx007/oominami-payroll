@@ -172,6 +172,12 @@
   当環境から nta.go.jp はネットワーク遮断）。年1回の貼付運用。
 - **税理士資料に状態バッジ**: 「給与支給一覧表 yyyy年mm月分」の右隣に期間ステータスバッジ
   （`period-status.ts` 共用。締め済み/支払済み等）を挿入（`admin/report/page.tsx`）。
+- **税額表に国税庁リンク＋コピペ手順**: 設定画面の税額表セクションに、国税庁「源泉徴収税額表」
+  ダウンロードページ（タックスアンサー No.2502）への外部リンクと、DL→Excelで開く→対象列をコピー→
+  貼付、の番号付き手順・注意書きを追加（`settings/ui.tsx`）。
+- **パスワード再設定で同一パスワードを許容**: 過去パスワードとの一致チェックは不要方針。
+  `/set-password` で Supabase(GoTrue) の `same_password` エラー（英語メッセージ含む）を成功扱いにして
+  そのまま `/` へ遷移（`set-password/page.tsx`）。8文字以上・確認一致の検証は維持。
 - **スキル更新**: `.claude/skills/supabase-invite-auth/` を「PKCE `pkce_` トークンは送信端末でしか
   検証できない → メール送信は implicit クライアントで」の知見で更新。
 
@@ -244,6 +250,10 @@ npm test           # Vitest（給与計算ロジック）
 - メール本文・送信: `src/lib/email.ts`（設定取得・本文生成・添付・リトライ）、`src/lib/smtp.ts`（SMTP・multipart・タイムアウト）。
 - 交通費の内訳・カレンダー表示: `src/app/(employee)/timesheet/ui.tsx`。祝日は `src/lib/holidays.ts`。
 - 初回登録フロー: `/register`（メールのみ・OTP送信・`friendlyOtpError`）→ `/auth/callback`（setup=1判定）→ `/set-password`。
+  `/set-password`（`src/app/set-password/page.tsx`）は `updateUser` で設定。**過去パスワードとの一致チェックは不要**方針のため、
+  GoTrue の `same_password` エラーは成功扱いにして `/` へ進める（同一パスワードで再設定可）。
+- 税額表の取込・国税庁リンク: `src/app/admin/settings/{page,ui,actions.ts}`（`importTaxTable`）。甲欄0〜7人＋乙欄を保持。
+  取込済みデータは年選択の表で表示。国税庁DLページ（No.2502）への外部リンク＋コピペ手順を UI に併記。
 - **パスワード再設定（管理者発行）**: `src/app/admin/employees/actions.ts` の `resetEmployeePassword`、
   検証は `src/app/auth/callback/route.ts`（`token_hash`+`verifyOtp`）。**Supabase「Reset password」テンプレート依存**。
   認証パターンの解説はスキル `.claude/skills/supabase-invite-auth/`。
