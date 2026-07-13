@@ -153,11 +153,11 @@ export type PayslipDailyRow = {
 
 const PAYSLIP_WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
-/** 分を「h:mm」表記にする(勤務・休憩時間用) */
+/** 分を「HH:MM」表記(時も2桁ゼロ埋め)にする。桁を揃えるため padStart する */
 function toHHMM(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return `${h}:${String(m).padStart(2, "0")}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 /** 日別明細ブロック(＜日別明細＞ ... )の文字列を組み立てる */
@@ -167,7 +167,9 @@ function buildDailyDetail(rows: PayslipDailyRow[]): string[] {
     .sort((a, b) => a.workDate.localeCompare(b.workDate))
     .map((r) => {
       const d = new Date(r.workDate + "T00:00:00Z");
-      const md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+      const md = `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(
+        d.getUTCDate()
+      ).padStart(2, "0")}`;
       const dow = PAYSLIP_WEEKDAYS[d.getUTCDay()];
       return `${md}(${dow}) ${r.startTime}〜${r.endTime}、${toHHMM(r.breakMinutes)}休憩、${toHHMM(r.workMinutes)}勤務、¥${r.transport.toLocaleString()}、¥${r.lunch.toLocaleString()}`;
     });

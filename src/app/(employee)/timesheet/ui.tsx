@@ -212,9 +212,7 @@ export function TimesheetCalendar({
                 ¥{summary.transport.toLocaleString()}
               </span>
             </span>
-            <span className="ml-auto hidden text-xs text-blue-600 sm:inline">
-              勤務一覧を表示
-            </span>
+            <span className="ml-auto text-xs text-blue-600">一覧</span>
           </div>
         </button>
 
