@@ -3,12 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
-import {
-  adjacentPeriodKey,
-  datesInPeriod,
-  formatMinutes,
-  workMinutes,
-} from "@/lib/period";
+import { adjacentPeriodKey, datesInPeriod, workMinutes } from "@/lib/period";
 import type { WorkEntry } from "./page";
 import { type ActionResult } from "./actions";
 
@@ -204,19 +199,22 @@ export function TimesheetCalendar({
           title="タップで勤務一覧を表示"
           className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-left transition hover:bg-gray-50"
         >
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-base text-gray-600">
-            <span className="font-semibold text-gray-700">合計</span>
+          {/* iPhone でも1行に収まるよう「計」+ h:mm、キャプションはsm以上のみ表示 */}
+          <div className="flex flex-nowrap items-baseline gap-x-3 whitespace-nowrap text-base text-gray-600">
+            <span className="font-semibold text-gray-700">計</span>
             <span className="font-bold text-gray-900">{summary.days}日</span>
-            <span className="font-bold text-gray-900">
-              {formatMinutes(summary.minutes) || "0時間"}
+            <span className="font-bold text-gray-900 tabular-nums">
+              {hhmm(summary.minutes)}
             </span>
             <span>
               交通費{" "}
-              <span className="font-bold text-gray-900">
+              <span className="font-bold text-gray-900 tabular-nums">
                 ¥{summary.transport.toLocaleString()}
               </span>
             </span>
-            <span className="ml-auto text-xs text-blue-600">勤務一覧を表示</span>
+            <span className="ml-auto hidden text-xs text-blue-600 sm:inline">
+              勤務一覧を表示
+            </span>
           </div>
         </button>
 

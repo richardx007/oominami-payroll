@@ -95,11 +95,23 @@ export default async function ClosePage({
             <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
               {status === "open" ? "給与計算プレビュー" : "確定明細"}
             </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              総支給 ¥{totals.gross.toLocaleString()} / 源泉所得税 ¥
-              {totals.tax.toLocaleString()} / 差引支給 ¥
-              {totals.net.toLocaleString()}
-            </p>
+            {/* 総支給・源泉所得税・差引支給は重要なので1項目1行・濃い黒字・金額右寄せで表示 */}
+            <dl className="mt-2 max-w-xs space-y-1 text-sm font-semibold text-gray-900">
+              <div className="flex items-baseline justify-between gap-4">
+                <dt>総支給</dt>
+                <dd className="tabular-nums">
+                  ¥{totals.gross.toLocaleString()}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4">
+                <dt>源泉所得税</dt>
+                <dd className="tabular-nums">¥{totals.tax.toLocaleString()}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4">
+                <dt>差引支給</dt>
+                <dd className="tabular-nums">¥{totals.net.toLocaleString()}</dd>
+              </div>
+            </dl>
           </div>
         </div>
         <div className="overflow-x-auto">
