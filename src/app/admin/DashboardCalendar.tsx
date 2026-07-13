@@ -162,19 +162,15 @@ export function DashboardCalendar({
                     key={p.employee_id}
                     className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 py-2 text-sm"
                   >
-                    {/* 氏名 / 出勤〜退勤(勤務時間 hh:mm) / 交通費 を列位置をそろえて表示 */}
+                    {/* 氏名 / 出勤〜退勤(勤務時間 h:mm)・交通費 を1行で表示(列位置をそろえる) */}
                     <span className="truncate font-medium text-gray-900">
                       {p.name}
                     </span>
-                    <span className="text-right text-gray-600 tabular-nums">
-                      {p.start}〜{p.end}
-                      <span className="ml-1 text-gray-500">
-                        ({hhmm(p.minutes)})
+                    <span className="whitespace-nowrap text-right text-gray-600 tabular-nums">
+                      {p.start}〜{p.end} ({hhmm(p.minutes)})
+                      <span className="ml-2 text-gray-500">
+                        ¥{p.transport.toLocaleString()}
                       </span>
-                    </span>
-                    <span className="text-xs text-gray-400">交通費</span>
-                    <span className="text-right text-gray-600 tabular-nums">
-                      ¥{p.transport.toLocaleString()}
                     </span>
                   </li>
                 ))}

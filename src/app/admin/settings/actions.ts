@@ -191,6 +191,19 @@ export async function importTaxTable(
     return { ok: false, message: "有効なデータ行がありません" };
   }
 
+  // 国税庁の月額表の先頭行は「(最小額)円未満 → 0」を表すため、未満(max_amount)が
+  // 空欄のまま「以上」に最小額が入った変則行になっている。上限なしの正当な行は
+  // 最終行(最大の「以上」)だけなので、それ以外で max_amount が null の行は取り込み対象外にする。
+  // (最小「以上」未満は非課税として payroll 側で 0 円と判定する)
+  const maxMin = Math.max(...rows.map((r) => r.min_amount));
+  const filteredRows = rows.filter(
+    (r) => r.max_amount !== null || r.min_amount === maxMin
+  );
+
+  if (filteredRows.length === 0) {
+    return { ok: false, message: "有効なデータ行がありません" };
+  }
+
   try {
     const supabase = await createClient();
 
@@ -205,7 +218,7 @@ export async function importTaxTable(
 
     const { error: insertError } = await supabase
       .from("withholding_tax_table")
-      .insert(rows);
+      .insert(filteredRows);
     if (insertError) {
       return {
         ok: false,
@@ -216,7 +229,7 @@ export async function importTaxTable(
     revalidatePath("/admin/settings");
     return {
       ok: true,
-      message: `${year}年分の税額表を${rows.length}区分登録しました`,
+      message: `${year}年分の税額表を${filteredRows.length}区分登録しました`,
     };
   } catch (e) {
     return {

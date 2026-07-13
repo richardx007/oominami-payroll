@@ -353,7 +353,7 @@ function WorkList({
   );
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-      <div className="border-b border-gray-100 px-3 py-2 text-sm font-semibold text-gray-700">
+      <div className="border-b border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-semibold text-gray-700">
         勤務一覧
       </div>
       {rows.length === 0 ? (
@@ -364,7 +364,7 @@ function WorkList({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+              <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
                 <th className="px-2 py-1.5 text-right">日</th>
                 <th className="px-1 py-1.5 text-center">曜</th>
                 <th className="px-2 py-1.5 text-center">出勤</th>
@@ -403,7 +403,7 @@ function WorkList({
                       {e.end_time}
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      {formatMinutes(mins) || "0時間"}
+                      {hhmm(mins)}
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
                       ¥{e.transport_cost.toLocaleString()}
@@ -422,6 +422,13 @@ function WorkList({
 function formatDateJa(date: string) {
   const d = new Date(date + "T00:00:00Z");
   return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日(${WEEKDAYS[d.getUTCDay()]})`;
+}
+
+/** 分を「h:mm」表記にする(勤務一覧の勤務時間用) */
+function hhmm(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
 }
 
 function EntryForm({

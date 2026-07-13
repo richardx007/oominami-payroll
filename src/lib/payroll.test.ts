@@ -124,6 +124,25 @@ describe("computeIncomeTax", () => {
       PayrollError
     );
   });
+
+  it("税額表の最小「以上」金額未満は非課税(0円)", () => {
+    // 最小の以上が105,000の表で、88,000〜105,000の帯は0円と判定する
+    const rows = [
+      {
+        min_amount: 105000,
+        max_amount: 107000,
+        tax_kou_0: 170,
+        tax_kou_1: 0,
+        tax_kou_2: 0,
+        tax_kou_3: 0,
+        tax_otsu: 500,
+      },
+    ];
+    expect(computeIncomeTax(90000, "otsu", 0, rows)).toBe(0);
+    expect(computeIncomeTax(104999, "kou", 0, rows)).toBe(0);
+    // 表の範囲内は通常どおり参照
+    expect(computeIncomeTax(105000, "kou", 0, rows)).toBe(170);
+  });
 });
 
 describe("computePayslip", () => {

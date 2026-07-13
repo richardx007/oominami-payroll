@@ -96,6 +96,13 @@ export function computeIncomeTax(
       (r.max_amount === null || taxable < r.max_amount)
   );
   if (!row) {
+    // 税額表の最小「以上」金額未満は非課税(0円)とみなす。
+    // (国税庁の月額表は「(最小額)円未満→0」の変則行を先頭に持つが取込時に除外しており、
+    //  その帯に該当する課税対象額はここで 0 円と判定する)
+    if (taxRows.length > 0) {
+      const tableMin = Math.min(...taxRows.map((r) => r.min_amount));
+      if (taxable < tableMin) return 0;
+    }
     throw new PayrollError(
       `課税対象額 ¥${taxable.toLocaleString()} に対応する税額表(月額表)のデータがありません。設定画面から税額表を登録してください。`
     );
