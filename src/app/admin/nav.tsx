@@ -78,7 +78,7 @@ export function AdminSidebarNav() {
 export function AdminBottomNav() {
   const pathname = usePathname();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden print:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white md:hidden print:hidden">
       <div className="mx-auto grid max-w-lg grid-cols-5">
         {links.map((l) => {
           const Icon = l.icon;
@@ -88,7 +88,7 @@ export function AdminBottomNav() {
               key={l.href}
               href={l.href}
               className={`flex touch-manipulation flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition active:opacity-70 ${
-                active ? "text-blue-600" : "text-gray-500 hover:text-gray-700"
+                active ? "text-white" : "text-blue-100 hover:text-white"
               }`}
             >
               <Icon className="h-6 w-6" />

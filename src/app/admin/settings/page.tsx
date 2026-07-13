@@ -32,11 +32,16 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-bold">設定</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          メール送信や手当などの共通設定を行います
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-bold">設定</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            メール送信や手当などの共通設定を行います
+          </p>
+        </div>
+        <span className="shrink-0 whitespace-nowrap text-xs text-gray-400">
+          ver.{process.env.NEXT_PUBLIC_BUILD_TIME ?? "dev"}
+        </span>
       </div>
       <EmailSettingsForm
         companyName={settingsMap.get("company_name") ?? ""}

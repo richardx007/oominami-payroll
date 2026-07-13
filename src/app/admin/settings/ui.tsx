@@ -228,17 +228,19 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
       {/* 国税庁のダウンロードページへのリンクとコピペ手順 */}
       <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/60 p-3 text-sm">
         <a
-          href="https://www.nta.go.jp/taxes/shiraberu/taxanswer/gensen/2502.htm"
+          href={`https://www.google.com/search?q=${encodeURIComponent(
+            "源泉徴収税額表(月額表)"
+          )}`}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 font-medium text-blue-700 hover:underline"
         >
-          国税庁「源泉徴収税額表」ダウンロードページを開く
+          「源泉徴収税額表(月額表)」をWeb検索する
           <span aria-hidden>↗</span>
         </a>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-gray-600">
           <li>
-            開いたページで対象年分の
+            検索結果から国税庁の対象年分の
             <strong>「給与所得の源泉徴収税額表（月額表）」</strong>
             のExcel(またはCSV)をダウンロードします。
           </li>
@@ -249,15 +251,17 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
             の各列の数値を選択してコピーします。
           </li>
           <li>
-            下の入力欄に貼り付けます。列の並びが
+            下の入力欄にそのまま貼り付けます。Excelからの貼り付けは
+            <strong>タブ区切り</strong>になりますが、そのまま取り込めます(数値内の
+            桁区切りカンマも自動で除去します)。列の並びは
             <strong>「以上,未満,甲0〜甲7,乙」</strong>
-            になるように調整してください(下の形式・例を参照)。
+            です(下の形式・例を参照)。
           </li>
           <li>「対象年」を合わせて「取り込む」を押すと、その年分に置き換わります。</li>
         </ol>
         <p className="mt-2 text-xs text-gray-400">
           ※ 国税庁は月額表をExcel/PDFで公開しているため、当システムから自動取得はできません。
-          リンク先の様式・URLは年により変わることがあります。
+          公開様式・ページ構成は年により変わることがあります。
         </p>
       </div>
 

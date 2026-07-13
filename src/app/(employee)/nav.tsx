@@ -56,7 +56,7 @@ export function EmployeeNav({
   const hasUnread = !!latestNoticeAt && (!seenAt || latestNoticeAt > seenAt);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-gray-200 bg-white">
+    <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white">
       <div className="mx-auto grid max-w-lg grid-cols-3">
         {items.map((item) => {
           const active = pathname.startsWith(item.href);
@@ -67,7 +67,7 @@ export function EmployeeNav({
               key={item.href}
               href={item.href}
               className={`flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition ${
-                active ? "text-blue-600" : "text-gray-500 hover:text-gray-700"
+                active ? "text-white" : "text-blue-100 hover:text-white"
               }`}
             >
               <span className="relative">
@@ -75,7 +75,7 @@ export function EmployeeNav({
                 {showBadge && (
                   <span
                     aria-label="未読あり"
-                    className="absolute -right-1.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"
+                    className="absolute -right-1.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-[#152449]"
                   />
                 )}
               </span>

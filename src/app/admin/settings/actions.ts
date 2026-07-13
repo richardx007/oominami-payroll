@@ -112,7 +112,14 @@ export async function importTaxTable(
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0].message };
   }
-  const { year, csv } = parsed.data;
+  const { year, csv: rawCsv } = parsed.data;
+
+  // Excel の月額表からコピペするとタブ区切りになり、かつ数値内に3桁区切りの
+  // カンマが入る。タブを含む場合はまずカンマ(桁区切り)を全除去してから
+  // タブをカンマに置換し、通常のCSVとして処理する。
+  const csv = rawCsv.includes("\t")
+    ? rawCsv.replace(/,/g, "").replace(/\t/g, ",")
+    : rawCsv;
 
   const rows: TaxTableInsertRow[] = [];
 

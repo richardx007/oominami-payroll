@@ -10,6 +10,24 @@ import {
   DownloadCsvButton,
 } from "../report/ui";
 
+function MailIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3.5 6.5l8.5 6 8.5-6" />
+    </svg>
+  );
+}
+
 export function CloseActions({
   periodKey,
   status,
@@ -90,9 +108,12 @@ export function CloseActions({
                 "全員に給与明細をメール配信します。よろしいですか?"
               )
             }
-            className="rounded-lg border border-blue-300 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+            aria-label="従業員へ明細をメール配信"
+            title="従業員へ明細をメール配信"
+            className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
           >
-            明細をメール配信
+            <MailIcon className="h-5 w-5" />
+            従業員へ
           </button>
           <SendReportButton periodKey={periodKey} />
           <PrintButton />
