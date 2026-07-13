@@ -100,7 +100,10 @@ export function workMinutes(
 ): number {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
-  return Math.max(0, eh * 60 + em - (sh * 60 + sm) - breakMinutes);
+  let diff = eh * 60 + em - (sh * 60 + sm);
+  // 退勤が出勤以前(例: 22:00→2:00)は翌日にまたぐ勤務とみなし24時間を加算する
+  if (diff <= 0) diff += 24 * 60;
+  return Math.max(0, diff - breakMinutes);
 }
 
 export function formatMinutes(min: number): string {

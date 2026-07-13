@@ -159,8 +159,9 @@ export function TimesheetCalendar({
             ＞
           </button>
 
-          {/* 右端: 従業員フィールド(管理者=リスト選択 / 従業員=氏名固定) */}
-          <div className="ml-auto min-w-0">
+          {/* 右端: 従業員フィールド(管理者=リスト選択 / 従業員=氏名固定)。
+              残り幅いっぱいに広げ、名前が切れにくいようにする(flex-1) */}
+          <div className="ml-auto min-w-0 flex-1">
             {employees ? (
               <select
                 value={selectedEmployeeId ?? ""}
@@ -168,7 +169,7 @@ export function TimesheetCalendar({
                   router.push(`${basePath}?p=${period.key}&e=${e.target.value}`)
                 }
                 aria-label="従業員を選択"
-                className="w-full min-w-0 max-w-[9.5rem] truncate rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm font-medium focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full min-w-0 truncate rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm font-medium focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
@@ -177,7 +178,7 @@ export function TimesheetCalendar({
                 ))}
               </select>
             ) : employeeName ? (
-              <span className="block max-w-[9.5rem] truncate text-right text-sm font-semibold text-gray-700">
+              <span className="block truncate text-right text-sm font-semibold text-gray-700">
                 {employeeName}
               </span>
             ) : null}
@@ -457,6 +458,9 @@ function EntryForm({
             />
           </div>
         </div>
+        <p className="-mt-2 text-xs text-gray-500">
+          ※ 深夜勤務で退勤が翌日になる場合は、退勤にその時刻(例: 2:00)をそのまま入力してください。翌日ぶんとして計算します。
+        </p>
 
         {/* 交通費(1つの枠にまとめる。塗りを少し濃く + 右上に×クリア) */}
         <fieldset className="rounded-xl border border-gray-200 bg-gray-100 p-3 pt-2">

@@ -18,9 +18,21 @@ export const entrySchema = z
     round_trip: z.string().optional(), // "on" or undefined(checkbox)
     note: z.string().max(200).optional(),
   })
-  .refine((d) => d.end_time > d.start_time, {
-    message: "退勤時刻は出勤時刻より後にしてください",
-  })
+  .refine(
+    (d) => {
+      // 退勤が出勤以前(例: 22:00→2:00)は翌日にまたぐ勤務として24時間を加算し、
+      // 休憩を差し引いた実働が正であることを確認する。
+      const [sh, sm] = d.start_time.split(":").map(Number);
+      const [eh, em] = d.end_time.split(":").map(Number);
+      let diff = eh * 60 + em - (sh * 60 + sm);
+      if (diff <= 0) diff += 24 * 60;
+      return diff - d.break_minutes > 0;
+    },
+    {
+      message:
+        "勤務時間が正しくありません(休憩を差し引くと0以下です)。退勤が翌日にまたぐ場合(例: 2:00)もそのまま入力できます",
+    }
+  )
   .refine(
     (d) => {
       // 交通費は「手段・区間1・区間2・往復/片道・金額」を全てセットで入力する。

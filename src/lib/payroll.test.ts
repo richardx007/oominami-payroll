@@ -49,6 +49,13 @@ describe("period", () => {
     expect(workMinutes("09:00", "17:00", 60)).toBe(420);
     expect(workMinutes("09:30", "12:00", 0)).toBe(150);
   });
+
+  it("退勤が翌日にまたぐ深夜勤務を計算する", () => {
+    // 22:00→2:00(=26:00) 休憩0 → 4時間
+    expect(workMinutes("22:00", "02:00", 0)).toBe(240);
+    // 23:30→7:30 休憩60 → 8時間0分
+    expect(workMinutes("23:30", "07:30", 60)).toBe(420);
+  });
 });
 
 describe("effectiveAt", () => {
