@@ -3,9 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { periodFromKey } from "@/lib/period";
+import { periodFromKey, workMinutes } from "@/lib/period";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
-import { buildPayslipMailText, getSenderEmail, sendMail } from "@/lib/email";
+import { effectiveAt } from "@/lib/payroll";
+import {
+  buildPayslipMailText,
+  getSenderEmail,
+  sendMail,
+  type PayslipDailyRow,
+} from "@/lib/email";
 import type { ActionResult } from "../employees/actions";
 
 /** 締め処理: 期間をロックし、全員分の給与明細を確定保存する */
@@ -153,11 +159,44 @@ export async function emailPayslips(
   const { data: payslips } = await supabase
     .from("payslips")
     .select(
-      `id, work_days, total_minutes, hourly_wage, base_pay, transport_total,
+      `id, employee_id, work_days, total_minutes, hourly_wage, base_pay, transport_total,
        lunch_total, gross_pay, income_tax, net_pay, tax_category, emailed_at,
        employees ( name, email )`
     )
     .eq("pay_period_id", payPeriod.id);
+
+  // 日別明細用に当期の勤務実績と昼食補助(日額)を取得する
+  const [{ data: periodEntries }, { data: allowances }] = await Promise.all([
+    supabase
+      .from("work_entries")
+      .select(
+        "employee_id, work_date, start_time, end_time, break_minutes, transport_cost"
+      )
+      .gte("work_date", period.start)
+      .lte("work_date", period.end)
+      .order("work_date"),
+    supabase
+      .from("allowance_settings")
+      .select("lunch_allowance_per_day, effective_from"),
+  ]);
+  const lunchPerDay =
+    effectiveAt(allowances ?? [], period.end)?.lunch_allowance_per_day ?? 0;
+  const entriesByEmployee = new Map<string, PayslipDailyRow[]>();
+  for (const e of periodEntries ?? []) {
+    const rows = entriesByEmployee.get(e.employee_id) ?? [];
+    const start = e.start_time.slice(0, 5);
+    const end = e.end_time.slice(0, 5);
+    rows.push({
+      workDate: e.work_date,
+      startTime: start,
+      endTime: end,
+      breakMinutes: e.break_minutes,
+      workMinutes: workMinutes(start, end, e.break_minutes),
+      transport: e.transport_cost,
+      lunch: lunchPerDay,
+    });
+    entriesByEmployee.set(e.employee_id, rows);
+  }
 
   // 送信元アドレス(会社Gmail)には配信しない。従業員として送信元と同じメールが
   // 登録されていると 0 円明細などが自分宛に届いてしまうため除外する。
@@ -196,6 +235,7 @@ export async function emailPayslips(
         incomeTax: p.income_tax,
         netPay: p.net_pay,
         taxCategory: p.tax_category,
+        dailyRows: entriesByEmployee.get(p.employee_id) ?? [],
       }),
     });
     if (result.ok) {

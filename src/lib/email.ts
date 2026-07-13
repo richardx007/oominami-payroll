@@ -140,6 +140,46 @@ export async function sendMailToMany(
 }
 
 /** 給与明細メールの本文を生成 */
+/** 給与明細メールに載せる日別の勤務明細 */
+export type PayslipDailyRow = {
+  workDate: string; // "YYYY-MM-DD"
+  startTime: string; // "HH:MM"
+  endTime: string; // "HH:MM"
+  breakMinutes: number;
+  workMinutes: number;
+  transport: number;
+  lunch: number;
+};
+
+const PAYSLIP_WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+/** 分を「h:mm」表記にする(勤務・休憩時間用) */
+function toHHMM(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+/** 日別明細ブロック(＜日別明細＞ ... )の文字列を組み立てる */
+function buildDailyDetail(rows: PayslipDailyRow[]): string[] {
+  if (rows.length === 0) return [];
+  const lines = [...rows]
+    .sort((a, b) => a.workDate.localeCompare(b.workDate))
+    .map((r) => {
+      const d = new Date(r.workDate + "T00:00:00Z");
+      const md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+      const dow = PAYSLIP_WEEKDAYS[d.getUTCDay()];
+      return `${md}(${dow}) ${r.startTime}〜${r.endTime}、${toHHMM(r.breakMinutes)}休憩、${toHHMM(r.workMinutes)}勤務、¥${r.transport.toLocaleString()}、¥${r.lunch.toLocaleString()}`;
+    });
+  return [
+    "",
+    "＜日別明細＞",
+    "日付 出勤時間 休憩時間 勤務時間 交通費 昼食補助",
+    "------------------------------------------------------------",
+    ...lines,
+  ];
+}
+
 export function buildPayslipMailText(params: {
   name: string;
   periodLabel: string;
@@ -154,9 +194,10 @@ export function buildPayslipMailText(params: {
   incomeTax: number;
   netPay: number;
   taxCategory: string;
+  dailyRows?: PayslipDailyRow[];
 }): string {
   const yen = (n: number) => `${n.toLocaleString()}円`;
-  const hours = `${Math.floor(params.totalMinutes / 60)}時間${params.totalMinutes % 60 > 0 ? `${params.totalMinutes % 60}分` : ""}`;
+  const hours = toHHMM(params.totalMinutes);
   return [
     `${params.name} 様`,
     "",
@@ -166,13 +207,14 @@ export function buildPayslipMailText(params: {
     `支払日: ${params.paymentDate.replaceAll("-", "/")}`,
     "",
     `勤務日数: ${params.workDays}日`,
-    `勤務時間: ${hours || "0時間"}`,
+    `勤務時間: ${hours}`,
     `基本給(時給${yen(params.hourlyWage)}): ${yen(params.basePay)}`,
     `交通費: ${yen(params.transportTotal)}`,
     `昼食補助: ${yen(params.lunchTotal)}`,
     `総支給額: ${yen(params.grossPay)}`,
     `源泉所得税(${params.taxCategory === "kou" ? "甲欄" : "乙欄"}): -${yen(params.incomeTax)}`,
     `差引支給額: ${yen(params.netPay)}`,
+    ...buildDailyDetail(params.dailyRows ?? []),
     "",
     "詳細はアプリの「給与明細」からもご確認いただけます。",
   ].join("\n");
