@@ -194,32 +194,43 @@ export function TimesheetCalendar({
           </p>
         )}
 
-        {/* サマリ(枠なし・文字のみ。左端に「合計」、日数/時間の見出しは省略) */}
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-base text-gray-600">
-          <span className="font-semibold text-gray-700">合計</span>
-          <span className="font-bold text-gray-900">{summary.days}日</span>
-          <span className="font-bold text-gray-900">
-            {formatMinutes(summary.minutes) || "0時間"}
-          </span>
-          <span>
-            交通費{" "}
+        {/* サマリ(枠内)。タップするとカレンダー下の表示を「勤務一覧」に切り替える */}
+        <button
+          type="button"
+          onClick={() => {
+            setResult(null);
+            setSelected(null);
+          }}
+          title="タップで勤務一覧を表示"
+          className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-left transition hover:bg-gray-50"
+        >
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-base text-gray-600">
+            <span className="font-semibold text-gray-700">合計</span>
+            <span className="font-bold text-gray-900">{summary.days}日</span>
             <span className="font-bold text-gray-900">
-              ¥{summary.transport.toLocaleString()}
+              {formatMinutes(summary.minutes) || "0時間"}
             </span>
-          </span>
-        </div>
+            <span>
+              交通費{" "}
+              <span className="font-bold text-gray-900">
+                ¥{summary.transport.toLocaleString()}
+              </span>
+            </span>
+            <span className="ml-auto text-xs text-blue-600">勤務一覧を表示</span>
+          </div>
+        </button>
 
         {result && !result.ok && (
           <p className="text-sm text-red-600">{result.message}</p>
         )}
 
         {/* カレンダー */}
-        <div className="rounded-xl border border-gray-200 bg-white p-2">
-          <div className="grid grid-cols-7 text-center text-xs text-gray-500">
+        <div className="rounded-xl border-2 border-gray-400 bg-white p-2">
+          <div className="mb-1 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-xs font-semibold text-gray-600">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
-                className={`py-1 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
+                className={`py-1.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
               >
                 {w}
               </div>
@@ -310,6 +321,7 @@ export function TimesheetCalendar({
         {(!selected || (closed && !selectedEntry)) && (
           <WorkList
             entries={entries}
+            holidays={holidays}
             onSelect={(d) => {
               setResult(null);
               const e = entryMap.get(d);
@@ -343,9 +355,11 @@ function entryFromFormData(fd: FormData): WorkEntry {
 /** カレンダー下(スマホ)/右(PC)の勤務一覧表。日・曜日・出勤・退勤・勤務時間・交通費。 */
 function WorkList({
   entries,
+  holidays,
   onSelect,
 }: {
   entries: WorkEntry[];
+  holidays: Record<string, string>;
   onSelect: (workDate: string) => void;
 }) {
   const rows = [...entries].sort((a, b) =>
@@ -377,8 +391,13 @@ function WorkList({
               {rows.map((e) => {
                 const d = new Date(e.work_date + "T00:00:00Z");
                 const dow = d.getUTCDay();
+                // 祝日・日曜=赤、土曜=青。日と曜の両方に同じ色を適用する
                 const dowColor =
-                  dow === 0 ? "text-red-500" : dow === 6 ? "text-blue-500" : "";
+                  holidays[e.work_date] || dow === 0
+                    ? "text-red-500"
+                    : dow === 6
+                      ? "text-blue-500"
+                      : "";
                 const mins = workMinutes(
                   e.start_time,
                   e.end_time,
@@ -390,7 +409,9 @@ function WorkList({
                     onClick={() => onSelect(e.work_date)}
                     className="cursor-pointer border-b border-gray-50 hover:bg-blue-50/40"
                   >
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                    <td
+                      className={`whitespace-nowrap px-2 py-1.5 text-right ${dowColor}`}
+                    >
                       {d.getUTCDate()}
                     </td>
                     <td className={`px-1 py-1.5 text-center ${dowColor}`}>

@@ -67,12 +67,12 @@ export function DashboardCalendar({
   return (
     <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
       {/* カレンダー */}
-      <div className="rounded-xl border border-gray-200 bg-white p-2">
-        <div className="grid grid-cols-7 text-center text-xs text-gray-500">
+      <div className="rounded-xl border-2 border-gray-400 bg-white p-2">
+        <div className="mb-1 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-xs font-semibold text-gray-600">
           {WEEKDAYS.map((w, i) => (
             <div
               key={w}
-              className={`py-1 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
+              className={`py-1.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
             >
               {w}
             </div>
