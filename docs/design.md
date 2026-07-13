@@ -246,6 +246,10 @@ middleware.ts            未認証は /login へ
 - `email.ts` は `cc?` に対応。`getTaxName()`（税理士氏名）・`getAdminEmails()`
   （is_admin=true の在籍者メール）も提供。
 - 送信は一時的失敗に備え **最大2回リトライ**、SMTP応答に **15秒タイムアウト**（ハング防止）。
+- 給与明細メール（`buildPayslipMailText`）は集計に加え **日別明細**（＜日別明細＞: 日付・出勤〜退勤・休憩・
+  勤務時間・交通費・昼食補助）を本文末尾に付ける。日付は **MM/DD**、時刻・休憩・勤務時間は **HH:MM**（時も
+  2桁ゼロ埋め）で桁を揃える。日別行は `admin/close/actions.ts` の `emailPayslips` が当期 `work_entries` と
+  昼食補助日額（`allowance_settings` の期末有効値）から生成し `PayslipDailyRow[]` として渡す。
 - `Message-ID` ヘッダー付き（迷惑メール判定対策）。
 - **添付対応**: `smtpSendMail` は `attachments` を受け取り multipart/mixed で送信可能。
 
