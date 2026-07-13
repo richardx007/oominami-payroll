@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  WEEKDAYS,
-  datesInPeriod,
-  formatMinutes,
-  type Period,
-} from "@/lib/period";
+import { WEEKDAYS, datesInPeriod, type Period } from "@/lib/period";
+
+/** 分を「H:MM」表記にする(勤務時間の表示用) */
+function hhmm(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
 
 export type DayPerson = {
   employee_id: string;
@@ -55,7 +57,12 @@ export function DashboardCalendar({
     return rows;
   }, [dates]);
 
-  const selectedPersons = selected ? (personsByDate[selected] ?? []) : [];
+  // 出勤時刻順にソートして表示する
+  const selectedPersons = selected
+    ? [...(personsByDate[selected] ?? [])].sort((a, b) =>
+        a.start.localeCompare(b.start)
+      )
+    : [];
 
   return (
     <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
@@ -153,17 +160,21 @@ export function DashboardCalendar({
                 {selectedPersons.map((p) => (
                   <li
                     key={p.employee_id}
-                    className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2 text-sm"
+                    className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 py-2 text-sm"
                   >
-                    <span className="font-medium text-gray-900">{p.name}</span>
-                    <span className="text-gray-600">
+                    {/* 氏名 / 出勤〜退勤(勤務時間 hh:mm) / 交通費 を列位置をそろえて表示 */}
+                    <span className="truncate font-medium text-gray-900">
+                      {p.name}
+                    </span>
+                    <span className="text-right text-gray-600 tabular-nums">
                       {p.start}〜{p.end}
-                      <span className="ml-2 text-gray-500">
-                        {formatMinutes(p.minutes) || "0時間"}
+                      <span className="ml-1 text-gray-500">
+                        ({hhmm(p.minutes)})
                       </span>
-                      <span className="ml-2 text-gray-500">
-                        ¥{p.transport.toLocaleString()}
-                      </span>
+                    </span>
+                    <span className="text-xs text-gray-400">交通費</span>
+                    <span className="text-right text-gray-600 tabular-nums">
+                      ¥{p.transport.toLocaleString()}
                     </span>
                   </li>
                 ))}

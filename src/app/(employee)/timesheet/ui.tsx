@@ -107,14 +107,17 @@ export function TimesheetCalendar({
   }, [entries]);
 
   const selectedEntry = selected ? entryMap.get(selected) : undefined;
-  // 入力の既定値: 直近の入力をコピー
-  const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
+  // 新規日(未入力日)の既定値: 最後に表示/入力した勤務記録を引き継ぐ。
+  // これにより別の日の勤務情報をそのまま新規入力に流用できる。無ければ EntryForm の既定値。
+  const [lastDefaults, setLastDefaults] = useState<WorkEntry | null>(null);
 
   function handleSave(formData: FormData) {
     startTransition(async () => {
       const res = await save(formData);
       setResult(res);
       if (res.ok) {
+        // 入力内容を次の新規日へ引き継げるよう保持しておく
+        setLastDefaults(entryFromFormData(formData));
         setSelected(null);
         router.refresh();
       }
@@ -244,7 +247,11 @@ export function TimesheetCalendar({
                     key={date}
                     onClick={() => {
                       setResult(null);
-                      setSelected(isSelected ? null : date);
+                      const next = isSelected ? null : date;
+                      // 既存入力のある日を開いたら、その内容を以降の新規日の既定値に
+                      const e = next ? entryMap.get(next) : undefined;
+                      if (e) setLastDefaults(e);
+                      setSelected(next);
                     }}
                     title={holidays[date] ?? undefined}
                     className={`m-0.5 flex min-h-14 flex-col items-center rounded-lg p-1 text-sm transition ${
@@ -275,14 +282,14 @@ export function TimesheetCalendar({
         </div>
       </div>
 
-      {/* 右カラム: 入力フォーム(PC/iPadでは右、スマホでは下) */}
+      {/* 右カラム(スマホでは下): 日を選ぶと入力フォーム、未選択時は勤務一覧表 */}
       <div className="lg:sticky lg:top-20">
         {selected && !closed && (
           <EntryForm
             key={selected}
             date={selected}
             entry={selectedEntry}
-            defaults={lastEntry}
+            defaults={lastDefaults}
             pending={pending}
             stations={stations}
             onSave={handleSave}
@@ -299,12 +306,115 @@ export function TimesheetCalendar({
             </p>
           </div>
         )}
-        {!selected && (
-          <div className="hidden rounded-xl border border-dashed border-gray-300 bg-white/50 p-8 text-center text-sm text-gray-400 lg:block">
-            カレンダーの日付を選ぶと、ここに入力欄が表示されます
-          </div>
+        {/* 未選択(締め済みで入力欄が出ない場合含む)は勤務一覧表を表示 */}
+        {(!selected || (closed && !selectedEntry)) && (
+          <WorkList
+            entries={entries}
+            onSelect={(d) => {
+              setResult(null);
+              const e = entryMap.get(d);
+              if (e) setLastDefaults(e);
+              setSelected(d);
+            }}
+          />
         )}
       </div>
+    </div>
+  );
+}
+
+/** WorkEntry を FormData から組み立てる(次の新規日の既定値に流用するため) */
+function entryFromFormData(fd: FormData): WorkEntry {
+  const s = (k: string) => (fd.get(k)?.toString() ?? "").trim();
+  return {
+    work_date: s("work_date"),
+    start_time: s("start_time"),
+    end_time: s("end_time"),
+    break_minutes: Number(s("break_minutes")) || 0,
+    transport_cost: Number(s("transport_cost")) || 0,
+    transport_mode: s("transport_mode") || null,
+    station_from: s("station_from") || null,
+    station_to: s("station_to") || null,
+    round_trip: s("round_trip") === "on",
+    note: s("note") || null,
+  };
+}
+
+/** カレンダー下(スマホ)/右(PC)の勤務一覧表。日・曜日・出勤・退勤・勤務時間・交通費。 */
+function WorkList({
+  entries,
+  onSelect,
+}: {
+  entries: WorkEntry[];
+  onSelect: (workDate: string) => void;
+}) {
+  const rows = [...entries].sort((a, b) =>
+    a.work_date.localeCompare(b.work_date)
+  );
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <div className="border-b border-gray-100 px-3 py-2 text-sm font-semibold text-gray-700">
+        勤務一覧
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-3 py-8 text-center text-sm text-gray-400">
+          この月の勤務入力はまだありません。カレンダーの日付を選んで入力してください。
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+                <th className="px-2 py-1.5 text-right">日</th>
+                <th className="px-1 py-1.5 text-center">曜</th>
+                <th className="px-2 py-1.5 text-center">出勤</th>
+                <th className="px-2 py-1.5 text-center">退勤</th>
+                <th className="px-2 py-1.5 text-right">勤務</th>
+                <th className="px-2 py-1.5 text-right">交通費</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((e) => {
+                const d = new Date(e.work_date + "T00:00:00Z");
+                const dow = d.getUTCDay();
+                const dowColor =
+                  dow === 0 ? "text-red-500" : dow === 6 ? "text-blue-500" : "";
+                const mins = workMinutes(
+                  e.start_time,
+                  e.end_time,
+                  e.break_minutes
+                );
+                return (
+                  <tr
+                    key={e.work_date}
+                    onClick={() => onSelect(e.work_date)}
+                    className="cursor-pointer border-b border-gray-50 hover:bg-blue-50/40"
+                  >
+                    <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                      {d.getUTCDate()}
+                    </td>
+                    <td className={`px-1 py-1.5 text-center ${dowColor}`}>
+                      {WEEKDAYS[dow]}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-center tabular-nums">
+                      {e.start_time}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-center tabular-nums">
+                      {e.end_time}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
+                      {formatMinutes(mins) || "0時間"}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
+                      ¥{e.transport_cost.toLocaleString()}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
