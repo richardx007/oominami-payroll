@@ -32,8 +32,8 @@ export function CloseActions({
 
   return (
     <div className="flex flex-col items-end gap-2 print:hidden">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {status === "open" && (
+      {status === "open" && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             disabled={pending}
             onClick={() =>
@@ -46,22 +46,12 @@ export function CloseActions({
           >
             {pending ? "処理中..." : "締め処理を実行"}
           </button>
-        )}
-        {status !== "open" && (
-          <button
-            disabled={pending}
-            onClick={() =>
-              run(
-                () => emailPayslips(periodKey, false),
-                "全員に給与明細をメール配信します。よろしいですか?"
-              )
-            }
-            className="rounded-lg border border-blue-300 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-          >
-            明細をメール配信
-          </button>
-        )}
-        {status === "closed" && (
+        </div>
+      )}
+
+      {/* 1行目: 締め解除・支払済みにする(締め済みのときのみ) */}
+      {status === "closed" && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             disabled={pending}
             onClick={() =>
@@ -74,8 +64,6 @@ export function CloseActions({
           >
             締め解除
           </button>
-        )}
-        {status === "closed" && (
           <button
             disabled={pending}
             onClick={() =>
@@ -88,17 +76,29 @@ export function CloseActions({
           >
             支払済みにする
           </button>
-        )}
+        </div>
+      )}
 
-        {/* 締め済み以降は税理士資料の操作(メール送信/印刷/CSV)もここに表示 */}
-        {status !== "open" && (
-          <span className="flex items-center gap-2 border-l border-gray-200 pl-2">
-            <SendReportButton periodKey={periodKey} />
-            <PrintButton />
-            <DownloadCsvButton periodKey={periodKey} />
-          </span>
-        )}
-      </div>
+      {/* 2行目: 明細をメール配信・税理士へ・印刷・CSV(締め済み以降) */}
+      {status !== "open" && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            disabled={pending}
+            onClick={() =>
+              run(
+                () => emailPayslips(periodKey, false),
+                "全員に給与明細をメール配信します。よろしいですか?"
+              )
+            }
+            className="rounded-lg border border-blue-300 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+          >
+            明細をメール配信
+          </button>
+          <SendReportButton periodKey={periodKey} />
+          <PrintButton />
+          <DownloadCsvButton periodKey={periodKey} />
+        </div>
+      )}
       {result && (
         <p
           className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}

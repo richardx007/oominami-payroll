@@ -54,8 +54,7 @@ export default async function ClosePage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-sm font-medium text-gray-500">締め処理</h1>
-          <div className="mt-0.5 flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {/* 前月/翌月は勤務表と同じ ＜ 年月 ＞ のスタイル・配色に統一 */}
             <div className="flex items-center gap-1.5">
               <Link
@@ -80,9 +79,8 @@ export default async function ClosePage({
               {periodStatusLabel(status)}
             </span>
           </div>
-          <p className="mt-1 text-sm text-gray-500">
-            {period.start.replaceAll("-", "/")} 〜{" "}
-            {period.end.replaceAll("-", "/")} / 支払日{" "}
+          <p className="mt-1 whitespace-nowrap text-sm text-gray-500">
+            締め日：{period.end.replaceAll("-", "/")}、支払日{" "}
             {period.paymentDate.replaceAll("-", "/")}
           </p>
         </div>
@@ -143,7 +141,7 @@ export default async function ClosePage({
                       <td className="px-4 py-3 text-right font-medium">
                         ¥{p.result.gross_pay.toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-right text-red-600">
+                      <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">
                         −¥{p.result.income_tax.toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-right font-bold">
