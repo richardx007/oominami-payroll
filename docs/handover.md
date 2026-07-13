@@ -201,6 +201,11 @@
 - **従業員一覧（`admin/employees/ui.tsx`）**: iPhone考慮で「氏名/招待状態/状態」の3列に集約。行タップで
   吹き出し詳細(レスポンシブ)を開き、詳細トップに パスワード再設定 / 招待・再招待。招待状態=未招待→招待済→登録済。
 - **年月スタイル統一**: ホーム/給与明細の年月を勤務表に合わせ `text-xl` extrabold・青、＜＞は `text-2xl` グレー。
+- **深夜勤務(翌日跨ぎ)対応**: 退勤が出勤以前(例 18:00→2:00)なら翌日とみなす。`lib/period.ts` の `workMinutes`
+  が end≤start のとき24時間加算、`(employee)/timesheet/schema.ts` の検証も翌日跨ぎを許容(実働>0を確認)。
+  勤務表入力欄に注記追加・テスト追加。**DB は `work_entries` の `end_time > start_time` CHECK制約
+  (`work_entries_check`)を撤去**(これが無いと「保存に失敗しました」になる)。
+- **勤務表の従業員フィールド**: ヘッダ右の従業員セレクト/氏名を `flex-1` で残り幅いっぱいに(PC で名前が切れる問題を解消)。
 
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > 本レスポンシブ刷新は別ブランチ `claude/responsive-mobile-layout` に切って作業中で **main 未反映**。
