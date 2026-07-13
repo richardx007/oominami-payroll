@@ -14,6 +14,7 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
   const period = periodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
+  try {
   const payrolls = await calculatePeriodPayroll(period);
   const errors = payrolls.filter((p) => p.error);
   if (errors.length > 0) {
@@ -87,6 +88,14 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     ok: true,
     message: `${period.label}を締めました(${rows.length}名分の明細を作成)`,
   };
+  } catch (e) {
+    return {
+      ok: false,
+      message:
+        "締め処理に失敗しました: " +
+        (e instanceof Error ? e.message : String(e)),
+    };
+  }
 }
 
 /** 締め解除: 申告漏れ対応のため期間を再オープンする(支払済みは不可) */

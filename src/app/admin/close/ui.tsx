@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { closePeriod, emailPayslips, markPaid, reopenPeriod } from "./actions";
 import type { ActionResult } from "../employees/actions";
@@ -37,15 +37,29 @@ export function CloseActions({
 }) {
   const router = useRouter();
   const [result, setResult] = useState<ActionResult | null>(null);
-  const [pending, startTransition] = useTransition();
+  // useTransition の pending は router.refresh() を挟むと解除されず「処理中...」の
+  // まま固まることがあるため、明示的な busy 状態を finally で必ず解除する。
+  const [pending, setPending] = useState(false);
 
-  function run(action: () => Promise<ActionResult>, confirmMessage: string) {
+  async function run(
+    action: () => Promise<ActionResult>,
+    confirmMessage: string
+  ) {
     if (!window.confirm(confirmMessage)) return;
-    startTransition(async () => {
+    setPending(true);
+    try {
       const res = await action();
       setResult(res);
       if (res.ok) router.refresh();
-    });
+    } catch (e) {
+      setResult({
+        ok: false,
+        message:
+          "処理に失敗しました: " + (e instanceof Error ? e.message : String(e)),
+      });
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
