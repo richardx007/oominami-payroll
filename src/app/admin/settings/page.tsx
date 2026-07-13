@@ -21,7 +21,7 @@ export default async function SettingsPage() {
       supabase
         .from("withholding_tax_table")
         .select(
-          "year, min_amount, max_amount, tax_otsu, tax_kou_0, tax_kou_1, tax_kou_2, tax_kou_3, tax_kou_4, tax_kou_5, tax_kou_6, tax_kou_7"
+          "year, min_amount, max_amount, tax_otsu, tax_kou_0, tax_kou_1, tax_kou_2, tax_kou_3, tax_kou_4, tax_kou_5, tax_kou_6, tax_kou_7, created_at"
         )
         .order("year", { ascending: false })
         .order("min_amount", { ascending: true }),

@@ -199,7 +199,20 @@ export type TaxTableRow = {
   tax_kou_5: number | null;
   tax_kou_6: number | null;
   tax_kou_7: number | null;
+  created_at: string;
 };
+
+/** ISO日時を日本時間の「yyyy/M/D HH:MM」表記にする */
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function yen(n: number | null) {
   return n === null || n === undefined ? "—" : n.toLocaleString();
@@ -209,13 +222,19 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // 年ごとに区分数を集計(登録済み表示用)
+  // 年ごとに区分数・取り込み日時(最新)を集計(登録済み表示用)
   const yearCounts = new Map<number, number>();
-  for (const r of rows) yearCounts.set(r.year, (yearCounts.get(r.year) ?? 0) + 1);
+  const yearImportedAt = new Map<number, string>();
+  for (const r of rows) {
+    yearCounts.set(r.year, (yearCounts.get(r.year) ?? 0) + 1);
+    const prev = yearImportedAt.get(r.year);
+    if (!prev || r.created_at > prev) yearImportedAt.set(r.year, r.created_at);
+  }
   const years = [...yearCounts.keys()].sort((a, b) => b - a);
 
   const [viewYear, setViewYear] = useState<number | null>(years[0] ?? null);
   const shownRows = rows.filter((r) => r.year === viewYear);
+  const viewImportedAt = viewYear ? yearImportedAt.get(viewYear) : undefined;
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -274,10 +293,18 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
         最終行の「未満」は空欄で上限なし。乙欄のみなら「以上,未満,乙」の3列でも可)
       </div>
       {years.length > 0 && (
-        <p className="mt-2 text-sm text-green-700">
-          登録済み:{" "}
-          {years.map((y) => `${y}年(${yearCounts.get(y)}区分)`).join("、")}
-        </p>
+        <div className="mt-2 space-y-0.5 text-sm text-green-700">
+          {years.map((y) => (
+            <p key={y}>
+              登録済み: {y}年({yearCounts.get(y)}区分)
+              {yearImportedAt.get(y) && (
+                <span className="ml-2 text-xs text-gray-500">
+                  取り込み日時 {formatDateTime(yearImportedAt.get(y)!)}
+                </span>
+              )}
+            </p>
+          ))}
+        </div>
       )}
       <form
         action={(fd) =>
@@ -349,6 +376,11 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
             <span className="text-xs text-gray-400">
               {shownRows.length}区分
             </span>
+            {viewImportedAt && (
+              <span className="text-xs text-gray-400">
+                / 取り込み日時 {formatDateTime(viewImportedAt)}
+              </span>
+            )}
           </div>
           <div className="mt-2 max-h-96 overflow-auto rounded-lg border border-gray-200">
             <table className="w-full text-right text-xs">
