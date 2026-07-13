@@ -126,13 +126,19 @@ export async function importTaxTable(
   const lines = csv
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith("#"));
+    // 空行・数字を含まない行(タブ/カンマだけの区切り行など)はスキップする
+    .filter((l) => l && !l.startsWith("#") && /\d/.test(l));
 
-  const num = (s: string | undefined): number | null =>
-    s === undefined || s === "" ? null : Number(s.replaceAll(",", ""));
+  // 各セルは数字以外(「円」・空白・桁区切りカンマ等)を除去して数値化する。
+  // 空欄(未満なし等)は null を返す。
+  const num = (s: string | undefined): number | null => {
+    if (s === undefined) return null;
+    const digits = s.replace(/[^\d]/g, "");
+    return digits === "" ? null : Number(digits);
+  };
 
   for (const [i, line] of lines.entries()) {
-    const cols = line.split(",").map((c) => c.trim().replaceAll("円", ""));
+    const cols = line.split(",").map((c) => c.trim());
     const bad = (msg: string): ActionResult => ({
       ok: false,
       message: `${i + 1}行目の形式が不正です: ${msg}`,
