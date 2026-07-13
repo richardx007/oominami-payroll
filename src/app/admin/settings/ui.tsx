@@ -281,7 +281,19 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
       )}
       <form
         action={(fd) =>
-          startTransition(async () => setResult(await importTaxTable(fd)))
+          startTransition(async () => {
+            try {
+              setResult(await importTaxTable(fd));
+            } catch (e) {
+              // 例外時も pending を確実に解除し、原因を画面に出す
+              setResult({
+                ok: false,
+                message:
+                  "取り込みに失敗しました: " +
+                  (e instanceof Error ? e.message : String(e)),
+              });
+            }
+          })
         }
         className="mt-3 space-y-3"
       >

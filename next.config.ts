@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
     // ビルドのたびに更新されるアプリのバージョン(タイムスタンプ)。
     NEXT_PUBLIC_BUILD_TIME: buildTimeJST(),
   },
+  experimental: {
+    // 源泉徴収税額表を丸ごと貼り付けると既定の1MBを超える場合があるため拡張
+    serverActions: { bodySizeLimit: "5mb" },
+  },
 };
 
 export default nextConfig;

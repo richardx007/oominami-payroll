@@ -160,7 +160,7 @@ export async function importTaxTable(
       );
     }
 
-    rows.push({
+    const row: TaxTableInsertRow = {
       year,
       min_amount: min,
       max_amount: num(cols[1]),
@@ -173,29 +173,57 @@ export async function importTaxTable(
       tax_kou_5: otsuOnly ? null : num(cols[7]),
       tax_kou_6: otsuOnly ? null : num(cols[8]),
       tax_kou_7: otsuOnly ? null : num(cols[9]),
-    });
+    };
+
+    // int4 の範囲(約21億)を超える値が混入すると DB 挿入が失敗するため事前に弾く
+    const MAX = 2_000_000_000;
+    for (const v of Object.values(row)) {
+      if (typeof v === "number" && (v < 0 || v > MAX)) {
+        return bad(
+          "金額が大きすぎます。数値の桁が正しいか(桁区切り以外の文字が混入していないか)確認してください"
+        );
+      }
+    }
+    rows.push(row);
   }
 
   if (rows.length === 0) {
     return { ok: false, message: "有効なデータ行がありません" };
   }
 
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  // 同一年度を入れ替え
-  const { error: deleteError } = await supabase
-    .from("withholding_tax_table")
-    .delete()
-    .eq("year", year);
-  if (deleteError) return { ok: false, message: "既存データの削除に失敗しました" };
+    // 同一年度を入れ替え
+    const { error: deleteError } = await supabase
+      .from("withholding_tax_table")
+      .delete()
+      .eq("year", year);
+    if (deleteError) {
+      return { ok: false, message: "既存データの削除に失敗しました" };
+    }
 
-  const { error: insertError } = await supabase
-    .from("withholding_tax_table")
-    .insert(rows);
-  if (insertError) {
-    return { ok: false, message: "登録に失敗しました: " + insertError.message };
+    const { error: insertError } = await supabase
+      .from("withholding_tax_table")
+      .insert(rows);
+    if (insertError) {
+      return {
+        ok: false,
+        message: "登録に失敗しました: " + insertError.message,
+      };
+    }
+
+    revalidatePath("/admin/settings");
+    return {
+      ok: true,
+      message: `${year}年分の税額表を${rows.length}区分登録しました`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      message:
+        "取り込み処理でエラーが発生しました: " +
+        (e instanceof Error ? e.message : String(e)),
+    };
   }
-
-  revalidatePath("/admin/settings");
-  return { ok: true, message: `${year}年分の税額表を${rows.length}区分登録しました` };
 }
