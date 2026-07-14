@@ -21,3 +21,30 @@ body {
   font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "BIZ UDPGothic",
     Meiryo, system-ui, sans-serif;
 }
+
+/* 印刷 / PDF 出力の調整(給与明細の表が横にはみ出て切れるのを防ぐ) */
+@media print {
+  html {
+    /* 画面用に 17px と大きめだが、印刷は縮小して1ページ幅に収める */
+    font-size: 11px;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+  /* 表を囲む overflow コンテナが印刷で内容を切らないようにする */
+  .print-report {
+    overflow: visible !important;
+  }
+  .print-report table {
+    width: 100%;
+  }
+  .print-report th,
+  .print-report td {
+    padding: 2px 4px !important;
+    font-size: 9px !important;
+    /* 桁の多い金額でも折り返して収める(画面用の nowrap を解除) */
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+}

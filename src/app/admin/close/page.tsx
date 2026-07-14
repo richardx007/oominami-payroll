@@ -114,7 +114,7 @@ export default async function ClosePage({
             </dl>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto print-report">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
