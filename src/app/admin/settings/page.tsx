@@ -6,6 +6,7 @@ import {
   TaxTableForm,
   type TaxTableRow,
 } from "./ui";
+import { ClockSettingsForm } from "./clock";
 
 export default async function SettingsPage() {
   await requireAdmin();
@@ -50,6 +51,12 @@ export default async function SettingsPage() {
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
       />
       <LunchAllowanceForm history={allowances ?? []} />
+      <ClockSettingsForm
+        lat={settingsMap.get("clock_base_lat") ?? ""}
+        lng={settingsMap.get("clock_base_lng") ?? ""}
+        radiusM={settingsMap.get("clock_radius_m") ?? ""}
+        policy={settingsMap.get("clock_out_of_range") ?? "warn"}
+      />
       <TaxTableForm rows={(taxYears ?? []) as TaxTableRow[]} />
     </div>
   );

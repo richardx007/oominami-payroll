@@ -8,7 +8,7 @@ import { upsertWorkEntry, deleteWorkEntry } from "./actions";
 export type WorkEntry = {
   work_date: string;
   start_time: string;
-  end_time: string;
+  end_time: string | null;
   break_minutes: number;
   transport_cost: number;
   transport_mode: string | null;
@@ -64,7 +64,7 @@ export default async function TimesheetPage({
   const normalized = (entries ?? []).map((e) => ({
     ...e,
     start_time: e.start_time.slice(0, 5),
-    end_time: e.end_time.slice(0, 5),
+    end_time: e.end_time ? e.end_time.slice(0, 5) : null,
   }));
 
   const stationSet = new Set<string>();

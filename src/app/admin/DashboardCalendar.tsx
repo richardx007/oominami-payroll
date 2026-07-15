@@ -14,8 +14,8 @@ export type DayPerson = {
   employee_id: string;
   name: string;
   start: string; // "HH:MM"
-  end: string; // "HH:MM"
-  minutes: number;
+  end: string | null; // "HH:MM"、退勤未入力は null
+  minutes: number | null;
   transport: number;
 };
 
@@ -167,7 +167,14 @@ export function DashboardCalendar({
                       {p.name}
                     </span>
                     <span className="whitespace-nowrap text-right text-gray-600 tabular-nums">
-                      {p.start}〜{p.end} ({hhmm(p.minutes)})
+                      {p.start}〜
+                      {p.end ? (
+                        `${p.end} (${hhmm(p.minutes ?? 0)})`
+                      ) : (
+                        <span className="rounded bg-amber-200 px-1 text-amber-800">
+                          退勤未入力
+                        </span>
+                      )}
                       <span className="ml-2 text-gray-500">
                         ¥{p.transport.toLocaleString()}
                       </span>

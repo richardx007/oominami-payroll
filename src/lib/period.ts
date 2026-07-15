@@ -65,6 +65,12 @@ export function todayJST(now: Date = new Date()): string {
   return jst.toISOString().slice(0, 10);
 }
 
+/** 現在時刻(JST)の "HH:MM"。QR打刻の打刻時刻に使う */
+export function nowTimeJST(now: Date = new Date()): string {
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().slice(11, 16);
+}
+
 /** 前後の期間キー */
 export function adjacentPeriodKey(key: string, diff: 1 | -1): string {
   const m = /^(\d{4})-(\d{2})$/.exec(key)!;

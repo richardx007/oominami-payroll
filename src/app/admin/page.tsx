@@ -54,17 +54,17 @@ export default async function AdminDashboardPage({
   const personsByDate: Record<string, DayPerson[]> = {};
 
   for (const e of entries ?? []) {
-    const minutes = workMinutes(
-      e.start_time.slice(0, 5),
-      e.end_time.slice(0, 5),
-      e.break_minutes
-    );
+    // 退勤未入力(end_time が null)は勤務時間を計算しない
+    const end = e.end_time ? e.end_time.slice(0, 5) : null;
+    const minutes = end
+      ? workMinutes(e.start_time.slice(0, 5), end, e.break_minutes)
+      : null;
 
     (personsByDate[e.work_date] ??= []).push({
       employee_id: e.employee_id,
       name: nameById.get(e.employee_id) ?? "(不明)",
       start: e.start_time.slice(0, 5),
-      end: e.end_time.slice(0, 5),
+      end,
       minutes,
       transport: e.transport_cost,
     });

@@ -45,6 +45,49 @@ export async function updateEmailSettings(
   return { ok: true, message: "メール設定を更新しました" };
 }
 
+const clockSchema = z.object({
+  clock_base_lat: z.string(),
+  clock_base_lng: z.string(),
+  clock_radius_m: z.coerce.number().int().min(0),
+  clock_out_of_range: z.enum(["reject", "warn"]),
+});
+
+/** QR打刻の位置ポリシー(基準座標・半径・圏外時の扱い)を保存する */
+export async function updateClockSettings(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = clockSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: "入力内容を確認してください" };
+  }
+  const d = parsed.data;
+  const lat = parseFloat(d.clock_base_lat);
+  const lng = parseFloat(d.clock_base_lng);
+  if (
+    d.clock_base_lat !== "" &&
+    (!Number.isFinite(lat) || !Number.isFinite(lng))
+  ) {
+    return { ok: false, message: "基準位置を地図で指定してください" };
+  }
+
+  const supabase = await createClient();
+  const rows = [
+    { key: "clock_base_lat", value: d.clock_base_lat.trim() },
+    { key: "clock_base_lng", value: d.clock_base_lng.trim() },
+    { key: "clock_radius_m", value: String(d.clock_radius_m) },
+    { key: "clock_out_of_range", value: d.clock_out_of_range },
+  ];
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(rows, { onConflict: "key" });
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "QR打刻の位置設定を保存しました" };
+}
+
 const allowanceSchema = z.object({
   lunch_allowance_per_day: z.coerce.number().int().min(0, "0以上で入力してください"),
   effective_from: z.string().min(1, "適用開始日を入力してください"),

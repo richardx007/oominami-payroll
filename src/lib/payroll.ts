@@ -17,7 +17,7 @@ import { workMinutes } from "./period";
 export type WorkEntryInput = {
   work_date: string;
   start_time: string;
-  end_time: string;
+  end_time: string | null;
   break_minutes: number;
   transport_cost: number;
 };
@@ -145,6 +145,14 @@ export function computePayslip(params: {
     throw new PayrollError("時給が設定されていません");
   }
 
+  // 退勤未入力(end_time が null/空)の日は計算できないため、日付を列挙してエラーにする
+  const missingOut = entries
+    .filter((e) => !e.end_time)
+    .map((e) => e.work_date);
+  if (missingOut.length > 0) {
+    throw new PayrollError(`退勤未入力の日があります: ${missingOut.join("、")}`);
+  }
+
   let basePay = 0;
   let totalMinutes = 0;
   let transportTotal = 0;
@@ -156,7 +164,7 @@ export function computePayslip(params: {
         `${e.work_date} 時点で有効な時給が設定されていません`
       );
     }
-    const minutes = workMinutes(e.start_time, e.end_time, e.break_minutes);
+    const minutes = workMinutes(e.start_time, e.end_time as string, e.break_minutes);
     totalMinutes += minutes;
     basePay += Math.floor((minutes * wage.hourly_wage) / 60);
     transportTotal += e.transport_cost;

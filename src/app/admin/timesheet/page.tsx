@@ -60,7 +60,7 @@ export default async function AdminTimesheetPage({
   const normalized = (entries ?? []).map((row) => ({
     ...row,
     start_time: row.start_time.slice(0, 5),
-    end_time: row.end_time.slice(0, 5),
+    end_time: row.end_time ? row.end_time.slice(0, 5) : null,
   }));
 
   const stationSet = new Set<string>();

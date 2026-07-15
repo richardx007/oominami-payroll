@@ -68,7 +68,8 @@ export async function calculatePeriodPayroll(
     const empEntries = (entriesBy.get(emp.id) ?? []).map((e) => ({
       ...e,
       start_time: e.start_time.slice(0, 5),
-      end_time: e.end_time.slice(0, 5),
+      // 退勤未入力(null)はそのまま渡し、computePayslip 側で「退勤未入力」エラーにする
+      end_time: e.end_time ? e.end_time.slice(0, 5) : null,
     }));
     try {
       const result = computePayslip({

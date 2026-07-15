@@ -193,6 +193,23 @@ describe("computePayslip", () => {
     expect(result.net_pay).toBe(16400 - result.income_tax);
   });
 
+  it("退勤未入力(end_time=null)の日があるとエラー(締めを止める)", () => {
+    expect(() =>
+      computePayslip({
+        ...base,
+        entries: [
+          {
+            work_date: "2026-07-03",
+            start_time: "10:00",
+            end_time: null,
+            break_minutes: 0,
+            transport_cost: 0,
+          },
+        ],
+      })
+    ).toThrow(PayrollError);
+  });
+
   it("時給の値上げが勤務日ごとに適用される", () => {
     const result = computePayslip({
       ...base,

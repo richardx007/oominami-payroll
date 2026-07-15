@@ -95,7 +95,8 @@ export function TimesheetCalendar({
     let minutes = 0;
     let transport = 0;
     for (const e of entries) {
-      minutes += workMinutes(e.start_time, e.end_time, e.break_minutes);
+      // 退勤未入力の日は勤務時間に含めない(交通費・日数はカウント)
+      if (e.end_time) minutes += workMinutes(e.start_time, e.end_time, e.break_minutes);
       transport += e.transport_cost;
     }
     return { days: entries.length, minutes, transport };
@@ -278,7 +279,19 @@ export function TimesheetCalendar({
                       >
                         {entry.start_time}
                         <br />
-                        {entry.end_time}
+                        {entry.end_time ? (
+                          entry.end_time
+                        ) : (
+                          <span
+                            className={
+                              isSelected
+                                ? "rounded bg-amber-300/70 px-0.5 text-amber-900"
+                                : "rounded bg-amber-200 px-0.5 text-amber-800"
+                            }
+                          >
+                            退勤?
+                          </span>
+                        )}
                       </span>
                     )}
                   </button>
@@ -394,11 +407,9 @@ function WorkList({
                     : dow === 6
                       ? "text-blue-500"
                       : "";
-                const mins = workMinutes(
-                  e.start_time,
-                  e.end_time,
-                  e.break_minutes
-                );
+                const mins = e.end_time
+                  ? workMinutes(e.start_time, e.end_time, e.break_minutes)
+                  : null;
                 return (
                   <tr
                     key={e.work_date}
@@ -417,10 +428,16 @@ function WorkList({
                       {e.start_time}
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-center tabular-nums">
-                      {e.end_time}
+                      {e.end_time ? (
+                        e.end_time
+                      ) : (
+                        <span className="rounded bg-amber-200 px-1 text-amber-800">
+                          未
+                        </span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      {hhmm(mins)}
+                      {mins === null ? "—" : hhmm(mins)}
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
                       ¥{e.transport_cost.toLocaleString()}
@@ -466,6 +483,8 @@ function EntryForm({
   onDelete: (date: string) => void;
 }) {
   const init = entry ?? defaults;
+  // 打刻で出勤のみ登録され退勤が未入力の場合、退勤欄を警告表示にする
+  const endMissing = !!entry && !entry.end_time;
 
   const formRef = useRef<HTMLFormElement>(null);
   const modeRef = useRef<HTMLSelectElement>(null);
@@ -568,13 +587,20 @@ function EntryForm({
           <div className="min-w-0">
             <label className="mb-1 block text-sm font-medium text-gray-600">
               退勤
+              {endMissing && (
+                <span className="ml-1 text-amber-600">未入力</span>
+              )}
             </label>
             <input
               name="end_time"
               type="time"
               required
-              defaultValue={init?.end_time ?? "18:00"}
-              className={timeInputClass}
+              defaultValue={init?.end_time ?? (endMissing ? "" : "18:00")}
+              className={`${timeInputClass} ${
+                endMissing
+                  ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300"
+                  : ""
+              }`}
             />
           </div>
           <div className="min-w-0">

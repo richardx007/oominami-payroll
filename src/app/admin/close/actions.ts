@@ -181,6 +181,8 @@ export async function emailPayslips(
     effectiveAt(allowances ?? [], period.end)?.lunch_allowance_per_day ?? 0;
   const entriesByEmployee = new Map<string, PayslipDailyRow[]>();
   for (const e of periodEntries ?? []) {
+    // 退勤未入力(締め済みなら通常発生しない)は日別明細から除外
+    if (!e.end_time) continue;
     const rows = entriesByEmployee.get(e.employee_id) ?? [];
     const start = e.start_time.slice(0, 5);
     const end = e.end_time.slice(0, 5);
