@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
+import { logActivity } from "@/lib/log";
 import type { ActionResult } from "../employees/actions";
 
 const emailSettingsSchema = z.object({
@@ -232,11 +233,11 @@ export async function importTaxTable(
       message: `${year}年分の税額表を${filteredRows.length}区分登録しました`,
     };
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await logActivity("エラー", `税額表取り込みに失敗(${year}年): ${msg}`);
     return {
       ok: false,
-      message:
-        "取り込み処理でエラーが発生しました: " +
-        (e instanceof Error ? e.message : String(e)),
+      message: "取り込み処理でエラーが発生しました: " + msg,
     };
   }
 }

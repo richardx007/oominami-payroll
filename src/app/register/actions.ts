@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { logActivity } from "@/lib/log";
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -62,5 +63,6 @@ export async function sendRegisterLink(
     return { ok: false, message: friendlyOtpError(error.message) };
   }
 
+  await logActivity("メール送信", `初回登録の確認メール: ${email}`);
   return { ok: true, message: "" };
 }

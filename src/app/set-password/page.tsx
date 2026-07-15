@@ -53,6 +53,11 @@ export default function SetPasswordPage() {
       }
     }
 
+    // 操作ログ(パスワード設定)を記録。失敗しても無視する
+    try {
+      await supabase.rpc("log_activity", { p_action: "パスワード設定" });
+    } catch {}
+
     router.push("/");
     router.refresh();
   }

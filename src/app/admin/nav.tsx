@@ -1,16 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { reloadApp } from "@/app/pwa/reloadApp";
 
-const links = [
+// スマホの下部タブに常時出す主要メニュー
+const primaryLinks = [
   { href: "/admin", label: "ホーム", icon: HomeIcon },
   { href: "/admin/timesheet", label: "勤務表", icon: CalendarIcon },
   { href: "/admin/close", label: "給与明細", icon: YenIcon },
   { href: "/admin/employees", label: "従業員", icon: PeopleIcon },
-  { href: "/admin/settings", label: "設定", icon: GearIcon },
 ];
+// スマホでは下部の余白がないため、ハンバーガーメニューに収める
+const moreLinks = [
+  { href: "/admin/settings", label: "設定", icon: GearIcon },
+  { href: "/admin/logs", label: "ログ", icon: LogIcon },
+];
+const links = [...primaryLinks, ...moreLinks];
 
 function isActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
@@ -74,30 +81,80 @@ export function AdminSidebarNav() {
   );
 }
 
-/** モバイル用の下部タブナビ(従業員画面と同じく画面下に固定) */
+/** モバイル用の下部タブナビ(従業員画面と同じく画面下に固定)。
+ *  主要4項目＋ハンバーガー(設定・ログ)を表示する。 */
 export function AdminBottomNav() {
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const moreActive = moreLinks.some((l) => isActive(pathname, l.href));
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white md:hidden print:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-5">
-        {links.map((l) => {
-          const Icon = l.icon;
-          const active = isActive(pathname, l.href);
-          return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`flex touch-manipulation flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition active:opacity-70 ${
-                active ? "text-white" : "text-blue-100 hover:text-white"
-              }`}
-            >
-              <Icon className="h-6 w-6" />
-              {l.label}
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+    <>
+      {/* ハンバーガーで開くシート(設定・ログ) */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/30 md:hidden print:hidden"
+          onClick={() => setMenuOpen(false)}
+        >
+          <div
+            className="absolute inset-x-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom))] border-t border-white/15 bg-[#152449] text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {moreLinks.map((l) => {
+              const Icon = l.icon;
+              const active = isActive(pathname, l.href);
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  onClick={() => setMenuOpen(false)}
+                  className={`flex touch-manipulation items-center gap-3 px-5 py-3 text-base font-medium active:opacity-70 ${
+                    active ? "bg-white/10 text-white" : "text-blue-50"
+                  }`}
+                >
+                  <Icon className="h-6 w-6 shrink-0" />
+                  {l.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white md:hidden print:hidden">
+        <div className="mx-auto grid max-w-lg grid-cols-5">
+          {primaryLinks.map((l) => {
+            const Icon = l.icon;
+            const active = isActive(pathname, l.href);
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                onClick={() => setMenuOpen(false)}
+                className={`flex touch-manipulation flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition active:opacity-70 ${
+                  active ? "text-white" : "text-blue-100 hover:text-white"
+                }`}
+              >
+                <Icon className="h-6 w-6" />
+                {l.label}
+              </Link>
+            );
+          })}
+          {/* その他(設定・ログ)をまとめるハンバーガー */}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="その他のメニュー"
+            className={`flex touch-manipulation flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition active:opacity-70 ${
+              menuOpen || moreActive ? "text-white" : "text-blue-100 hover:text-white"
+            }`}
+          >
+            <MenuIcon className="h-6 w-6" />
+            メニュー
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }
 
@@ -191,6 +248,41 @@ function GearIcon({ className }: { className?: string }) {
     >
       <circle cx="12" cy="12" r="3" />
       <path d="M12 2.5v3M12 18.5v3M4.2 7l2.6 1.5M17.2 15.5l2.6 1.5M4.2 17l2.6-1.5M17.2 8.5l2.6-1.5" />
+    </svg>
+  );
+}
+
+function LogIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 3h10l4 4v14H5z" />
+      <path d="M14 3v4h4M8 12h8M8 16h8M8 8h3" />
+    </svg>
+  );
+}
+
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 6h16M4 12h16M4 18h16" />
     </svg>
   );
 }

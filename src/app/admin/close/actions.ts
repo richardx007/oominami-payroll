@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { periodFromKey, workMinutes } from "@/lib/period";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { effectiveAt } from "@/lib/payroll";
+import { logActivity } from "@/lib/log";
 import {
   buildPayslipMailText,
   getSenderEmail,
@@ -95,12 +96,9 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     message: `${period.label}を締めました(${rows.length}名分の明細を作成)`,
   };
   } catch (e) {
-    return {
-      ok: false,
-      message:
-        "締め処理に失敗しました: " +
-        (e instanceof Error ? e.message : String(e)),
-    };
+    const message = e instanceof Error ? e.message : String(e);
+    await logActivity("エラー", `締め処理に失敗: ${period.label} / ${message}`);
+    return { ok: false, message: "締め処理に失敗しました: " + message };
   }
 }
 

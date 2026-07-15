@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { sendMail } from "@/lib/email";
+import { logActivity } from "@/lib/log";
 
 const employeeSchema = z
   .object({
@@ -331,6 +332,10 @@ export async function resetEmployeePassword(
     };
   }
 
+  await logActivity(
+    "メール送信",
+    `パスワード再設定メール(管理者発行): ${employee.name} (${employee.email})`
+  );
   return {
     ok: true,
     message: `${employee.name} さんにパスワード再設定メールを送信しました`,

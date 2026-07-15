@@ -1,5 +1,6 @@
 import { smtpSendMail, type MailAttachment } from "./smtp";
 import { createClient } from "./supabase/server";
+import { logActivity } from "./log";
 
 /**
  * メール送信(Gmail SMTP)
@@ -83,12 +84,14 @@ export async function sendMail(params: {
   const password = process.env.GMAIL_APP_PASSWORD;
 
   if (!user || !password) {
-    return {
-      ok: false,
-      message: !user
-        ? "送信元Gmailが未設定です(設定画面で登録してください)"
-        : "アプリパスワードが未設定です(CloudflareでGMAIL_APP_PASSWORDをSecret登録してください)",
-    };
+    const message = !user
+      ? "送信元Gmailが未設定です(設定画面で登録してください)"
+      : "アプリパスワードが未設定です(CloudflareでGMAIL_APP_PASSWORDをSecret登録してください)";
+    await logActivity(
+      "エラー",
+      `メール送信失敗(未設定): 宛先 ${params.to} / 件名 ${params.subject} / ${message}`
+    );
+    return { ok: false, message };
   }
 
   // SMTP接続は一時的に失敗することがあるため最大2回まで再試行する
@@ -107,10 +110,18 @@ export async function sendMail(params: {
         text: params.text,
         attachments: params.attachments,
       });
+      await logActivity(
+        "メール送信",
+        `宛先 ${params.to}${params.cc?.length ? ` (CC: ${params.cc.join(",")})` : ""} / 件名 ${params.subject}`
+      );
       return { ok: true, message: "送信しました" };
     } catch (e) {
       lastDetail = e instanceof Error ? e.message : String(e);
       if (lastDetail.includes("cloudflare")) {
+        await logActivity(
+          "エラー",
+          `メール送信失敗: 宛先 ${params.to} / 件名 ${params.subject} / Cloudflare(本番のみ送信可)`
+        );
         return {
           ok: false,
           message: "メール送信に失敗しました(本番環境(Cloudflare)でのみ送信できます)",
@@ -120,6 +131,10 @@ export async function sendMail(params: {
       if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
     }
   }
+  await logActivity(
+    "エラー",
+    `メール送信失敗: 宛先 ${params.to} / 件名 ${params.subject} / ${lastDetail}`
+  );
   return { ok: false, message: `メール送信に失敗しました(${lastDetail})` };
 }
 

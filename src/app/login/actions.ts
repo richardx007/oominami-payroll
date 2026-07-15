@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { logActivity } from "@/lib/log";
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -58,5 +59,6 @@ export async function requestPasswordReset(
     };
   }
 
+  await logActivity("メール送信", `パスワード再設定メール(本人申請): ${email}`);
   return { ok: true, message: NEUTRAL_MESSAGE };
 }

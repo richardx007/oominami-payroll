@@ -32,6 +32,14 @@ export default function LoginPage() {
       return;
     }
 
+    // 操作ログ(ログイン)を記録。失敗しても無視する
+    try {
+      await supabase.rpc("log_activity", {
+        p_action: "ログイン",
+        p_detail: email,
+      });
+    } catch {}
+
     router.push("/");
     router.refresh();
   }
