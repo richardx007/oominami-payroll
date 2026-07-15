@@ -223,8 +223,10 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
   await logActivity(
     "打刻",
     `${type === "in" ? "出勤" : "退勤"} ${time}${
-      out_of_range === true ? ` (圏外 約${Math.round(distance_m!)}m)` : ""
-    }${location_denied && hasBase ? " (位置なし)" : ""}`
+      Number.isFinite(roundMin) && roundMin > 1 ? `(丸め${roundMin}分)` : ""
+    }${out_of_range === true ? ` (圏外 約${Math.round(distance_m!)}m)` : ""}${
+      location_denied && hasBase ? " (位置なし)" : ""
+    }`
   );
   revalidatePath("/timesheet");
 
