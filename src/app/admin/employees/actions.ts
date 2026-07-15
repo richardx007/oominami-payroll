@@ -364,14 +364,29 @@ export async function deleteEmployee(
   await requireAdmin();
   const supabase = await createClient();
 
+  // ログ用に削除前の氏名・メールを控えておく
+  const { data: target } = await supabase
+    .from("employees")
+    .select("employee_no, name, email")
+    .eq("id", employeeId)
+    .maybeSingle();
+
   const { error } = await supabase.rpc("delete_employee", {
     p_employee_id: employeeId,
   });
 
   if (error) {
+    await logActivity(
+      "エラー",
+      `従業員削除に失敗: ${target?.name ?? employeeId} / ${error.message}`
+    );
     return { ok: false, message: "削除に失敗しました: " + error.message };
   }
 
+  await logActivity(
+    "削除",
+    `従業員を削除: ${target?.employee_no ?? ""} ${target?.name ?? ""} (${target?.email ?? employeeId})`
+  );
   revalidatePath("/admin/employees");
   return { ok: true, message: "従業員と関連データを削除しました" };
 }
