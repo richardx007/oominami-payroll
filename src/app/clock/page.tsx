@@ -12,21 +12,26 @@ export default async function ClockPage({
   const clockType: "in" | "out" = type === "out" ? "out" : "in";
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("app_settings")
-    .select("key, value")
-    .in("key", ["clock_base_lat", "clock_base_lng", "clock_radius_m"]);
-  const s = new Map((data ?? []).map((r) => [r.key, r.value]));
+  // app_settings は管理者のみ SELECT 可のため、clock_* だけ返す関数で取得する
+  const { data } = await supabase.rpc("get_clock_settings");
+  const s = new Map(
+    ((data ?? []) as { key: string; value: string }[]).map((r) => [
+      r.key,
+      r.value,
+    ])
+  );
   const hasBase =
     Number.isFinite(parseFloat(s.get("clock_base_lat") ?? "")) &&
     Number.isFinite(parseFloat(s.get("clock_base_lng") ?? "")) &&
     parseInt(s.get("clock_radius_m") ?? "", 10) > 0;
+  const roundMin = parseInt(s.get("clock_round_min") ?? "", 10) || 0;
 
   return (
     <ClockConfirm
       employeeName={employee.name}
       type={clockType}
       locationEnabled={hasBase}
+      roundMin={roundMin}
     />
   );
 }

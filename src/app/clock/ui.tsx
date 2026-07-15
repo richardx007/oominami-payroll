@@ -6,14 +6,30 @@ import { punchClock, type ClockResult } from "./actions";
 
 type Coords = { lat: number; lng: number; accuracy: number | null };
 
+/** "HH:MM" を単位(分)で丸める(サーバーの roundTime と同じ挙動・表示用) */
+function roundHHMM(hhmm: string, unit: number, dir: "up" | "down"): string {
+  if (!hhmm || !Number.isFinite(unit) || unit <= 1) return hhmm;
+  const [h, m] = hhmm.split(":").map(Number);
+  const total = h * 60 + m;
+  let r =
+    dir === "up"
+      ? Math.ceil(total / unit) * unit
+      : Math.floor(total / unit) * unit;
+  if (r > 1439) r = 1439;
+  if (r < 0) r = 0;
+  return `${String(Math.floor(r / 60)).padStart(2, "0")}:${String(r % 60).padStart(2, "0")}`;
+}
+
 export function ClockConfirm({
   employeeName,
   type,
   locationEnabled,
+  roundMin,
 }: {
   employeeName: string;
   type: "in" | "out";
   locationEnabled: boolean;
+  roundMin: number;
 }) {
   const isIn = type === "in";
   const [now, setNow] = useState<string>("");
@@ -130,6 +146,12 @@ export function ClockConfirm({
             <p className="mt-2 text-center text-3xl font-bold tabular-nums text-gray-800">
               {now}
             </p>
+            {now && (
+              <p className="mt-1 text-center text-sm text-gray-500">
+                {roundHHMM(now, roundMin, isIn ? "up" : "down")}{" "}
+                {isIn ? "出勤" : "退勤"} とみなします。
+              </p>
+            )}
 
             {locationEnabled && (
               <p className="mt-3 text-center text-xs text-gray-500">
