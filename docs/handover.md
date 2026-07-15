@@ -222,6 +222,15 @@
 - **給与明細メールに日別明細**: `buildPayslipMailText` に `dailyRows` を追加し ＜日別明細＞(日付・出勤〜退勤・
   休憩・勤務・交通費・昼食補助) を本文末尾へ。日付=MM/DD、時刻/休憩/勤務=HH:MM(2桁ゼロ埋め)で桁揃え。
   行生成は `emailPayslips`(当期 work_entries＋昼食補助日額)。勤務表の合計行右端は「一覧」を常時表示。
+- **給与明細の印刷/PDF**: 横に切れる問題を `globals.css` の `@media print`＋`.print-report` で解消
+  (html 11px/表9px・A4縦余白10mm・overflow可視化・桁の多い金額は折返し)。表コンテナに `print-report` 付与。
+- **操作ログ機能**: `activity_logs` テーブル＋`log_activity(action,detail)`(SECURITY DEFINER・90日で自動削除・
+  削除自体も記録)。記録: ログイン(login/page)、パスワード設定(set-password)、メール送信(`sendMail` 全経路＋
+  Supabase認証メール=初回登録/再設定申請/管理者発行)、エラー(締め・税額表取込・メール送信失敗など)、
+  従業員削除(deleteEmployee)。登録/編集/退職は記録しない。閲覧は `/admin/logs`(管理者・表形式・1行1ログ・
+  列揃え・日替わり区切り線・最新300件)。記録ヘルパーは `src/lib/log.ts`(best-effort)。メニューは PC サイドバー
+  に「ログ」追加、スマホは下部タブに収まらないため **設定・ログをハンバーガー(右下・最小幅カード)** に集約。
+  ⚠️ ログ記録用に `log_activity` は anon にも実行付与している(ログイン/初回登録前でも呼ぶため)。
 - **給与明細(締め処理)ヘッダ微調整**: タイトル削除、期間を「締め日：{終了日}、支払日 {支払日}」の1行に、
   締め済みボタンを2行構成(1行目=締め解除/支払済み、2行目=従業員へ/税理士へ/印刷/CSV)、所得税セルを nowrap。
   前月翌月を ＜ 年月 ＞ 化しホーム/給与明細の年月配色を勤務表に統一。
@@ -323,6 +332,8 @@ npm test           # Vitest（給与計算ロジック）
   page は廃止し、締め処理画面 `admin/close` から ui のアイコンボタンを利用）。
 - 連絡のCC・管理者宛先: `src/app/admin/notices/actions.ts`・`src/lib/email.ts`（`getAdminEmails`）。
 - お知らせ未読バッジ: `src/app/(employee)/{layout,nav}.tsx`（localStorage `notices_seen_at` + `useSyncExternalStore`）。
+- 操作ログ: 記録ヘルパー `src/lib/log.ts`（`log_activity` RPC）、閲覧 `src/app/admin/logs/page.tsx`、DB関数 `log_activity`
+  （90日自動削除・削除も記録）。記録追加は各アクションで `logActivity("種別", "詳細")` を呼ぶだけ。
 - PWAアイコン生成: `scripts/generate-icons.mjs`（手動実行。sharp で PNG 生成。ビルドには含めない）。
 - **認証メールの発行（超重要）**: 初回登録は `src/app/register/actions.ts` の `sendRegisterLink`、
   再設定は `admin/employees/actions.ts` の `resetEmployeePassword`・`login/actions.ts` の
