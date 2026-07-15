@@ -97,7 +97,7 @@ export function AdminBottomNav() {
           onClick={() => setMenuOpen(false)}
         >
           <div
-            className="absolute inset-x-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom))] border-t border-white/15 bg-[#152449] text-white"
+            className="absolute bottom-[calc(3.5rem+env(safe-area-inset-bottom))] right-2 min-w-[8rem] overflow-hidden rounded-xl border border-white/15 bg-[#152449] text-white shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             {moreLinks.map((l) => {
@@ -108,11 +108,11 @@ export function AdminBottomNav() {
                   key={l.href}
                   href={l.href}
                   onClick={() => setMenuOpen(false)}
-                  className={`flex touch-manipulation items-center gap-3 px-5 py-3 text-base font-medium active:opacity-70 ${
+                  className={`flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium active:opacity-70 ${
                     active ? "bg-white/10 text-white" : "text-blue-50"
                   }`}
                 >
-                  <Icon className="h-6 w-6 shrink-0" />
+                  <Icon className="h-5 w-5 shrink-0" />
                   {l.label}
                 </Link>
               );
