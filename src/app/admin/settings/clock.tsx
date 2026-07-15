@@ -15,11 +15,13 @@ export function ClockSettingsForm({
   lng,
   radiusM,
   policy,
+  roundMin,
 }: {
   lat: string;
   lng: string;
   radiusM: string;
   policy: string;
+  roundMin: string;
 }) {
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -35,6 +37,7 @@ export function ClockSettingsForm({
   );
   const [radius, setRadius] = useState(radiusM || "100");
   const [pol, setPol] = useState(policy === "reject" ? "reject" : "warn");
+  const [round, setRound] = useState(roundMin || "0");
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -121,6 +124,7 @@ export function ClockSettingsForm({
     fd.set("clock_base_lng", pos ? String(pos.lng) : "");
     fd.set("clock_radius_m", radius || "0");
     fd.set("clock_out_of_range", pol);
+    fd.set("clock_round_min", round || "0");
     startTransition(async () => setResult(await updateClockSettings(fd)));
   }
 
@@ -180,6 +184,22 @@ export function ClockSettingsForm({
             <option value="warn">警告のみ(打刻は許可し、記録に残す)</option>
             <option value="reject">打刻拒否(圏外では打刻できない)</option>
           </select>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium">
+            打刻時刻の丸め(分単位)
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={60}
+            value={round}
+            onChange={(e) => setRound(e.target.value)}
+            className={`${inputClass} sm:max-w-[10rem]`}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            0または1で丸めなし。例: 30 の場合、出勤は切り上げ(8:45→9:00)、退勤は切り捨て(18:50→18:30)。
+          </p>
         </div>
       </div>
 

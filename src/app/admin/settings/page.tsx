@@ -56,6 +56,7 @@ export default async function SettingsPage() {
         lng={settingsMap.get("clock_base_lng") ?? ""}
         radiusM={settingsMap.get("clock_radius_m") ?? ""}
         policy={settingsMap.get("clock_out_of_range") ?? "warn"}
+        roundMin={settingsMap.get("clock_round_min") ?? "0"}
       />
       <TaxTableForm rows={(taxYears ?? []) as TaxTableRow[]} />
     </div>

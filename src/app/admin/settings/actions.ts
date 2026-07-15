@@ -50,6 +50,7 @@ const clockSchema = z.object({
   clock_base_lng: z.string(),
   clock_radius_m: z.coerce.number().int().min(0),
   clock_out_of_range: z.enum(["reject", "warn"]),
+  clock_round_min: z.coerce.number().int().min(0).max(60),
 });
 
 /** QR打刻の位置ポリシー(基準座標・半径・圏外時の扱い)を保存する */
@@ -78,6 +79,7 @@ export async function updateClockSettings(
     { key: "clock_base_lng", value: d.clock_base_lng.trim() },
     { key: "clock_radius_m", value: String(d.clock_radius_m) },
     { key: "clock_out_of_range", value: d.clock_out_of_range },
+    { key: "clock_round_min", value: String(d.clock_round_min) },
   ];
   const { error } = await supabase
     .from("app_settings")

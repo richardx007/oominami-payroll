@@ -38,6 +38,23 @@ function haversineMeters(
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+/** "HH:MM" を単位(分)で丸める。up=切り上げ(出勤) / down=切り捨て(退勤)。unit<=0 は丸めなし */
+function roundTime(hhmm: string, unit: number, dir: "up" | "down"): string {
+  if (!Number.isFinite(unit) || unit <= 1) return hhmm;
+  const [h, m] = hhmm.split(":").map(Number);
+  const total = h * 60 + m;
+  let rounded =
+    dir === "up"
+      ? Math.ceil(total / unit) * unit
+      : Math.floor(total / unit) * unit;
+  // 24:00 以上は当日内(23:59)に丸める。負値は0に。
+  if (rounded > 1439) rounded = 1439;
+  if (rounded < 0) rounded = 0;
+  const rh = Math.floor(rounded / 60);
+  const rm = rounded % 60;
+  return `${String(rh).padStart(2, "0")}:${String(rm).padStart(2, "0")}`;
+}
+
 /**
  * QR打刻。出勤/退勤を打刻し work_entries に反映する。
  * - 時刻はサーバー(JST)の現在時刻を用いる(クライアント時刻は信頼しない)。
@@ -59,12 +76,14 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
       "clock_base_lng",
       "clock_radius_m",
       "clock_out_of_range",
+      "clock_round_min",
     ]);
   const s = new Map((settingsRows ?? []).map((r) => [r.key, r.value]));
   const baseLat = parseFloat(s.get("clock_base_lat") ?? "");
   const baseLng = parseFloat(s.get("clock_base_lng") ?? "");
   const radius = parseInt(s.get("clock_radius_m") ?? "", 10);
   const policy = s.get("clock_out_of_range") === "reject" ? "reject" : "warn";
+  const roundMin = parseInt(s.get("clock_round_min") ?? "", 10);
   const hasBase =
     Number.isFinite(baseLat) && Number.isFinite(baseLng) && radius > 0;
   const hasCoords =
@@ -107,7 +126,8 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
   }
 
   const date = todayJST();
-  const time = nowTimeJST();
+  // 丸め: 出勤は単位で切り上げ、退勤は切り捨て(単位0/未設定なら丸めなし)
+  const time = roundTime(nowTimeJST(), roundMin, type === "in" ? "up" : "down");
   let workEntryId: string | null = null;
 
   if (type === "in") {
@@ -143,33 +163,34 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     }
     workEntryId = ins.id;
   } else {
-    // 退勤: 直近の未退勤レコードを優先。無ければ直近のレコードに上書き(再退勤)。
+    // 退勤の紐付け対象を決める。未来日の別レコードに書かないよう work_date <= 当日 に限定する。
+    // 1) 当日以前で「未退勤(end なし)」の直近レコード(=現在のシフト。前日出勤の深夜勤務にも対応)
     const { data: open } = await supabase
       .from("work_entries")
       .select("id, start_time")
       .eq("employee_id", employee.id)
+      .lte("work_date", date)
       .is("end_time", null)
       .not("start_time", "is", null)
       .order("work_date", { ascending: false })
       .limit(1)
       .maybeSingle();
     let target = open;
+    // 2) 未退勤が無ければ「当日」のレコードに上書き(再退勤・訂正)
     if (!target) {
-      const { data: latest } = await supabase
+      const { data: todayEntry } = await supabase
         .from("work_entries")
         .select("id, start_time")
         .eq("employee_id", employee.id)
+        .eq("work_date", date)
         .not("start_time", "is", null)
-        .order("work_date", { ascending: false })
-        .order("start_time", { ascending: false })
-        .limit(1)
         .maybeSingle();
-      target = latest ?? null;
+      target = todayEntry ?? null;
     }
     if (!target) {
       return {
         ok: false,
-        message: "出勤の記録が見つかりません。先に出勤QRを読み取ってください。",
+        message: "本日の出勤記録が見つかりません。先に出勤QRを読み取ってください。",
       };
     }
     // 休憩の自動判定: 総時間(end-start, 日跨ぎ補正込み)が6時間以上なら60分
