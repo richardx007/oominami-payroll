@@ -1,6 +1,6 @@
 # 引き継ぎ書（次セッション向け）
 
-最終更新: 2026-07-13
+最終更新: 2026-07-15
 
 このドキュメントは、別セッション（別の開発者・AIエージェント）が本プロジェクトを
 継続開発するための引き継ぎ資料です。あわせて `docs/design.md`（設計書）と
@@ -216,6 +216,19 @@
 - **給与明細 合計表示**: 見出し下に 総支給/源泉所得税/差引支給 を1項目1行・濃い黒字・金額右寄せ(`admin/close/page.tsx`)。
 - **税額表 先頭行除外＋非課税判定**: 取込時に「(最小額)円未満→0」の変則行(未満空で以上に最小額)を除外
   (`settings/actions.ts`)。表の最小「以上」未満は `computeIncomeTax` が非課税(0円)判定(`lib/payroll.ts`＋テスト)。
+- **QR打刻(実装済み・運用テスト中)**: 職場に出勤/退勤QR(`/clock?type=in|out`)を掲示→カメラで読取→確認画面OKで
+  サーバー時刻(JST)を `work_entries` に打刻。出勤=当日2回目以降エラー、退勤=直近の未退勤(当日以前)→無ければ当日
+  レコードに上書き(**未来日の別レコードを拾わない**)。休憩は総6h以上で60分自動。時刻の丸め(`clock_round_min`)は
+  出勤=切上/退勤=切捨、確認画面に「HH:MM 出勤/退勤 とみなします。」表示。退勤ブランク許容のため
+  `work_entries.end_time` を NULL 化し、勤務表/カレンダー/一覧/ダッシュボードで退勤未入力を黄色警告、締めは
+  `computePayslip` が「退勤未入力の日があります」で従業員を列挙して止める。位置は設定の基準座標(地図ピン留め・
+  Leaflet+OSM)＋半径で判定、`clock_out_of_range`=warn/reject。`clock_events` に監査記録、操作ログに「打刻」。
+  - ⚠️ **落とし穴**: `app_settings` は管理者のみ SELECT 可。打刻は従業員セッションなので直接読むと**空になり丸め・
+    位置設定が無効化**する。必ず **`get_clock_settings()`(SECURITY DEFINER)** 経由で読むこと(`/clock` の
+    page/actions とも修正済み)。
+  - 実装: `src/app/clock/{page,ui,actions}.ts(x)`、`admin/settings/clock.tsx`(地図/半径/圏外/丸め/QR生成印刷)、
+    `admin/settings/actions.ts` の `updateClockSettings`、DB: `clock_events`・関数 `get_clock_settings`・
+    `app_settings` の clock_* キー。依存追加: `leaflet` / `qrcode`。
 - **締め処理「処理中...」固着の解消**: `admin/close/ui.tsx` の `run()` を `useTransition` の pending から
   明示的な busy 状態に変更し `finally` で必ず解除(router.refresh を挟むと pending が戻らない事象への対処)。
   `closePeriod` も想定外例外を ActionResult 化。※固着時もサーバー側の締めは成功していることがある点に注意。
