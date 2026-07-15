@@ -67,18 +67,15 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
   const supabase = await createClient();
   const type: "in" | "out" = input.type === "out" ? "out" : "in";
 
-  // 位置ポリシー
-  const { data: settingsRows } = await supabase
-    .from("app_settings")
-    .select("key, value")
-    .in("key", [
-      "clock_base_lat",
-      "clock_base_lng",
-      "clock_radius_m",
-      "clock_out_of_range",
-      "clock_round_min",
-    ]);
-  const s = new Map((settingsRows ?? []).map((r) => [r.key, r.value]));
+  // 位置ポリシー・丸め設定。app_settings は管理者しか SELECT できないため、
+  // clock_* だけを返す SECURITY DEFINER 関数 get_clock_settings() で取得する。
+  const { data: settingsRows } = await supabase.rpc("get_clock_settings");
+  const s = new Map(
+    ((settingsRows ?? []) as { key: string; value: string }[]).map((r) => [
+      r.key,
+      r.value,
+    ])
+  );
   const baseLat = parseFloat(s.get("clock_base_lat") ?? "");
   const baseLng = parseFloat(s.get("clock_base_lng") ?? "");
   const radius = parseInt(s.get("clock_radius_m") ?? "", 10);
