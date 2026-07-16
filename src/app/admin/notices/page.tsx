@@ -44,9 +44,9 @@ export default async function AdminNoticesPage() {
             } | null;
             return (
               <li key={n.id} className="p-4 text-sm">
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                   <span
-                    className={`rounded px-1.5 py-0.5 ${
+                    className={`shrink-0 rounded px-1.5 py-0.5 ${
                       n.type === "reminder"
                         ? "bg-amber-50 text-amber-700"
                         : n.recipient_id
@@ -60,10 +60,10 @@ export default async function AdminNoticesPage() {
                         ? "個別"
                         : "全員"}
                   </span>
-                  <span className="text-gray-500">
+                  <span className="min-w-0 break-words text-gray-500">
                     宛先: {recipient?.name ?? "全員"}
                   </span>
-                  <time className="text-gray-400">
+                  <time className="shrink-0 text-gray-400">
                     {new Date(n.sent_at).toLocaleString("ja-JP", {
                       timeZone: "Asia/Tokyo",
                       month: "numeric",
