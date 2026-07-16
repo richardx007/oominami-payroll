@@ -280,6 +280,12 @@
   SKILL.md の gotchas に「per-SWでのバナー重複防止」「更新中の可視フィードバック」「controllerchange単独に
   依存しない（フォールバックタイマー）」を追記。
 
+### 本セッションで実施した変更（2026-07-16 その3・「配信」メニュー復活）
+- **管理ナビに「配信」を復活**（`src/app/admin/nav.tsx`）。従業員へメッセージ＋メールを送る `/admin/notices` を
+  メニューから再表示。**PCサイドバーでは従業員の直後**に配置（`moreLinks` 先頭に追加）。iPhoneでは下部タブに
+  収まらないため**ハンバーガー(その他)内**に表示。紙飛行機の `SendIcon` を追加。
+- **ハンバーガーのキャプションを「メニュー」→「その他」に変更**。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > 本レスポンシブ刷新は別ブランチ `claude/responsive-mobile-layout` に切って作業中で **main 未反映**。
 > push 前は必ず `git fetch origin main` で差分確認のこと。

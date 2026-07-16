@@ -12,8 +12,10 @@ const primaryLinks = [
   { href: "/admin/close", label: "給与明細", icon: YenIcon },
   { href: "/admin/employees", label: "従業員", icon: PeopleIcon },
 ];
-// スマホでは下部の余白がないため、ハンバーガーメニューに収める
+// スマホでは下部の余白がないため、ハンバーガー(その他)に収める。
+// 「配信」は PC サイドバーでは従業員の直後に並ぶ(primaryLinks の後 = moreLinks 先頭)。
 const moreLinks = [
+  { href: "/admin/notices", label: "配信", icon: SendIcon },
   { href: "/admin/settings", label: "設定", icon: GearIcon },
   { href: "/admin/logs", label: "ログ", icon: LogIcon },
 ];
@@ -150,7 +152,7 @@ export function AdminBottomNav() {
             }`}
           >
             <MenuIcon className="h-6 w-6" />
-            メニュー
+            その他
           </button>
         </div>
       </nav>
@@ -230,6 +232,24 @@ function PeopleIcon({ className }: { className?: string }) {
       <path d="M2.5 20c0-3.3 2.9-5 6.5-5s6.5 1.7 6.5 5" />
       <path d="M16 5.2a3.2 3.2 0 0 1 0 6.1" />
       <path d="M17.5 14.4c2.6.5 4 2.2 4 5.6" />
+    </svg>
+  );
+}
+
+function SendIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 3L10 14" />
+      <path d="M21 3l-7 18-4-8-8-4 19-6z" />
     </svg>
   );
 }
