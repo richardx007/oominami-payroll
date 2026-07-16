@@ -2,6 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import type { Map as LeafletMap, CircleMarker, Circle } from "leaflet";
 import { updateClockSettings } from "./actions";
@@ -243,6 +244,9 @@ function QrCodes({
 }) {
   const [inUrl, setInUrl] = useState<string>("");
   const [outUrl, setOutUrl] = useState<string>("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const origin = window.location.origin;
@@ -310,33 +314,38 @@ function QrCodes({
         </div>
       </div>
 
-      {/* 印刷専用シート(画面では非表示。qr-print-mode の印刷時だけ表示) */}
-      <div className="qr-print-sheet">
-        <h1 className="qr-print-title">{title}</h1>
-        <div className="qr-print-codes">
-          <div className="qr-print-code">
-            <div className="qr-print-code-label qr-print-in">出勤</div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {inUrl && <img src={inUrl} alt="出勤QR" />}
-          </div>
-          <div className="qr-print-code">
-            <div className="qr-print-code-label qr-print-out">退勤</div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {outUrl && <img src={outUrl} alt="退勤QR" />}
-          </div>
-        </div>
-        <ul className="qr-print-notes">
-          <li>
-            出勤と退勤の際にそれぞれのQRコードをスマホのカメラで読み取って出退勤の登録を行なってください。
-          </li>
-          <li>
-            記録される出退勤時刻は、{roundLabel} 分単位で丸められます。
-          </li>
-          <li>
-            この職場以外からでは記録できませんので、必ずここで登録してください。
-          </li>
-        </ul>
-      </div>
+      {/* 印刷専用シートは body 直下(portal)に置く。印刷時は他の body 直下要素を
+          display:none にして高さごと除外するため、空白ページが出ない。 */}
+      {mounted &&
+        createPortal(
+          <div className="qr-print-sheet">
+            <h1 className="qr-print-title">{title}</h1>
+            <div className="qr-print-codes">
+              <div className="qr-print-code">
+                <div className="qr-print-code-label qr-print-in">出勤</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {inUrl && <img src={inUrl} alt="出勤QR" />}
+              </div>
+              <div className="qr-print-code">
+                <div className="qr-print-code-label qr-print-out">退勤</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {outUrl && <img src={outUrl} alt="退勤QR" />}
+              </div>
+            </div>
+            <ul className="qr-print-notes">
+              <li>
+                出勤と退勤の際にそれぞれのQRコードをスマホのカメラで読み取って出退勤の登録を行なってください。
+              </li>
+              <li>
+                記録される出退勤時刻は、{roundLabel} 分単位で丸められます。
+              </li>
+              <li>
+                この職場以外からでは記録できませんので、必ずここで登録してください。
+              </li>
+            </ul>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

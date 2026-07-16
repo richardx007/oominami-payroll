@@ -53,21 +53,23 @@ body {
     overflow-wrap: anywhere;
   }
 
-  /* QR印刷モード: シート以外を隠し、QRコードのみを印刷する */
-  body.qr-print-mode * {
-    visibility: hidden !important;
+  /* QR印刷モード: body 直下のシート以外を display:none にして高さごと除外。
+     これで空白ページが出ない。シートは body 直下(portal)にある。 */
+  body.qr-print-mode > *:not(.qr-print-sheet) {
+    display: none !important;
   }
   body.qr-print-mode .qr-print-sheet {
     display: block !important;
-    visibility: visible !important;
-    position: absolute;
-    left: 0;
-    top: 0;
     width: 100%;
     text-align: center;
+    /* 名前付きページに割り当て、ブラウザ既定のヘッダ/フッタを抑制する */
+    page: qrsheet;
+    padding: 14mm 12mm;
   }
-  body.qr-print-mode .qr-print-sheet * {
-    visibility: visible !important;
+  /* margin:0 でブラウザの日付/URL/ページ番号などのヘッダ・フッタを消す */
+  @page qrsheet {
+    size: A4 portrait;
+    margin: 0;
   }
   .qr-print-title {
     margin: 4mm 0 8mm;
