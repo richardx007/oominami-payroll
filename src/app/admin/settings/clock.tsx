@@ -138,85 +138,92 @@ export function ClockSettingsForm({
         「現在地を使う」で今いる場所を基準にもできます。
       </p>
 
-      <div
-        ref={mapEl}
-        className="mt-3 h-64 w-full overflow-hidden rounded-lg border border-gray-300"
-        style={{ zIndex: 0 }}
-      />
-
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={useCurrentLocation}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
-        >
-          現在地を使う
-        </button>
-        <span className="text-xs text-gray-500">
-          {pos
-            ? `基準位置: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`
-            : "基準位置: 未設定"}
-        </span>
-      </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            許容半径(メートル)
-          </label>
-          <input
-            type="number"
-            min={0}
-            value={radius}
-            onChange={(e) => setRadius(e.target.value)}
-            className={inputClass}
+      {/* PC(lg以上)では地図を2/3・縦長にし、各設定と保存ボタンを右1/3へ寄せる。
+          スクロール時にカーソルが地図に重なって拡大縮小してしまう問題を避けるため。 */}
+      <div className="mt-3 grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <div
+            ref={mapEl}
+            className="h-64 w-full overflow-hidden rounded-lg border border-gray-300 lg:h-96"
+            style={{ zIndex: 0 }}
           />
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={useCurrentLocation}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+            >
+              現在地を使う
+            </button>
+            <span className="text-xs text-gray-500">
+              {pos
+                ? `基準位置: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`
+                : "基準位置: 未設定"}
+            </span>
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            圏外での打刻の扱い
-          </label>
-          <select
-            value={pol}
-            onChange={(e) => setPol(e.target.value)}
-            className={inputClass}
+
+        <div className="lg:col-span-1">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                許容半径(メートル)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={radius}
+                onChange={(e) => setRadius(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                圏外での打刻の扱い
+              </label>
+              <select
+                value={pol}
+                onChange={(e) => setPol(e.target.value)}
+                className={inputClass}
+              >
+                <option value="warn">警告のみ(打刻は許可し、記録に残す)</option>
+                <option value="reject">打刻拒否(圏外では打刻できない)</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2 lg:col-span-1">
+              <label className="mb-1 block text-sm font-medium">
+                打刻時刻の丸め(分単位)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={60}
+                value={round}
+                onChange={(e) => setRound(e.target.value)}
+                className={`${inputClass} sm:max-w-[10rem] lg:max-w-none`}
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                0または1で丸めなし。例: 30 の場合、出勤は切り上げ(8:45→9:00)、退勤は切り捨て(18:50→18:30)。
+              </p>
+            </div>
+          </div>
+
+          {result && (
+            <p
+              className={`mt-3 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
+            >
+              {result.message}
+            </p>
+          )}
+          <button
+            onClick={save}
+            disabled={pending}
+            className="mt-3 w-full rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto lg:w-full"
           >
-            <option value="warn">警告のみ(打刻は許可し、記録に残す)</option>
-            <option value="reject">打刻拒否(圏外では打刻できない)</option>
-          </select>
-        </div>
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-sm font-medium">
-            打刻時刻の丸め(分単位)
-          </label>
-          <input
-            type="number"
-            min={0}
-            max={60}
-            value={round}
-            onChange={(e) => setRound(e.target.value)}
-            className={`${inputClass} sm:max-w-[10rem]`}
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            0または1で丸めなし。例: 30 の場合、出勤は切り上げ(8:45→9:00)、退勤は切り捨て(18:50→18:30)。
-          </p>
+            {pending ? "保存中..." : "保存する"}
+          </button>
         </div>
       </div>
-
-      {result && (
-        <p
-          className={`mt-3 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
-        >
-          {result.message}
-        </p>
-      )}
-      <button
-        onClick={save}
-        disabled={pending}
-        className="mt-3 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-      >
-        {pending ? "保存中..." : "保存する"}
-      </button>
 
       <QrCodes />
     </section>

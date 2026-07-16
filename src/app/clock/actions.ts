@@ -38,6 +38,14 @@ function haversineMeters(
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+/** 距離(メートル)を表示用に整形。1000mを超える場合はkm換算(小数点第2位以下四捨五入) */
+function formatDistance(m: number): string {
+  if (m > 1000) {
+    return `約 ${(Math.round(m / 100) / 10).toFixed(1)} km`;
+  }
+  return `約${Math.round(m)}m`;
+}
+
 /** "HH:MM" を単位(分)で丸める。up=切り上げ(出勤) / down=切り捨て(退勤)。unit<=0 は丸めなし */
 function roundTime(hhmm: string, unit: number, dir: "up" | "down"): string {
   if (!Number.isFinite(unit) || unit <= 1) return hhmm;
@@ -114,11 +122,11 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     });
     await logActivity(
       "エラー",
-      `打刻拒否(圏外): ${employee.name} ${type === "in" ? "出勤" : "退勤"} 距離約${Math.round(distance_m!)}m`
+      `打刻拒否(圏外): ${employee.name} ${type === "in" ? "出勤" : "退勤"} 距離${formatDistance(distance_m!)}`
     );
     return {
       ok: false,
-      message: `職場から約${Math.round(distance_m!)}m離れているため打刻できません。管理者にご連絡ください。`,
+      message: `職場から${formatDistance(distance_m!)}離れているため打刻できません。管理者にご連絡ください。`,
     };
   }
 
@@ -221,7 +229,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     "打刻",
     `${type === "in" ? "出勤" : "退勤"} ${time}${
       Number.isFinite(roundMin) && roundMin > 1 ? `(丸め${roundMin}分)` : ""
-    }${out_of_range === true ? ` (圏外 約${Math.round(distance_m!)}m)` : ""}${
+    }${out_of_range === true ? ` (圏外 ${formatDistance(distance_m!)})` : ""}${
       location_denied && hasBase ? " (位置なし)" : ""
     }`
   );
@@ -229,7 +237,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
 
   const warn =
     out_of_range === true
-      ? `職場から約${Math.round(distance_m!)}m離れた場所での打刻として記録しました。`
+      ? `職場から${formatDistance(distance_m!)}離れた場所での打刻として記録しました。`
       : location_denied && hasBase
         ? "位置情報が取得できなかったため、位置なしで記録しました。"
         : undefined;
