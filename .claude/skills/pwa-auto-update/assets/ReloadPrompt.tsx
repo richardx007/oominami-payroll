@@ -26,7 +26,11 @@ export function ReloadPrompt({
   position = "top",
 }: ReloadPromptProps = {}) {
   const [needRefresh, setNeedRefresh] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const waitingRef = useRef<ServiceWorker | null>(null);
+  // 同じ待機 SW を何度も通知しないための記録。ポーリング/タブ復帰/updatefound など
+  // 複数経路から同一バージョンで showBanner が呼ばれてもバナーは1回だけにする。
+  const notifiedRef = useRef<ServiceWorker | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -35,8 +39,13 @@ export function ReloadPrompt({
     const hadController = !!navigator.serviceWorker.controller;
     let timer: number | undefined;
     let reloaded = false;
+    let visibilityCleanup: (() => void) | undefined;
 
     const showBanner = (sw: ServiceWorker) => {
+      // 同一の待機 SW については一度きり通知する(再デプロイで別インスタンスが
+      // 現れたときだけ再表示)。✕で閉じた版もこれで再ポップしない。
+      if (notifiedRef.current === sw) return;
+      notifiedRef.current = sw;
       waitingRef.current = sw;
       setNeedRefresh(true);
     };
@@ -44,16 +53,22 @@ export function ReloadPrompt({
     navigator.serviceWorker
       .register("/sw.js")
       .then((reg) => {
-        // 既に待機中の新版があれば即バナー表示
-        if (reg.waiting && navigator.serviceWorker.controller) {
+        // 既に待機中の新版があれば即バナー表示。
+        // waiting は「有効な active がある状態で新版が控えている」ときだけ立つので、
+        // これ自体が更新の証拠。iOS standalone で controller が null でも判定できるよう、
+        // navigator.serviceWorker.controller には依存しない。
+        if (reg.waiting) {
           showBanner(reg.waiting);
         }
-        // 新版のインストールを検知したらバナー表示(初回インストールは除く)
+        // 新版のインストールを検知したらバナー表示(初回インストールは除く)。
+        // 初回インストール時は reg.active が無い(まだ何も有効化されていない)ため、
+        // reg.active の有無で「更新」か「初回」かを判別する(controller 非依存)。
         reg.addEventListener("updatefound", () => {
           const nw = reg.installing;
           if (!nw) return;
+          const hadActive = !!reg.active;
           nw.addEventListener("statechange", () => {
-            if (nw.state === "installed" && navigator.serviceWorker.controller) {
+            if (nw.state === "installed" && hadActive) {
               showBanner(reg.waiting ?? nw);
             }
           });
@@ -62,6 +77,20 @@ export function ReloadPrompt({
         timer = window.setInterval(() => {
           reg.update().catch(() => {});
         }, intervalMs);
+        // iOS standalone はバックグラウンドから復帰(再表示)することが多いので、
+        // 可視化のたびに更新チェックし、待機中の新版があればバナーを出す。
+        const onVisible = () => {
+          if (document.visibilityState !== "visible") return;
+          reg
+            .update()
+            .then(() => {
+              if (reg.waiting) showBanner(reg.waiting);
+            })
+            .catch(() => {});
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        visibilityCleanup = () =>
+          document.removeEventListener("visibilitychange", onVisible);
       })
       .catch(() => {});
 
@@ -76,6 +105,7 @@ export function ReloadPrompt({
 
     return () => {
       if (timer) window.clearInterval(timer);
+      visibilityCleanup?.();
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
     };
   }, [intervalMs]);
@@ -117,17 +147,25 @@ export function ReloadPrompt({
         <span>{message}</span>
         <button
           type="button"
+          disabled={updating}
           onClick={() => {
+            if (updating) return;
+            // クリックが効いたことを伝えるため、まず「更新中...」に切り替える。
+            setUpdating(true);
             // iOS Safari(standalone)では controllerchange や非同期処理が確実に動かない
-            // ことがあるため、最小限かつ同期的に処理する:
-            //   1) 待機中の新 SW に SKIP_WAITING を投げる(ベストエフォート)
-            //   2) 直ちにリロード。この SW はキャッシュしないので、リロード＝最新版取得。
+            // ことがあるため、最小限かつ確実に処理する:
+            //   1) 待機中の新 SW に SKIP_WAITING を投げる(ベストエフォート)。有効化されると
+            //      controllerchange でリロードされる。
+            //   2) 発火しない環境向けに、少し待ってからフォールバックでリロードする。
+            //      この SW はキャッシュしないので、リロード＝最新版取得。
             try {
               waitingRef.current?.postMessage({ type: "SKIP_WAITING" });
             } catch {
               /* 失敗してもリロードする */
             }
-            window.location.reload();
+            // 「更新中...」を一瞬見せてからリロード(controllerchange が先に来れば
+            // そちらでリロードされ、このタイマーは実行前に遷移する)。
+            window.setTimeout(() => window.location.reload(), 800);
           }}
           style={{
             display: "inline-flex",
@@ -141,31 +179,34 @@ export function ReloadPrompt({
             minHeight: 40,
             fontSize: 15,
             fontWeight: 700,
-            cursor: "pointer",
+            cursor: updating ? "default" : "pointer",
+            opacity: updating ? 0.75 : 1,
             touchAction: "manipulation",
             WebkitTapHighlightColor: "rgba(255,255,255,0.3)",
           }}
         >
-          {buttonLabel}
+          {updating ? "更新中..." : buttonLabel}
         </button>
-        <button
-          type="button"
-          onClick={() => setNeedRefresh(false)}
-          aria-label="閉じる"
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "rgba(255,255,255,0.6)",
-            padding: 10,
-            minHeight: 40,
-            fontSize: 18,
-            lineHeight: 1,
-            cursor: "pointer",
-            touchAction: "manipulation",
-          }}
-        >
-          ✕
-        </button>
+        {!updating && (
+          <button
+            type="button"
+            onClick={() => setNeedRefresh(false)}
+            aria-label="閉じる"
+            style={{
+              border: "none",
+              background: "transparent",
+              color: "rgba(255,255,255,0.6)",
+              padding: 10,
+              minHeight: 40,
+              fontSize: 18,
+              lineHeight: 1,
+              cursor: "pointer",
+              touchAction: "manipulation",
+            }}
+          >
+            ✕
+          </button>
+        )}
       </div>
     </div>
   );
