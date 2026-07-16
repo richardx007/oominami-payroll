@@ -267,6 +267,19 @@
   時刻の丸め／保存ボタン**を縦並び配置。理由はスクロール時にカーソルが地図に重なると地図ズームが誤作動して
   スクロールしづらいため、地図に重なる面積を縮小した。スマホ/タブレット（lg未満）は従来の縦積みを維持。
 
+### 本セッションで実施した変更（2026-07-16 その2・PWA更新バナー改善）
+- **更新バナーが1デプロイで2〜3回出る問題を解消**（`src/app/pwa/ReloadPrompt.tsx`）。原因は、待機中の新SW
+  （`reg.waiting`）は1つなのに、①登録時の `reg.waiting`、②`updatefound`、③約1分ごとのポーリング、
+  ④タブ復帰の `visibilitychange` の**複数経路が同じSWに対して繰り返し `showBanner` を呼ぶ**こと。
+  `notifiedRef`（通知済みSWインスタンスを記録）を追加し**同一バージョンは1回だけ通知**。✕で閉じた版も
+  再ポップせず、本当に新しいデプロイ（別インスタンス）のときだけ再表示する。
+- **更新ボタンにクリックフィードバックを追加**: 押下で `更新中...` に切替＋ボタン無効化（✕も一時非表示）。
+  SKIP_WAITING送信後、`controllerchange` を優先しつつ発火しない環境向けに**0.8秒のフォールバックタイマー**で
+  リロード（この遅延が「更新中...」を一瞬見せる役割も果たす）。iOS standalone 対策。
+- **スキル `.claude/skills/pwa-auto-update/` を更新**: `assets/ReloadPrompt.tsx` を本番最新へ同期し、
+  SKILL.md の gotchas に「per-SWでのバナー重複防止」「更新中の可視フィードバック」「controllerchange単独に
+  依存しない（フォールバックタイマー）」を追記。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > 本レスポンシブ刷新は別ブランチ `claude/responsive-mobile-layout` に切って作業中で **main 未反映**。
 > push 前は必ず `git fetch origin main` で差分確認のこと。

@@ -20,7 +20,7 @@ The service worker is **generated at build time** (`generate-sw.mjs`) and is del
 These three files are identical for Next.js and Vite:
 
 - `assets/reloadApp.ts` — `reloadApp()` tap-to-refresh (SKIP_WAITING → controllerchange → reload, with a fallback timer for iOS).
-- `assets/ReloadPrompt.tsx` — `<ReloadPrompt />` banner using plain `navigator.serviceWorker` (no deps). Its update button reloads **synchronously** (iOS Safari doesn't reliably fire `controllerchange`).
+- `assets/ReloadPrompt.tsx` — `<ReloadPrompt />` banner using plain `navigator.serviceWorker` (no deps). Its update button shows an **"updating…" state**, posts `SKIP_WAITING`, and reloads via `controllerchange` with a short fallback timer (iOS Safari doesn't reliably fire `controllerchange`). It also **de-duplicates notifications per waiting SW** so one deploy shows the banner once.
 - `assets/generate-sw.mjs` — build-time generator → `public/sw.js`, stamped with `SW_VERSION` (git short SHA; fallback `Date.now()`). The SW has **no `fetch` listener**; on `activate` it clears stale caches and `clients.claim()`s.
 
 Common wiring for both:
@@ -88,7 +88,9 @@ For a real check, drive a headless browser against the prod build: confirm the S
 ## Design notes / gotchas (learned the hard way)
 
 - **No `fetch` handler = cannot break navigation.** Keep it that way; never add runtime/navigation caching to this SW.
-- **iOS standalone: the update button must reload synchronously.** iOS Safari (home-screen) doesn't reliably fire `controllerchange`, so relying on it makes the button look dead. The banner posts `SKIP_WAITING` best-effort then calls `window.location.reload()` synchronously, with a large tap target + `touch-action: manipulation`.
+- **iOS standalone: don't depend on `controllerchange` alone to reload.** iOS Safari (home-screen) doesn't reliably fire it, so relying on it makes the button look dead. The banner posts `SKIP_WAITING` best-effort, then reloads — `controllerchange` first if it fires, otherwise a short fallback timer (~0.8s) forces `window.location.reload()`. Large tap target + `touch-action: manipulation`.
+- **Give the update button a visible "updating…" state.** A same-tab reload gives no feedback that the tap registered, so users tap repeatedly. On click, switch the label to "更新中…"/"Updating…" and disable the button (hide the ✕) *before* reloading; the short fallback-timer delay is what makes that state briefly visible.
+- **De-duplicate the banner per waiting SW, or it appears 2–3× per deploy.** A single deploy = one waiting worker, but `reg.waiting` at register, `updatefound`, the ~1-min poll, and every `visibilitychange` each call `showBanner` for that *same* worker. Track the notified `ServiceWorker` instance in a ref and show once; a genuinely new deploy is a different instance, so it re-notifies. This also keeps a ✕-dismissed version from popping back on the next poll/focus.
 - **Update detection needs the SW script to change per deploy** — that's why `SW_VERSION` is stamped. Browsers fetch the SW script bypassing the HTTP cache, so a new deploy is picked up on the next update check (navigation, or the ~1-min poll in `ReloadPrompt`).
 - **First install must not auto-reload.** `ReloadPrompt` guards its `controllerchange` reload behind "was there a controller at mount?".
 - **Recovering a fleet stuck on a bad (caching) SW:** deploy a `/sw.js` that unregisters itself + clears caches (kill-switch), or deploy this minimal SW (it replaces the bad one and, having no `fetch` handler, restores navigation). iOS may need a full quit+relaunch to pick up the new SW.
@@ -99,7 +101,7 @@ For a real check, drive a headless browser against the prod build: confirm the S
 | --- | --- |
 | `assets/generate-sw.mjs` | Build-time generator for `public/sw.js` (minimal, no `fetch`, version-stamped). Shared. |
 | `assets/reloadApp.ts` | `reloadApp()` tap-to-refresh. Shared. |
-| `assets/ReloadPrompt.tsx` | `<ReloadPrompt />` update banner (synchronous-reload button for iOS). Shared. |
+| `assets/ReloadPrompt.tsx` | `<ReloadPrompt />` update banner (per-SW dedupe + "updating…" state, iOS-safe reload). Shared. |
 | `assets/snippets/layout.tsx` | **Next.js** root-layout wiring reference. |
 | `assets/snippets/manifest.ts` | **Next.js** `app/manifest.ts` reference. |
 | `assets/snippets/vite-App.tsx` | **Vite** app-root wiring reference (ReloadPrompt + logo). |
