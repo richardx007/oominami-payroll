@@ -11,12 +11,14 @@ const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
 export function ClockSettingsForm({
+  companyName,
   lat,
   lng,
   radiusM,
   policy,
   roundMin,
 }: {
+  companyName: string;
   lat: string;
   lng: string;
   radiusM: string;
@@ -225,26 +227,52 @@ export function ClockSettingsForm({
         </div>
       </div>
 
-      <QrCodes />
+      <QrCodes companyName={companyName} roundMin={round} />
     </section>
   );
 }
 
-/** 出勤/退勤QRの表示・印刷。URLは現在のオリジンから生成する */
-function QrCodes() {
+/** 出勤/退勤QRの表示・印刷。URLは現在のオリジンから生成する。
+ *  印刷時は QR コードのみ(会社名タイトル＋説明つき)を印刷する専用シートを出す。 */
+function QrCodes({
+  companyName,
+  roundMin,
+}: {
+  companyName: string;
+  roundMin: string;
+}) {
   const [inUrl, setInUrl] = useState<string>("");
   const [outUrl, setOutUrl] = useState<string>("");
 
   useEffect(() => {
     const origin = window.location.origin;
-    QRCode.toDataURL(`${origin}/clock?type=in`, { width: 320, margin: 1 }).then(
+    QRCode.toDataURL(`${origin}/clock?type=in`, { width: 480, margin: 1 }).then(
       setInUrl
     );
     QRCode.toDataURL(`${origin}/clock?type=out`, {
-      width: 320,
+      width: 480,
       margin: 1,
     }).then(setOutUrl);
   }, []);
+
+  // 打刻時刻の丸め単位(0/1は丸めなし=1分単位として表示)
+  const roundN = parseInt(roundMin, 10);
+  const roundLabel = Number.isFinite(roundN) && roundN > 1 ? roundN : 1;
+  const title = `${companyName ? companyName + "　" : ""}出退勤登録用QRコード`;
+
+  // QR のみを印刷する: body に印刷モードのクラスを付けてから印刷し、後で外す。
+  const handlePrint = () => {
+    if (typeof document === "undefined") return;
+    document.body.classList.add("qr-print-mode");
+    const cleanup = () => {
+      document.body.classList.remove("qr-print-mode");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    // afterprint が発火しない環境向けのフォールバック
+    window.setTimeout(cleanup, 1000);
+    window.print();
+  };
 
   return (
     <div className="mt-6 border-t border-gray-100 pt-4">
@@ -254,16 +282,18 @@ function QrCodes() {
         </h3>
         <button
           type="button"
-          onClick={() => window.print()}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 print:hidden"
+          onClick={handlePrint}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
         >
           印刷
         </button>
       </div>
-      <p className="mt-1 text-sm text-gray-500 print:hidden">
+      <p className="mt-1 text-sm text-gray-500">
         職場に掲示してください。従業員はスマホのカメラで読み取り、確認画面でOKすると打刻されます。
+        「印刷」ではQRコードのみが印刷されます。
       </p>
-      <div className="clock-qr-print mt-4 grid grid-cols-2 gap-4">
+      {/* 画面プレビュー用 */}
+      <div className="mt-4 grid grid-cols-2 gap-4">
         <div className="rounded-xl border-2 border-green-600 p-4 text-center">
           <div className="text-lg font-bold text-green-700">出勤</div>
           {inUrl && (
@@ -278,6 +308,34 @@ function QrCodes() {
             <img src={outUrl} alt="退勤QR" className="mx-auto mt-2 w-full max-w-[220px]" />
           )}
         </div>
+      </div>
+
+      {/* 印刷専用シート(画面では非表示。qr-print-mode の印刷時だけ表示) */}
+      <div className="qr-print-sheet">
+        <h1 className="qr-print-title">{title}</h1>
+        <div className="qr-print-codes">
+          <div className="qr-print-code">
+            <div className="qr-print-code-label qr-print-in">出勤</div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {inUrl && <img src={inUrl} alt="出勤QR" />}
+          </div>
+          <div className="qr-print-code">
+            <div className="qr-print-code-label qr-print-out">退勤</div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {outUrl && <img src={outUrl} alt="退勤QR" />}
+          </div>
+        </div>
+        <ul className="qr-print-notes">
+          <li>
+            出勤と退勤の際にそれぞれのQRコードをスマホのカメラで読み取って出退勤の登録を行なってください。
+          </li>
+          <li>
+            記録される出退勤時刻は、{roundLabel} 分単位で丸められます。
+          </li>
+          <li>
+            この職場以外からでは記録できませんので、必ずここで登録してください。
+          </li>
+        </ul>
       </div>
     </div>
   );

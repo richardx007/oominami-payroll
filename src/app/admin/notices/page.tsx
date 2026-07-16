@@ -25,7 +25,7 @@ export default async function AdminNoticesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">連絡・催促</h1>
+        <h1 className="text-xl font-bold">配信</h1>
         <p className="mt-1 text-sm text-gray-500">
           個別連絡・入力催促・全員への一斉報知を送れます(アプリ内お知らせに表示)
         </p>
