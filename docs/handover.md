@@ -297,6 +297,11 @@
   - `ClockSettingsForm` に `companyName` prop を追加（page から `app_settings.company_name` を渡す）。丸め単位は
     フォームのライブ値 `round` を `QrCodes` に渡す（保存前の編集も印刷に反映）。
   - ⚠️ 税理士資料など他画面の印刷（`.print-report`）は `qr-print-mode` を付けないため影響なし。
+  - **空白ページ／ヘッダ・フッタ対策（追修正）**: 当初 `visibility:hidden` で隠したが、隠した設定画面が高さを
+    保持して**空白ページが2枚出た**。対策として印刷シートを **`createPortal` で `body` 直下**に出し、印刷時は
+    `body.qr-print-mode > *:not(.qr-print-sheet){display:none}` で**高さごと除外**。ブラウザ既定の日付/URL/
+    ページ番号ヘッダ・フッタは**名前付き `@page qrsheet { margin:0 }`**（シートに `page:qrsheet` を割当）で抑制し、
+    シート側に `padding:14mm 12mm` を持たせて余白を確保。
 
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > 本レスポンシブ刷新は別ブランチ `claude/responsive-mobile-layout` に切って作業中で **main 未反映**。
