@@ -22,6 +22,11 @@ body {
     Meiryo, system-ui, sans-serif;
 }
 
+/* QR印刷シートは画面では非表示(印刷時のみ qr-print-mode で表示) */
+.qr-print-sheet {
+  display: none;
+}
+
 /* 印刷 / PDF 出力の調整(給与明細の表が横にはみ出て切れるのを防ぐ) */
 @media print {
   html {
@@ -46,5 +51,61 @@ body {
     /* 桁の多い金額でも折り返して収める(画面用の nowrap を解除) */
     white-space: normal !important;
     overflow-wrap: anywhere;
+  }
+
+  /* QR印刷モード: シート以外を隠し、QRコードのみを印刷する */
+  body.qr-print-mode * {
+    visibility: hidden !important;
+  }
+  body.qr-print-mode .qr-print-sheet {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    text-align: center;
+  }
+  body.qr-print-mode .qr-print-sheet * {
+    visibility: visible !important;
+  }
+  .qr-print-title {
+    margin: 4mm 0 8mm;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .qr-print-codes {
+    display: flex;
+    justify-content: center;
+    gap: 12mm;
+  }
+  .qr-print-code {
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 6mm;
+  }
+  .qr-print-code img {
+    width: 70mm;
+    height: 70mm;
+  }
+  .qr-print-code-label {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4mm;
+  }
+  .qr-print-in {
+    color: #15803d;
+  }
+  .qr-print-out {
+    color: #ea580c;
+  }
+  .qr-print-notes {
+    margin: 10mm auto 0;
+    max-width: 160mm;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.8;
+    list-style: disc;
+    padding-left: 6mm;
   }
 }

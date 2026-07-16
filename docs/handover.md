@@ -286,6 +286,18 @@
   収まらないため**ハンバーガー(その他)内**に表示。紙飛行機の `SendIcon` を追加。
 - **ハンバーガーのキャプションを「メニュー」→「その他」に変更**。
 
+### 本セッションで実施した変更（2026-07-16 その4・配信タイトル統一／QR専用印刷）
+- **配信画面のタイトルを「連絡・催促」→「配信」に統一**（`admin/notices/page.tsx`）。メニュー名と一致。
+- **設定「出勤・退勤QRコード」の印刷をQRのみに**（`admin/settings/clock.tsx` + `globals.css`）。従来は設定画面全体が
+  印刷されていた。印刷ボタンで `document.body` に `qr-print-mode` クラスを付与 → `@media print` で
+  **シート `.qr-print-sheet` 以外を `visibility:hidden`**、シートのみ表示 → `afterprint`（＋1秒フォールバック）で
+  クラス解除。シートは画面では `display:none`、印刷時のみ表示。QR画像は data URL なので display:none でも即描画。
+  - レイアウト: タイトル「{会社名}　出退勤登録用QRコード」＋出勤/退勤QRを大きく（70mm）横並び＋説明3項目
+    （読み取り手順／{丸め単位}分単位で丸め〔0・1は「1」表示〕／この職場以外では記録不可）。
+  - `ClockSettingsForm` に `companyName` prop を追加（page から `app_settings.company_name` を渡す）。丸め単位は
+    フォームのライブ値 `round` を `QrCodes` に渡す（保存前の編集も印刷に反映）。
+  - ⚠️ 税理士資料など他画面の印刷（`.print-report`）は `qr-print-mode` を付けないため影響なし。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > 本レスポンシブ刷新は別ブランチ `claude/responsive-mobile-layout` に切って作業中で **main 未反映**。
 > push 前は必ず `git fetch origin main` で差分確認のこと。

@@ -52,6 +52,7 @@ export default async function SettingsPage() {
       />
       <LunchAllowanceForm history={allowances ?? []} />
       <ClockSettingsForm
+        companyName={settingsMap.get("company_name") ?? ""}
         lat={settingsMap.get("clock_base_lat") ?? ""}
         lng={settingsMap.get("clock_base_lng") ?? ""}
         radiusM={settingsMap.get("clock_radius_m") ?? ""}
