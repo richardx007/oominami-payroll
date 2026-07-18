@@ -24,11 +24,11 @@
 
 | 項目 | 内容 |
 |---|---|
-| 状態 | ⬜ 未対応 |
+| 状態 | ✅ 対応済み(2026-07-18) |
 | 該当箇所 | `src/app/register/actions.ts:54`、`src/app/login/actions.ts:37`、`src/app/admin/employees/actions.ts:258,316` |
 | 問題 | メールに載せるリンクの生成元を `headers().get("x-forwarded-host") ?? headers().get("host")` から組み立てている。Hostヘッダー詐称(Host Header Injection)が可能な場合、初回登録・パスワード再設定メールのリンクを攻撃者ドメインへ誘導できる。本システムのリンクは `token_hash` をURLクエリに直接含む方式(`verifyOtp`)のため、リンクが攻撃者サーバーに渡ると**そのままアカウント(管理者含む)を乗っ取られ、パスワードを勝手に設定される**おそれがある。 |
 | 対応方針 | リダイレクト先を環境変数(例: `NEXT_PUBLIC_SITE_URL=https://oominami-payroll.shinsekai.workers.dev`)に固定し、リクエストヘッダーに依存しないようにする。4箇所とも数行の修正で対応可能。 |
-| 対応メモ | (未記入) |
+| 対応メモ | `src/lib/site-url.ts` に `getSiteUrl()` を新設し、4箇所すべてを `NEXT_PUBLIC_SITE_URL` ベースに置き換え。`.env`・`.env.example`・`wrangler.jsonc` に `NEXT_PUBLIC_SITE_URL=https://oominami-payroll.shinsekai.workers.dev` を追加。`npm run build`・`npm test` とも成功を確認。開発ブランチにコミット・push済み(mainマージは別途判断)。 |
 
 ---
 
@@ -144,8 +144,8 @@
 
 | レベル | 件数 | 対応済み |
 |---|---|---|
-| 🔴 致命的 | 1 | 0 |
+| 🔴 致命的 | 1 | 1 |
 | 🟠 危険 | 4 | 0 |
 | 🟡 勧告 | 5 | 0 |
 
-最終更新: 2026-07-18(初版)
+最終更新: 2026-07-18(#1 対応)

@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { sendMail } from "@/lib/email";
 import { logActivity } from "@/lib/log";
+import { getSiteUrl } from "@/lib/site-url";
 
 const employeeSchema = z
   .object({
@@ -254,9 +254,7 @@ export async function inviteEmployee(employeeId: string): Promise<ActionResult> 
     return { ok: false, message: "退職済みの従業員には送信できません" };
   }
 
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  const registerUrl = `https://${host}/register`;
+  const registerUrl = `${getSiteUrl()}/register`;
 
   const result = await sendMail({
     to: employee.email,
@@ -312,13 +310,11 @@ export async function resetEmployeePassword(
     return { ok: false, message: "退職済みの従業員には送信できません" };
   }
 
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
   // 再設定リンクをクリック → /auth/callback で token_hash を検証してセッション確立
   // → /set-password へ。本人は別端末(スマホ等)でメールを開くため、PKCE では
   // code_verifier がその端末に無く verifyOtp が失敗する。送信は implicit フローの
   // クライアントで行い、端末非依存の token_hash を発行させる。
-  const redirectTo = `https://${host}/auth/callback?setup=1`;
+  const redirectTo = `${getSiteUrl()}/auth/callback?setup=1`;
 
   const mailer = await createClient({ flowType: "implicit" });
   const { error } = await mailer.auth.resetPasswordForEmail(employee.email, {

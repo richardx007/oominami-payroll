@@ -1,8 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { logActivity } from "@/lib/log";
+import { getSiteUrl } from "@/lib/site-url";
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -33,9 +33,7 @@ export async function requestPasswordReset(
 
   try {
     const supabase = await createClient({ flowType: "implicit" });
-    const h = await headers();
-    const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-    const redirectTo = `https://${host}/auth/callback?setup=1`;
+    const redirectTo = `${getSiteUrl()}/auth/callback?setup=1`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo,
     });
