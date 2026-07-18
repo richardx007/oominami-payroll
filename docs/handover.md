@@ -1,6 +1,6 @@
 # 引き継ぎ書（次セッション向け）
 
-最終更新: 2026-07-16
+最終更新: 2026-07-18
 
 このドキュメントは、別セッション（別の開発者・AIエージェント）が本プロジェクトを
 継続開発するための引き継ぎ資料です。あわせて `docs/design.md`（設計書）と
@@ -303,8 +303,47 @@
     ページ番号ヘッダ・フッタは**名前付き `@page qrsheet { margin:0 }`**（シートに `page:qrsheet` を割当）で抑制し、
     シート側に `padding:14mm 12mm` を持たせて余白を確保。
 
+### 本セッションで実施した変更（2026-07-18・セキュリティレビュー全項目対応／認証リンク不具合修正）
+外部の視点でのセキュリティレビューを実施し、致命的1件・危険4件・勧告5件を洗い出して**全10項目を対応**した
+（詳細な調査ログ・対応メモは `docs/security-review-2026-07-18.md` に記録。今後の追加レビューもこのファイルに
+追記していく運用）。加えて、レビュー後にオーナーから実際に報告された認証リンクの不具合も原因調査の上で修正。
+すべて `claude/payroll-system-plan-8wvobq` で作業し都度 `npm run build && npm test` で確認後、mainへマージ・
+Cloudflare自動デプロイまで実施済み。
+
+- **🔴 致命的: 認証メールのリンクがHostヘッダー依存だった**: 初回登録・パスワード再設定メールのリダイレクト先を
+  `headers().get("x-forwarded-host")`等から組み立てていたのを、`NEXT_PUBLIC_SITE_URL`（固定値）ベースの
+  `src/lib/site-url.ts`(`getSiteUrl()`)に統一。Hostヘッダー詐称による認証リンクの誘導・アカウント乗っ取り
+  リスクを解消。`.env`/`.env.example`/`wrangler.jsonc`に`NEXT_PUBLIC_SITE_URL`を追加。
+- **🟠 危険→対応済み**:
+  - `next.config.ts`にセキュリティヘッダー追加（`X-Frame-Options`・`X-Content-Type-Options`・
+    `Strict-Transport-Security`・`Referrer-Policy`・`Permissions-Policy`）。
+  - DB: `delete_employee`・`count_employee_work_entries`・`get_clock_settings`のanon実行権限を剥奪し
+    `authenticated`限定に（アプリコードは常に`requireAdmin()`/`requireEmployee()`後にしか呼ばないため
+    機能影響なしを確認済み）。
+  - DB: `log_activity`に簡易フラッド対策（未ログイン由来の呼び出しが1分20件超で記録スキップ）を追加。
+  - Supabaseの「漏洩パスワード保護」はダッシュボードでONにしても**Proプラン以上限定**でエラーになり
+    無料プランでは有効化不可と判明。オーナーの判断で代替策（`/set-password`に英字+数字混在必須化）を実装。
+- **🟡 勧告→対応済み**:
+  - `npm audit`のpostcss脆弱性（Next内部バンドル分）を`package.json`の`"overrides"`で解消、0件に。
+  - 打刻（`clock/actions.ts`）の失敗時に生のDBエラー文を画面表示するのをやめ、汎用メッセージ+
+    `logActivity`でのサーバー記録に変更。
+  - 初回登録申請（`sendRegisterLink`）も未登録メールで成功と同じ応答を返すよう統一（アカウント列挙対策、
+    `requestPasswordReset`と同じ設計）。
+  - `.env.local`から未使用の`SUPABASE_SECRET_KEY`・`RESEND_API_KEY`を削除（gitignore対象のためリポジトリへの
+    影響なし。過去に検討したResend経由送信の名残で、現在は自作SMTPのため未参照だった）。
+- **🐛 レビュー後に発見・修正: 認証メールリンクがセキュリティスキャナーの自動プリフェッチでトークン消費される
+  不具合**: オーナーより「パスワード再設定リンクを押すとログイン画面が表示される（以前にも発生）」と報告あり、
+  Supabase監査ログ（`get_logs` service=auth）を確認したところ、同一トークンへの`POST /verify`が約2分20秒差で
+  2回発生し、1回目成功・2回目`403 One-time token not found`だった。旧`/auth/callback`はGETを受けた瞬間に
+  `verifyOtp`/`exchangeCodeForSession`（1回限りのトークンを消費する状態変更操作）を即実行していたため、
+  メールのセキュリティスキャナー等の自動先読みでトークンが消費され、本人クリック時には無効になっていたと判明。
+  対策として`/auth/callback`は検証を行わず`/auth/confirm`へパラメータ付きリダイレクトするだけにし、
+  新設した`/auth/confirm`（クライアントコンポーネント）で**「続ける」ボタン押下時にのみ**検証を実行するよう
+  変更。自動プリフェッチ（JS非実行）ではボタンを押せないため誤って消費されなくなる。初回登録・パスワード
+  再設定（本人申請・管理者発行）すべてに共通の導線のためまとめて修正。オーナーが実機で「パスワード変更、
+  管理者/従業員それぞれのログイン、打刻画面の表示」を確認し問題なしと確認済み。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
-> 本レスポンシブ刷新は別ブランチ `claude/responsive-mobile-layout` に切って作業中で **main 未反映**。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 
 ---
@@ -371,14 +410,19 @@ npm test           # Vitest（給与計算ロジック）
 - 給与期間（26日〜25日）の定義: `src/lib/period.ts`。締め日・支払日ルール・`todayJST()` はここ。
 - メール本文・送信: `src/lib/email.ts`（設定取得・本文生成・添付・リトライ）、`src/lib/smtp.ts`（SMTP・multipart・タイムアウト）。
 - 交通費の内訳・カレンダー表示: `src/app/(employee)/timesheet/ui.tsx`。祝日は `src/lib/holidays.ts`。
-- 初回登録フロー: `/register`（メールのみ・OTP送信・`friendlyOtpError`）→ `/auth/callback`（setup=1判定）→ `/set-password`。
-  `/set-password`（`src/app/set-password/page.tsx`）は `updateUser` で設定。**過去パスワードとの一致チェックは不要**方針のため、
-  GoTrue の `same_password` エラーは成功扱いにして `/` へ進める（同一パスワードで再設定可）。
+- 初回登録フロー: `/register`（メールのみ・OTP送信・`friendlyOtpError`）→ `/auth/callback`（検証なしのリダイレクトのみ）
+  → `/auth/confirm`（「続ける」ボタン押下時に`verifyOtp`実行、setup=1判定）→ `/set-password`。
+  `/auth/callback`が即座に検証していた旧実装はメールのセキュリティスキャナーによる自動先読みでトークンが
+  消費される不具合があったため2026-07-18に`/auth/confirm`経由に変更(下記参照)。
+  `/set-password`（`src/app/set-password/page.tsx`）は `updateUser` で設定。8文字以上＋英数字混在必須。
+  **過去パスワードとの一致チェックは不要**方針のため、GoTrue の `same_password` エラーは成功扱いにして `/` へ進める
+  （同一パスワードで再設定可）。
 - 税額表の取込・国税庁リンク: `src/app/admin/settings/{page,ui,actions.ts}`（`importTaxTable`）。甲欄0〜7人＋乙欄を保持。
   取込済みデータは年選択の表で表示。国税庁DLページ（No.2502）への外部リンク＋コピペ手順を UI に併記。
 - **パスワード再設定（管理者発行）**: `src/app/admin/employees/actions.ts` の `resetEmployeePassword`、
-  検証は `src/app/auth/callback/route.ts`（`token_hash`+`verifyOtp`）。**Supabase「Reset password」テンプレート依存**。
-  認証パターンの解説はスキル `.claude/skills/supabase-invite-auth/`。
+  検証は `src/app/auth/confirm/page.tsx`（`token_hash`+`verifyOtp`、ボタン押下時のみ実行）。
+  `src/app/auth/callback/route.ts`は検証を行わず`/auth/confirm`へリダイレクトするだけ。
+  **Supabase「Reset password」テンプレート依存**。認証パターンの解説はスキル `.claude/skills/supabase-invite-auth/`。
 - RLS/権限: DBの関数 `is_admin()` 等（Supabase側）。画面ガードは `src/lib/auth.ts`。
 - 従業員の登録/編集・No自動採番: `src/app/admin/employees/{actions,ui}.tsx`（`addEmployee`/`nextEmployeeNo`/`updateEmployeeProfile`/`resetEmployeePassword`）。
 - ダッシュボードのカレンダー: `src/app/admin/DashboardCalendar.tsx`。集計は `admin/page.tsx`。
@@ -422,6 +466,10 @@ npm test           # Vitest（給与計算ロジック）
       残・任意課題: オフラインキャッシュが必要になった場合の設計（現状は更新通知のみでキャッシュしない）。
 - [ ] **Supabase メールテンプレ依存の注意**: パスワード再設定は「Reset password」テンプレートが
       `{{ .TokenHash }}` リンクであることに依存。テンプレを初期化/変更すると再設定が壊れる（design.md 参照）。
+- [x] **セキュリティレビュー(2026-07-18)**: 致命的1件・危険4件・勧告5件を全件対応済み。
+      詳細・今後の追跡は `docs/security-review-2026-07-18.md` 参照。
+- [ ] **Supabase 漏洩パスワード保護は無料プランで利用不可**: Proプランへのアップグレード判断待ち
+      （現状はアプリ側の代替策＝英数字混在必須化のみで運用。design.md「6.1 セキュリティ」参照）。
 - [ ] 給与明細のPDF体裁（現状はブラウザ印刷。専用レイアウトが必要なら @react-pdf 等）。
 - [ ] 会社名・住所などを給与明細/税理士資料の帳票ヘッダーに反映（company_name は
       メール差出人名のみ利用中）。締め処理/税理士画面には交通費内訳（手段/区間）は未表示。
