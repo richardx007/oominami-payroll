@@ -21,6 +21,15 @@ const timeInputClass =
 
 const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
 
+/** 休憩(分)のダイアル用選択肢。0〜120分・15分刻み。既存データが刻みから外れる値でも消えないよう追加する */
+function breakMinuteOptions(current?: number | null): number[] {
+  const base = [0, 15, 30, 45, 60, 75, 90, 105, 120];
+  if (typeof current === "number" && !base.includes(current)) {
+    return [...base, current].sort((a, b) => a - b);
+  }
+  return base;
+}
+
 export function TimesheetCalendar({
   period,
   entries,
@@ -579,6 +588,7 @@ function EntryForm({
             <input
               name="start_time"
               type="time"
+              step={900}
               required
               defaultValue={init?.start_time ?? "10:00"}
               className={timeInputClass}
@@ -594,7 +604,7 @@ function EntryForm({
             <input
               name="end_time"
               type="time"
-              required
+              step={900}
               defaultValue={init?.end_time ?? (endMissing ? "" : "18:00")}
               className={`${timeInputClass} ${
                 endMissing
@@ -607,15 +617,18 @@ function EntryForm({
             <label className="mb-1 block text-sm font-medium text-gray-600">
               休憩(分)
             </label>
-            <input
+            <select
               name="break_minutes"
-              type="number"
-              min={0}
-              step={5}
               required
               defaultValue={init?.break_minutes ?? 60}
               className={timeInputClass}
-            />
+            >
+              {breakMinuteOptions(init?.break_minutes).map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <p className="-mt-2 text-xs text-gray-500">
@@ -678,28 +691,28 @@ function EntryForm({
             <div className="grid grid-cols-2 gap-3 [&>div]:min-w-0">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-600">
-                  区間(駅1)
+                  区間(From)
                 </label>
                 <input
                   ref={fromRef}
                   name="station_from"
                   list="station-list"
                   defaultValue={init?.station_from ?? ""}
-                  placeholder="例: 大波駅"
+                  placeholder="例: 梅田"
                   onInput={() => fromRef.current?.setCustomValidity("")}
                   className={inputClass}
                 />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-600">
-                  区間(駅2)
+                  区間(To)
                 </label>
                 <input
                   ref={toRef}
                   name="station_to"
                   list="station-list"
                   defaultValue={init?.station_to ?? ""}
-                  placeholder="例: 新世界駅"
+                  placeholder="例: 動物園前"
                   onInput={() => toRef.current?.setCustomValidity("")}
                   className={inputClass}
                 />
@@ -756,7 +769,11 @@ function EntryForm({
             <button
               type="button"
               disabled={pending}
-              onClick={() => onDelete(date)}
+              onClick={() => {
+                if (window.confirm(`${formatDateJa(date)}の勤務記録を削除します。よろしいですか？`)) {
+                  onDelete(date);
+                }
+              }}
               className="rounded-lg border border-red-200 px-4 py-2.5 text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
               削除

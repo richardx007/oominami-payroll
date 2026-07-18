@@ -24,7 +24,7 @@ export async function upsertWorkEntry(
       employee_id: employee.id,
       work_date: d.work_date,
       start_time: d.start_time,
-      end_time: d.end_time,
+      end_time: d.end_time || null,
       break_minutes: d.break_minutes,
       transport_cost: d.transport_cost,
       transport_mode: d.transport_mode?.trim() || null,

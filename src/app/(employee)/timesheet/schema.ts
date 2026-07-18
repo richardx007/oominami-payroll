@@ -9,7 +9,12 @@ export const entrySchema = z
   .object({
     work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     start_time: z.string().regex(/^\d{2}:\d{2}$/),
-    end_time: z.string().regex(/^\d{2}:\d{2}$/),
+    // 退勤は未入力(空文字)のまま保存できる(打刻の退勤未入力と同様の扱い)
+    end_time: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional()
+      .or(z.literal("")),
     break_minutes: z.coerce.number().int().min(0).max(600),
     transport_cost: z.coerce.number().int().min(0).max(100000),
     transport_mode: z.string().max(20).optional(),
@@ -20,6 +25,7 @@ export const entrySchema = z
   })
   .refine(
     (d) => {
+      if (!d.end_time) return true;
       // 退勤が出勤以前(例: 22:00→2:00)は翌日にまたぐ勤務として24時間を加算し、
       // 休憩を差し引いた実働が正であることを確認する。
       const [sh, sm] = d.start_time.split(":").map(Number);
