@@ -38,11 +38,11 @@
 
 | 項目 | 内容 |
 |---|---|
-| 状態 | ⬜ 未対応(手動対応が必要) |
-| 該当箇所 | Supabase ダッシュボード > Authentication > Policies |
+| 状態 | ⬜ **対応不可(無料プランの制約)** |
+| 該当箇所 | Supabase ダッシュボード > Authentication > Attack Protection |
 | 問題 | Security Advisor 検出 (`auth_leaked_password_protection`)。HaveIBeenPwned.org 照合による既知漏洩パスワードのブロックが無効。従業員は高齢者含む一般ユーザーで使い回しパスワードのリスクが高い。 |
-| 対応方針 | Supabaseダッシュボードで機能を有効化するのみ(コード変更不要)。 |
-| 対応メモ | **この項目のみSQL/MCPツールでは変更不可**(`auth.config`はテーブルではなく管理API/ダッシュボード限定の設定)。オーナー(richard.nishikawa@gmail.com)が手動で対応する必要あり。手順: Supabaseダッシュボード → 対象プロジェクト(`zvrwkmriosaldjqpxdwi`) → Authentication → Policies(または Auth > Settings内 "Password" セクション) → "Leaked password protection" をON。 |
+| 対応方針 | Supabaseダッシュボードで機能を有効化するのみ(コード変更不要)…のはずだったが、**この機能はProプラン以上限定**と判明(2026-07-18、オーナーが実際にダッシュボードでON→Saveを試行した際に `Configuring leaked password protection via HaveIBeenPwned.org is available on Pro Plans and up.` のエラーで保存失敗)。現在のプロジェクトは無料(FREE)プランのため有効化不可。 |
+| 対応メモ | 選択肢: (a) Supabaseを Pro プラン(有料)にアップグレードして本機能を有効化する、(b) 無料プランのまま運用でカバーする(アプリ側で簡易的な弱いパスワードのブロックリストチェックを追加する等の代替策、完全に同等ではないが緩和にはなる)。費用判断が絡むためオーナーの意思決定待ち。 |
 
 ### #3 セキュリティヘッダーが一切設定されていない
 
@@ -145,7 +145,7 @@
 | レベル | 件数 | 対応済み |
 |---|---|---|
 | 🔴 致命的 | 1 | 1 |
-| 🟠 危険 | 4 | 3(#2は手動対応待ち) |
+| 🟠 危険 | 4 | 3(#2は無料プランのため対応不可、意思決定待ち) |
 | 🟡 勧告 | 5 | 0 |
 
-最終更新: 2026-07-18(#1・#3・#4・#5 対応。#2はオーナーによる手動設定待ち)
+最終更新: 2026-07-18(#1・#3・#4・#5 対応。#2はSupabase無料プランの制約で保留、代替策要検討)
