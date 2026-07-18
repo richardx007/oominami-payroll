@@ -1,39 +1,19 @@
 import { NextResponse } from "next/server";
-import type { EmailOtpType } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
 
+/**
+ * Supabaseのメールテンプレートから届くリンクの着地点。
+ *
+ * 以前はここで直接 verifyOtp/exchangeCodeForSession を実行していたが、
+ * メールセキュリティスキャナー等によるリンクの自動先読み(プリフェッチ)で
+ * 1回しか使えないトークンが消費されてしまい、本人が実際にクリックした際には
+ * 既に無効("One-time token not found")というトラブルが発生した
+ * (Supabase監査ログで実際に確認済み)。
+ *
+ * 対策として、ここでは検証を実行せず /auth/confirm へパラメータを引き継いで
+ * リダイレクトするだけにする。実際のトークン消費は /auth/confirm でのボタン
+ * 押下(人の操作)後に行うため、自動プリフェッチでは消費されなくなる。
+ */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  const tokenHash = searchParams.get("token_hash");
-  const type = searchParams.get("type") as EmailOtpType | null;
-  const setup = searchParams.get("setup");
-
-  const supabase = await createClient();
-  let ok = false;
-
-  if (tokenHash && type) {
-    // パスワード再設定(管理者発行)などの token_hash 方式。code_verifier 不要。
-    const { error } = await supabase.auth.verifyOtp({
-      token_hash: tokenHash,
-      type,
-    });
-    ok = !error;
-  } else if (code) {
-    // 初回登録(本人のブラウザで発行したマジックリンク)の PKCE 方式。
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    ok = !error;
-  }
-
-  if (ok) {
-    // メール確認完了後、employees 行に auth ユーザーを紐付け
-    await supabase.rpc("link_employee_account");
-    // 初回登録・再設定フローならパスワード設定画面へ
-    if (setup === "1" || type === "recovery") {
-      return NextResponse.redirect(`${origin}/set-password`);
-    }
-    return NextResponse.redirect(`${origin}/`);
-  }
-
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  const { search, origin } = new URL(request.url);
+  return NextResponse.redirect(`${origin}/auth/confirm${search}`);
 }
