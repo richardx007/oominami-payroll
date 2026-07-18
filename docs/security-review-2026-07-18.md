@@ -38,11 +38,11 @@
 
 | 項目 | 内容 |
 |---|---|
-| 状態 | ⬜ 未対応(手動対応が必要) |
-| 該当箇所 | Supabase ダッシュボード > Authentication > Policies |
+| 状態 | ✅ 代替策で対応済み(2026-07-18) |
+| 該当箇所 | Supabase ダッシュボード > Authentication > Attack Protection、`src/app/set-password/page.tsx` |
 | 問題 | Security Advisor 検出 (`auth_leaked_password_protection`)。HaveIBeenPwned.org 照合による既知漏洩パスワードのブロックが無効。従業員は高齢者含む一般ユーザーで使い回しパスワードのリスクが高い。 |
-| 対応方針 | Supabaseダッシュボードで機能を有効化するのみ(コード変更不要)。 |
-| 対応メモ | **この項目のみSQL/MCPツールでは変更不可**(`auth.config`はテーブルではなく管理API/ダッシュボード限定の設定)。オーナー(richard.nishikawa@gmail.com)が手動で対応する必要あり。手順: Supabaseダッシュボード → 対象プロジェクト(`zvrwkmriosaldjqpxdwi`) → Authentication → Policies(または Auth > Settings内 "Password" セクション) → "Leaked password protection" をON。 |
+| 対応方針 | Supabaseダッシュボードで機能を有効化するのみ(コード変更不要)…のはずだったが、**この機能はProプラン以上限定**と判明(2026-07-18、オーナーが実際にダッシュボードでON→Saveを試行した際に `Configuring leaked password protection via HaveIBeenPwned.org is available on Pro Plans and up.` のエラーで保存失敗)。現在のプロジェクトは無料(FREE)プランのため有効化不可。 |
+| 対応メモ | Proプランへのアップグレードは行わず、**無料プランのままアプリ側で緩和策を追加**する方針をオーナーが選択。`/set-password` のパスワード検証に「英字と数字の両方を含める」ことを必須化(8文字以上の既存条件に追加)。HaveIBeenPwned照合そのものは実現できていないため、Supabase側の対応(将来的なProプラン移行)は引き続き選択肢として残る。 |
 
 ### #3 セキュリティヘッダーが一切設定されていない
 
@@ -145,7 +145,7 @@
 | レベル | 件数 | 対応済み |
 |---|---|---|
 | 🔴 致命的 | 1 | 1 |
-| 🟠 危険 | 4 | 3(#2は手動対応待ち) |
+| 🟠 危険 | 4 | 4(#2はSupabase側は無料プランの制約で代替策対応) |
 | 🟡 勧告 | 5 | 0 |
 
-最終更新: 2026-07-18(#1・#3・#4・#5 対応。#2はオーナーによる手動設定待ち)
+最終更新: 2026-07-18(#1・#2(代替策)・#3・#4・#5 対応)
