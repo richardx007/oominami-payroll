@@ -35,5 +35,8 @@
     "typescript": "^5",
     "vitest": "^4.1.10",
     "wrangler": "^4.107.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }
