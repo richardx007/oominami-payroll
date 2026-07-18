@@ -38,41 +38,41 @@
 
 | 項目 | 内容 |
 |---|---|
-| 状態 | ⬜ 未対応 |
+| 状態 | ⬜ 未対応(手動対応が必要) |
 | 該当箇所 | Supabase ダッシュボード > Authentication > Policies |
 | 問題 | Security Advisor 検出 (`auth_leaked_password_protection`)。HaveIBeenPwned.org 照合による既知漏洩パスワードのブロックが無効。従業員は高齢者含む一般ユーザーで使い回しパスワードのリスクが高い。 |
 | 対応方針 | Supabaseダッシュボードで機能を有効化するのみ(コード変更不要)。 |
-| 対応メモ | (未記入) |
+| 対応メモ | **この項目のみSQL/MCPツールでは変更不可**(`auth.config`はテーブルではなく管理API/ダッシュボード限定の設定)。オーナー(richard.nishikawa@gmail.com)が手動で対応する必要あり。手順: Supabaseダッシュボード → 対象プロジェクト(`zvrwkmriosaldjqpxdwi`) → Authentication → Policies(または Auth > Settings内 "Password" セクション) → "Leaked password protection" をON。 |
 
 ### #3 セキュリティヘッダーが一切設定されていない
 
 | 項目 | 内容 |
 |---|---|
-| 状態 | ⬜ 未対応 |
+| 状態 | ✅ 対応済み(2026-07-18) |
 | 該当箇所 | `next.config.ts`、`middleware.ts`(`src/lib/supabase/middleware.ts`) |
 | 問題 | CSP / X-Frame-Options / HSTS / X-Content-Type-Options などのレスポンスヘッダーが未設定。給与・個人情報を扱う画面がiframeに埋め込まれてクリックジャッキングされるリスク等に対する防御がない。 |
 | 対応方針 | `next.config.ts` の `headers()` で最低限 `X-Frame-Options: DENY`、`X-Content-Type-Options: nosniff`、`Strict-Transport-Security` を追加。 |
-| 対応メモ | (未記入) |
+| 対応メモ | `next.config.ts` に `headers()` を追加し、全パスに `X-Frame-Options: DENY`・`X-Content-Type-Options: nosniff`・`Referrer-Policy: strict-origin-when-cross-origin`・`Strict-Transport-Security`・`Permissions-Policy(geolocation=self・camera/microphone禁止)` を付与。`next start` で実際にヘッダーが返ることを確認、`npx opennextjs-cloudflare build` でもビルド成功を確認。CSP(Content-Security-Policy)は本番動作を壊すリスクがあるため今回は見送り、別タスクとして検討する。 |
 
 ### #4 `log_activity` RPCが未ログインでも無制限に呼べる
 
 | 項目 | 内容 |
 |---|---|
-| 状態 | ⬜ 未対応 |
+| 状態 | ✅ 対応済み(2026-07-18) |
 | 該当箇所 | DB関数 `public.log_activity(p_action, p_detail)`、呼び出し元 `src/lib/log.ts`・`login/page.tsx` |
 | 問題 | ログイン試行の記録のためanon実行を許可しているが、レート制限が無く、未認証のまま`/rest/v1/rpc/log_activity`へ任意テキストを送り続けることで`activity_logs`テーブルを埋め尽くせる(ストレージ消費・ログ画面のノイズ化)。 |
 | 対応方針 | Cloudflare側のIP単位レート制限の追加、またはDB側での簡易フラッド対策(頻度制限)を検討。 |
-| 対応メモ | (未記入) |
+| 対応メモ | `log_activity` 関数を更新し、未ログイン(`actor_id`特定不可)からの呼び出しが直近1分間に20件を超える場合は記録をスキップするようにした(例外にせず無視することで、正規の登録・再設定メール送信フローのUXは維持)。anon実行権限自体は登録/パスワード再設定フローに必須のため維持。マイグレーション `harden_security_definer_grants_and_rate_limit_log_activity` として適用済み。より厳密なレート制限が必要ならCloudflare側のIPベース制限も別途検討可。 |
 
 ### #5 SECURITY DEFINER関数にanon/authenticatedへの実行権限がデフォルトのまま残っている
 
 | 項目 | 内容 |
 |---|---|
-| 状態 | ⬜ 未対応 |
+| 状態 | ✅ 対応済み(2026-07-18・一部) |
 | 該当箇所 | DB関数 `delete_employee`・`count_employee_work_entries`・`get_clock_settings`・`log_activity`・`current_employee_id`・`is_admin`・`is_period_open`・`link_employee_account`・`email_registered` |
 | 問題 | Advisorが「anon/authenticatedが実行可能」と警告。関数内部は`is_admin()`等のチェックで守られており**現状は悪用不可**と確認済みだが、これは「たまたま安全」な状態。将来の修正でチェックを外し忘れると即座に脆弱性化する。 |
 | 対応方針 | `REVOKE EXECUTE ... FROM anon, authenticated` した上で、必要な関数(`email_registered`など)だけ個別に`GRANT`し直す運用に変更(多層防御)。 |
-| 対応メモ | (未記入) |
+| 対応メモ | 管理者専用の`delete_employee`・`count_employee_work_entries`はanon/PUBLICから実行権限を剥奪し`authenticated`のみに限定。`get_clock_settings`は打刻(要ログイン)時にのみ呼ばれるためanon権限を剥奪し`authenticated`のみに限定。アプリコード側もこれら3関数は`requireAdmin()`/`requireEmployee()`通過後にしか呼んでいないことを確認済みで機能影響なし。`email_registered`(登録前チェック用)・`log_activity`(登録/再設定申請用)はanon実行が業務上必須のため維持(#4のフラッド対策で補強)。`current_employee_id`・`is_admin`・`is_period_open`・`link_employee_account`は元々authenticatedのみでanon権限は無く、RLSポリシー内部評価に必要なため変更なし。 |
 
 ---
 
@@ -145,7 +145,7 @@
 | レベル | 件数 | 対応済み |
 |---|---|---|
 | 🔴 致命的 | 1 | 1 |
-| 🟠 危険 | 4 | 0 |
+| 🟠 危険 | 4 | 3(#2は手動対応待ち) |
 | 🟡 勧告 | 5 | 0 |
 
-最終更新: 2026-07-18(#1 対応)
+最終更新: 2026-07-18(#1・#3・#4・#5 対応。#2はオーナーによる手動設定待ち)

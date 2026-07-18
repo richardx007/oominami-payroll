@@ -24,6 +24,29 @@ const nextConfig: NextConfig = {
     // 源泉徴収税額表を丸ごと貼り付けると既定の1MBを超える場合があるため拡張
     serverActions: { bodySizeLimit: "5mb" },
   },
+  async headers() {
+    return [
+      {
+        // クリックジャッキング・MIMEスニッフィング対策等の基本的なセキュリティヘッダー。
+        // 給与・個人情報を扱う画面のため全パスに適用する。
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
+          {
+            // 打刻機能(/clock)以外では位置情報・カメラ・マイクを使わない
+            key: "Permissions-Policy",
+            value: "geolocation=(self), camera=(), microphone=()",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
