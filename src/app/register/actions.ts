@@ -38,16 +38,14 @@ export async function sendRegisterLink(
 
   const supabase = await createClient({ flowType: "implicit" });
 
-  // 従業員として登録済み(かつ未利用)のメールアドレスのみ受け付ける
+  // 従業員として登録済み(かつ未利用)のメールアドレスのみ受け付ける。
+  // 未登録の場合もアカウント列挙を防ぐため、実際には送信せず成功と同じ応答を返す
+  // (ログイン画面の requestPasswordReset と同じ考え方)。
   const { data: registered } = await supabase.rpc("email_registered", {
     p_email: email,
   });
   if (!registered) {
-    return {
-      ok: false,
-      message:
-        "このメールアドレスは従業員として登録されていないか、すでに利用開始済みです。管理者にお問い合わせください。",
-    };
+    return { ok: true, message: "" };
   }
 
   const emailRedirectTo = `${getSiteUrl()}/auth/callback?setup=1`;

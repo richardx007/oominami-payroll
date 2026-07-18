@@ -164,7 +164,11 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
       .select("id")
       .single();
     if (error) {
-      return { ok: false, message: "出勤の登録に失敗しました: " + error.message };
+      await logActivity("エラー", `出勤打刻に失敗: ${employee.name} ${error.message}`);
+      return {
+        ok: false,
+        message: "出勤の登録に失敗しました。時間をおいて再度お試しください。",
+      };
     }
     workEntryId = ins.id;
   } else {
@@ -206,7 +210,11 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
       .update({ end_time: time, break_minutes: brk })
       .eq("id", target.id);
     if (error) {
-      return { ok: false, message: "退勤の登録に失敗しました: " + error.message };
+      await logActivity("エラー", `退勤打刻に失敗: ${employee.name} ${error.message}`);
+      return {
+        ok: false,
+        message: "退勤の登録に失敗しました。時間をおいて再度お試しください。",
+      };
     }
     workEntryId = target.id;
   }
