@@ -205,9 +205,24 @@ middleware.ts            未認証は /login へ
 ### 認証・ロール
 - Supabase Auth。ログインはメール+パスワード。
 - **メールリンクは3種類とも `token_hash` + `verifyOtp` 方式に統一**（初回登録=magiclink /
-  管理者発行の再設定=recovery / ログイン画面「パスワードを忘れたら」=recovery）。いずれも
-  `/auth/callback` が `verifyOtp({ token_hash, type })` で検証し、`setup=1` または `type=recovery` で
-  `/set-password` へ。**`code` + `exchangeCodeForSession` 経路は使わない**（PKCE のため後述の弱点がある）。
+  管理者発行の再設定=recovery / ログイン画面「パスワードを忘れたら」=recovery）。
+- **⚠️ `/auth/callback` は検証を直接行わない（2026-07-18 に変更・重要）**: メールのリンク先は
+  `/auth/callback` のままだが、ここでは `verifyOtp`/`exchangeCodeForSession` を実行せず、
+  クエリパラメータをそのまま `/auth/confirm` へ302リダイレクトするだけ。実際の検証は
+  `/auth/confirm`（クライアントコンポーネント）で**「続ける」ボタンが押された時**に初めて実行し、
+  成功後 `setup=1` または `type=recovery` なら `/set-password` へ遷移する。
+  - **理由**: Supabase監査ログで、同一の再設定トークンに対し `POST /verify` が約2分20秒差で2回
+    実行され、1回目は成功・2回目が `403 One-time token not found` で失敗する事象を確認した。
+    旧実装は `/auth/callback` がGETを受けた瞬間に検証（1回限りのトークンを消費する状態変更操作）を
+    実行していたため、メールのセキュリティスキャナー/リンクプレビュー機能がリンクを自動で
+    先読み（プリフェッチ）した時点でトークンが消費されてしまい、本人が実際にクリックした頃には
+    既に無効という不具合が発生していた（症状: 再設定リンクを押すと再設定画面ではなくログイン画面が
+    表示される）。ボタン押下という人の操作を挟むことで、JSを実行しない自動プリフェッチでは
+    トークンが消費されなくなる。
+  - 実装: `src/app/auth/callback/route.ts`（リダイレクトのみ）、`src/app/auth/confirm/page.tsx`
+    （確認ボタン・検証実行・`link_employee_account`呼び出し・遷移）。
+- **`code` + `exchangeCodeForSession` 経路も `/auth/confirm` 側で同様にサポート**（PKCEのため後述の
+  弱点があり、現状の自前フローでは使っていないが、互換のため残置）。
 - **⚠️ PKCE の落とし穴（最重要・再発注意）**: Supabase SSR は既定で **PKCE フロー**。
   `signInWithOtp` / `resetPasswordForEmail` を **PKCE クライアント**で呼ぶと、照合用 `code_verifier` が
   「発行したブラウザ」の Cookie に紐づき、メール内リンクの `token_hash` にも `pkce_` プレフィックスが付く。
@@ -219,12 +234,17 @@ middleware.ts            未認証は /login へ
   **`pkce_` の付かない端末非依存の `token_hash`** を発行し、`verifyOtp` が単独で検証できる。
   - 初回登録: `/register` はサーバーアクション `sendRegisterLink`（`register/actions.ts`）で
     `email_registered` を確認 → implicit クライアントで `signInWithOtp`（`shouldCreateUser:true`,
-    `emailRedirectTo=/auth/callback?setup=1`）。
+    `emailRedirectTo=/auth/callback?setup=1`）。未登録メールでも列挙対策のため実際には送信せず
+    成功と同じ応答を返す（2026-07-18対応）。
   - 管理者発行の再設定: `resetEmployeePassword`（`employees/actions.ts`）が implicit クライアントで
     `resetPasswordForEmail`。
   - ログイン画面の自己申請: `requestPasswordReset`（`login/actions.ts`）が同様に implicit で送信。
     実際の送信失敗（レート超過など）は画面に表示する（空欄時のみ送信せず入力を促す）。
   - ログイン用の通常ブラウザ/サーバークライアント（セッション管理）は **PKCE のまま**（影響を分離）。
+  - **リンク生成元のURLは環境変数 `NEXT_PUBLIC_SITE_URL` で固定**（`src/lib/site-url.ts` の
+    `getSiteUrl()`）。以前はリクエストの `x-forwarded-host`/`host` ヘッダーから組み立てていたが、
+    Hostヘッダー詐称（Host Header Injection）により認証リンクを攻撃者ドメインへ誘導される
+    リスクがあったため2026-07-18に修正（セキュリティレビュー致命的#1、下記参照）。
 - **これは Supabase 側の設定変更が2つ必須**（コードだけでは直らない）: Authentication → Emails の
   - **「Magic Link」**テンプレート →
     `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=magiclink&setup=1`
@@ -236,7 +256,9 @@ middleware.ts            未認証は /login へ
 - `/set-password` でパスワードを設定（`updateUser`）→ 完了。サービスロールキーは不要
   （anon/公開キー + ユーザーセッションのみ）。**過去パスワードとの一致チェックは不要方針**のため、
   Supabase(GoTrue)が返す `same_password` エラー（「以前と同じパスワード」）は成功扱いにして
-  そのまま進める（同じパスワードでも再設定可）。8文字以上・確認一致の検証は維持。
+  そのまま進める（同じパスワードでも再設定可）。**8文字以上・英字と数字の両方を含める・確認一致**の
+  検証を実施（英数字混在は2026-07-18追加。Supabaseの「漏洩パスワード保護」機能はProプラン以上限定で
+  無料プランでは利用できないため、その代替の緩和策として追加した）。
 - `requireAdmin()` で管理画面を保護。ログイン後、管理者は `/admin`、従業員は `/timesheet` へ。
 - 最初の管理者: employee_no `0001`（seed 投入済み）。
 - **Supabase 認証メール**: カスタムSMTP（自社Gmail）を設定済み。無料枠のままテンプレート編集が可能な状態
@@ -300,6 +322,7 @@ middleware.ts            未認証は /login へ
 |------|---------|------|
 | NEXT_PUBLIC_SUPABASE_URL | wrangler.jsonc vars + .env | ビルド時にクライアントへ埋め込み |
 | NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | wrangler.jsonc vars + .env | 同上（公開キー） |
+| NEXT_PUBLIC_SITE_URL | wrangler.jsonc vars + .env | 認証メールのリンク生成に使う本番URL固定値（2026-07-18追加、`src/lib/site-url.ts`） |
 | GMAIL_APP_PASSWORD | **Cloudflare Secret** | Gmailアプリパスワード（2段階認証必須） |
 | gmail_user / tax_accountant_email / company_name | **DB: app_settings** | 管理画面の「設定」から変更 |
 
@@ -373,6 +396,33 @@ middleware.ts            未認証は /login へ
 - 新規宛先へのメールは受信側で迷惑メール判定されやすい（特にiCloud）。初回は迷惑メール確認を案内。
 - 給与計算は「時給制アルバイト・源泉徴収のみ」を対象。社会保険・年末調整は対象外。
 - 源泉徴収税額表は年度ごとに管理画面から取り込む必要あり（88,000円以上の該当者が出る場合）。
+- Supabase無料プランでは「漏洩パスワード保護（Leaked Password Protection）」が使えない
+  （Attack Protectionでオンにしても "available on Pro Plans and up" で保存失敗する）。
+  代替として`/set-password`にアプリ側で英数字混在の必須化を実装済み（下記「6.1 セキュリティ」参照）。
+
+### 6.1 セキュリティ（2026-07-18 レビュー・対応済み）
+外部からのセキュリティレビューを実施し、致命的1件・危険4件・勧告5件を洗い出して全件対応した。
+詳細な経緯・調査ログ・対応メモは `docs/security-review-2026-07-18.md` を参照（今後の追加レビュー
+はこのファイルに追記していく運用）。設計に影響する主なポイントのみここに要約する。
+
+- **認証リンクのHostヘッダー依存を廃止**（致命的）: 初回登録・パスワード再設定メールのリンク先を
+  リクエストヘッダーではなく`NEXT_PUBLIC_SITE_URL`（固定値）から生成するよう変更
+  （`src/lib/site-url.ts`）。Hostヘッダー詐称によるアカウント乗っ取りリスクを解消。
+- **セキュリティヘッダーの追加**: `next.config.ts`に`X-Frame-Options`・`X-Content-Type-Options`・
+  `Strict-Transport-Security`・`Referrer-Policy`・`Permissions-Policy`を設定。
+- **DB権限の最小化**: `delete_employee`・`count_employee_work_entries`・`get_clock_settings`の
+  anon実行権限を剥奪し`authenticated`のみに限定（いずれも常にログイン後にしか呼ばれないため機能影響なし）。
+- **`log_activity`のフラッド対策**: 未ログイン由来の呼び出しが1分間に20件を超えると記録をスキップ
+  （登録/パスワード再設定申請フローに必要なanon実行権限自体は維持）。
+- **依存脆弱性の解消**: `package.json`に`"overrides": {"postcss": "^8.5.10"}`を追加し、Next内部に
+  バンドルされた脆弱なpostcssを固定。`npm audit`は0件。
+- **パスワードポリシー強化**: 8文字以上に加え英字・数字の両方を必須化（`set-password/page.tsx`）。
+- **一般ユーザー向けエラーメッセージの汎用化**: 打刻（`clock/actions.ts`）で生のDBエラー文を画面表示
+  せず、汎用メッセージ+`logActivity`でのサーバー側記録に変更。
+- **アカウント列挙対策**: 初回登録申請（`sendRegisterLink`）も未登録メールで成功と同じ応答を返すよう
+  統一（`requestPasswordReset`と同じ設計）。
+- **認証リンクのプリフェッチ耐性**（レビュー後に別途発見・対応）: `/auth/callback`での即時トークン
+  検証をやめ、`/auth/confirm`でのボタン押下後にのみ検証するよう変更。詳細は「4. 認証・ロール」参照。
 
 ---
 
