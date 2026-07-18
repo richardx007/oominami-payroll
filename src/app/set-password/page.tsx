@@ -23,6 +23,10 @@ export default function SetPasswordPage() {
       setError("パスワードは8文字以上にしてください");
       return;
     }
+    if (!/[0-9]/.test(password) || !/[a-zA-Z]/.test(password)) {
+      setError("パスワードは英字と数字の両方を含めてください");
+      return;
+    }
 
     setLoading(true);
     const supabase = createClient();
@@ -72,7 +76,7 @@ export default function SetPasswordPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="password" className="mb-1 block text-sm font-medium">
-              パスワード(8文字以上)
+              パスワード(8文字以上・英字と数字を両方含める)
             </label>
             <input
               id="password"
