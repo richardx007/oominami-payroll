@@ -1,6 +1,6 @@
 # 引き継ぎ書（次セッション向け）
 
-最終更新: 2026-07-18
+最終更新: 2026-07-19
 
 このドキュメントは、別セッション（別の開発者・AIエージェント）が本プロジェクトを
 継続開発するための引き継ぎ資料です。あわせて `docs/design.md`（設計書）と
@@ -343,6 +343,41 @@ Cloudflare自動デプロイまで実施済み。
   再設定（本人申請・管理者発行）すべてに共通の導線のためまとめて修正。オーナーが実機で「パスワード変更、
   管理者/従業員それぞれのログイン、打刻画面の表示」を確認し問題なしと確認済み。
 
+### 本セッションで実施した変更（2026-07-19・実従業員登録後の再テストで判明した認証不具合3件）
+オーナーが実際の従業員登録完了後、改めてテスト従業員で初回招待をテストしたところ3件報告があり、
+すべて調査・修正した。**特に1件目は認証まわりで繰り返し起きている不具合の「真因」**だったため重点的に記載する。
+
+- **🔑 根本原因が判明: Supabase「Confirm signup」テンプレートが未設定だった（★最重要・再発防止の要）**:
+  Supabase監査ログ（`get_logs` service=auth）を時系列で確認したところ、
+  `POST /otp`(`user_confirmation_requested`) → `GET /verify`(`user_signedup`、303、**Supabase自身の
+  検証URLへの直接GET**) → 同一トークンへの2回目の`GET /verify`が`"One-time token not found"`で失敗、
+  という並びを確認した。**そのメールアドレスへの初回招待**（＝`auth.users`にまだレコードが無い状態）の
+  場合、`sendRegisterLink`が呼ぶ`signInWithOtp({shouldCreateUser:true})`はSupabase内部で
+  「サインアップ」フローとして扱われ、**「Magic Link」ではなく「Confirm signup」という別のメール
+  テンプレート**が使われる。これまで「Magic Link」「Reset password」の2つだけを`token_hash`方式に
+  変更していたが、**「Confirm signup」は変更し忘れていた**ため既定の`{{ .ConfirmationURL }}`（Supabase
+  自身の検証URLへの生リンク、一度きりのトークンをリンクを開いた瞬間に消費）のままになっており、
+  7/18に対策したはずの「メールスキャナーの自動先読みでトークン消費→有効期限切れ」が**初回招待のみ**
+  再発していた。**2回目以降の再招待では`auth.users`が残っているため症状が出ず**、原因特定を難しくしていた
+  （従業員を一度削除して再登録した場合の再テストで「今度はエラーが出ない」のはこのため）。
+  - **対応**: Supabaseダッシュボードで「Confirm signup」テンプレートも
+    `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup&setup=1` に変更する必要がある
+    （**要オーナー作業・コードだけでは直らない**。詳細手順は design.md「4. 認証・ロール」参照）。
+  - コード側は`src/app/admin/employees/actions.ts`の招待メール文中のパスワードルール表記を
+    「8文字以上」→「8文字以上・英字と数字を両方含める」に修正（7/18のパスワードポリシー変更が
+    案内文に反映されていなかった）。
+- **`/auth/confirm`のタイトルが初回登録なのに「パスワード再設定」と表示される不具合を修正**:
+  タイトル判定が`setup === "1"`を見ていたが、`setup=1`は初回登録・パスワード再設定の**両方**で
+  常にtrueのため、初回登録(`type=magiclink`/`signup`)でも「パスワード再設定」と誤表示していた。
+  `type === "recovery"`のみで判定するよう修正し、初回登録時は「初回登録」と表示するようにした
+  （`src/app/auth/confirm/page.tsx`）。`/set-password`側は元々「パスワードの設定」という中立表現で
+  両フロー共通のため変更不要だった。
+- ⚠️ **今後の教訓**: 認証メールリンクの不具合は「Magic Link」「Reset password」の2テンプレートだけ
+  直して満足しがちだが、**「Confirm signup」（初回サインアップ時）も必ず同時に確認する**こと。
+  新しい認証関連の不具合報告があった場合は、まず Supabase 監査ログ（`get_logs` service=auth）で
+  実際に踏んだテンプレート（`user_confirmation_requested` vs `user_recovery_requested` vs
+  `login`のaction種別、`/verify`がGETかPOSTか）を確認してから対応すること。推測だけで直さない。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 
@@ -464,8 +499,10 @@ npm test           # Vitest（給与計算ロジック）
       ⚠️ Cloudflareでは `@serwist/next` の `defaultCache`／webpackビルド切替は使わないこと（本番障害の原因）。
       iOS用 PNG アイコン（192/512・apple-touch-icon）整備済み。
       残・任意課題: オフラインキャッシュが必要になった場合の設計（現状は更新通知のみでキャッシュしない）。
-- [ ] **Supabase メールテンプレ依存の注意**: パスワード再設定は「Reset password」テンプレートが
-      `{{ .TokenHash }}` リンクであることに依存。テンプレを初期化/変更すると再設定が壊れる（design.md 参照）。
+- [ ] **Supabase メールテンプレ依存の注意（要確認: 3テンプレ全て）**: 初回登録・パスワード再設定は
+      「Magic Link」「Reset password」「Confirm signup」の**3つとも**`{{ .TokenHash }}`リンクである
+      ことに依存。どれか1つでも初期化/変更すると壊れる（design.md「4. 認証・ロール」参照。
+      「Confirm signup」は2026-07-19に見落としが発覚し修正済み）。
 - [x] **セキュリティレビュー(2026-07-18)**: 致命的1件・危険4件・勧告5件を全件対応済み。
       詳細・今後の追跡は `docs/security-review-2026-07-18.md` 参照。
 - [ ] **Supabase 漏洩パスワード保護は無料プランで利用不可**: Proプランへのアップグレード判断待ち
