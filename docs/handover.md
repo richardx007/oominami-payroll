@@ -343,6 +343,22 @@ Cloudflare自動デプロイまで実施済み。
   再設定（本人申請・管理者発行）すべてに共通の導線のためまとめて修正。オーナーが実機で「パスワード変更、
   管理者/従業員それぞれのログイン、打刻画面の表示」を確認し問題なしと確認済み。
 
+### 本セッションで実施した変更（2026-07-18 その5・勤務表入力UIの改善）
+オーナーからの修正依頼6件に対応（`src/app/(employee)/timesheet/{ui,schema}.tsx`・`actions.ts`・
+`src/app/admin/timesheet/actions.ts`）:
+- **削除ボタン押下時に確認ダイアログ**（`window.confirm`）を追加。誤操作での即削除を防止。
+- **出勤/退勤の時刻入力に`step={900}`（15分刻み）を設定**。iOSのネイティブ時刻ダイヤルが15分単位のみ
+  選べるようになる。⚠️「リセット」ボタンはiOS Safari自体のネイティブUIであり、アプリ側のコードから
+  制御できないことをオーナーに説明済み（対応不可として合意済み）。
+- **休憩(分)を0/15/.../120分の`<select>`に変更**（`breakMinuteOptions()`）。iOSでは`<select>`が自然に
+  ホイールピッカーで表示される。既存データが15分刻みから外れる値でも選択肢から消えないよう動的に追加。
+- **区間の見出しを「区間(駅1/駅2)」→「区間(From/To)」に変更**、プレースホルダーを「大波駅/新世界駅」
+  →「梅田/動物園前」に変更。
+- **勤務表画面（従業員・管理者共通）でも退勤時刻を未入力のまま保存できるように**。`schema.ts`の
+  `end_time`を空文字許容にし、`actions.ts`側で空文字は`null`として保存。打刻機能の退勤未入力と同じ
+  DB上の扱い（`end_time IS NULL`）になるため、締め処理の「退勤未入力の日があります」チェックも
+  そのまま機能する。
+
 ### 本セッションで実施した変更（2026-07-19・実従業員登録後の再テストで判明した認証不具合3件）
 オーナーが実際の従業員登録完了後、改めてテスト従業員で初回招待をテストしたところ3件報告があり、
 すべて調査・修正した。**特に1件目は認証まわりで繰り返し起きている不具合の「真因」**だったため重点的に記載する。
@@ -377,6 +393,26 @@ Cloudflare自動デプロイまで実施済み。
   新しい認証関連の不具合報告があった場合は、まず Supabase 監査ログ（`get_logs` service=auth）で
   実際に踏んだテンプレート（`user_confirmation_requested` vs `user_recovery_requested` vs
   `login`のaction種別、`/verify`がGETかPOSTか）を確認してから対応すること。推測だけで直さない。
+
+### 本セッションで実施した変更（2026-07-19 その2・supabase-invite-authスキル更新）
+上記の認証不具合2件（Hostヘッダー依存・プリフェッチ消費・Confirm signupテンプレート見落とし）を、
+他プロジェクトでも再発させないよう `.claude/skills/supabase-invite-auth/` に反映した。
+- SKILL.mdに「3つの落とし穴」（PKCEデバイス不一致／3テンプレート中の見落とし／プリフェッチ消費）を
+  整理し、それぞれ同じ症状（リンクがログイン画面に戻る・期限切れ表示）で現れることを明記。
+- `/auth/callback`を検証なしのリダイレクトのみにし、`/auth/confirm`でボタン押下時に検証する
+  パターンをコード例ごと追加（`assets/confirm-page.tsx`新設、`assets/callback-route.ts`更新）。
+- Supabase監査ログでの診断手順（Diagnosingセクション）を追加。推測ではなくログを見てから対応する
+  運用を明文化。
+- 検証手順に「削除して再登録したテストユーザーではConfirm signup経路を踏まないため、必ず一度も
+  招待したことのない新しいメールアドレスで最終確認する」ことを追加。
+- スキル内`employee-actions.ts`サンプルのHostヘッダー依存も本体同様に修正。
+
+### 本セッションで実施した変更（2026-07-19 その3・従業員マスターに「ふりがな」「ニックネーム」追加）
+- DB: `employees`テーブルに`furigana`・`nickname`カラムを追加（ともに任意項目）。
+- 従業員追加フォーム・編集パネルの両方で、入力順を「氏名 → ふりがな/ニックネーム（同じ行に横並び）
+  → メールアドレス」に統一（`src/app/admin/employees/{actions,page,ui}.tsx`）。
+- `addEmployee`/`updateEmployeeProfile`のスキーマ・保存処理に追加。一覧表示（`EmployeeTableRow`）は
+  変更なし（氏名のみ表示、スコープ外）。
 
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
@@ -460,6 +496,7 @@ npm test           # Vitest（給与計算ロジック）
   **Supabase「Reset password」テンプレート依存**。認証パターンの解説はスキル `.claude/skills/supabase-invite-auth/`。
 - RLS/権限: DBの関数 `is_admin()` 等（Supabase側）。画面ガードは `src/lib/auth.ts`。
 - 従業員の登録/編集・No自動採番: `src/app/admin/employees/{actions,ui}.tsx`（`addEmployee`/`nextEmployeeNo`/`updateEmployeeProfile`/`resetEmployeePassword`）。
+  氏名・ふりがな・ニックネーム・メールアドレスの入力順で登録・編集する（ふりがな/ニックネームは任意・同じ行に横並び）。
 - ダッシュボードのカレンダー: `src/app/admin/DashboardCalendar.tsx`。集計は `admin/page.tsx`。
 - 勤務表(管理者): `src/app/admin/timesheet/{page,actions}.ts`。UIは従業員用 `src/app/(employee)/timesheet/ui.tsx`
   の `TimesheetCalendar` を共用（`save`/`del`/`basePath`/`employees` などを props で受ける）。入力スキーマは
