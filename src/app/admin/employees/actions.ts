@@ -24,7 +24,7 @@ const employeeSchema = z
     (d) =>
       d.role === "admin" ||
       (typeof d.hourly_wage === "number" &&
-        d.hourly_wage > 0 &&
+        d.hourly_wage >= 0 &&
         d.tax_category !== undefined &&
         !!d.effective_from),
     { message: "従業員の場合は時給・税区分・適用開始日を入力してください" }
@@ -189,7 +189,8 @@ export async function updateEmployeeProfile(
 
 const wageSchema = z.object({
   employee_id: z.uuid(),
-  hourly_wage: z.coerce.number().int().positive("時給は正の整数で入力してください"),
+  // 0円を許容(経営者が現場ヘルプで入る場合など無給勤務の記録用途)
+  hourly_wage: z.coerce.number().int().min(0, "時給は0以上の整数で入力してください"),
   effective_from: z.string().min(1, "適用開始日を入力してください"),
 });
 

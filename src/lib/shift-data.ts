@@ -24,7 +24,7 @@ export async function loadShiftData(supabase: SupabaseServer, period: Period) {
     supabase.rpc("get_shift_settings"),
     supabase
       .from("shift_assignments")
-      .select("employee_id, work_date, slot, note")
+      .select("employee_id, work_date, slot, custom_start, custom_end")
       .gte("work_date", period.start)
       .lte("work_date", period.end),
     supabase.rpc("get_shift_status", {

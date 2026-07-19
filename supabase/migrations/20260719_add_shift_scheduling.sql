@@ -14,12 +14,14 @@ create table if not exists public.shift_assignments (
   employee_id uuid not null references public.employees(id) on delete cascade,
   work_date date not null,
   slot text not null check (slot in ('A','B','C')),
-  note text,
+  custom_start text,
+  custom_end text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (employee_id, work_date)
 );
-comment on column public.shift_assignments.note is 'シフトの個別注記(例「〜16」)。カレンダーでニックネームの後ろに表示';
+comment on column public.shift_assignments.custom_start is '変則出勤予定(HH:MMまたは"24:00"等)。入力時は枠の既定開始時刻を上書き。空なら枠の既定を使用';
+comment on column public.shift_assignments.custom_end is '変則退勤予定(HH:MMまたは"24:00"等)。入力時は枠の既定終了時刻を上書き。空なら枠の既定を使用';
 create index if not exists shift_assignments_date_idx on public.shift_assignments (work_date);
 
 alter table public.shift_assignments enable row level security;
@@ -75,7 +77,9 @@ begin
            ('C', norm_hhmm(c_s), norm_hhmm(c_e))
   ),
   plan as (
-    select sa.employee_id eid, sa.work_date wd, sl.s ps, sl.e pe
+    select sa.employee_id eid, sa.work_date wd,
+      coalesce(norm_hhmm(sa.custom_start), sl.s) ps,
+      coalesce(norm_hhmm(sa.custom_end), sl.e) pe
     from shift_assignments sa
     join slots sl on sl.k = sa.slot
     where sa.work_date between p_start and p_end

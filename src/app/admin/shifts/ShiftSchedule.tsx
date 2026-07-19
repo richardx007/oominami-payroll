@@ -1,15 +1,16 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-// useState は EditRow でも使用
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
 import { adjacentPeriodKey, datesInPeriod } from "@/lib/period";
 import {
   SLOT_KEYS,
   SHIFT_TEXT_COLOR,
-  isMismatch,
+  nicknameStyle,
+  shiftNoteLabel,
   slotRangeLabel,
+  type NicknameStyle,
   type SlotDef,
   type SlotKey,
   type ShiftStatus,
@@ -28,12 +29,25 @@ export type Assignment = {
   employee_id: string;
   work_date: string;
   slot: SlotKey;
-  note: string | null;
+  custom_start: string | null;
+  custom_end: string | null;
 };
 
 /** 表示名: ニックネーム優先、無ければ氏名 */
 function displayName(m: RosterMember): string {
   return m.nickname?.trim() || m.name;
+}
+
+/** ニックネームの表示区分(nicknameStyle)から className/文字色を組み立てる */
+function nicknameClass(style: NicknameStyle): string {
+  if (style === "match") return "font-bold";
+  if (style === "mismatch") return "font-bold text-red-600";
+  return "";
+}
+function nicknameColor(style: NicknameStyle): string | undefined {
+  if (style === "match") return "#000";
+  if (style === "mismatch") return undefined; // text-red-600 が優先
+  return SHIFT_TEXT_COLOR;
 }
 
 export function ShiftSchedule({
@@ -53,7 +67,7 @@ export function ShiftSchedule({
   slots: Record<SlotKey, SlotDef>;
   roster: RosterMember[];
   assignments: Assignment[];
-  /** `${employee_id}|${work_date}` -> status。match 以外は予実相違(赤太字) */
+  /** `${employee_id}|${work_date}` -> status。ニックネームのフォント表示に使う(nicknameStyle参照) */
   statusMap: Record<string, ShiftStatus>;
   holidays: Record<string, string>;
   today: string;
@@ -64,7 +78,8 @@ export function ShiftSchedule({
     employee_id: string;
     work_date: string;
     slot: string;
-    note?: string;
+    custom_start?: string;
+    custom_end?: string;
   }) => Promise<ActionResult>;
   clear?: (employeeId: string, workDate: string) => Promise<ActionResult>;
 }) {
@@ -78,30 +93,40 @@ export function ShiftSchedule({
     [roster]
   );
 
-  // `${empId}|${date}` -> slot / note
+  // `${empId}|${date}` -> slot / 変則出勤・退勤予定
   const slotByKey = useMemo(() => {
     const m = new Map<string, SlotKey>();
     for (const a of assignments) m.set(`${a.employee_id}|${a.work_date}`, a.slot);
     return m;
   }, [assignments]);
-  const noteByKey = useMemo(() => {
-    const m = new Map<string, string>();
+  const customByKey = useMemo(() => {
+    const m = new Map<string, { start: string | null; end: string | null }>();
     for (const a of assignments)
-      if (a.note) m.set(`${a.employee_id}|${a.work_date}`, a.note);
+      m.set(`${a.employee_id}|${a.work_date}`, {
+        start: a.custom_start,
+        end: a.custom_end,
+      });
     return m;
   }, [assignments]);
 
-  // 日付 -> 枠 -> {メンバー, メモ}配列
+  // 日付 -> 枠 -> {メンバー, 変則時刻}配列
   const byDate = useMemo(() => {
     const m = new Map<
       string,
-      Record<SlotKey, { member: RosterMember; note: string | null }[]>
+      Record<
+        SlotKey,
+        { member: RosterMember; customStart: string | null; customEnd: string | null }[]
+      >
     >();
     for (const a of assignments) {
       const member = memberById.get(a.employee_id);
       if (!member) continue;
       if (!m.has(a.work_date)) m.set(a.work_date, { A: [], B: [], C: [] });
-      m.get(a.work_date)![a.slot].push({ member, note: a.note });
+      m.get(a.work_date)![a.slot].push({
+        member,
+        customStart: a.custom_start,
+        customEnd: a.custom_end,
+      });
     }
     return m;
   }, [assignments, memberById]);
@@ -134,7 +159,8 @@ export function ShiftSchedule({
     employeeId: string,
     workDate: string,
     slot: SlotKey | null,
-    note?: string
+    customStart?: string,
+    customEnd?: string
   ) {
     if (!editable || !assign || !clear) return;
     startTransition(async () => {
@@ -143,7 +169,8 @@ export function ShiftSchedule({
             employee_id: employeeId,
             work_date: workDate,
             slot,
-            note,
+            custom_start: customStart,
+            custom_end: customEnd,
           })
         : await clear(employeeId, workDate);
       setResult(res);
@@ -178,18 +205,11 @@ export function ShiftSchedule({
           </span>
         </div>
 
-        {/* 枠の凡例 */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
-          {SLOT_KEYS.map((k) => (
-            <span key={k} className="whitespace-nowrap">
-              <span className="font-bold text-gray-800">{slots[k].label}</span>{" "}
-              {slotRangeLabel(slots[k])}
-            </span>
-          ))}
-          <span className="whitespace-nowrap font-medium text-red-600">
-            赤太字＝予定と実績が相違
-          </span>
-        </div>
+        {/* 補足説明 */}
+        <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">
+          <span className="text-gray-800">太字＝実績入力済み。</span>
+          <span className="text-red-600">赤太字＝予定と実績が相違</span>
+        </p>
 
         {result && (
           <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
@@ -242,29 +262,32 @@ export function ShiftSchedule({
                     <div className="mt-0.5 flex flex-1 flex-col gap-px">
                       {SLOT_KEYS.map((k) => (
                         <div key={k} className="flex min-h-[15px] flex-col gap-px">
-                          {(slotsForDay?.[k] ?? []).map(({ member: m, note }) => {
-                            const mism = isMismatch(statusMap[`${m.id}|${date}`]);
-                            return (
-                              <span
-                                key={m.id}
-                                className={`block w-full truncate rounded-sm px-1 text-[10px] leading-tight ${
-                                  mism ? "font-bold text-red-600" : ""
-                                }`}
-                                style={{
-                                  backgroundColor: m.color ?? "#eef2f7",
-                                  color: mism ? undefined : SHIFT_TEXT_COLOR,
-                                }}
-                                title={`${slots[k].label}: ${m.name}${note ? ` ${note}` : ""}`}
-                              >
-                                {displayName(m)}
-                                {note && (
-                                  <span className="ml-0.5 font-normal opacity-80">
-                                    {note}
-                                  </span>
-                                )}
-                              </span>
-                            );
-                          })}
+                          {(slotsForDay?.[k] ?? []).map(
+                            ({ member: m, customStart, customEnd }) => {
+                              const style = nicknameStyle(
+                                statusMap[`${m.id}|${date}`]
+                              );
+                              const note = shiftNoteLabel(customStart, customEnd);
+                              return (
+                                <span
+                                  key={m.id}
+                                  className={`block w-full truncate rounded-sm px-1 text-[10px] leading-tight ${nicknameClass(style)}`}
+                                  style={{
+                                    backgroundColor: m.color ?? "#eef2f7",
+                                    color: nicknameColor(style),
+                                  }}
+                                  title={`${slots[k].label}: ${m.name}${note ? ` ${note}` : ""}`}
+                                >
+                                  {displayName(m)}
+                                  {note && (
+                                    <span className="ml-0.5 font-normal opacity-80">
+                                      {note}
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            }
+                          )}
                         </div>
                       ))}
                     </div>
@@ -284,7 +307,7 @@ export function ShiftSchedule({
             slots={slots}
             roster={roster}
             slotByKey={slotByKey}
-            noteByKey={noteByKey}
+            customByKey={customByKey}
             statusMap={statusMap}
             editable={editable}
             pending={pending}
@@ -301,14 +324,15 @@ export function ShiftSchedule({
   );
 }
 
-/** 予定編集の1行(枠ボタン＋任意メモ)。メモはローカル状態で持ち、確定時に割当と一緒に保存する。 */
+/** 予定編集の1行(枠ボタン＋任意の変則出勤/退勤予定)。 */
 function EditRow({
   member: m,
   date,
   slots,
   cur,
-  note,
-  mism,
+  customStart,
+  customEnd,
+  style,
   pending,
   onAssign,
 }: {
@@ -316,26 +340,29 @@ function EditRow({
   date: string;
   slots: Record<SlotKey, SlotDef>;
   cur: SlotKey | null;
-  note: string;
-  mism: boolean;
+  customStart: string | null;
+  customEnd: string | null;
+  style: NicknameStyle;
   pending: boolean;
   onAssign: (
     employeeId: string,
     workDate: string,
     slot: SlotKey | null,
-    note?: string
+    customStart?: string,
+    customEnd?: string
   ) => void;
 }) {
-  const [noteValue, setNoteValue] = useState(note);
+  const [cs, setCs] = useState(customStart ?? "");
+  const [ce, setCe] = useState(customEnd ?? "");
 
   return (
     <div className="border-b border-gray-50 py-1.5">
       <div className="flex items-center justify-between gap-2">
         <span
-          className={`min-w-0 flex-1 truncate rounded px-2 py-0.5 text-sm ${mism ? "font-bold text-red-600" : ""}`}
+          className={`min-w-0 flex-1 truncate rounded px-2 py-0.5 text-sm ${nicknameClass(style)}`}
           style={{
             backgroundColor: m.color ?? "#eef2f7",
-            color: mism ? undefined : SHIFT_TEXT_COLOR,
+            color: nicknameColor(style),
           }}
           title={m.name}
         >
@@ -347,7 +374,7 @@ function EditRow({
               key={k}
               disabled={pending}
               onClick={() =>
-                onAssign(m.id, date, cur === k ? null : k, noteValue)
+                onAssign(m.id, date, cur === k ? null : k, cs, ce)
               }
               className={`h-8 rounded-lg border px-2 text-xs font-bold transition disabled:opacity-50 ${
                 cur === k
@@ -360,21 +387,38 @@ function EditRow({
           ))}
         </div>
       </div>
-      {/* メモ(任意)。枠が割当済みのときだけ表示。入力後フォーカスを外すと保存。 */}
+      {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ入力。 */}
       {cur && (
-        <div className="mt-1 flex items-center gap-2 pl-1">
-          <span className="text-xs text-gray-400">メモ</span>
-          <input
-            value={noteValue}
-            onChange={(e) => setNoteValue(e.target.value)}
-            onBlur={() => {
-              if (noteValue !== note) onAssign(m.id, date, cur, noteValue);
-            }}
-            placeholder="例: 〜16"
-            maxLength={30}
-            disabled={pending}
-            className="w-32 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+        <div className="mt-1.5 pl-1">
+          <div className="text-xs font-semibold text-gray-500">変則勤務時間</div>
+          <div className="mt-1 flex items-center gap-1.5">
+            <input
+              value={cs}
+              onChange={(e) => setCs(e.target.value)}
+              onBlur={() => {
+                if (cs !== (customStart ?? ""))
+                  onAssign(m.id, date, cur, cs, ce);
+              }}
+              placeholder={slots[cur].start}
+              maxLength={5}
+              disabled={pending}
+              aria-label="変則出勤予定"
+              className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <span className="text-xs text-gray-400">〜</span>
+            <input
+              value={ce}
+              onChange={(e) => setCe(e.target.value)}
+              onBlur={() => {
+                if (ce !== (customEnd ?? "")) onAssign(m.id, date, cur, cs, ce);
+              }}
+              placeholder={slots[cur].end}
+              maxLength={5}
+              disabled={pending}
+              aria-label="変則退勤予定"
+              className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
         </div>
       )}
     </div>
@@ -391,7 +435,7 @@ function DayPanel({
   slots,
   roster,
   slotByKey,
-  noteByKey,
+  customByKey,
   statusMap,
   editable,
   pending,
@@ -401,7 +445,7 @@ function DayPanel({
   slots: Record<SlotKey, SlotDef>;
   roster: RosterMember[];
   slotByKey: Map<string, SlotKey>;
-  noteByKey: Map<string, string>;
+  customByKey: Map<string, { start: string | null; end: string | null }>;
   statusMap: Record<string, ShiftStatus>;
   editable: boolean;
   pending: boolean;
@@ -409,7 +453,8 @@ function DayPanel({
     employeeId: string,
     workDate: string,
     slot: SlotKey | null,
-    note?: string
+    customStart?: string,
+    customEnd?: string
   ) => void;
 }) {
   return (
@@ -437,15 +482,16 @@ function DayPanel({
                     <span className="text-xs text-gray-300">—</span>
                   ) : (
                     members.map((m) => {
-                      const mism = isMismatch(statusMap[`${m.id}|${date}`]);
-                      const note = noteByKey.get(`${m.id}|${date}`);
+                      const style = nicknameStyle(statusMap[`${m.id}|${date}`]);
+                      const c = customByKey.get(`${m.id}|${date}`);
+                      const note = shiftNoteLabel(c?.start ?? null, c?.end ?? null);
                       return (
                         <span
                           key={m.id}
-                          className={`rounded px-2 py-0.5 text-sm ${mism ? "font-bold text-red-600" : ""}`}
+                          className={`rounded px-2 py-0.5 text-sm ${nicknameClass(style)}`}
                           style={{
                             backgroundColor: m.color ?? "#eef2f7",
-                            color: mism ? undefined : SHIFT_TEXT_COLOR,
+                            color: nicknameColor(style),
                           }}
                         >
                           {displayName(m)}
@@ -465,25 +511,35 @@ function DayPanel({
         </div>
       ) : (
         <div className="mt-3 space-y-2">
-          <p className="text-xs text-gray-500">
-            各従業員の枠を選びます(もう一度押すと解除)。
-          </p>
+          {/* シフト枠の凡例(旧: カレンダー上部にあった説明をここに移動) */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            {SLOT_KEYS.map((k) => (
+              <span key={k} className="whitespace-nowrap">
+                <span className="font-bold text-gray-800">{slots[k].label}</span>{" "}
+                {slotRangeLabel(slots[k])}
+              </span>
+            ))}
+          </div>
           {roster.length === 0 && (
             <p className="text-sm text-gray-400">対象の従業員がいません。</p>
           )}
-          {roster.map((m) => (
-            <EditRow
-              key={m.id}
-              member={m}
-              date={date}
-              slots={slots}
-              cur={slotByKey.get(`${m.id}|${date}`) ?? null}
-              note={noteByKey.get(`${m.id}|${date}`) ?? ""}
-              mism={isMismatch(statusMap[`${m.id}|${date}`])}
-              pending={pending}
-              onAssign={onAssign}
-            />
-          ))}
+          {roster.map((m) => {
+            const c = customByKey.get(`${m.id}|${date}`);
+            return (
+              <EditRow
+                key={m.id}
+                member={m}
+                date={date}
+                slots={slots}
+                cur={slotByKey.get(`${m.id}|${date}`) ?? null}
+                customStart={c?.start ?? null}
+                customEnd={c?.end ?? null}
+                style={nicknameStyle(statusMap[`${m.id}|${date}`])}
+                pending={pending}
+                onAssign={onAssign}
+              />
+            );
+          })}
         </div>
       )}
     </div>

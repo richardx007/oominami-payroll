@@ -11,15 +11,18 @@ const assignSchema = z.object({
   employee_id: z.uuid(),
   work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   slot: z.enum(["A", "B", "C"]),
-  note: z.string().max(30).optional(),
+  // 変則出勤/退勤予定(任意)。枠の既定時刻と表記を合わせ "8:00"/"24:00" 等をそのまま許容する。
+  custom_start: z.string().max(5).optional(),
+  custom_end: z.string().max(5).optional(),
 });
 
-/** 従業員のその日のシフト枠(＋任意メモ)を設定(1従業員1日1枠。再設定で上書き)。 */
+/** 従業員のその日のシフト枠(＋任意の変則出勤/退勤予定)を設定(1従業員1日1枠。再設定で上書き)。 */
 export async function assignShift(input: {
   employee_id: string;
   work_date: string;
   slot: string;
-  note?: string;
+  custom_start?: string;
+  custom_end?: string;
 }): Promise<ActionResult> {
   await requireAdmin();
   const parsed = assignSchema.safeParse(input);
@@ -34,7 +37,8 @@ export async function assignShift(input: {
       employee_id: d.employee_id,
       work_date: d.work_date,
       slot: d.slot,
-      note: d.note?.trim() || null,
+      custom_start: d.custom_start?.trim() || null,
+      custom_end: d.custom_end?.trim() || null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "employee_id,work_date" }

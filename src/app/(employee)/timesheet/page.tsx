@@ -67,7 +67,7 @@ export default async function TimesheetPage({
       // 自分のシフト予定(予実一覧・入力デフォルト用)
       supabase
         .from("shift_assignments")
-        .select("work_date, slot")
+        .select("work_date, slot, custom_start, custom_end")
         .eq("employee_id", employee.id)
         .gte("work_date", period.start)
         .lte("work_date", period.end),
@@ -77,7 +77,12 @@ export default async function TimesheetPage({
 
   const slots = parseSlots(slotRows as { key: string; value: string }[]);
   const shifts = buildShiftMap(
-    (shiftRows ?? []) as { work_date: string; slot: SlotKey }[],
+    (shiftRows ?? []) as {
+      work_date: string;
+      slot: SlotKey;
+      custom_start: string | null;
+      custom_end: string | null;
+    }[],
     slots
   );
 

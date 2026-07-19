@@ -215,10 +215,13 @@ function AddEmployeePanel() {
                     <input
                       name="hourly_wage"
                       type="number"
-                      min={1}
+                      min={0}
                       required
                       className={inputClass}
                     />
+                    <p className="mt-1 text-xs text-gray-400">
+                      経営者のヘルプ入りなど無給の場合は0を入力
+                    </p>
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium">税区分</label>
@@ -301,7 +304,7 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
             <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
               <th className="px-4 py-2">氏名</th>
               <th className="px-4 py-2">招待状態</th>
-              <th className="px-4 py-2">状態</th>
+              <th className="px-4 py-2">在籍</th>
             </tr>
           </thead>
           <tbody>
@@ -414,6 +417,11 @@ function EmployeeTableRow({
             />
           )}
           <span className="font-medium">{emp.name}</span>
+          {emp.nickname && (
+            <span className="ml-1.5 text-xs text-gray-400">
+              {emp.nickname}
+            </span>
+          )}
           {emp.is_admin && (
             <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
               管理者
@@ -432,7 +440,14 @@ function EmployeeTableRow({
             </span>
           )}
         </td>
-        <td className="px-4 py-3">{retired ? "退職" : "在籍"}</td>
+        <td className="px-4 py-3">
+          <span
+            aria-label={retired ? "退職" : "在籍"}
+            className={retired ? "text-gray-400" : "text-green-600"}
+          >
+            {retired ? "×" : "○"}
+          </span>
+        </td>
       </tr>
       {editing && (
         <tr>
@@ -524,24 +539,26 @@ function EmployeeTableRow({
                       className={inputClass}
                     />
                   </div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1.5fr_auto]">
-                    <input
-                      name="email"
-                      type="email"
-                      defaultValue={emp.email}
-                      required
-                      placeholder="メールアドレス"
-                      className={inputClass}
-                    />
-                    <button
-                      disabled={pending}
-                      className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      更新
-                    </button>
-                  </div>
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={emp.email}
+                    required
+                    placeholder="メールアドレス"
+                    className={inputClass}
+                  />
                 </div>
-                <ColorPicker initial={emp.color} />
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-0 flex-1">
+                    <ColorPicker initial={emp.color} />
+                  </div>
+                  <button
+                    disabled={pending}
+                    className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    更新
+                  </button>
+                </div>
                 <p className="text-xs text-gray-400">
                   ※ メールアドレスを変更すると「未登録」に戻り、再度の招待が必要になります
                 </p>
@@ -561,7 +578,7 @@ function EmployeeTableRow({
                       <input
                         name="hourly_wage"
                         type="number"
-                        min={1}
+                        min={0}
                         defaultValue={wage?.hourly_wage}
                         required
                         placeholder="時給(円)"

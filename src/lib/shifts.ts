@@ -98,31 +98,69 @@ export type ShiftInfo = {
   endInput: string | null;
 };
 
-/** 従業員の(work_date, slot)割当一覧から work_date -> ShiftInfo のマップを作る */
+/** 従業員の(work_date, slot, 変則時刻)割当一覧から work_date -> ShiftInfo のマップを作る。
+ *  変則出勤/退勤予定(custom_start/custom_end)が入力されていれば枠の既定時刻を上書きする。 */
 export function buildShiftMap(
-  rows: { work_date: string; slot: SlotKey }[],
+  rows: {
+    work_date: string;
+    slot: SlotKey;
+    custom_start?: string | null;
+    custom_end?: string | null;
+  }[],
   slots: Record<SlotKey, SlotDef>
 ): Record<string, ShiftInfo> {
   const out: Record<string, ShiftInfo> = {};
   for (const r of rows) {
     const s = slots[r.slot];
     if (!s) continue;
+    const start = r.custom_start?.trim() || s.start;
+    const end = r.custom_end?.trim() || s.end;
     out[r.work_date] = {
       slot: r.slot,
       label: s.label,
-      start: s.start,
-      end: s.end,
-      startInput: toInputTime(s.start),
-      endInput: toInputTime(s.end),
+      start,
+      end,
+      startInput: toInputTime(start),
+      endInput: toInputTime(end),
     };
   }
   return out;
 }
 
+/**
+ * カレンダーチップに表示する変則勤務の短縮ラベルを作る。時・分のうち時(HH)のみを採用する。
+ * 例: 開始のみ変則("11:00")→"11〜" / 終了のみ変則("11:00")→"〜11" / 両方→"11〜18"。
+ * どちらも未入力なら空文字("" は表示しない)。
+ */
+export function shiftNoteLabel(
+  customStart: string | null | undefined,
+  customEnd: string | null | undefined
+): string {
+  const hourOnly = (t: string): string => {
+    const m = /^(\d{1,2}):/.exec(t.trim());
+    return m ? String(Number(m[1]) % 24) : t.trim();
+  };
+  const cs = customStart?.trim();
+  const ce = customEnd?.trim();
+  if (cs && ce) return `${hourOnly(cs)}〜${hourOnly(ce)}`;
+  if (cs) return `${hourOnly(cs)}〜`;
+  if (ce) return `〜${hourOnly(ce)}`;
+  return "";
+}
+
 /** 予実突き合わせの状態(get_shift_status の返り値) */
 export type ShiftStatus = "match" | "missing" | "timediff" | "unplanned";
 
-/** status が「相違(赤太字にすべき)」かどうか。match 以外はすべて相違扱い。 */
-export function isMismatch(status: ShiftStatus | undefined): boolean {
-  return status !== undefined && status !== "match";
+/**
+ * ニックネームのフォント表示区分。
+ * - "normal": 実績が未入力(missing)→通常フォント
+ * - "match": 実績が予定と合致→黒字の太字
+ * - "mismatch": 実績が予定と不一致(timediff/unplanned)→赤字の太字
+ */
+export type NicknameStyle = "normal" | "match" | "mismatch";
+
+export function nicknameStyle(status: ShiftStatus | undefined): NicknameStyle {
+  if (status === "match") return "match";
+  if (status === "timediff" || status === "unplanned") return "mismatch";
+  return "normal";
 }
