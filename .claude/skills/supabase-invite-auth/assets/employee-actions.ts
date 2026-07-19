@@ -1,11 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { sendMail } from "@/lib/email";
+
+/**
+ * Build auth email links from a fixed env var, never from request headers
+ * (`headers().get("host")` / `x-forwarded-host`). Trusting the Host header lets an attacker
+ * who can spoof it redirect password-reset/invite links to their own domain — a full account
+ * takeover, since the token_hash is right there in the query string. Set
+ * NEXT_PUBLIC_SITE_URL to the app's real production origin (no trailing slash).
+ */
+function getSiteUrl(): string {
+  const url = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!url) throw new Error("NEXT_PUBLIC_SITE_URL is not set");
+  return url.replace(/\/+$/, "");
+}
 
 const employeeSchema = z
   .object({
@@ -253,9 +265,7 @@ export async function inviteEmployee(employeeId: string): Promise<ActionResult> 
     return { ok: false, message: "退職済みの従業員には送信できません" };
   }
 
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  const registerUrl = `https://${host}/register`;
+  const registerUrl = `${getSiteUrl()}/register`;
 
   const result = await sendMail({
     to: employee.email,
@@ -303,13 +313,11 @@ export async function resetEmployeePassword(
     return { ok: false, message: "退職済みの従業員には送信できません" };
   }
 
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  // 再設定リンクをクリック → /auth/callback で token_hash を検証してセッション確立 → /set-password。
+  // クリック後は /auth/callback → /auth/confirm(ボタン押下でverifyOtp) → /set-password。
   // 本人は別端末(スマホ等)でメールを開くため、PKCE では code_verifier がその端末に無く
   // verifyOtp が失敗する。送信は implicit フローのクライアントで行い、端末非依存の token_hash を
   // 発行させる(createClient がオプションで flowType を受け取れるようにしておくこと)。
-  const redirectTo = `https://${host}/auth/callback?setup=1`;
+  const redirectTo = `${getSiteUrl()}/auth/callback?setup=1`;
 
   const mailer = await createClient({ flowType: "implicit" });
   const { error } = await mailer.auth.resetPasswordForEmail(employee.email, {
