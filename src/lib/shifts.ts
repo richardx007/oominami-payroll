@@ -14,11 +14,11 @@ export type SlotDef = {
   end: string;
 };
 
-/** app_settings 未設定時の既定(要件: A 8:00-17:00 / B 15:00-24:00 / C 24:00-9:00) */
+/** app_settings 未設定時の既定(要件: 早番 8:00-17:00 / 遅番 15:00-24:00 / 深夜 24:00-9:00) */
 export const DEFAULT_SLOTS: Record<SlotKey, SlotDef> = {
-  A: { key: "A", label: "A", start: "8:00", end: "17:00" },
-  B: { key: "B", label: "B", start: "15:00", end: "24:00" },
-  C: { key: "C", label: "C", start: "24:00", end: "9:00" },
+  A: { key: "A", label: "早番", start: "8:00", end: "17:00" },
+  B: { key: "B", label: "遅番", start: "15:00", end: "24:00" },
+  C: { key: "C", label: "深夜", start: "24:00", end: "9:00" },
 };
 
 /** app_settings の key/value 配列からシフト枠定義を組み立てる */

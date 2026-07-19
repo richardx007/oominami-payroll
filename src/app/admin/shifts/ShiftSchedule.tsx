@@ -208,45 +208,40 @@ export function ShiftSchedule({
                     key={date}
                     onClick={() => setSelected(isSelected ? null : date)}
                     title={holidays[date] ?? undefined}
-                    className={`m-0.5 flex min-h-16 flex-col rounded-lg p-1 text-left align-top transition ${
-                      isSelected
-                        ? "ring-2 ring-blue-500"
-                        : "hover:bg-gray-50"
+                    className={`m-0.5 flex min-h-24 flex-col rounded-lg p-1 text-left align-top transition ${
+                      isSelected ? "ring-2 ring-blue-500" : "hover:bg-gray-50"
                     } ${isToday ? "bg-gray-100" : ""}`}
                   >
-                    <span className={`text-xs font-semibold ${textColor}`}>
-                      {day}
-                    </span>
-                    <span className="mt-0.5 flex flex-col gap-0.5">
-                      {slotsForDay &&
-                        SLOT_KEYS.map((k) =>
-                          slotsForDay[k].length > 0 ? (
-                            <span key={k} className="flex flex-wrap gap-0.5">
-                              {slotsForDay[k].map((m) => {
-                                const mism = isMismatch(
-                                  statusMap[`${m.id}|${date}`]
-                                );
-                                return (
-                                  <span
-                                    key={m.id}
-                                    className={`inline-block rounded px-1 text-[10px] leading-tight ${
-                                      mism ? "font-bold text-red-600" : ""
-                                    }`}
-                                    style={{
-                                      backgroundColor: m.color ?? "#eef2f7",
-                                      color: mism ? undefined : SHIFT_TEXT_COLOR,
-                                    }}
-                                    title={`${slots[k].label}: ${m.name}`}
-                                  >
-                                    {slots[k].label}
-                                    {displayName(m)}
-                                  </span>
-                                );
-                              })}
-                            </span>
-                          ) : null
-                        )}
-                    </span>
+                    <div className="flex justify-end">
+                      <span className={`text-xs font-semibold ${textColor}`}>
+                        {day}
+                      </span>
+                    </div>
+                    {/* 縦位置で枠を表現(上段=早番/中段=遅番/下段=深夜)。各人を横幅いっぱいの色帯で表示。 */}
+                    <div className="mt-0.5 flex flex-1 flex-col gap-px">
+                      {SLOT_KEYS.map((k) => (
+                        <div key={k} className="flex min-h-[15px] flex-col gap-px">
+                          {(slotsForDay?.[k] ?? []).map((m) => {
+                            const mism = isMismatch(statusMap[`${m.id}|${date}`]);
+                            return (
+                              <span
+                                key={m.id}
+                                className={`block w-full truncate rounded-sm px-1 text-[10px] leading-tight ${
+                                  mism ? "font-bold text-red-600" : ""
+                                }`}
+                                style={{
+                                  backgroundColor: m.color ?? "#eef2f7",
+                                  color: mism ? undefined : SHIFT_TEXT_COLOR,
+                                }}
+                                title={`${slots[k].label}: ${m.name}`}
+                              >
+                                {displayName(m)}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
                   </button>
                 );
               })}
@@ -382,7 +377,7 @@ function DayPanel({
                       onClick={() =>
                         onAssign(m.id, date, cur === k ? null : k)
                       }
-                      className={`h-8 w-8 rounded-lg border text-sm font-bold transition disabled:opacity-50 ${
+                      className={`h-8 rounded-lg border px-2 text-xs font-bold transition disabled:opacity-50 ${
                         cur === k
                           ? "border-blue-600 bg-blue-600 text-white"
                           : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
