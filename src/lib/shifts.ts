@@ -68,6 +68,17 @@ export function slotRangeLabel(slot: SlotDef): string {
   return `${slot.start}〜${slot.end}`;
 }
 
+/** "8:00"/"24:00" 等から時(HH)だけを取り出す(24時表記はそのまま24として扱う・折り返さない) */
+function rawHour(t: string): string {
+  const m = /^(\d{1,2}):/.exec(t.trim());
+  return m ? String(Number(m[1])) : t.trim();
+}
+
+/** 枠の時刻を「8〜17時」形式(時のみ)で表示する。シフト編集パネルの凡例など、短く収めたい場所で使う */
+export function slotHourRangeLabel(slot: SlotDef): string {
+  return `${rawHour(slot.start)}〜${rawHour(slot.end)}時`;
+}
+
 /**
  * 従業員の識別色パレット(10色)。
  * 背景色にふさわしく明度が高く彩度の低い色。濃い文字(#1f2937)が乗る前提。重複割当も許容。

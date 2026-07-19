@@ -9,6 +9,7 @@ import {
   SHIFT_TEXT_COLOR,
   nicknameStyle,
   shiftNoteLabel,
+  slotHourRangeLabel,
   slotRangeLabel,
   type NicknameStyle,
   type SlotDef,
@@ -254,8 +255,8 @@ export function ShiftSchedule({
                     key={date}
                     onClick={() => setSelected(isSelected ? null : date)}
                     title={holidays[date] ?? undefined}
-                    className={`m-px flex min-h-16 flex-col rounded-lg p-0.5 text-left align-top transition sm:m-0.5 sm:min-h-20 sm:p-1 ${
-                      isSelected ? "ring-2 ring-blue-500" : "hover:bg-gray-50"
+                    className={`relative flex min-h-16 flex-col border border-gray-100 p-0 text-left align-top transition sm:min-h-20 ${
+                      isSelected ? "z-10 ring-2 ring-blue-500" : "hover:bg-gray-50"
                     } ${isToday ? "bg-gray-100" : ""}`}
                   >
                     <div className="flex justify-center">
@@ -263,8 +264,9 @@ export function ShiftSchedule({
                         {day}
                       </span>
                     </div>
-                    {/* 縦位置で枠を表現(上段=早番/中段=遅番/下段=深夜)。各人を横幅いっぱいの色帯で表示。 */}
-                    <div className="mt-0.5 flex flex-1 flex-col gap-px">
+                    {/* 縦位置で枠を表現(上段=早番/中段=遅番/下段=深夜)。各人を横幅いっぱいの色帯で表示。
+                        名前が5文字程度まで収まるよう余白を最小限にする(隣のセルと接触してもよい)。 */}
+                    <div className="flex flex-1 flex-col gap-px">
                       {SLOT_KEYS.map((k) => (
                         <div key={k} className="flex min-h-[15px] flex-col gap-px">
                           {(slotsForDay?.[k] ?? []).map(
@@ -276,7 +278,7 @@ export function ShiftSchedule({
                               return (
                                 <span
                                   key={m.id}
-                                  className={`block w-full truncate rounded-sm px-0.5 text-[9px] leading-tight sm:text-[10px] ${nicknameClass(style)}`}
+                                  className={`block w-full truncate text-[9px] leading-tight sm:text-[10px] ${nicknameClass(style)}`}
                                   style={{
                                     backgroundColor: m.color ?? "#eef2f7",
                                     color: nicknameColor(style),
@@ -361,7 +363,7 @@ function EditRow({
   const [ce, setCe] = useState(customEnd ?? "");
 
   return (
-    <div className="border-b border-gray-50 py-1.5">
+    <div className="border-b border-gray-50 py-1">
       <div className="flex items-center justify-between gap-2">
         <span
           className={`min-w-0 flex-1 truncate rounded px-2 py-0.5 text-sm ${nicknameClass(style)}`}
@@ -381,7 +383,7 @@ function EditRow({
               onClick={() =>
                 onAssign(m.id, date, cur === k ? null : k, cs, ce)
               }
-              className={`h-8 rounded-lg border px-2 text-xs font-bold transition disabled:opacity-50 ${
+              className={`h-7 rounded-lg border px-2 text-xs font-bold transition disabled:opacity-50 ${
                 cur === k
                   ? "border-blue-600 bg-blue-600 text-white"
                   : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
@@ -392,38 +394,39 @@ function EditRow({
           ))}
         </div>
       </div>
-      {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ入力。 */}
+      {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ入力。
+          見出しは入力欄と同じ行、入力欄のすぐ左に配置する。 */}
       {cur && (
-        <div className="mt-1.5 pl-1">
-          <div className="text-xs font-semibold text-gray-500">変則勤務時間</div>
-          <div className="mt-1 flex items-center justify-end gap-1.5">
-            <input
-              value={cs}
-              onChange={(e) => setCs(e.target.value)}
-              onBlur={() => {
-                if (cs !== (customStart ?? ""))
-                  onAssign(m.id, date, cur, cs, ce);
-              }}
-              placeholder={slots[cur].start}
-              maxLength={5}
-              disabled={pending}
-              aria-label="変則出勤予定"
-              className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <span className="text-xs text-gray-400">〜</span>
-            <input
-              value={ce}
-              onChange={(e) => setCe(e.target.value)}
-              onBlur={() => {
-                if (ce !== (customEnd ?? "")) onAssign(m.id, date, cur, cs, ce);
-              }}
-              placeholder={slots[cur].end}
-              maxLength={5}
-              disabled={pending}
-              aria-label="変則退勤予定"
-              className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
+        <div className="mt-1 flex items-center justify-end gap-1.5">
+          <span className="text-xs font-semibold text-gray-500">
+            変則勤務時間
+          </span>
+          <input
+            value={cs}
+            onChange={(e) => setCs(e.target.value)}
+            onBlur={() => {
+              if (cs !== (customStart ?? ""))
+                onAssign(m.id, date, cur, cs, ce);
+            }}
+            placeholder={slots[cur].start}
+            maxLength={5}
+            disabled={pending}
+            aria-label="変則出勤予定"
+            className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <span className="text-xs text-gray-400">〜</span>
+          <input
+            value={ce}
+            onChange={(e) => setCe(e.target.value)}
+            onBlur={() => {
+              if (ce !== (customEnd ?? "")) onAssign(m.id, date, cur, cs, ce);
+            }}
+            placeholder={slots[cur].end}
+            maxLength={5}
+            disabled={pending}
+            aria-label="変則退勤予定"
+            className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
         </div>
       )}
     </div>
@@ -515,13 +518,14 @@ function DayPanel({
           })}
         </div>
       ) : (
-        <div className="mt-3 space-y-2">
-          {/* シフト枠の凡例(旧: カレンダー上部にあった説明をここに移動)。1行に収まるよう枠なし・横幅いっぱいに表示 */}
-          <p className="w-full overflow-x-auto whitespace-nowrap text-xs text-gray-600">
+        <div className="mt-3 space-y-1">
+          {/* シフト枠の凡例(旧: カレンダー上部にあった説明をここに移動)。
+              時刻は時(HH)のみにして「早番 8〜17時、遅番 15〜24時、深夜 24〜9時」の1行に収める。 */}
+          <p className="text-xs text-gray-600">
             {SLOT_KEYS.map((k, i) => (
-              <span key={k} className={i > 0 ? "ml-3" : ""}>
-                <span className="font-bold text-gray-800">{slots[k].label}</span>{" "}
-                {slotRangeLabel(slots[k])}
+              <span key={k}>
+                {i > 0 && "、"}
+                {slots[k].label} {slotHourRangeLabel(slots[k])}
               </span>
             ))}
           </p>
