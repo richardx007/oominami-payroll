@@ -454,6 +454,21 @@ Cloudflare自動デプロイまで実施済み。
 - DB変更は `supabase/migrations/20260719_add_shift_scheduling.sql`（custom_start/custom_end に置換）と
   新設 `supabase/migrations/20260719_allow_zero_wage.sql` に記録。
 
+### 本セッションで実施した変更（2026-07-19 その6・シフト画面のレイアウト微調整）
+DBスキーマ変更なし。`src/app/admin/shifts/ShiftSchedule.tsx`・`src/app/admin/page.tsx` のみ変更。
+`npm run build && npm test`(21件) 通過。
+- **ホーム画面上部の期間ステータスバッジ（受付中/締め済み等）を廃止**（`admin/page.tsx`。シフト予定表への置換に伴い
+  `pay_periods` の状態取得クエリごと削除）。
+- **「シフト予定」タイトルの文字サイズを拡大**（`text-sm`→`text-lg font-bold`）。
+- **カレンダー上部に「日をタップしてシフトを指定してください」を追加**（管理者の編集可能画面のみ。従業員の閲覧
+  専用画面では表示しない）。続けて「太字＝実績入力済み。赤太字＝予定と実績が相違」を表示。
+- **カレンダーのセルを勤務表カレンダーのスタイルに統一**: 日付を右寄せ→**中央寄せ**、文字サイズを拡大
+  （`text-base sm:text-lg font-bold`）、曜日見出しも拡大（`text-sm`）。セルの最小高さを縮小
+  （`min-h-24`→`min-h-16 sm:min-h-20`）し下の余白を詰めた。
+- **シフト編集パネル上部の枠時刻一覧（早番 8:00〜17:00 等）を、背景ボックスなしの横スクロール1行表示に変更**
+  （`rounded-lg bg-gray-50` の枠を廃止し `whitespace-nowrap overflow-x-auto` で1行に収める）。
+- **変則勤務時間の入力行を右寄せ**（`justify-end` を追加）。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 

@@ -200,13 +200,18 @@ export function ShiftSchedule({
           >
             ＞
           </button>
-          <span className="ml-auto text-sm font-semibold text-gray-500">
+          <span className="ml-auto text-lg font-bold text-gray-700">
             シフト予定
           </span>
         </div>
 
         {/* 補足説明 */}
         <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">
+          {editable && (
+            <span className="block text-gray-800">
+              日をタップしてシフトを指定してください
+            </span>
+          )}
           <span className="text-gray-800">太字＝実績入力済み。</span>
           <span className="text-red-600">赤太字＝予定と実績が相違</span>
         </p>
@@ -219,11 +224,11 @@ export function ShiftSchedule({
 
         {/* カレンダー */}
         <div className="rounded-xl border-2 border-gray-400 bg-white p-0.5 sm:p-2">
-          <div className="mb-0.5 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-[10px] font-semibold text-gray-600 sm:mb-1 sm:text-xs">
+          <div className="mb-0.5 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-sm font-semibold text-gray-600 sm:mb-1">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
-                className={`py-1 sm:py-1.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
+                className={`py-1.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
               >
                 {w}
               </div>
@@ -249,12 +254,12 @@ export function ShiftSchedule({
                     key={date}
                     onClick={() => setSelected(isSelected ? null : date)}
                     title={holidays[date] ?? undefined}
-                    className={`m-px flex min-h-24 flex-col rounded-lg p-0.5 text-left align-top transition sm:m-0.5 sm:p-1 ${
+                    className={`m-px flex min-h-16 flex-col rounded-lg p-0.5 text-left align-top transition sm:m-0.5 sm:min-h-20 sm:p-1 ${
                       isSelected ? "ring-2 ring-blue-500" : "hover:bg-gray-50"
                     } ${isToday ? "bg-gray-100" : ""}`}
                   >
-                    <div className="flex justify-end">
-                      <span className={`text-[10px] font-semibold sm:text-xs ${textColor}`}>
+                    <div className="flex justify-center">
+                      <span className={`text-base font-bold sm:text-lg ${textColor}`}>
                         {day}
                       </span>
                     </div>
@@ -391,7 +396,7 @@ function EditRow({
       {cur && (
         <div className="mt-1.5 pl-1">
           <div className="text-xs font-semibold text-gray-500">変則勤務時間</div>
-          <div className="mt-1 flex items-center gap-1.5">
+          <div className="mt-1 flex items-center justify-end gap-1.5">
             <input
               value={cs}
               onChange={(e) => setCs(e.target.value)}
@@ -511,15 +516,15 @@ function DayPanel({
         </div>
       ) : (
         <div className="mt-3 space-y-2">
-          {/* シフト枠の凡例(旧: カレンダー上部にあった説明をここに移動) */}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
-            {SLOT_KEYS.map((k) => (
-              <span key={k} className="whitespace-nowrap">
+          {/* シフト枠の凡例(旧: カレンダー上部にあった説明をここに移動)。1行に収まるよう枠なし・横幅いっぱいに表示 */}
+          <p className="w-full overflow-x-auto whitespace-nowrap text-xs text-gray-600">
+            {SLOT_KEYS.map((k, i) => (
+              <span key={k} className={i > 0 ? "ml-3" : ""}>
                 <span className="font-bold text-gray-800">{slots[k].label}</span>{" "}
                 {slotRangeLabel(slots[k])}
               </span>
             ))}
-          </div>
+          </p>
           {roster.length === 0 && (
             <p className="text-sm text-gray-400">対象の従業員がいません。</p>
           )}
