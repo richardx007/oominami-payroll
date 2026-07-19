@@ -1,16 +1,16 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
 import { adjacentPeriodKey, datesInPeriod } from "@/lib/period";
 import {
   SLOT_KEYS,
   SHIFT_TEXT_COLOR,
+  customTimeParen,
   nicknameStyle,
   shiftNoteLabel,
   slotHourRangeLabel,
-  slotRangeLabel,
   type NicknameStyle,
   type SlotDef,
   type SlotKey,
@@ -206,16 +206,11 @@ export function ShiftSchedule({
           </span>
         </div>
 
-        {/* 補足説明 */}
-        <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">
-          {editable && (
-            <span className="block text-gray-800">
-              日をタップしてシフトを指定してください
-            </span>
-          )}
-          <span className="text-gray-800">太字＝実績入力済み。</span>
-          <span className="text-red-600">赤太字＝予定と実績が相違</span>
-        </p>
+        {editable && (
+          <p className="text-xs font-medium text-gray-800">
+            日をタップしてシフトを指定してください
+          </p>
+        )}
 
         {result && (
           <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
@@ -304,6 +299,20 @@ export function ShiftSchedule({
             </div>
           ))}
         </div>
+
+        {/* シフト枠の時刻一覧(1行) + 補足説明。従業員・管理者どちらの画面にも表示する */}
+        <p className="text-xs text-gray-600">
+          {SLOT_KEYS.map((k, i) => (
+            <span key={k}>
+              {i > 0 && "、"}
+              {slots[k].label} {slotHourRangeLabel(slots[k])}
+            </span>
+          ))}
+        </p>
+        <p className="text-xs font-medium">
+          <span className="text-gray-800">太字＝実績入力済み。</span>
+          <span className="text-red-600">赤太字＝予定と実績が相違</span>
+        </p>
       </div>
 
       {/* 右カラム(スマホでは下): 選択日の詳細 / 編集 */}
@@ -475,60 +484,43 @@ function DayPanel({
       </h3>
 
       {!editable ? (
-        <div className="mt-3 space-y-3">
-          {SLOT_KEYS.map((k) => {
+        <div className="mt-3 grid grid-cols-[3.5rem_auto_1fr] items-baseline gap-x-3 gap-y-2">
+          {SLOT_KEYS.flatMap((k) => {
             const members = roster.filter(
               (m) => slotByKey.get(`${m.id}|${date}`) === k
             );
-            return (
-              <div key={k}>
-                <div className="text-xs font-semibold text-gray-500">
-                  {slots[k].label} {slotRangeLabel(slots[k])}
-                </div>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {members.length === 0 ? (
-                    <span className="text-xs text-gray-300">—</span>
-                  ) : (
-                    members.map((m) => {
-                      const style = nicknameStyle(statusMap[`${m.id}|${date}`]);
-                      const c = customByKey.get(`${m.id}|${date}`);
-                      const note = shiftNoteLabel(c?.start ?? null, c?.end ?? null);
-                      return (
-                        <span
-                          key={m.id}
-                          className={`rounded px-2 py-0.5 text-sm ${nicknameClass(style)}`}
-                          style={{
-                            backgroundColor: m.color ?? "#eef2f7",
-                            color: nicknameColor(style),
-                          }}
-                        >
-                          {displayName(m)}
-                          {note && (
-                            <span className="ml-1 font-normal opacity-80">
-                              {note}
-                            </span>
-                          )}
-                        </span>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            );
+            return members.map((m) => {
+              const style = nicknameStyle(statusMap[`${m.id}|${date}`]);
+              const c = customByKey.get(`${m.id}|${date}`);
+              const paren = customTimeParen(c?.start ?? null, c?.end ?? null);
+              return (
+                <Fragment key={`${k}-${m.id}`}>
+                  <span className="text-base font-bold text-gray-700 sm:text-lg">
+                    {slots[k].label}
+                  </span>
+                  <span
+                    className={`truncate text-base sm:text-lg ${nicknameClass(style)}`}
+                    style={{ color: nicknameColor(style) }}
+                  >
+                    {displayName(m)}
+                  </span>
+                  <span className="text-sm text-gray-500 sm:text-base">
+                    {paren}
+                  </span>
+                </Fragment>
+              );
+            });
           })}
+          {SLOT_KEYS.every((k) =>
+            roster.every((m) => slotByKey.get(`${m.id}|${date}`) !== k)
+          ) && (
+            <span className="col-span-3 text-sm text-gray-300">
+              この日のシフト予定はありません
+            </span>
+          )}
         </div>
       ) : (
         <div className="mt-3 space-y-1">
-          {/* シフト枠の凡例(旧: カレンダー上部にあった説明をここに移動)。
-              時刻は時(HH)のみにして「早番 8〜17時、遅番 15〜24時、深夜 24〜9時」の1行に収める。 */}
-          <p className="text-xs text-gray-600">
-            {SLOT_KEYS.map((k, i) => (
-              <span key={k}>
-                {i > 0 && "、"}
-                {slots[k].label} {slotHourRangeLabel(slots[k])}
-              </span>
-            ))}
-          </p>
           {roster.length === 0 && (
             <p className="text-sm text-gray-400">対象の従業員がいません。</p>
           )}

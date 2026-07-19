@@ -159,6 +159,24 @@ export function shiftNoteLabel(
   return "";
 }
 
+/**
+ * シフト予定表(日別パネル)で使う、変則勤務時間の括弧書きラベルを作る。
+ * カレンダーチップの短縮表記(時のみ)と異なり、こちらは分まで含めた表記をそのまま使う。
+ * 例: 終了のみ変則("11:00")→"（〜11:00）" / 開始のみ変則("11:00")→"（11:00〜）"。
+ * どちらも未入力なら空文字(括弧ごと非表示)。
+ */
+export function customTimeParen(
+  customStart: string | null | undefined,
+  customEnd: string | null | undefined
+): string {
+  const cs = customStart?.trim();
+  const ce = customEnd?.trim();
+  if (cs && ce) return `（${cs}〜${ce}）`;
+  if (cs) return `（${cs}〜）`;
+  if (ce) return `（〜${ce}）`;
+  return "";
+}
+
 /** 予実突き合わせの状態(get_shift_status の返り値) */
 export type ShiftStatus = "match" | "missing" | "timediff" | "unplanned";
 
