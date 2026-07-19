@@ -218,12 +218,12 @@ export function ShiftSchedule({
         )}
 
         {/* カレンダー */}
-        <div className="rounded-xl border-2 border-gray-400 bg-white p-2">
-          <div className="mb-1 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-xs font-semibold text-gray-600">
+        <div className="rounded-xl border-2 border-gray-400 bg-white p-0.5 sm:p-2">
+          <div className="mb-0.5 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-[10px] font-semibold text-gray-600 sm:mb-1 sm:text-xs">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
-                className={`py-1.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
+                className={`py-1 sm:py-1.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}
               >
                 {w}
               </div>
@@ -249,12 +249,12 @@ export function ShiftSchedule({
                     key={date}
                     onClick={() => setSelected(isSelected ? null : date)}
                     title={holidays[date] ?? undefined}
-                    className={`m-0.5 flex min-h-24 flex-col rounded-lg p-1 text-left align-top transition ${
+                    className={`m-px flex min-h-24 flex-col rounded-lg p-0.5 text-left align-top transition sm:m-0.5 sm:p-1 ${
                       isSelected ? "ring-2 ring-blue-500" : "hover:bg-gray-50"
                     } ${isToday ? "bg-gray-100" : ""}`}
                   >
                     <div className="flex justify-end">
-                      <span className={`text-xs font-semibold ${textColor}`}>
+                      <span className={`text-[10px] font-semibold sm:text-xs ${textColor}`}>
                         {day}
                       </span>
                     </div>
@@ -271,7 +271,7 @@ export function ShiftSchedule({
                               return (
                                 <span
                                   key={m.id}
-                                  className={`block w-full truncate rounded-sm px-1 text-[10px] leading-tight ${nicknameClass(style)}`}
+                                  className={`block w-full truncate rounded-sm px-0.5 text-[9px] leading-tight sm:text-[10px] ${nicknameClass(style)}`}
                                   style={{
                                     backgroundColor: m.color ?? "#eef2f7",
                                     color: nicknameColor(style),
