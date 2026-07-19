@@ -245,13 +245,27 @@ middleware.ts            未認証は /login へ
     `getSiteUrl()`）。以前はリクエストの `x-forwarded-host`/`host` ヘッダーから組み立てていたが、
     Hostヘッダー詐称（Host Header Injection）により認証リンクを攻撃者ドメインへ誘導される
     リスクがあったため2026-07-18に修正（セキュリティレビュー致命的#1、下記参照）。
-- **これは Supabase 側の設定変更が2つ必須**（コードだけでは直らない）: Authentication → Emails の
+- **⚠️ これは Supabase 側のメールテンプレート変更が「3つ」必須（コードだけでは直らない・再発の主因）**:
+  Authentication → Emails の
   - **「Magic Link」**テンプレート →
     `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=magiclink&setup=1`
   - **「Reset password」**テンプレート →
     `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&setup=1`
+  - **「Confirm signup」テンプレート**（★見落としやすい・2026-07-19に発覚）→
+    `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup&setup=1`
+    - **なぜ必要か**: `sendRegisterLink`（初回招待）が呼ぶ `signInWithOtp({ shouldCreateUser: true })` は、
+      そのメールアドレスの `auth.users` レコードが**まだ存在しない**(＝そのメールへの初回招待、または
+      従業員削除後の初回再招待)場合、Supabase内部で**「サインアップ」フロー**として扱われ、
+      「Magic Link」ではなく**「Confirm signup」テンプレート**でメールが送られる。このテンプレートを
+      未設定のままにしておくと既定の `{{ .ConfirmationURL }}`（Supabase自身の検証URLへの生リンク、
+      PKCE同様に一度きりのトークンをリンクを開いた瞬間に消費する方式）のままになり、メールセキュリティ
+      スキャナーの自動先読みでトークンが消費され「有効期限切れ」エラーになる（本セクション末尾の
+      プリフェッチ問題と同根）。**2回目以降の再招待では`auth.users`が残っているため「Magic Link」に
+      切り替わり症状が出ない**ことがあり、原因特定が難しい。実機テストでは Supabase 監査ログ
+      （`get_logs` service=auth）で `user_confirmation_requested`（Confirm signup送信）
+      → `GET /verify`（Supabase側で直接検証・303）という並びが出ていれば、このテンプレート未設定が原因。
   - 既定の `{{ .ConfirmationURL }}` のままだと PKCE リンク（`/auth/v1/verify?token=pkce_...`）になり壊れる。
-    テンプレの「Reset template（初期化）」を実行すると既定に戻り再発する。
+    テンプレの「Reset template（初期化）」を実行すると既定に戻り再発する。**3つとも**再確認すること。
   - この認証パターンはスキル `.claude/skills/supabase-invite-auth/` に文書化済み。
 - `/set-password` でパスワードを設定（`updateUser`）→ 完了。サービスロールキーは不要
   （anon/公開キー + ユーザーセッションのみ）。**過去パスワードとの一致チェックは不要方針**のため、
@@ -333,13 +347,16 @@ middleware.ts            未認証は /login へ
     （`?setup=1` 付きも同じパスなので許可される）
 - Authentication → SMTP Settings: カスタムSMTP（自社Gmail）設定済み。
   これにより無料枠のままメールテンプレートを編集可能（件名/本文の日本語化は運用対応）。
-- **メールテンプレートは2つとも token_hash リンクに変更必須**（既定の `{{ .ConfirmationURL }}` = PKCE の
-  ままだと初回登録・再設定が「別端末で開くと /login に戻る」形で壊れる。詳細は「4. 認証・ロール」）:
-  - **「Magic Link」**（初回登録で使用）:
+- **⚠️ メールテンプレートは「3つとも」token_hash リンクに変更必須**（既定の `{{ .ConfirmationURL }}` の
+  ままだと初回登録・再設定が壊れる。詳細は「4. 認証・ロール」）:
+  - **「Magic Link」**（既存アカウントへの再招待・ログイン用）:
     `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=magiclink&setup=1`
   - **「Reset password」**（パスワード再設定で使用）:
     `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&setup=1`
-  - どちらのテンプレも「Reset template（初期化）」を実行すると既定に戻り再発するので注意。
+  - **「Confirm signup」**（★見落としやすい・2026-07-19に発覚。**そのメールアドレスへの初回招待時**に
+    使われる。Magic Linkだけ設定して安心していると、初回招待だけがここを通り不具合が再発する）:
+    `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup&setup=1`
+  - 3つとも「Reset template（初期化）」を実行すると既定に戻り再発するので注意。
 - Redirect URLs に `/set-password` も登録済み（現行の token_hash 方式では `/auth/callback` 経由で
   セッションを確立してから遷移するため必須ではないが、残置しても無害）。
 

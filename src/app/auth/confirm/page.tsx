@@ -70,9 +70,7 @@ function ConfirmInner() {
     <main className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm text-center">
         <h1 className="mb-2 text-2xl font-bold">
-          {type === "recovery" || setup === "1"
-            ? "パスワード再設定"
-            : "登録の確認"}
+          {type === "recovery" ? "パスワード再設定" : "初回登録"}
         </h1>
         <p className="mb-8 text-sm text-gray-500">
           下のボタンを押して手続きを続けてください。
