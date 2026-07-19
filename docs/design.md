@@ -563,16 +563,16 @@ middleware.ts            未認証は /login へ
 
 従業員の勤務予定を登録してシフト調整を明示化し、締め時の予実（予定と実績）の食い違いチェックを容易にする機能。
 
-### 8.1 シフト枠（A/B/C）
-- 1日3枠の交代制。既定は A 8:00-17:00 / B 15:00-24:00 / C 24:00-9:00。
+### 8.1 シフト枠（内部キー A/B/C、既定表示名は早番/遅番/深夜）
+- 1日3枠の交代制。DB上の枠キーは固定で `A`/`B`/`C`、既定の表示名・時刻は **早番 8:00-17:00 / 遅番 15:00-24:00 / 深夜 24:00-9:00**。
 - 枠のラベル・時刻は `app_settings`（`shift_slot_{a,b,c}_{label,start,end}`）に保存し、
   **管理画面「設定」→「シフト枠」から編集可能**（`updateShiftSlots`）。深夜0時は「24:00」表記のまま保持し、
   `<input type=time>` や比較用には `toInputTime()`/`norm_hhmm()` で "00:00" 等に正規化する（`src/lib/shifts.ts`）。
 
 ### 8.2 シフト予定表（ホーム画面）
 - 管理者ホーム(`/admin`)を**シフト予定表に置換**。従業員も `(employee)/shifts`(`/shifts`・下部ナビに「シフト」タブ追加)で閲覧可能。
-- 給与期間カレンダーの各日に、A/B/C ごとの担当者を**ニックネーム**の色付きチップで表示（全員が全員のシフトを閲覧可）。
-- 枠は既定で **早番/遅番/深夜**。カレンダーのセルは**縦位置で枠を表現**（上段=早番/中段=遅番/下段=深夜）し、
+- 給与期間カレンダーの各日に、枠（早番/遅番/深夜）ごとの担当者を**ニックネーム**の色付きチップで表示（全員が全員のシフトを閲覧可）。
+- カレンダーのセルは**縦位置で枠を表現**（上段=早番/中段=遅番/下段=深夜）し、
   各人を**横幅いっぱいの色帯＋ニックネーム**で表示（実運用の紙カレンダーに合わせたレイアウト）。
 - 予定入力は**管理者のみ**（日をタップ→従業員ごとに枠を選択/解除）。今後の運用で入力者を変える可能性あり。
 - カレンダー上部の補足説明は「太字＝実績入力済み。赤太字＝予定と実績が相違」。枠の時刻一覧（早番 8:00〜17:00 等）は
@@ -595,7 +595,8 @@ middleware.ts            未認証は /login へ
 - シフト予定は `shift_assignments` から表示中従業員ぶんを取得し `buildShiftMap()` で `work_date -> ShiftInfo` に変換して渡す。
 
 ### 8.5 実装ファイル
-- DB: `supabase/migrations/20260719_add_shift_scheduling.sql`（適用済みスキーマの記録）。
+- DB: `supabase/migrations/20260719_add_shift_scheduling.sql`（適用済みスキーマの記録。シフト関連一式）。
+  時給0円許容の制約変更は別ファイル `supabase/migrations/20260719_allow_zero_wage.sql`（シフト機能とは無関係の派生対応）。
 - 共通: `src/lib/shifts.ts`（枠定義・色・正規化・予実状態型）、`src/lib/shift-data.ts`（`loadShiftData`）。
 - 画面: `src/app/admin/shifts/{ShiftSchedule.tsx,actions.ts}`、`src/app/admin/page.tsx`、`src/app/(employee)/shifts/page.tsx`。
 - 勤務表: `src/app/(employee)/timesheet/{ui,page}.tsx`、`src/app/admin/timesheet/page.tsx`。
