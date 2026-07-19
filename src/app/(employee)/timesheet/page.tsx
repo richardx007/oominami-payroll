@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
 import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
+import { buildShiftMap, parseSlots, type SlotKey } from "@/lib/shifts";
 import { TimesheetCalendar } from "./ui";
 import { upsertWorkEntry, deleteWorkEntry } from "./actions";
 
@@ -33,8 +34,13 @@ export default async function TimesheetPage({
 
   const supabase = await createClient();
 
-  const [{ data: entries }, { data: closedPeriod }, { data: pastEntries }] =
-    await Promise.all([
+  const [
+    { data: entries },
+    { data: closedPeriod },
+    { data: pastEntries },
+    { data: shiftRows },
+    { data: slotRows },
+  ] = await Promise.all([
       supabase
         .from("work_entries")
         .select(
@@ -58,7 +64,22 @@ export default async function TimesheetPage({
         .eq("employee_id", employee.id)
         .order("work_date", { ascending: false })
         .limit(200),
+      // 自分のシフト予定(予実一覧・入力デフォルト用)
+      supabase
+        .from("shift_assignments")
+        .select("work_date, slot")
+        .eq("employee_id", employee.id)
+        .gte("work_date", period.start)
+        .lte("work_date", period.end),
+      // シフト枠の設定(app_settings は直接読めないため関数経由)
+      supabase.rpc("get_shift_settings"),
     ]);
+
+  const slots = parseSlots(slotRows as { key: string; value: string }[]);
+  const shifts = buildShiftMap(
+    (shiftRows ?? []) as { work_date: string; slot: SlotKey }[],
+    slots
+  );
 
   // time型は "HH:MM:SS" で返るため "HH:MM" に整形
   const normalized = (entries ?? []).map((e) => ({
@@ -90,6 +111,7 @@ export default async function TimesheetPage({
       save={upsertWorkEntry}
       del={deleteWorkEntry}
       employeeName={employee.name}
+      shifts={shifts}
     />
   );
 }

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
+import { buildShiftMap, parseSlots, type SlotKey } from "@/lib/shifts";
 import { TimesheetCalendar } from "@/app/(employee)/timesheet/ui";
 import type { WorkEntry } from "@/app/(employee)/timesheet/page";
 import { adminUpsertWorkEntry, adminDeleteWorkEntry } from "./actions";
@@ -39,7 +40,12 @@ export default async function AdminTimesheetPage({
     );
   }
 
-  const [{ data: entries }, { data: pastEntries }] = await Promise.all([
+  const [
+    { data: entries },
+    { data: pastEntries },
+    { data: shiftRows },
+    { data: slotRows },
+  ] = await Promise.all([
     supabase
       .from("work_entries")
       .select(
@@ -55,7 +61,20 @@ export default async function AdminTimesheetPage({
       .eq("employee_id", selectedId)
       .order("work_date", { ascending: false })
       .limit(200),
+    supabase
+      .from("shift_assignments")
+      .select("work_date, slot")
+      .eq("employee_id", selectedId)
+      .gte("work_date", period.start)
+      .lte("work_date", period.end),
+    supabase.rpc("get_shift_settings"),
   ]);
+
+  const slots = parseSlots(slotRows as { key: string; value: string }[]);
+  const shifts = buildShiftMap(
+    (shiftRows ?? []) as { work_date: string; slot: SlotKey }[],
+    slots
+  );
 
   const normalized = (entries ?? []).map((row) => ({
     ...row,
@@ -89,6 +108,7 @@ export default async function AdminTimesheetPage({
         basePath="/admin/timesheet"
         employees={list}
         selectedEmployeeId={selectedId}
+        shifts={shifts}
       />
     </div>
   );

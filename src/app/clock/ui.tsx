@@ -6,6 +6,16 @@ import { punchClock, type ClockResult } from "./actions";
 
 type Coords = { lat: number; lng: number; accuracy: number | null };
 
+export type TransportDefault = {
+  mode: string;
+  from: string;
+  to: string;
+  roundTrip: boolean;
+  cost: number;
+};
+
+const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
+
 /** "HH:MM" を単位(分)で丸める(サーバーの roundTime と同じ挙動・表示用) */
 function roundHHMM(hhmm: string, unit: number, dir: "up" | "down"): string {
   if (!hhmm || !Number.isFinite(unit) || unit <= 1) return hhmm;
@@ -25,11 +35,13 @@ export function ClockConfirm({
   type,
   locationEnabled,
   roundMin,
+  transportDefault,
 }: {
   employeeName: string;
   type: "in" | "out";
   locationEnabled: boolean;
   roundMin: number;
+  transportDefault: TransportDefault | null;
 }) {
   const isIn = type === "in";
   const [now, setNow] = useState<string>("");
@@ -39,6 +51,16 @@ export function ClockConfirm({
   >(locationEnabled ? "loading" : "idle");
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<ClockResult | null>(null);
+
+  // 交通費(最も最近の入力をデフォルト表示。開閉式で、必要な時だけ入力)
+  const [showTransport, setShowTransport] = useState(false);
+  const [tMode, setTMode] = useState(transportDefault?.mode ?? "鉄道");
+  const [tFrom, setTFrom] = useState(transportDefault?.from ?? "");
+  const [tTo, setTTo] = useState(transportDefault?.to ?? "");
+  const [tRound, setTRound] = useState(transportDefault?.roundTrip ?? true);
+  const [tCost, setTCost] = useState<string>(
+    transportDefault?.cost ? String(transportDefault.cost) : ""
+  );
 
   // 画面表示用の時計(実際の打刻時刻はサーバーが確定する)
   useEffect(() => {
@@ -84,6 +106,11 @@ export function ClockConfirm({
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
         accuracy: coords?.accuracy ?? null,
+        transport_mode: tMode,
+        station_from: tFrom,
+        station_to: tTo,
+        round_trip: tRound,
+        transport_cost: Number(tCost) || 0,
       });
       setResult(res);
     } catch (e) {
@@ -163,6 +190,92 @@ export function ClockConfirm({
                   "この端末では位置情報を取得できません"}
               </p>
             )}
+
+            {/* 交通費(任意)。最も最近の入力を初期表示。開いて編集できる。 */}
+            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <button
+                type="button"
+                onClick={() => setShowTransport((v) => !v)}
+                className="flex w-full items-center justify-between text-left text-sm font-semibold text-gray-700"
+              >
+                <span>
+                  交通費
+                  {tFrom && tTo && Number(tCost) > 0 && (
+                    <span className="ml-2 font-normal text-gray-500">
+                      {tFrom}
+                      {tRound ? "⇔" : "→"}
+                      {tTo} ¥{(Number(tCost) || 0).toLocaleString()}
+                    </span>
+                  )}
+                </span>
+                <span className="text-gray-400">{showTransport ? "▲" : "▼"}</span>
+              </button>
+              {showTransport && (
+                <div className="mt-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={tMode}
+                      onChange={(e) => setTMode(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm"
+                    >
+                      <option value="">手段</option>
+                      {TRANSPORT_MODES.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={tCost}
+                      onChange={(e) => setTCost(e.target.value)}
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={10}
+                      placeholder="金額(円)"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={tFrom}
+                      onChange={(e) => setTFrom(e.target.value)}
+                      placeholder="区間(From)"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm"
+                    />
+                    <input
+                      value={tTo}
+                      onChange={(e) => setTTo(e.target.value)}
+                      placeholder="区間(To)"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="flex gap-4 text-sm">
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="radio"
+                        checked={tRound}
+                        onChange={() => setTRound(true)}
+                        className="h-4 w-4"
+                      />
+                      往復
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="radio"
+                        checked={!tRound}
+                        onChange={() => setTRound(false)}
+                        className="h-4 w-4"
+                      />
+                      片道
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    手段・区間・金額がすべて揃った時に記録します(不要なら空欄のまま)。
+                  </p>
+                </div>
+              )}
+            </div>
 
             {result && !result.ok && (
               <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-700">

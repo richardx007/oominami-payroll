@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
+  { href: "/shifts", label: "シフト", icon: GridIcon },
   { href: "/timesheet", label: "勤務表", icon: CalendarIcon },
   { href: "/payslips", label: "給与明細", icon: YenIcon },
   { href: "/notices", label: "管理", icon: PersonIcon },
@@ -57,7 +58,7 @@ export function EmployeeNav({
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white">
-      <div className="mx-auto grid max-w-lg grid-cols-3">
+      <div className="mx-auto grid max-w-lg grid-cols-4">
         {items.map((item) => {
           const active = pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -89,6 +90,24 @@ export function EmployeeNav({
 }
 
 // 単色フラットアイコン(currentColorで色は親から継承)
+function GridIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4.5" width="18" height="16" rx="2" />
+      <path d="M3 9.5h18M3 14.5h18M9 9.5v11M15 9.5v11" />
+    </svg>
+  );
+}
+
 function CalendarIcon({ className }: { className?: string }) {
   return (
     <svg

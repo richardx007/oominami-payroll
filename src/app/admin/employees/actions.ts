@@ -122,6 +122,8 @@ const profileSchema = z.object({
   furigana: z.string().max(50).optional(),
   nickname: z.string().max(50).optional(),
   email: z.email("メールアドレスの形式が正しくありません"),
+  // シフト表のニックネーム背景色(パレット10色のいずれか。空=未設定)
+  color: z.string().max(9).optional(),
 });
 
 /** 氏名・ふりがな・ニックネーム・メールアドレスを変更する。メール変更時は未登録に戻す(要・再招待) */
@@ -152,12 +154,14 @@ export async function updateEmployeeProfile(
     furigana: string | null;
     nickname: string | null;
     email: string;
+    color: string | null;
     auth_user_id?: null;
   } = {
     name: d.name,
     furigana: d.furigana?.trim() || null,
     nickname: d.nickname?.trim() || null,
     email: newEmail,
+    color: d.color?.trim() || null,
   };
   if (emailChanged) update.auth_user_id = null;
 

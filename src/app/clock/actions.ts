@@ -19,7 +19,31 @@ export type ClockInput = {
   lat?: number | null;
   lng?: number | null;
   accuracy?: number | null;
+  // 交通費(任意。出勤・退勤どちらでも入力可能)。手段・区間・金額が揃った時のみ保存する。
+  transport_mode?: string | null;
+  station_from?: string | null;
+  station_to?: string | null;
+  round_trip?: boolean;
+  transport_cost?: number | null;
 };
+
+/** 交通費が「手段・区間1・区間2・金額(>0)」まで揃っているか(揃った時のみ保存する) */
+function transportFields(input: ClockInput) {
+  const mode = input.transport_mode?.trim() ?? "";
+  const from = input.station_from?.trim() ?? "";
+  const to = input.station_to?.trim() ?? "";
+  const cost = typeof input.transport_cost === "number" ? input.transport_cost : 0;
+  if (from && to && mode && cost > 0) {
+    return {
+      transport_mode: mode,
+      station_from: from,
+      station_to: to,
+      round_trip: input.round_trip ?? true,
+      transport_cost: Math.min(cost, 100000),
+    };
+  }
+  return null;
+}
 
 /** 2点間の距離(メートル)。Haversine */
 function haversineMeters(
@@ -133,6 +157,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
   const date = todayJST();
   // 丸め: 出勤は単位で切り上げ、退勤は切り捨て(単位0/未設定なら丸めなし)
   const time = roundTime(nowTimeJST(), roundMin, type === "in" ? "up" : "down");
+  const transport = transportFields(input);
   let workEntryId: string | null = null;
 
   if (type === "in") {
@@ -157,7 +182,8 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
           start_time: time,
           end_time: null,
           break_minutes: 0,
-          transport_cost: 0,
+          transport_cost: transport?.transport_cost ?? 0,
+          ...(transport ?? {}),
         },
         { onConflict: "employee_id,work_date" }
       )
@@ -207,7 +233,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     const brk = span >= 360 ? 60 : 0;
     const { error } = await supabase
       .from("work_entries")
-      .update({ end_time: time, break_minutes: brk })
+      .update({ end_time: time, break_minutes: brk, ...(transport ?? {}) })
       .eq("id", target.id);
     if (error) {
       await logActivity("エラー", `退勤打刻に失敗: ${employee.name} ${error.message}`);

@@ -4,6 +4,8 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
 import { adjacentPeriodKey, datesInPeriod, workMinutes } from "@/lib/period";
+import type { ShiftInfo } from "@/lib/shifts";
+import { SHIFT_TEXT_COLOR } from "@/lib/shifts";
 import type { WorkEntry } from "./page";
 import { type ActionResult } from "./actions";
 
@@ -43,6 +45,7 @@ export function TimesheetCalendar({
   employees,
   selectedEmployeeId,
   employeeName,
+  shifts = {},
 }: {
   period: Period;
   entries: WorkEntry[];
@@ -50,6 +53,8 @@ export function TimesheetCalendar({
   stations: string[];
   holidays: Record<string, string>;
   today: string;
+  /** 表示中の従業員のシフト予定(work_date -> ShiftInfo)。予実一覧・入力デフォルトに使う */
+  shifts?: Record<string, ShiftInfo>;
   /** 勤務記録の保存アクション(従業員=自分, 管理者=対象従業員にバインド済み) */
   save: (formData: FormData) => Promise<ActionResult>;
   /** 勤務記録の削除アクション */
@@ -319,6 +324,7 @@ export function TimesheetCalendar({
             date={selected}
             entry={selectedEntry}
             defaults={lastDefaults}
+            shift={shifts[selected]}
             pending={pending}
             stations={stations}
             onSave={handleSave}
@@ -340,6 +346,7 @@ export function TimesheetCalendar({
           <WorkList
             entries={entries}
             holidays={holidays}
+            shifts={shifts}
             onSelect={(d) => {
               setResult(null);
               const e = entryMap.get(d);
@@ -370,93 +377,150 @@ function entryFromFormData(fd: FormData): WorkEntry {
   };
 }
 
-/** カレンダー下(スマホ)/右(PC)の勤務一覧表。日・曜日・出勤・退勤・勤務時間・交通費。 */
+/**
+ * カレンダー下(スマホ)/右(PC)の予実一覧。1日ごとに
+ * 上段=シフト予定(青)・下段=勤務実績(緑)を色分けで表示し、日ごとに横線で区切る。
+ * 予定と実績で時刻が相違する場合は実績側の該当時刻を赤太字にする。
+ */
 function WorkList({
   entries,
   holidays,
+  shifts,
   onSelect,
 }: {
   entries: WorkEntry[];
   holidays: Record<string, string>;
+  shifts: Record<string, ShiftInfo>;
   onSelect: (workDate: string) => void;
 }) {
-  const rows = [...entries].sort((a, b) =>
-    a.work_date.localeCompare(b.work_date)
-  );
+  const entryMap = new Map(entries.map((e) => [e.work_date, e]));
+  // 予定・実績のいずれかがある日をすべて対象にする
+  const dateSet = new Set<string>([
+    ...entries.map((e) => e.work_date),
+    ...Object.keys(shifts),
+  ]);
+  const dates = [...dateSet].sort();
+
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-      <div className="border-b border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-semibold text-gray-700">
-        勤務一覧
+      <div className="flex items-center gap-3 border-b border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-semibold text-gray-700">
+        <span>予実一覧</span>
+        <span className="flex items-center gap-1 text-xs font-normal text-gray-500">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-200" />
+          予定
+          <span className="ml-2 inline-block h-2.5 w-2.5 rounded-sm bg-green-200" />
+          実績
+        </span>
       </div>
-      {rows.length === 0 ? (
+      {dates.length === 0 ? (
         <p className="px-3 py-8 text-center text-sm text-gray-400">
-          この月の勤務入力はまだありません。カレンダーの日付を選んで入力してください。
+          この月のシフト予定・勤務入力はまだありません。カレンダーの日付を選んで入力してください。
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
-                <th className="px-2 py-1.5 text-right">日</th>
-                <th className="px-1 py-1.5 text-center">曜</th>
-                <th className="px-2 py-1.5 text-center">出勤</th>
-                <th className="px-2 py-1.5 text-center">退勤</th>
-                <th className="px-2 py-1.5 text-right">勤務</th>
-                <th className="px-2 py-1.5 text-right">交通費</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((e) => {
-                const d = new Date(e.work_date + "T00:00:00Z");
-                const dow = d.getUTCDay();
-                // 祝日・日曜=赤、土曜=青。日と曜の両方に同じ色を適用する
-                const dowColor =
-                  holidays[e.work_date] || dow === 0
-                    ? "text-red-500"
-                    : dow === 6
-                      ? "text-blue-500"
-                      : "";
-                const mins = e.end_time
-                  ? workMinutes(e.start_time, e.end_time, e.break_minutes)
-                  : null;
-                return (
-                  <tr
-                    key={e.work_date}
-                    onClick={() => onSelect(e.work_date)}
-                    className="cursor-pointer border-b border-gray-50 hover:bg-blue-50/40"
+        <ul>
+          {dates.map((date) => {
+            const e = entryMap.get(date);
+            const shift = shifts[date];
+            const d = new Date(date + "T00:00:00Z");
+            const dow = d.getUTCDay();
+            const dowColor =
+              holidays[date] || dow === 0
+                ? "text-red-500"
+                : dow === 6
+                  ? "text-blue-500"
+                  : "text-gray-700";
+            const mins =
+              e && e.end_time
+                ? workMinutes(e.start_time, e.end_time, e.break_minutes)
+                : null;
+            // 予実の時刻相違(実績があるときのみ判定)
+            const startDiff =
+              !!e && !!shift && !!shift.startInput && e.start_time !== shift.startInput;
+            const endDiff =
+              !!e &&
+              !!shift &&
+              (e.end_time ?? "") !== (shift.endInput ?? "");
+
+            return (
+              <li
+                key={date}
+                onClick={() => onSelect(date)}
+                className="cursor-pointer border-b-2 border-gray-200 px-3 py-2 hover:bg-blue-50/40"
+              >
+                <div className="flex items-start gap-3">
+                  {/* 日・曜 */}
+                  <div
+                    className={`w-10 shrink-0 text-center leading-tight ${dowColor}`}
                   >
-                    <td
-                      className={`whitespace-nowrap px-2 py-1.5 text-right ${dowColor}`}
-                    >
+                    <div className="text-lg font-bold tabular-nums">
                       {d.getUTCDate()}
-                    </td>
-                    <td className={`px-1 py-1.5 text-center ${dowColor}`}>
-                      {WEEKDAYS[dow]}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-center tabular-nums">
-                      {e.start_time}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-center tabular-nums">
-                      {e.end_time ? (
-                        e.end_time
+                    </div>
+                    <div className="text-xs">{WEEKDAYS[dow]}</div>
+                  </div>
+                  {/* 予定行 / 実績行 */}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    {/* 予定(上段) */}
+                    <div className="flex items-center gap-2 rounded bg-blue-50 px-2 py-1 text-sm">
+                      <span className="shrink-0 text-xs font-semibold text-blue-700">
+                        予定
+                      </span>
+                      {shift ? (
+                        <span className="tabular-nums text-gray-800">
+                          <span
+                            className="mr-1 rounded px-1 text-xs font-bold"
+                            style={{ backgroundColor: "#dbeafe", color: SHIFT_TEXT_COLOR }}
+                          >
+                            {shift.label}
+                          </span>
+                          {shift.start}〜{shift.end}
+                        </span>
                       ) : (
-                        <span className="rounded bg-amber-200 px-1 text-amber-800">
-                          未
+                        <span className="text-xs text-gray-400">シフトなし</span>
+                      )}
+                    </div>
+                    {/* 実績(下段) */}
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded bg-green-50 px-2 py-1 text-sm">
+                      <span className="shrink-0 text-xs font-semibold text-green-700">
+                        実績
+                      </span>
+                      {e ? (
+                        <>
+                          <span className="tabular-nums">
+                            <span className={startDiff ? "font-bold text-red-600" : "text-gray-800"}>
+                              {e.start_time}
+                            </span>
+                            〜
+                            {e.end_time ? (
+                              <span className={endDiff ? "font-bold text-red-600" : "text-gray-800"}>
+                                {e.end_time}
+                              </span>
+                            ) : (
+                              <span className="rounded bg-amber-200 px-1 text-amber-800">
+                                退勤未
+                              </span>
+                            )}
+                          </span>
+                          <span className="tabular-nums text-gray-500">
+                            {mins === null ? "" : `(${hhmm(mins)})`}
+                          </span>
+                          {e.transport_cost > 0 && (
+                            <span className="tabular-nums text-gray-500">
+                              ¥{e.transport_cost.toLocaleString()}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-xs font-bold text-red-600">
+                          実績なし
                         </span>
                       )}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      {mins === null ? "—" : hhmm(mins)}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      ¥{e.transport_cost.toLocaleString()}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );
@@ -478,6 +542,7 @@ function EntryForm({
   date,
   entry,
   defaults,
+  shift,
   pending,
   stations,
   onSave,
@@ -486,6 +551,7 @@ function EntryForm({
   date: string;
   entry: WorkEntry | undefined;
   defaults: WorkEntry | null;
+  shift: ShiftInfo | undefined;
   pending: boolean;
   stations: string[];
   onSave: (fd: FormData) => void;
@@ -494,6 +560,14 @@ function EntryForm({
   const init = entry ?? defaults;
   // 打刻で出勤のみ登録され退勤が未入力の場合、退勤欄を警告表示にする
   const endMissing = !!entry && !entry.end_time;
+  // 新規入力時はシフト予定の時刻をデフォルト表示する(既存レコードがあればそれを優先)。
+  const startDefault =
+    entry?.start_time ?? shift?.startInput ?? init?.start_time ?? "10:00";
+  const endDefault = entry?.end_time
+    ? entry.end_time
+    : endMissing
+      ? ""
+      : shift?.endInput ?? init?.end_time ?? "18:00";
 
   const formRef = useRef<HTMLFormElement>(null);
   const modeRef = useRef<HTMLSelectElement>(null);
@@ -577,6 +651,14 @@ function EntryForm({
           </button>
         </div>
 
+        {shift && (
+          <p className="-mt-1 rounded-lg bg-blue-50 px-2 py-1 text-xs text-blue-700">
+            シフト予定: <span className="font-bold">{shift.label}</span>{" "}
+            {shift.start}〜{shift.end}
+            {!entry && "（この時刻を初期表示しています）"}
+          </p>
+        )}
+
         {/* 勤務時間。出勤・退勤・休憩を1行(3カラム)に。iOS Safari の time 入力は
             内容幅に広がりやすいため、各セルに min-w-0、入力は横パディングを詰めて
             はみ出し・重なりを防ぐ。 */}
@@ -590,7 +672,7 @@ function EntryForm({
               type="time"
               step={900}
               required
-              defaultValue={init?.start_time ?? "10:00"}
+              defaultValue={startDefault}
               className={timeInputClass}
             />
           </div>
@@ -605,7 +687,7 @@ function EntryForm({
               name="end_time"
               type="time"
               step={900}
-              defaultValue={init?.end_time ?? (endMissing ? "" : "18:00")}
+              defaultValue={endDefault}
               className={`${timeInputClass} ${
                 endMissing
                   ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300"

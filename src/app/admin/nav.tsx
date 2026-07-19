@@ -7,7 +7,7 @@ import { reloadApp } from "@/app/pwa/reloadApp";
 
 // スマホの下部タブに常時出す主要メニュー
 const primaryLinks = [
-  { href: "/admin", label: "ホーム", icon: HomeIcon },
+  { href: "/admin", label: "シフト", icon: HomeIcon },
   { href: "/admin/timesheet", label: "勤務表", icon: CalendarIcon },
   { href: "/admin/close", label: "給与明細", icon: YenIcon },
   { href: "/admin/employees", label: "従業員", icon: PeopleIcon },

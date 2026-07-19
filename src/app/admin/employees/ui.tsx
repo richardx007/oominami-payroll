@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { SHIFT_COLORS, SHIFT_TEXT_COLOR } from "@/lib/shifts";
 import type { EmployeeRow } from "./page";
 import {
   addEmployee,
@@ -66,6 +67,57 @@ function currentOf<T extends { effective_from: string }>(rows: T[]): T | null {
     .filter((r) => r.effective_from <= t)
     .sort((a, b) => b.effective_from.localeCompare(a.effective_from));
   return applicable[0] ?? rows.sort((a, b) => a.effective_from.localeCompare(b.effective_from))[0] ?? null;
+}
+
+/** シフト表のニックネーム背景色を選ぶ(パレット10色。重複可・未設定可)。hidden input name="color" を出力 */
+function ColorPicker({ initial }: { initial: string | null }) {
+  const [color, setColor] = useState<string>(initial ?? "");
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium">
+        シフト表の色
+        <span className="ml-1 text-xs font-normal text-gray-400">
+          (ニックネームの背景色)
+        </span>
+      </label>
+      <input type="hidden" name="color" value={color} />
+      <div className="flex flex-wrap items-center gap-1.5">
+        {SHIFT_COLORS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            aria-label={`色 ${c}`}
+            onClick={() => setColor(color === c ? "" : c)}
+            className={`h-8 w-8 rounded-full border transition ${
+              color === c
+                ? "border-blue-600 ring-2 ring-blue-400"
+                : "border-gray-300 hover:border-gray-400"
+            }`}
+            style={{ backgroundColor: c }}
+          />
+        ))}
+        <button
+          type="button"
+          onClick={() => setColor("")}
+          className={`h-8 rounded-full border px-3 text-xs transition ${
+            color === ""
+              ? "border-blue-600 bg-blue-50 text-blue-700"
+              : "border-gray-300 text-gray-500 hover:border-gray-400"
+          }`}
+        >
+          なし
+        </button>
+      </div>
+      {color && (
+        <span
+          className="mt-2 inline-block rounded px-2 py-0.5 text-sm"
+          style={{ backgroundColor: color, color: SHIFT_TEXT_COLOR }}
+        >
+          プレビュー
+        </span>
+      )}
+    </div>
+  );
 }
 
 function AddEmployeePanel() {
@@ -354,6 +406,13 @@ function EmployeeTableRow({
         } ${retired ? "opacity-50" : ""}`}
       >
         <td className="px-4 py-3">
+          {emp.color && (
+            <span
+              aria-hidden
+              className="mr-1.5 inline-block h-3 w-3 rounded-full border border-gray-300 align-middle"
+              style={{ backgroundColor: emp.color }}
+            />
+          )}
           <span className="font-medium">{emp.name}</span>
           {emp.is_admin && (
             <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
@@ -482,6 +541,7 @@ function EmployeeTableRow({
                     </button>
                   </div>
                 </div>
+                <ColorPicker initial={emp.color} />
                 <p className="text-xs text-gray-400">
                   ※ メールアドレスを変更すると「未登録」に戻り、再度の招待が必要になります
                 </p>

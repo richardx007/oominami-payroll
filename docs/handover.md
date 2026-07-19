@@ -414,6 +414,25 @@ Cloudflare自動デプロイまで実施済み。
 - `addEmployee`/`updateEmployeeProfile`のスキーマ・保存処理に追加。一覧表示（`EmployeeTableRow`）は
   変更なし（氏名のみ表示、スコープ外）。
 
+### 本セッションで実施した変更（2026-07-19 その4・勤務予定/シフト管理の追加）
+オーナー依頼の大型機能。**開発ブランチ `claude/payroll-system-plan-8wvobq` で作業（main 未マージ・テスト用）**。
+`npm run build && npm test`(21件) 通過、Supabase security advisor も新規オブジェクトの警告なしを確認済み。
+- **DB(適用済み・`supabase/migrations/20260719_add_shift_scheduling.sql` に記録)**: `employees.color` 追加、
+  `shift_assignments`(employee_id, work_date, slot A/B/C, unique(employee_id,work_date)。閲覧=全ログインユーザー/
+  変更=管理者)、`app_settings` に `shift_slot_*` 既定、関数 `norm_hhmm` / `get_shift_status`(予実状態のみ返す・
+  時刻は返さない) / `get_shift_roster` / `get_shift_settings`(いずれも SECURITY DEFINER・anon revoke・authenticated 付与)。
+- **シフト予定表**: 管理者ホーム(`/admin`)を ShiftSchedule に置換(旧 DashboardCalendar は削除)。従業員は `/shifts`
+  (下部ナビ「シフト」タブ追加)で閲覧のみ。カレンダーの各日にニックネームを**色付きチップ**で表示、予実相違の名前を
+  **太字の赤字**。予定入力は管理者のみ(日タップ→従業員ごとにA/B/C選択/解除)。共有部品 `src/app/admin/shifts/`。
+- **従業員色**: 従業員編集パネルで `SHIFT_COLORS`(明度高・彩度低の10色)から割当(重複可・任意)。一覧に色ドット。
+- **勤務表 予実**: 下部一覧を**上段=予定(青)/下段=実績(緑)・日ごと横線**に変更。時刻相違は実績側を赤太字。
+  カレンダー本体は実績のみ(従来通り)。**実績の新規入力時はシフト予定の時刻を初期表示**(`buildShiftMap`)。
+- **設定「シフト枠」**: A/B/C のラベル・時刻を編集(`updateShiftSlots`)。深夜0時は「24:00」表記のまま保持、
+  比較/入力用に `norm_hhmm`/`toInputTime` で正規化。
+- **QR打刻に交通費**: 出勤・退勤どちらでも交通費入力可(開閉式)。**直近の交通費入力をデフォルト表示**、手段・区間・
+  金額が揃った時のみ保存(`clock/actions.ts` の `transportFields`)。
+- 詳細は design.md「8. 勤務予定・シフト管理」。⚠️ **本番 Supabase にはスキーマを適用済み**(追加のみで既存動作に影響なし)。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 
