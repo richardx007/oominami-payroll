@@ -1,39 +1,20 @@
 import { NextResponse } from "next/server";
-import type { EmailOtpType } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
 
+/**
+ * Landing point for every Supabase auth email link (Magic Link, Confirm signup,
+ * Reset password — all three templates point here).
+ *
+ * Deliberately does NOT call verifyOtp/exchangeCodeForSession here. Verifying on a bare GET
+ * means anything that fetches this URL before the human clicks it — corporate mail security
+ * gateways, antivirus link scanners, some webmail link-preview features — silently consumes
+ * the single-use token. The real user then taps the link and gets an "invalid/expired" error
+ * or lands on the login page, even though PKCE/template setup is otherwise correct.
+ *
+ * Fix: forward every query param to /auth/confirm untouched. That page only calls
+ * verifyOtp/exchangeCodeForSession when a human presses a "Continue" button, so automated
+ * prefetching (no JS execution, no click) can no longer burn the token.
+ */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  const tokenHash = searchParams.get("token_hash");
-  const type = searchParams.get("type") as EmailOtpType | null;
-  const setup = searchParams.get("setup");
-
-  const supabase = await createClient();
-  let ok = false;
-
-  if (tokenHash && type) {
-    // パスワード再設定(管理者発行)などの token_hash 方式。code_verifier 不要。
-    const { error } = await supabase.auth.verifyOtp({
-      token_hash: tokenHash,
-      type,
-    });
-    ok = !error;
-  } else if (code) {
-    // 初回登録(本人のブラウザで発行したマジックリンク)の PKCE 方式。
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    ok = !error;
-  }
-
-  if (ok) {
-    // メール確認完了後、employees 行に auth ユーザーを紐付け
-    await supabase.rpc("link_employee_account");
-    // 初回登録・再設定フローならパスワード設定画面へ
-    if (setup === "1" || type === "recovery") {
-      return NextResponse.redirect(`${origin}/set-password`);
-    }
-    return NextResponse.redirect(`${origin}/`);
-  }
-
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  const { search, origin } = new URL(request.url);
+  return NextResponse.redirect(`${origin}/auth/confirm${search}`);
 }
