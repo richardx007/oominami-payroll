@@ -11,13 +11,15 @@ const assignSchema = z.object({
   employee_id: z.uuid(),
   work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   slot: z.enum(["A", "B", "C"]),
+  note: z.string().max(30).optional(),
 });
 
-/** 従業員のその日のシフト枠を設定(1従業員1日1枠。再設定で枠を上書き)。 */
+/** 従業員のその日のシフト枠(＋任意メモ)を設定(1従業員1日1枠。再設定で上書き)。 */
 export async function assignShift(input: {
   employee_id: string;
   work_date: string;
   slot: string;
+  note?: string;
 }): Promise<ActionResult> {
   await requireAdmin();
   const parsed = assignSchema.safeParse(input);
@@ -32,6 +34,7 @@ export async function assignShift(input: {
       employee_id: d.employee_id,
       work_date: d.work_date,
       slot: d.slot,
+      note: d.note?.trim() || null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "employee_id,work_date" }

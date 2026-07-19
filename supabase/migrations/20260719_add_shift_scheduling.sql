@@ -14,10 +14,12 @@ create table if not exists public.shift_assignments (
   employee_id uuid not null references public.employees(id) on delete cascade,
   work_date date not null,
   slot text not null check (slot in ('A','B','C')),
+  note text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (employee_id, work_date)
 );
+comment on column public.shift_assignments.note is 'シフトの個別注記(例「〜16」)。カレンダーでニックネームの後ろに表示';
 create index if not exists shift_assignments_date_idx on public.shift_assignments (work_date);
 
 alter table public.shift_assignments enable row level security;

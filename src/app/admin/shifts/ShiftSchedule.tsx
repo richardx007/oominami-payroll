@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+// useState は EditRow でも使用
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
 import { adjacentPeriodKey, datesInPeriod } from "@/lib/period";
@@ -27,6 +28,7 @@ export type Assignment = {
   employee_id: string;
   work_date: string;
   slot: SlotKey;
+  note: string | null;
 };
 
 /** 表示名: ニックネーム優先、無ければ氏名 */
@@ -62,6 +64,7 @@ export function ShiftSchedule({
     employee_id: string;
     work_date: string;
     slot: string;
+    note?: string;
   }) => Promise<ActionResult>;
   clear?: (employeeId: string, workDate: string) => Promise<ActionResult>;
 }) {
@@ -75,22 +78,30 @@ export function ShiftSchedule({
     [roster]
   );
 
-  // `${empId}|${date}` -> slot
+  // `${empId}|${date}` -> slot / note
   const slotByKey = useMemo(() => {
     const m = new Map<string, SlotKey>();
     for (const a of assignments) m.set(`${a.employee_id}|${a.work_date}`, a.slot);
     return m;
   }, [assignments]);
+  const noteByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of assignments)
+      if (a.note) m.set(`${a.employee_id}|${a.work_date}`, a.note);
+    return m;
+  }, [assignments]);
 
-  // 日付 -> 枠 -> メンバー配列
+  // 日付 -> 枠 -> {メンバー, メモ}配列
   const byDate = useMemo(() => {
-    const m = new Map<string, Record<SlotKey, RosterMember[]>>();
+    const m = new Map<
+      string,
+      Record<SlotKey, { member: RosterMember; note: string | null }[]>
+    >();
     for (const a of assignments) {
       const member = memberById.get(a.employee_id);
       if (!member) continue;
-      if (!m.has(a.work_date))
-        m.set(a.work_date, { A: [], B: [], C: [] });
-      m.get(a.work_date)![a.slot].push(member);
+      if (!m.has(a.work_date)) m.set(a.work_date, { A: [], B: [], C: [] });
+      m.get(a.work_date)![a.slot].push({ member, note: a.note });
     }
     return m;
   }, [assignments, memberById]);
@@ -119,11 +130,21 @@ export function ShiftSchedule({
     return `${basePath}?p=${adjacentPeriodKey(period.key, delta)}`;
   }
 
-  function runAssign(employeeId: string, workDate: string, slot: SlotKey | null) {
+  function runAssign(
+    employeeId: string,
+    workDate: string,
+    slot: SlotKey | null,
+    note?: string
+  ) {
     if (!editable || !assign || !clear) return;
     startTransition(async () => {
       const res = slot
-        ? await assign({ employee_id: employeeId, work_date: workDate, slot })
+        ? await assign({
+            employee_id: employeeId,
+            work_date: workDate,
+            slot,
+            note,
+          })
         : await clear(employeeId, workDate);
       setResult(res);
       if (res.ok) router.refresh();
@@ -221,7 +242,7 @@ export function ShiftSchedule({
                     <div className="mt-0.5 flex flex-1 flex-col gap-px">
                       {SLOT_KEYS.map((k) => (
                         <div key={k} className="flex min-h-[15px] flex-col gap-px">
-                          {(slotsForDay?.[k] ?? []).map((m) => {
+                          {(slotsForDay?.[k] ?? []).map(({ member: m, note }) => {
                             const mism = isMismatch(statusMap[`${m.id}|${date}`]);
                             return (
                               <span
@@ -233,9 +254,14 @@ export function ShiftSchedule({
                                   backgroundColor: m.color ?? "#eef2f7",
                                   color: mism ? undefined : SHIFT_TEXT_COLOR,
                                 }}
-                                title={`${slots[k].label}: ${m.name}`}
+                                title={`${slots[k].label}: ${m.name}${note ? ` ${note}` : ""}`}
                               >
                                 {displayName(m)}
+                                {note && (
+                                  <span className="ml-0.5 font-normal opacity-80">
+                                    {note}
+                                  </span>
+                                )}
                               </span>
                             );
                           })}
@@ -258,6 +284,7 @@ export function ShiftSchedule({
             slots={slots}
             roster={roster}
             slotByKey={slotByKey}
+            noteByKey={noteByKey}
             statusMap={statusMap}
             editable={editable}
             pending={pending}
@@ -274,6 +301,86 @@ export function ShiftSchedule({
   );
 }
 
+/** 予定編集の1行(枠ボタン＋任意メモ)。メモはローカル状態で持ち、確定時に割当と一緒に保存する。 */
+function EditRow({
+  member: m,
+  date,
+  slots,
+  cur,
+  note,
+  mism,
+  pending,
+  onAssign,
+}: {
+  member: RosterMember;
+  date: string;
+  slots: Record<SlotKey, SlotDef>;
+  cur: SlotKey | null;
+  note: string;
+  mism: boolean;
+  pending: boolean;
+  onAssign: (
+    employeeId: string,
+    workDate: string,
+    slot: SlotKey | null,
+    note?: string
+  ) => void;
+}) {
+  const [noteValue, setNoteValue] = useState(note);
+
+  return (
+    <div className="border-b border-gray-50 py-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={`min-w-0 flex-1 truncate rounded px-2 py-0.5 text-sm ${mism ? "font-bold text-red-600" : ""}`}
+          style={{
+            backgroundColor: m.color ?? "#eef2f7",
+            color: mism ? undefined : SHIFT_TEXT_COLOR,
+          }}
+          title={m.name}
+        >
+          {displayName(m)}
+        </span>
+        <div className="flex shrink-0 gap-1">
+          {SLOT_KEYS.map((k) => (
+            <button
+              key={k}
+              disabled={pending}
+              onClick={() =>
+                onAssign(m.id, date, cur === k ? null : k, noteValue)
+              }
+              className={`h-8 rounded-lg border px-2 text-xs font-bold transition disabled:opacity-50 ${
+                cur === k
+                  ? "border-blue-600 bg-blue-600 text-white"
+                  : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {slots[k].label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* メモ(任意)。枠が割当済みのときだけ表示。入力後フォーカスを外すと保存。 */}
+      {cur && (
+        <div className="mt-1 flex items-center gap-2 pl-1">
+          <span className="text-xs text-gray-400">メモ</span>
+          <input
+            value={noteValue}
+            onChange={(e) => setNoteValue(e.target.value)}
+            onBlur={() => {
+              if (noteValue !== note) onAssign(m.id, date, cur, noteValue);
+            }}
+            placeholder="例: 〜16"
+            maxLength={30}
+            disabled={pending}
+            className="w-32 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatDateJa(date: string) {
   const d = new Date(date + "T00:00:00Z");
   return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日(${WEEKDAYS[d.getUTCDay()]})`;
@@ -284,6 +391,7 @@ function DayPanel({
   slots,
   roster,
   slotByKey,
+  noteByKey,
   statusMap,
   editable,
   pending,
@@ -293,10 +401,16 @@ function DayPanel({
   slots: Record<SlotKey, SlotDef>;
   roster: RosterMember[];
   slotByKey: Map<string, SlotKey>;
+  noteByKey: Map<string, string>;
   statusMap: Record<string, ShiftStatus>;
   editable: boolean;
   pending: boolean;
-  onAssign: (employeeId: string, workDate: string, slot: SlotKey | null) => void;
+  onAssign: (
+    employeeId: string,
+    workDate: string,
+    slot: SlotKey | null,
+    note?: string
+  ) => void;
 }) {
   return (
     <div className="rounded-xl border border-blue-200 bg-white p-4">
@@ -324,6 +438,7 @@ function DayPanel({
                   ) : (
                     members.map((m) => {
                       const mism = isMismatch(statusMap[`${m.id}|${date}`]);
+                      const note = noteByKey.get(`${m.id}|${date}`);
                       return (
                         <span
                           key={m.id}
@@ -334,6 +449,11 @@ function DayPanel({
                           }}
                         >
                           {displayName(m)}
+                          {note && (
+                            <span className="ml-1 font-normal opacity-80">
+                              {note}
+                            </span>
+                          )}
                         </span>
                       );
                     })
@@ -351,45 +471,19 @@ function DayPanel({
           {roster.length === 0 && (
             <p className="text-sm text-gray-400">対象の従業員がいません。</p>
           )}
-          {roster.map((m) => {
-            const cur = slotByKey.get(`${m.id}|${date}`) ?? null;
-            const mism = isMismatch(statusMap[`${m.id}|${date}`]);
-            return (
-              <div
-                key={m.id}
-                className="flex items-center justify-between gap-2 border-b border-gray-50 py-1.5"
-              >
-                <span
-                  className={`min-w-0 flex-1 truncate rounded px-2 py-0.5 text-sm ${mism ? "font-bold text-red-600" : ""}`}
-                  style={{
-                    backgroundColor: m.color ?? "#eef2f7",
-                    color: mism ? undefined : SHIFT_TEXT_COLOR,
-                  }}
-                  title={m.name}
-                >
-                  {displayName(m)}
-                </span>
-                <div className="flex shrink-0 gap-1">
-                  {SLOT_KEYS.map((k) => (
-                    <button
-                      key={k}
-                      disabled={pending}
-                      onClick={() =>
-                        onAssign(m.id, date, cur === k ? null : k)
-                      }
-                      className={`h-8 rounded-lg border px-2 text-xs font-bold transition disabled:opacity-50 ${
-                        cur === k
-                          ? "border-blue-600 bg-blue-600 text-white"
-                          : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      {slots[k].label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {roster.map((m) => (
+            <EditRow
+              key={m.id}
+              member={m}
+              date={date}
+              slots={slots}
+              cur={slotByKey.get(`${m.id}|${date}`) ?? null}
+              note={noteByKey.get(`${m.id}|${date}`) ?? ""}
+              mism={isMismatch(statusMap[`${m.id}|${date}`])}
+              pending={pending}
+              onAssign={onAssign}
+            />
+          ))}
         </div>
       )}
     </div>
