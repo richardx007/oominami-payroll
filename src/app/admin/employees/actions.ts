@@ -12,6 +12,8 @@ const employeeSchema = z
   .object({
     role: z.enum(["admin", "employee"]),
     name: z.string().min(1, "氏名を入力してください"),
+    furigana: z.string().max(50).optional(),
+    nickname: z.string().max(50).optional(),
     email: z.email("メールアドレスの形式が正しくありません"),
     hourly_wage: z.coerce.number().int().optional(),
     tax_category: z.enum(["kou", "otsu"]).optional(),
@@ -66,6 +68,8 @@ export async function addEmployee(formData: FormData): Promise<ActionResult> {
     .insert({
       employee_no,
       name: d.name,
+      furigana: d.furigana?.trim() || null,
+      nickname: d.nickname?.trim() || null,
       email: d.email.toLowerCase(),
       is_admin: isAdmin,
     })
@@ -115,10 +119,12 @@ export async function addEmployee(formData: FormData): Promise<ActionResult> {
 const profileSchema = z.object({
   employee_id: z.uuid(),
   name: z.string().min(1, "氏名を入力してください"),
+  furigana: z.string().max(50).optional(),
+  nickname: z.string().max(50).optional(),
   email: z.email("メールアドレスの形式が正しくありません"),
 });
 
-/** 氏名・メールアドレスを変更する。メール変更時は未登録に戻す(要・再招待) */
+/** 氏名・ふりがな・ニックネーム・メールアドレスを変更する。メール変更時は未登録に戻す(要・再招待) */
 export async function updateEmployeeProfile(
   formData: FormData
 ): Promise<ActionResult> {
@@ -141,8 +147,16 @@ export async function updateEmployeeProfile(
   const newEmail = d.email.toLowerCase();
   const emailChanged = newEmail !== current.email;
 
-  const update: { name: string; email: string; auth_user_id?: null } = {
+  const update: {
+    name: string;
+    furigana: string | null;
+    nickname: string | null;
+    email: string;
+    auth_user_id?: null;
+  } = {
     name: d.name,
+    furigana: d.furigana?.trim() || null,
+    nickname: d.nickname?.trim() || null,
     email: newEmail,
   };
   if (emailChanged) update.auth_user_id = null;

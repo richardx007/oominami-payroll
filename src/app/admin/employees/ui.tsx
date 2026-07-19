@@ -132,11 +132,25 @@ function AddEmployeePanel() {
                   従業員Noは区分に応じて自動採番されます
                 </p>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="mb-1 block text-sm font-medium">氏名</label>
                 <input name="name" required className={inputClass} />
               </div>
-              <div>
+              <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    ふりがな
+                  </label>
+                  <input name="furigana" className={inputClass} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    ニックネーム
+                  </label>
+                  <input name="nickname" className={inputClass} />
+                </div>
+              </div>
+              <div className="sm:col-span-2">
                 <label className="mb-1 block text-sm font-medium">
                   メールアドレス
                 </label>
@@ -426,10 +440,10 @@ function EmployeeTableRow({
                 className="mb-5 space-y-2"
               >
                 <h4 className="text-xs font-semibold text-gray-500">
-                  氏名・メールアドレスの変更
+                  氏名・ふりがな・ニックネーム・メールアドレスの変更
                 </h4>
                 <input type="hidden" name="employee_id" value={emp.id} />
-                <div className="grid gap-2 sm:grid-cols-[1fr_1.5fr_auto]">
+                <div className="space-y-2">
                   <input
                     name="name"
                     defaultValue={emp.name}
@@ -437,20 +451,36 @@ function EmployeeTableRow({
                     placeholder="氏名"
                     className={inputClass}
                   />
-                  <input
-                    name="email"
-                    type="email"
-                    defaultValue={emp.email}
-                    required
-                    placeholder="メールアドレス"
-                    className={inputClass}
-                  />
-                  <button
-                    disabled={pending}
-                    className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    更新
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      name="furigana"
+                      defaultValue={emp.furigana ?? ""}
+                      placeholder="ふりがな"
+                      className={inputClass}
+                    />
+                    <input
+                      name="nickname"
+                      defaultValue={emp.nickname ?? ""}
+                      placeholder="ニックネーム"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1.5fr_auto]">
+                    <input
+                      name="email"
+                      type="email"
+                      defaultValue={emp.email}
+                      required
+                      placeholder="メールアドレス"
+                      className={inputClass}
+                    />
+                    <button
+                      disabled={pending}
+                      className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      更新
+                    </button>
+                  </div>
                 </div>
                 <p className="text-xs text-gray-400">
                   ※ メールアドレスを変更すると「未登録」に戻り、再度の招待が必要になります
