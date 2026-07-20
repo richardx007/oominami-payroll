@@ -46,6 +46,7 @@ export function TimesheetCalendar({
   selectedEmployeeId,
   employeeName,
   shifts = {},
+  timeLocked = false,
 }: {
   period: Period;
   entries: WorkEntry[];
@@ -55,6 +56,8 @@ export function TimesheetCalendar({
   today: string;
   /** 表示中の従業員のシフト予定(work_date -> ShiftInfo)。予実一覧・入力デフォルトに使う */
   shifts?: Record<string, ShiftInfo>;
+  /** 管理者が設定でロックした場合、従業員は出勤/退勤時刻・休憩時間を編集できない(管理者画面では常にfalse) */
+  timeLocked?: boolean;
   /** 勤務記録の保存アクション(従業員=自分, 管理者=対象従業員にバインド済み) */
   save: (formData: FormData) => Promise<ActionResult>;
   /** 勤務記録の削除アクション */
@@ -329,6 +332,7 @@ export function TimesheetCalendar({
             stations={stations}
             onSave={handleSave}
             onDelete={remove}
+            timeLocked={timeLocked}
           />
         )}
         {selected && closed && selectedEntry && (
@@ -547,6 +551,7 @@ function EntryForm({
   stations,
   onSave,
   onDelete,
+  timeLocked = false,
 }: {
   date: string;
   entry: WorkEntry | undefined;
@@ -556,8 +561,11 @@ function EntryForm({
   stations: string[];
   onSave: (fd: FormData) => void;
   onDelete: (date: string) => void;
+  /** 管理者が設定でロックした場合、出勤/退勤時刻・休憩時間を編集できない */
+  timeLocked?: boolean;
 }) {
   const init = entry ?? defaults;
+
   // 打刻で出勤のみ登録され退勤が未入力の場合、退勤欄を警告表示にする
   const endMissing = !!entry && !entry.end_time;
   // 新規入力時はシフト予定の時刻をデフォルト表示する(既存レコードがあればそれを優先)。
@@ -574,6 +582,20 @@ function EntryForm({
   const costRef = useRef<HTMLInputElement>(null);
   const fromRef = useRef<HTMLInputElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
+
+  // ロック中に既存レコードが無い日は、時刻を確定できず新規作成できない
+  // (サーバー側 upsertWorkEntry も同条件で拒否する)。フォーム自体を出さず案内のみ表示する。
+  if (timeLocked && !entry) {
+    return (
+      <div className="rounded-xl border border-blue-200 bg-white p-4">
+        <h3 className="text-lg font-bold text-blue-800">{formatDateJa(date)}</h3>
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          出退勤時刻・休憩時間の編集は管理者によりロックされています。QR打刻をご利用いただくか、
+          管理者にご連絡ください。
+        </p>
+      </div>
+    );
+  }
 
   // カスタムバリデーション(吹き出し)をリセット
   function resetValidity() {
@@ -672,8 +694,9 @@ function EntryForm({
               type="time"
               step={900}
               required
+              disabled={timeLocked}
               defaultValue={startDefault}
-              className={timeInputClass}
+              className={`${timeInputClass} ${timeLocked ? "opacity-60" : ""}`}
             />
           </div>
           <div className="min-w-0">
@@ -687,12 +710,13 @@ function EntryForm({
               name="end_time"
               type="time"
               step={900}
+              disabled={timeLocked}
               defaultValue={endDefault}
               className={`${timeInputClass} ${
                 endMissing
                   ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300"
                   : ""
-              }`}
+              } ${timeLocked ? "opacity-60" : ""}`}
             />
           </div>
           <div className="min-w-0">
@@ -702,8 +726,9 @@ function EntryForm({
             <select
               name="break_minutes"
               required
+              disabled={timeLocked}
               defaultValue={init?.break_minutes ?? 60}
-              className={timeInputClass}
+              className={`${timeInputClass} ${timeLocked ? "opacity-60" : ""}`}
             >
               {breakMinuteOptions(init?.break_minutes).map((m) => (
                 <option key={m} value={m}>
@@ -713,9 +738,28 @@ function EntryForm({
             </select>
           </div>
         </div>
-        <p className="-mt-2 text-xs text-gray-500">
-          ※ 深夜勤務で退勤が翌日になる場合は、退勤にその時刻(例: 2:00)をそのまま入力してください。翌日ぶんとして計算します。
-        </p>
+        {/* disabled にした時刻/休憩の入力欄は FormData に含まれないため、実際の値を
+            hidden で補う(サーバー側でもロック中は既存値に固定して二重に防御している)。 */}
+        {timeLocked && entry && (
+          <>
+            <input type="hidden" name="start_time" value={entry.start_time} />
+            <input type="hidden" name="end_time" value={entry.end_time ?? ""} />
+            <input
+              type="hidden"
+              name="break_minutes"
+              value={entry.break_minutes}
+            />
+          </>
+        )}
+        {timeLocked ? (
+          <p className="-mt-2 rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-800">
+            出退勤時刻・休憩時間の編集は管理者によりロックされています。修正が必要な場合は管理者にご連絡ください。
+          </p>
+        ) : (
+          <p className="-mt-2 text-xs text-gray-500">
+            ※ 深夜勤務で退勤が翌日になる場合は、退勤にその時刻(例: 2:00)をそのまま入力してください。翌日ぶんとして計算します。
+          </p>
+        )}
 
         {/* 交通費(1つの枠にまとめる。塗りを少し濃く + 右上に×クリア) */}
         <fieldset className="rounded-xl border border-gray-200 bg-gray-100 p-3 pt-2">
@@ -846,7 +890,7 @@ function EntryForm({
           />
         </div>
 
-        {entry && (
+        {entry && !timeLocked && (
           <div className="flex justify-end">
             <button
               type="button"

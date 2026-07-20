@@ -683,6 +683,30 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - LINE内蔵ブラウザ+iOSの案内文（Safariで開き直す手順）は`body`の型がReactNodeのため文字列から
   `<>...</>`のJSXフラグメントに変更（`ShareIcon`をJSXとして混在させるための型合わせ。表示内容は変更なし）。
 
+### 本セッションで実施した変更（2026-07-20・従業員による出退勤時刻・休憩時間の編集ロック機能を追加）
+オーナー依頼「従業員側では出退勤時刻と休憩時間を修正できないようにロックできるようにしてほしい」に対応。
+`AskUserQuestion`で2点確認: ①ロック範囲は「設定画面でON/OFF切替」②ロック中もQR打刻は引き続き利用可能、
+の方針で実装。`npm run build && npm test`(21件)・`eslint`通過。
+- **DB**: `app_settings`に`lock_employee_time_edit`（既定`false`）を追加。従業員セッションから読める
+  SECURITY DEFINER関数`get_timesheet_lock()`を新設（`get_clock_settings()`等と同じパターン。anon revoke・
+  authenticatedのみ実行可）。記録: `supabase/migrations/20260720_add_timesheet_lock.sql`。
+- **設定画面**: 「勤務表ロック」セクションを追加（`admin/settings/{actions,ui,page}.tsx`の
+  `updateTimesheetLock`/`TimesheetLockForm`）。チェックボックス1つのシンプルなON/OFF。
+- **従業員側の勤務表**（`(employee)/timesheet/{actions,page,ui}.tsx`）:
+  - ロックON時、`upsertWorkEntry`はクライアントが送ってきた出勤/退勤時刻・休憩時間を信用せず、DBの既存値で
+    上書きしてから保存する（交通費・メモのみ反映）。既存レコードが無い日は保存自体を拒否（QR打刻を案内）。
+    `deleteWorkEntry`もロック中は拒否（削除→再作成でのロック回避を防ぐため）。
+  - クライアント側（`EntryForm`）は時刻/休憩の入力欄を`disabled`にして視覚的にも操作不可にし、実際の値は
+    `hidden`入力で補って送信する（`disabled`な欄はFormDataに含まれないため）。ただし**認可の根拠はサーバー
+    側のみ**とし、クライアントの`disabled`はあくまでUX。既存レコードが無い日は入力フォーム自体を出さず
+    案内メッセージのみ表示。
+  - ⚠️ 実装時の注意: `EntryForm`内で早期`return`（ロック中に既存レコードが無い場合の案内表示）を
+    `useRef`呼び出しより前に置いてしまい、React Hooksのルール違反（条件付きフック呼び出し）でeslintエラーに
+    なった。`useRef`宣言をすべて早期returnより前に移動して解消。**コンポーネント内で早期returnを追加する際は
+    既存のフック呼び出し位置に注意すること**（今後同種の実装をする際の教訓）。
+  - **管理者側（`admin/timesheet`）・QR打刻（`clock/actions.ts`）はこの機能の影響を受けない**（従来通り
+    常に編集可能）。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 

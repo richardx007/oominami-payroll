@@ -5,6 +5,7 @@ import {
   LunchAllowanceForm,
   ShiftSlotsForm,
   TaxTableForm,
+  TimesheetLockForm,
   type TaxTableRow,
 } from "./ui";
 import { ClockSettingsForm } from "./clock";
@@ -54,6 +55,9 @@ export default async function SettingsPage() {
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
       />
       <ShiftSlotsForm slots={slots} />
+      <TimesheetLockForm
+        locked={settingsMap.get("lock_employee_time_edit") === "true"}
+      />
       <LunchAllowanceForm history={allowances ?? []} />
       <ClockSettingsForm
         companyName={settingsMap.get("company_name") ?? ""}

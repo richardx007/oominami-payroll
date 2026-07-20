@@ -136,6 +136,34 @@ export async function updateShiftSlots(
   return { ok: true, message: "シフト枠を保存しました" };
 }
 
+/** 従業員による出退勤時刻・休憩時間の編集ロックをON/OFF切替する。QR打刻自体は影響を受けない。 */
+export async function updateTimesheetLock(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const locked = formData.get("lock_employee_time_edit") === "on";
+
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(
+      { key: "lock_employee_time_edit", value: locked ? "true" : "false" },
+      { onConflict: "key" }
+    );
+
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/timesheet");
+  return {
+    ok: true,
+    message: locked
+      ? "従業員による時刻・休憩の編集をロックしました"
+      : "従業員による時刻・休憩の編集ロックを解除しました",
+  };
+}
+
 const allowanceSchema = z.object({
   lunch_allowance_per_day: z.coerce.number().int().min(0, "0以上で入力してください"),
   effective_from: z.string().min(1, "適用開始日を入力してください"),

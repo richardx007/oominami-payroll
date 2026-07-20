@@ -6,6 +6,7 @@ import {
   updateEmailSettings,
   updateLunchAllowance,
   updateShiftSlots,
+  updateTimesheetLock,
 } from "./actions";
 import type { SlotDef, SlotKey } from "@/lib/shifts";
 import type { ActionResult } from "../employees/actions";
@@ -82,6 +83,53 @@ export function ShiftSlotsForm({
         <button
           disabled={pending}
           className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+/** 従業員による出退勤時刻・休憩時間の編集ロックのON/OFF切替 */
+export function TimesheetLockForm({ locked }: { locked: boolean }) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
+        勤務表ロック
+      </h2>
+      <p className="mt-1 text-sm text-gray-500">
+        ロックすると、従業員は勤務表で出勤・退勤時刻と休憩時間を編集できなくなります
+        （交通費・メモは引き続き編集可）。QR打刻での出退勤登録は影響を受けません。
+      </p>
+      <form
+        action={(fd) =>
+          startTransition(async () => setResult(await updateTimesheetLock(fd)))
+        }
+        className="mt-4"
+      >
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            name="lock_employee_time_edit"
+            defaultChecked={locked}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          従業員による出退勤時刻・休憩時間の編集をロックする
+        </label>
+        {result && (
+          <p
+            className={`mt-2 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
+          >
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="mt-3 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {pending ? "保存中..." : "保存する"}
         </button>

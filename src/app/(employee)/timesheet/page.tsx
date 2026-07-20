@@ -40,6 +40,7 @@ export default async function TimesheetPage({
     { data: pastEntries },
     { data: shiftRows },
     { data: slotRows },
+    { data: locked },
   ] = await Promise.all([
       supabase
         .from("work_entries")
@@ -73,6 +74,8 @@ export default async function TimesheetPage({
         .lte("work_date", period.end),
       // シフト枠の設定(app_settings は直接読めないため関数経由)
       supabase.rpc("get_shift_settings"),
+      // 出退勤時刻・休憩時間の編集ロック状態(app_settings は直接読めないため関数経由)
+      supabase.rpc("get_timesheet_lock"),
     ]);
 
   const slots = parseSlots(slotRows as { key: string; value: string }[]);
@@ -117,6 +120,7 @@ export default async function TimesheetPage({
       del={deleteWorkEntry}
       employeeName={employee.name}
       shifts={shifts}
+      timeLocked={!!locked}
     />
   );
 }

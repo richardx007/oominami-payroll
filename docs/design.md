@@ -692,3 +692,42 @@ middleware.ts            未認証は /login へ
 - 勤務表: `src/app/(employee)/timesheet/{ui,page}.tsx`、`src/app/admin/timesheet/page.tsx`。
 - 従業員色: `src/app/admin/employees/{ui,actions,page}.tsx`。設定: `src/app/admin/settings/{ui,actions,page}.tsx`。
 - 打刻交通費: `src/app/clock/{page,ui,actions}.ts(x)`。
+
+---
+
+## 9. 勤務表の時刻編集ロック（2026-07-20追加）
+
+従業員が勤務表画面から出勤/退勤時刻・休憩時間を自由に書き換えられる状態を、管理者の判断で
+制限できるようにする機能。QR打刻の記録を従業員自身が改変できてしまう懸念に対応する。
+
+### 9.1 概要
+- 管理画面「設定」→「勤務表ロック」で **ON/OFF を切替**（`app_settings` の `lock_employee_time_edit`。
+  既定値は `false`＝ロックなし、従来動作のまま）。
+- **ON の場合**: 従業員は勤務表（`/timesheet`）で出勤・退勤時刻・休憩時間を編集できない。
+  **交通費・メモは引き続き編集可能**。**QR打刻（出勤/退勤）自体はロックの影響を受けず、従来通り利用できる**
+  （QR打刻は`punchClock`経由でこのロックのチェック対象外）。
+- 既存レコードが無い日（QR打刻も手入力もまだ無い日）は、ロック中は時刻を確定する手段が無いため
+  **従業員による新規作成そのものを拒否**する（フォームを出さず「QR打刻をご利用いただくか、管理者に
+  ご連絡ください」と案内）。既存レコードがある日は、交通費・メモだけを更新できる（時刻欄は無効化表示）。
+- ロック中は従業員による**削除も拒否**する（削除→再作成で新規扱いになりロックを回避されるのを防ぐため）。
+- **管理者は`/admin/timesheet`から常に全項目を編集可能**（このロックの影響を受けない。締め済み期間でも
+  編集できる既存仕様と同様、管理者は別経路）。
+
+### 9.2 実装（多層防御）
+- クライアント側: 出勤/退勤の`<input type=time>`・休憩の`<select>`を`disabled`にし、視覚的にも操作不可にする。
+  `disabled`な入力欄は`FormData`に含まれないため、実際の値を`hidden`入力で別途補って送信する
+  （`src/app/(employee)/timesheet/ui.tsx`の`EntryForm`）。
+- **サーバー側で最終的に強制**（クライアント側の`disabled`はUXのためだけで、認可の根拠にはしない）:
+  `upsertWorkEntry`（`src/app/(employee)/timesheet/actions.ts`）はロック中、クライアントが送ってきた
+  出勤/退勤時刻・休憩時間を信用せず、DBの既存値で上書きしてから保存する（交通費・メモのみ送信値を反映）。
+  既存レコードが無ければ保存自体を拒否する。`deleteWorkEntry`もロック中は拒否する。
+- ロック状態は`app_settings`のキーだが、`app_settings`は管理者のみSELECT可のRLSのため、従業員セッションから
+  読むための SECURITY DEFINER 関数 `get_timesheet_lock()`（`clock_*`/`shift_*`設定の`get_clock_settings()`/
+  `get_shift_settings()`と同じパターン。anon revoke・authenticated のみ実行可）を新設した。
+
+### 9.3 実装ファイル
+- DB: `supabase/migrations/20260720_add_timesheet_lock.sql`（`app_settings`の既定値・`get_timesheet_lock()`）。
+- 設定画面: `src/app/admin/settings/{actions,ui,page}.tsx`（`updateTimesheetLock`/`TimesheetLockForm`）。
+- 従業員側: `src/app/(employee)/timesheet/{actions,page,ui}.tsx`（`upsertWorkEntry`/`deleteWorkEntry`の
+  ロックチェック、`EntryForm`の`timeLocked`prop）。
+- 管理者側（`admin/timesheet`）・QR打刻（`clock/actions.ts`）はこの機能による変更なし（従来通り）。
