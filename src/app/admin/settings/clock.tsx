@@ -244,6 +244,7 @@ function QrCodes({
 }) {
   const [inUrl, setInUrl] = useState<string>("");
   const [outUrl, setOutUrl] = useState<string>("");
+  const [installUrl, setInstallUrl] = useState<string>("");
   const [mounted, setMounted] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   // iPhone/iPad をホーム画面に追加した状態(PWA standalone表示)では window.print() が
@@ -271,6 +272,10 @@ function QrCodes({
       width: 480,
       margin: 1,
     }).then(setOutUrl);
+    // ホーム画面追加の案内ページ(/install)。出退勤QRより小さく表示する
+    QRCode.toDataURL(`${origin}/install`, { width: 240, margin: 1 }).then(
+      setInstallUrl
+    );
   }, []);
 
   // 打刻時刻の丸め単位(0/1は丸めなし=1分単位として表示)
@@ -445,6 +450,21 @@ function QrCodes({
             <img src={outUrl} alt="退勤QR" className="mx-auto mt-2 w-full max-w-[220px]" />
           )}
         </div>
+      </div>
+
+      {/* スマホのホーム画面追加(PWAインストール)案内用QR。出退勤QRより小さく下部に表示 */}
+      <div className="mt-6 flex flex-col items-center gap-2 border-t border-gray-100 pt-4">
+        <p className="text-xs text-gray-500">
+          このQRを読み取ると、スマホのホーム画面にアイコンを追加する手順が表示されます
+        </p>
+        {installUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={installUrl}
+            alt="ホーム画面追加の案内QR"
+            className="h-24 w-24 rounded-lg border border-gray-200 p-1"
+          />
+        )}
       </div>
 
       {/* 印刷専用シートは body 直下(portal)に置く。印刷時は他の body 直下要素を

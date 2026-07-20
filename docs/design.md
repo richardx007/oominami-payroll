@@ -223,10 +223,22 @@ app/
   set-password/          マジックリンク/再設定リンク後のパスワード設定
   auth/callback/         Supabase 認証コールバック。token_hash+verifyOtp で初回登録(magiclink)・
                          再設定(recovery)を検証。setup=1/recovery で /set-password へ
+  install/               スマホのホーム画面に追加してもらうための案内ページ（2026-07-19追加）。
+                         未ログインでもQRから直接開けるよう公開（middlewareの publicPaths に追加）。
+                         `AddToHomeScreenBanner`（下記）を表示するだけの薄いラッパー。設定画面
+                         「出勤・退勤QRコード」の下部に、このページへのQR（出退勤QRより小さめ）を表示する
+                         （`admin/settings/clock.tsx`。出退勤QRとは別に生成、印刷/PDF出力には含まない・
+                         画面表示のみ）。
   manifest.ts            PWA マニフェスト（/manifest.webmanifest）
   pwa/
     ReloadPrompt.tsx     更新バナー（新版検知→ワンタップ更新）
     reloadApp.ts         ロゴ1タップ最新化（LogoButtonから使用）
+    AddToHomeScreenBanner.tsx  ホーム画面追加の手順を端末判定して案内するバナー（2026-07-19追加）。
+                         iOS/Android/LINE内蔵ブラウザを判定し、Android+通常ブラウザは`beforeinstallprompt`を
+                         使ったワンタップ追加、iOSは共有ボタンからの手順テキスト、LINE内蔵ブラウザは
+                         外部ブラウザ(Chrome/Safari)で開き直す案内を出し分ける。既にスタンドアロン起動中や
+                         PC等の対象外環境では何も表示しない。**`/install`ページ専用**（アプリ全体には常設しない。
+                         下部固定表示のため通常利用中は下部タブナビと重なってしまうため）。
   layout.tsx             ルート（ReloadPrompt常設・viewport-fit=cover）, page.tsx, globals.css
 lib/
   supabase/              client.ts / server.ts / middleware.ts

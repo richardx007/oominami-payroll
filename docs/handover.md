@@ -608,6 +608,31 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
   判断してから`RANK_BY_ACTION`に追記する**運用にすること(個別に色を決め打ちしない)。
 - design.md「6.2 操作ログのランク制」に表形式で記録済み。
 
+### 本セッションで実施した変更（2026-07-19 その15・ホーム画面追加の案内バナー/専用QRコードを追加）
+オーナーから、社外のCode Chatで作成してもらった`AddToHomeScreenBanner.jsx`(zip添付)を組み込む依頼あり。
+「ITに強くない従業員でもホーム画面にアイコンを追加できるようにしたい」という目的。`npm run build && npm test`
+(21件) 通過。DBスキーマ変更なし。
+- **`AddToHomeScreenBanner.tsx`を`src/app/pwa/`に追加**（元のjsxをこのプロジェクトの規約(TypeScript化・
+  Tailwindクラスへの置換)に合わせて移植。ロジックは変更なし）。端末のUser-Agentを判定し:
+  - LINE内蔵ブラウザ+Android → 「Chromeで開く」ボタン(intent URLで直接起動)
+  - LINE内蔵ブラウザ+iOS → 「Safariで開く」手順のテキスト案内
+  - 通常ブラウザ+Android → `beforeinstallprompt`イベントを拾えた場合はワンタップ「ホーム画面に追加」ボタン、
+    拾えない場合は手動手順のテキスト
+  - 通常ブラウザ+iOS → 共有ボタンからの手順テキスト
+  - 既にスタンドアロン起動中(=追加済み)、またはPC等の対象外環境では何も表示しない
+  - 画面下部に固定表示・✕で閉じられる。
+- **⚠️ アプリ全体には常設せず、新設した`/install`ページ専用にした**。理由: 下部固定表示のため、通常の
+  管理者/従業員画面（下部タブナビあり）に常設すると重なってしまう。`ReloadPrompt`が`position="top"`に
+  している前例と同じ配慮。
+- **`/install`ページを新設**（`src/app/install/page.tsx`）: ロゴ・見出し・説明文＋`AddToHomeScreenBanner`の
+  薄いラッパー。**未ログインでもQRから直接開けるよう`src/lib/supabase/middleware.ts`の`publicPaths`に
+  `/install`を追加**（機密情報を含まないページのため公開して問題なし）。
+- **設定画面「出勤・退勤QRコード」の下部に、`/install`への小さめのQRコードを追加**
+  （`src/app/admin/settings/clock.tsx`）。出退勤QRとは別に`QRCode.toDataURL`で生成(幅240px、出退勤QRの
+  480pxより小さく)。**画面表示のみ**で、印刷/PDF出力（QR印刷シート）には含めていない
+  （オーナーの依頼が「ページの下部に小さめに表示」だったため、まずは画面上のみ対応。印刷にも含めたい場合は
+  別途追加すること）。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 
