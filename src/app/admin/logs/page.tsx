@@ -29,17 +29,40 @@ function jstDate(iso: string) {
   });
 }
 
-/** 操作の種類に応じたバッジ配色 */
+/**
+ * ログの重要度ランク(4段階)。カテゴリ(action文字列)ごとに1つのランクを割り当て、
+ * ランクに応じたバッジ配色を適用する(個別カテゴリごとに色を決め打ちしない)。
+ * - ルーチン(グレー): 必要に応じて参照する日常操作の情報
+ * - イベント(ブルー): 不定期に発生する重要な作業
+ * - 警告(オレンジ=amber): 管理者として注視すべき状況
+ * - エラー(赤): システム例外・処理失敗など管理者対応/復旧が必要な状況
+ */
+type LogRank = "routine" | "event" | "warning" | "error";
+
+const RANK_BY_ACTION: Record<string, LogRank> = {
+  ログイン: "routine",
+  打刻: "routine",
+  ログ削除: "routine",
+  パスワード設定: "event",
+  メール送信: "event",
+  削除: "event",
+  打刻拒否: "warning",
+  圏外打刻: "warning",
+  エラー: "error",
+};
+
+const RANK_CLASS: Record<LogRank, string> = {
+  routine: "bg-gray-100 text-gray-600",
+  event: "bg-blue-50 text-blue-700",
+  // 「オレンジ」は従来パスワード設定に使っていた amber-50/700 をそのまま踏襲
+  warning: "bg-amber-50 text-amber-700",
+  error: "bg-red-50 text-red-700",
+};
+
+/** 操作の種類(action)に応じたバッジ配色。未知のカテゴリはルーチン扱い(グレー)にする */
 function actionClass(action: string) {
-  if (action === "エラー") return "bg-red-50 text-red-700";
-  if (action === "削除") return "bg-red-50 text-red-700";
-  if (action === "メール送信") return "bg-blue-50 text-blue-700";
-  if (action === "ログイン") return "bg-green-50 text-green-700";
-  if (action === "パスワード設定") return "bg-amber-50 text-amber-700";
-  if (action === "圏外打刻") return "bg-orange-50 text-orange-700";
-  if (action === "打刻拒否") return "bg-orange-50 text-orange-700";
-  if (action === "ログ削除") return "bg-gray-100 text-gray-500";
-  return "bg-gray-100 text-gray-600";
+  const rank = RANK_BY_ACTION[action] ?? "routine";
+  return RANK_CLASS[rank];
 }
 
 export default async function LogsPage() {
