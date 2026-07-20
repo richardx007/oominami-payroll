@@ -330,6 +330,9 @@ function QrCodes({
   .in { color: #15803d; }
   .out { color: #ea580c; }
   ul { margin: 10mm auto 0; max-width: 160mm; text-align: left; font-size: 12px; line-height: 1.8; padding-left: 6mm; }
+  .install { margin: 10mm auto 0; padding-top: 6mm; border-top: 1px solid #ddd; max-width: 160mm; }
+  .install p { margin: 0 0 3mm; font-size: 13px; font-weight: 700; color: #333; }
+  .install img { width: 28mm; height: 28mm; }
 </style>
 </head>
 <body>
@@ -343,6 +346,14 @@ function QrCodes({
     <li>記録される出退勤時刻は、${roundLabel} 分単位で丸められます。</li>
     <li>この職場以外からでは記録できませんので、必ずここで登録してください。</li>
   </ul>
+  ${
+    installUrl
+      ? `<div class="install">
+    <p>アプリをスマホのホーム画面に登録しましょう</p>
+    <img src="${installUrl}" alt="ホーム画面登録の案内QR">
+  </div>`
+      : ""
+  }
 </body>
 </html>`);
     doc.close();
@@ -496,6 +507,13 @@ function QrCodes({
                 この職場以外からでは記録できませんので、必ずここで登録してください。
               </li>
             </ul>
+            {installUrl && (
+              <div className="qr-print-install">
+                <p>アプリをスマホのホーム画面に登録しましょう</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={installUrl} alt="ホーム画面登録の案内QR" />
+              </div>
+            )}
           </div>,
           document.body
         )}

@@ -86,6 +86,23 @@ body.qr-capture-mode .qr-print-sheet {
   list-style: disc;
   padding-left: 6mm;
 }
+/* ホーム画面登録の案内QR(印刷/PDF共通) */
+.qr-print-install {
+  margin: 10mm auto 0;
+  padding-top: 6mm;
+  border-top: 1px solid #ddd;
+  max-width: 160mm;
+}
+.qr-print-install p {
+  margin: 0 0 3mm;
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+}
+.qr-print-install img {
+  width: 28mm;
+  height: 28mm;
+}
 
 /* 印刷 / PDF 出力の調整(給与明細の表が横にはみ出て切れるのを防ぐ) */
 @media print {

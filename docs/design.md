@@ -227,8 +227,11 @@ app/
                          未ログインでもQRから直接開けるよう公開（middlewareの publicPaths に追加）。
                          `AddToHomeScreenBanner`（下記）を表示するだけの薄いラッパー。設定画面
                          「出勤・退勤QRコード」の下部に、このページへのQR（出退勤QRより小さめ）を表示する
-                         （`admin/settings/clock.tsx`。出退勤QRとは別に生成、印刷/PDF出力には含まない・
-                         画面表示のみ）。
+                         （`admin/settings/clock.tsx`。出退勤QRとは別に生成）。**印刷/PDFダウンロードのQR
+                         ポスターにも同じQRを掲載**（2026-07-19追加）: 出退勤QRの下に「アプリをスマホの
+                         ホーム画面に登録しましょう」の案内文＋QR（28mm四方、出退勤QRの70mmより小さめ）を
+                         追加。印刷用の独立ウィンドウ（`handlePrint()`内のHTML文字列）とPDF生成用シート
+                         （`.qr-print-sheet`。`.qr-print-install`クラス）の両方に同じ内容を反映している。
   manifest.ts            PWA マニフェスト（/manifest.webmanifest）
   pwa/
     ReloadPrompt.tsx     更新バナー（新版検知→ワンタップ更新）
