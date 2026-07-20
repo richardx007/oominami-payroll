@@ -278,18 +278,71 @@ function QrCodes({
   const roundLabel = Number.isFinite(roundN) && roundN > 1 ? roundN : 1;
   const title = `${companyName ? companyName + "　" : ""}出退勤登録用QRコード`;
 
-  // QR のみを印刷する: body に印刷モードのクラスを付けてから印刷し、後で外す。
+  /**
+   * QRのみを印刷する。
+   * 従来は現在のページの body にクラスを付けて他の要素を display:none にする方式だったが、
+   * ブラウザによっては(内容量やレイアウトの端数次第で)空白の2ページ目が生成されることがあった。
+   * 原因を確実に断定できなかったため、**印刷用の内容だけを持つ完全に独立した別ウィンドウ**を開いて
+   * そこで印刷する方式に変更した。同じページの他の要素が一切混ざらないため、空白ページの原因を
+   * 構造的に排除できる。
+   */
   const handlePrint = () => {
-    if (typeof document === "undefined") return;
-    document.body.classList.add("qr-print-mode");
-    const cleanup = () => {
-      document.body.classList.remove("qr-print-mode");
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    // afterprint が発火しない環境向けのフォールバック
-    window.setTimeout(cleanup, 1000);
-    window.print();
+    if (typeof window === "undefined" || !inUrl || !outUrl) return;
+    const w = window.open("", "_blank");
+    if (!w) {
+      alert("ポップアップがブロックされました。ブラウザの設定を確認してください。");
+      return;
+    }
+    const escapeHtml = (s: string) =>
+      s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    const doc = w.document;
+    doc.open();
+    doc.write(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm 12mm;
+    text-align: center;
+    font-family: "Hiragino Kaku Gothic ProN","Hiragino Sans","BIZ UDPGothic",Meiryo,system-ui,sans-serif;
+  }
+  h1 { margin: 4mm 0 8mm; font-size: 20px; font-weight: 700; }
+  .codes { display: flex; justify-content: center; gap: 12mm; }
+  .code { border: 2px solid #333; border-radius: 8px; padding: 6mm; }
+  .code img { width: 70mm; height: 70mm; display: block; }
+  .label { font-size: 18px; font-weight: 700; margin-bottom: 4mm; }
+  .in { color: #15803d; }
+  .out { color: #ea580c; }
+  ul { margin: 10mm auto 0; max-width: 160mm; text-align: left; font-size: 12px; line-height: 1.8; padding-left: 6mm; }
+</style>
+</head>
+<body>
+  <h1>${escapeHtml(title)}</h1>
+  <div class="codes">
+    <div class="code"><div class="label in">出勤</div><img src="${inUrl}" alt="出勤QR"></div>
+    <div class="code"><div class="label out">退勤</div><img src="${outUrl}" alt="退勤QR"></div>
+  </div>
+  <ul>
+    <li>出勤と退勤の際にそれぞれのQRコードをスマホのカメラで読み取って出退勤の登録を行なってください。</li>
+    <li>記録される出退勤時刻は、${roundLabel} 分単位で丸められます。</li>
+    <li>この職場以外からでは記録できませんので、必ずここで登録してください。</li>
+  </ul>
+</body>
+</html>`);
+    doc.close();
+    w.onafterprint = () => w.close();
+    // data URL の画像描画を確実に待ってから印刷する
+    w.setTimeout(() => {
+      w.focus();
+      w.print();
+    }, 200);
   };
 
   /**

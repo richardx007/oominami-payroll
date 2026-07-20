@@ -185,30 +185,28 @@ app/
                          年度ごとに取り込み日時を表示。取り込みは例外安全化し body上限を5mbに拡張（next.config）
     settings/clock.tsx   QR打刻の位置設定＋出退勤QRの生成/印刷/PDFダウンロード。PC(lg以上)は地図を左2/3(縦長 lg:h-96)、
                          許容半径/圏外の扱い/丸め/保存ボタンを右1/3に配置（スクロール時の地図ズーム誤操作を軽減）。
-                         「印刷」はQRコードのみを印刷: 印刷シートを createPortal で body 直下に出し、印刷時は
-                         他の body 直下要素を display:none。名前付き @page qrsheet{margin:0} でブラウザ既定の
-                         ヘッダ/フッタを抑制（Safari は印刷ダイアログで「ヘッダとフッタ」を外す運用）。
                          印刷内容: 「{会社名}　出退勤登録用QRコード」＋大QR2つ＋説明3項目（丸め単位を反映）。
                          QR画像の縦横比は `aspect-ratio`+`object-fit:contain` で固定（2026-07-19、伸びて表示される
-                         不具合を修正）。「PDFダウンロード」ボタンを追加（2026-07-19）: iPhone/iPad を**ホーム画面に
-                         追加した状態(PWA standalone)では `window.print()` が動作しない**WebKit側の制限があるため、
-                         印刷に頼らない代替手段として実装。仕組みは `html2canvas` で印刷シート(`.qr-print-sheet`。
-                         印刷と全く同じ見た目)をそのまま画像化し、`jsPDF` でA4 1枚のPDFに貼り付けて保存する
-                         （日本語テキストはブラウザ側のcanvas描画に任せるため、jsPDF側に日本語フォントを埋め込む
-                         必要がない）。`.qr-print-sheet` 系CSSは元々`@media print`内にあったが、画面外表示
-                         （`body.qr-capture-mode`で`position:fixed;left:-10000px`）でもキャプチャできるよう
-                         `@media print`の外（常時適用）に移動した。依存追加: `html2canvas`/`jspdf`（動的import・
-                         クライアント側のみ・ボタン押下時にのみ読み込む）。
-                         **空白の2ページ目対策**（2026-07-19）: `.qr-print-sheet` を `min-height:297mm` から
-                         `height:297mm; overflow:hidden;` に変更し、`break-after`/`break-inside`(and レガシーな
-                         `page-break-*`)を `avoid` に設定。内容が万一はみ出しても2ページ目を作らせない(印刷・
-                         PDFダウンロードの両方に効く共通の保険)。
-                         **「印刷」ボタンの表示制御**（2026-07-19）: iPhone/iPad を**ホーム画面に追加した状態
-                         (PWA standalone表示)では `window.print()` が動作しない**ため、その環境を検出して
-                         「印刷」ボタン自体を非表示にする（PDFダウンロードのみ案内）。検出は
-                         `navigator.userAgent` の iPad/iPhone/iPod 判定 + iPadOS が macOS を名乗る問題への対応
-                         （`navigator.platform==="MacIntel"&&maxTouchPoints>1`）＋ `navigator.standalone`（iOS固有）
-                         または `matchMedia("(display-mode: standalone)")` で判定。
+                         不具合を修正）。
+                         **「印刷」は独立した別ウィンドウ方式**（2026-07-19に変更・重要）: 従来は現在のページの
+                         `document.body` にクラスを付けて他要素を `display:none` にする方式だったが、環境により
+                         空白の2ページ目が生成される不具合が再発した（`min-height`→`height+overflow:hidden`や
+                         改ページ抑止のCSSでも解消できなかった）。原因を切り分けられなかったため、**印刷内容専用の
+                         完全に独立したHTMLを `window.open("", "_blank")` で新しいウィンドウに書き出し、そこで
+                         `print()` する方式**に変更（`handlePrint()`）。同じページの他の要素が一切混ざらないため、
+                         空白ページの原因を構造的に排除できる。ポップアップブロック時は alert で案内。
+                         「PDFダウンロード」ボタンも用意（2026-07-19）: iPhone/iPad を**ホーム画面に追加した状態
+                         (PWA standalone)では `window.print()`（別ウィンドウ経由でも）が動作しない可能性がある**
+                         WebKit側の制限があるため、印刷に頼らない代替手段として実装。仕組みは `html2canvas` で
+                         非表示の印刷用シート(`.qr-print-sheet`。PDF生成専用。印刷とは別実装)を画像化し、
+                         `jsPDF` でA4 1枚のPDFに貼り付けて保存する（日本語テキストはブラウザ側のcanvas描画に
+                         任せるため、jsPDF側に日本語フォントを埋め込む必要がない）。依存追加:
+                         `html2canvas`/`jspdf`（動的import・クライアント側のみ・ボタン押下時にのみ読み込む）。
+                         **「印刷」ボタンの表示制御**: iPhone/iPad を**ホーム画面に追加した状態(PWA standalone表示)
+                         では `window.print()` が動作しない**ため、その環境を検出して「印刷」ボタン自体を非表示に
+                         する（PDFダウンロードのみ案内）。検出は `navigator.userAgent` の iPad/iPhone/iPod 判定 +
+                         iPadOS が macOS を名乗る問題への対応（`navigator.platform==="MacIntel"&&maxTouchPoints>1`）
+                         ＋ `navigator.standalone`（iOS固有）または `matchMedia("(display-mode: standalone)")` で判定。
   login/                 ログイン
   register/              初回登録（メールのみ入力→マジックリンク送信）
   set-password/          マジックリンク/再設定リンク後のパスワード設定

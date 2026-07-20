@@ -543,6 +543,25 @@ DBスキーマ変更なし。`src/lib/shifts.ts`・`src/app/admin/shifts/ShiftSc
   `logActivity`呼び出し、`src/app/admin/logs/page.tsx`の`actionClass()`にオレンジ色を追加）。打刻拒否
   （reject方針）は従来通り「エラー」カテゴリのまま変更していない。
 
+### 本セッションで実施した変更（2026-07-19 その11・QR印刷の空白2ページ目を根本対応）
+オーナーから「PDFダウンロードは1ページに収まったが、印刷はまだ2ページにまたがる」と再報告。
+前回セッションの`height:297mm;overflow:hidden;`+改ページ抑止CSSでは解消しなかったため、印刷の実装方式自体を
+変更した。DBスキーマ変更なし。`npm run build && npm test`(21件) 通過。
+- **印刷を「独立した別ウィンドウ」方式に変更**（`src/app/admin/settings/clock.tsx`の`handlePrint()`）: 従来は
+  現在のページの`document.body`に`qr-print-mode`クラスを付けて他の要素を`display:none`にし、名前付き
+  `@page qrsheet{margin:0}`を使う方式だった。この方式は過去に一度「空白2ページ目」を修正した実績があったが、
+  今回別の形で再発し、CSSでの対症療法(height固定・break-after avoid等)でも解消しなかったため、**根本的に
+  「同じページの他の要素が混ざらない」構成に変更**: `window.open("", "_blank")` で完全に空の新規ウィンドウを開き、
+  QRコード(data URL)・タイトル・注意書きだけを持つ最小限のHTML文字列を`document.write()`で書き出し、その
+  ウィンドウ単体で`print()`を呼ぶ。同じドキュメント内の他要素(Reactツリー・スクリプトタグ等)が一切存在しない
+  ため、空白ページの原因になり得る要素が構造的に無くなる。ポップアップブロック時は`alert()`で案内。
+- **`.qr-print-sheet`(CSSクラス)はPDFダウンロード専用に整理**: 印刷が別ウィンドウ方式になったため、
+  `qr-print-mode`関連のCSS(`body.qr-print-mode > *:not(.qr-print-sheet){display:none}`・
+  `@page qrsheet`等)は完全に削除。`.qr-print-sheet`は`body.qr-capture-mode`(PDF生成時の画面外描画)専用の
+  スタイルとして`src/app/globals.css`に残した。
+- 印刷ウィンドウのスタイルは元の見た目(タイトル・QR2つ・注意書き3項目・出勤=緑/退勤=オレンジ)をそのまま
+  再現するインラインCSSを別ドキュメント内に埋め込んでいる(`handlePrint()`内の文字列テンプレート)。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 
