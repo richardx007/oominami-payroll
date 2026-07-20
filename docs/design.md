@@ -188,79 +188,63 @@ app/
                          年度ごとに取り込み日時を表示。取り込みは例外安全化し body上限を5mbに拡張（next.config）
     settings/clock.tsx   QR打刻の位置設定＋出退勤QRの生成/印刷/PDFダウンロード。PC(lg以上)は地図を左2/3(縦長 lg:h-96)、
                          許容半径/圏外の扱い/丸め/保存ボタンを右1/3に配置（スクロール時の地図ズーム誤操作を軽減）。
-                         印刷内容: 「{会社名}　出退勤登録用QRコード」＋大QR2つ＋説明3項目（丸め単位を反映）。
-                         QR画像の縦横比は `aspect-ratio`+`object-fit:contain` で固定（2026-07-19、伸びて表示される
-                         不具合を修正）。
-                         **「印刷」は独立した別ウィンドウ方式**（2026-07-19に変更・重要）: 従来は現在のページの
-                         `document.body` にクラスを付けて他要素を `display:none` にする方式だったが、環境により
-                         空白の2ページ目が生成される不具合が再発した（`min-height`→`height+overflow:hidden`や
-                         改ページ抑止のCSSでも解消できなかった）。原因を切り分けられなかったため、**印刷内容専用の
-                         完全に独立したHTMLを `window.open("", "_blank")` で新しいウィンドウに書き出し、そこで
-                         `print()` する方式**に変更（`handlePrint()`）。同じページの他の要素が一切混ざらないため、
-                         空白ページの原因を構造的に排除できる。ポップアップブロック時は alert で案内。
-                         **⚠️ それでも空白2ページ目が解消しなかったため追加対応**（2026-07-19・重要）:
-                         印刷シートの高さを `297mm`(用紙1枚分)に固定して `@page{margin:0}` を指定していたが、
-                         これは「OS/ブラウザが独自に確保する印刷余白」と競合し、指定した`297mm`がその分
-                         用紙からはみ出して2ページ目に流れ込む可能性がある。対策として、**シートの高さ固定
-                         (`min-height`/`height`)と`@page`の`margin:0`指定の両方を撤廃**し、内容(タイトル+QR2つ+
-                         注意書き)の実寸なりの高さ(1ページに十分収まる分量)で描画し、余白はOS/ブラウザの既定に
-                         委ねる方式にした。「用紙1枚分ぴったりに強制する」のではなく「明らかに1ページに収まる
-                         分量にして、はみ出す余地自体を無くす」という考え方に転換している。
-                         「PDFダウンロード」ボタンも用意（2026-07-19）: iPhone/iPad を**ホーム画面に追加した状態
-                         (PWA standalone)では `window.print()`（別ウィンドウ経由でも）が動作しない可能性がある**
-                         WebKit側の制限があるため、印刷に頼らない代替手段として実装。仕組みは `html2canvas` で
-                         非表示の印刷用シート(`.qr-print-sheet`。PDF生成専用。印刷とは別実装)を画像化し、
-                         `jsPDF` でA4 1枚のPDFに貼り付けて保存する（日本語テキストはブラウザ側のcanvas描画に
-                         任せるため、jsPDF側に日本語フォントを埋め込む必要がない）。依存追加:
-                         `html2canvas`/`jspdf`（動的import・クライアント側のみ・ボタン押下時にのみ読み込む）。
-                         **「印刷」ボタンの表示制御**: iPhone/iPad を**ホーム画面に追加した状態(PWA standalone表示)
-                         では `window.print()` が動作しない**ため、その環境を検出して「印刷」ボタン自体を非表示に
-                         する（PDFダウンロードのみ案内）。検出は `navigator.userAgent` の iPad/iPhone/iPod 判定 +
-                         iPadOS が macOS を名乗る問題への対応（`navigator.platform==="MacIntel"&&maxTouchPoints>1`）
-                         ＋ `navigator.standalone`（iOS固有）または `matchMedia("(display-mode: standalone)")` で判定。
+                         印刷内容: 「{会社名}　出退勤登録用QRコード」＋大QR2つ＋説明3項目（丸め単位を反映）＋
+                         下部に「アプリをスマホのホーム画面に登録しましょう」の案内文＋案内QR（28mm四方、
+                         出退勤QRの70mmより小さめ・`/install`へのQR。設定画面下部にも同じQRのプレビューを表示）。
+                         QR画像の縦横比は `aspect-ratio`+`object-fit:contain` で固定。
+                         - **印刷**: 独立ウィンドウ方式（`handlePrint()`が`window.open("", "_blank")`で完全に
+                           空の新規ウィンドウを開き、印刷内容専用の最小限HTMLを`document.write()`で書き出して
+                           そこで`print()`する）。ポップアップブロック時は alert で案内。シートの高さは
+                           `297mm`に固定せず`min-height:230mm`の`flexbox`にとどめ、案内QRは`margin-top:auto`で
+                           その範囲内で下寄せする（出退勤QRを日常読み取る際に邪魔にならないよう配慮）。
+                           iPhone/iPadを**ホーム画面に追加した状態(PWA standalone)では`window.print()`が
+                           動作しない**ため、その環境を検出して「印刷」ボタン自体を非表示にする
+                           （検出: `navigator.userAgent`のiPad/iPhone/iPod判定＋iPadOSがmacOSを名乗る問題への
+                           対応(`navigator.platform==="MacIntel"&&maxTouchPoints>1`)＋`navigator.standalone`
+                           または`matchMedia("(display-mode: standalone)")`)。
+                         - **PDFダウンロード**: `html2canvas`で非表示の印刷用シート(`.qr-print-sheet`。
+                           `display:flex`+`height:297mm`固定+`overflow:hidden`。印刷用シートとは別実装)を
+                           画像化し、`jsPDF`でA4 1枚のPDFに貼り付けて保存する（日本語テキストはブラウザ側の
+                           canvas描画に任せるため、jsPDF側に日本語フォントを埋め込む必要がない）。案内QRは
+                           `margin-top:auto`でシート最下部へ正確に着地する（印刷側とは高さの扱いが異なる。
+                           下記「⚠️ 印刷の実装で踏んだ罠」参照）。iPhone/iPad standaloneでも動作する代替手段。
+                           依存追加: `html2canvas`/`jspdf`（動的import・クライアント側のみ・ボタン押下時にのみ
+                           読み込む）。
+                         **⚠️ 印刷の実装で踏んだ罠（再発防止のため経緯を残す）**: 当初は現在のページの
+                         `document.body`にクラスを付けて他要素を`display:none`にする方式だったが、空白の
+                         2ページ目が生成される不具合があり、独立ウィンドウ方式に変更した。それでも解消せず、
+                         原因は「印刷シートの高さを`297mm`(用紙1枚分)ぴったりに固定し`@page{margin:0}`を
+                         指定していたこと」（OS/ブラウザが独自に確保する印刷余白と競合し、はみ出した分が
+                         2ページ目に流れ込んでいた）と判明。**印刷シートは高さを固定せず内容の実寸なりに
+                         収める**方針にして解決した（PDF生成用シートは`html2canvas`経由でOSの印刷余白の
+                         影響を受けないため、`height:297mm`固定のままで問題ない＝両者で扱いが異なる点に注意）。
+                         詳細・試行錯誤の経緯はスキル`.claude/skills/print-and-pdf-download/`にまとめてある。
   login/                 ログイン
   register/              初回登録（メールのみ入力→マジックリンク送信）
   set-password/          マジックリンク/再設定リンク後のパスワード設定
   auth/callback/         Supabase 認証コールバック。token_hash+verifyOtp で初回登録(magiclink)・
                          再設定(recovery)を検証。setup=1/recovery で /set-password へ
-  install/               スマホのホーム画面に追加してもらうための案内ページ（2026-07-19追加）。
-                         未ログインでもQRから直接開けるよう公開（middlewareの publicPaths に追加）。
-                         `AddToHomeScreenBanner`（下記）を表示するだけの薄いラッパー。設定画面
-                         「出勤・退勤QRコード」の下部に、このページへのQR（出退勤QRより小さめ）を表示する
-                         （`admin/settings/clock.tsx`。出退勤QRとは別に生成）。**印刷/PDFダウンロードのQR
-                         ポスターにも同じQRを掲載**（2026-07-19追加）: 出退勤QRの下に「アプリをスマホの
-                         ホーム画面に登録しましょう」の案内文＋QR（28mm四方、出退勤QRの70mmより小さめ）を
-                         追加。印刷用の独立ウィンドウ（`handlePrint()`内のHTML文字列）とPDF生成用シート
-                         （`.qr-print-sheet`。`.qr-print-install`クラス）の両方に同じ内容を反映している。
-                         **できるだけページ下部に配置**（2026-07-19追加。出退勤QRを日常読み取る際に邪魔に
-                         ならないようにするため）: シートを`display:flex; flex-direction:column`にし、
-                         `.qr-print-install`に`margin-top:auto`を指定してシート下部へ押し下げる。
-                         印刷用シートは`height:297mm`を固定せず`min-height:230mm`に留めている（Gotcha3対策
-                         で高さを用紙ぴったりに固定しない方針のため、控えめな値で「下寄せ」を実現。厳密に
-                         最下部には着地しないが、実用上は十分下に寄る）。PDF生成用シートは元々`height:297mm`
-                         固定（OS印刷余白の影響を受けないため安全）なので、正確にシート最下部へ着地する。
+  install/               スマホのホーム画面に追加してもらうための案内ページ。未ログインでもQRから直接開ける
+                         よう公開（middlewareの publicPaths に追加）。`AddToHomeScreenBanner`（下記）を
+                         表示するだけの薄いラッパー。設定画面「出勤・退勤QRコード」の下部・QR印刷ポスター/PDF
+                         にこのページへのQRを掲載する（上記`settings/clock.tsx`参照）。
   manifest.ts            PWA マニフェスト（/manifest.webmanifest）
   pwa/
     ReloadPrompt.tsx     更新バナー（新版検知→ワンタップ更新）
     reloadApp.ts         ロゴ1タップ最新化（LogoButtonから使用）
-    AddToHomeScreenBanner.tsx  ホーム画面追加の手順を端末判定して案内するバナー（2026-07-19追加）。
-                         iOS/Android/LINE内蔵ブラウザを判定し、Android+通常ブラウザは`beforeinstallprompt`を
-                         使ったワンタップ追加、iOSは共有ボタンからの手順テキスト、LINE内蔵ブラウザは
-                         外部ブラウザ(Chrome/Safari)で開き直す案内を出し分ける。既にスタンドアロン起動中や
-                         PC等の対象外環境では何も表示しない。**`/install`ページ専用**（アプリ全体には常設しない。
-                         下部固定表示のため通常利用中は下部タブナビと重なってしまうため）。
-                         **⚠️ iOSの案内文はバージョン判定をしていない**（2026-07-19追加）: iOS26（2025年秋以降。
-                         Appleが暦年式に改称した新バージョン体系。旧「iOS 19」相当）でSafariの共有ボタンが
-                         画面下から消え、**アドレスバー長押しで共有メニューを出す**方式に変わった（オーナーが
-                         β版で確認）。旧バージョンとの併用期間が長く続くことと、正式リリースでUIがさらに
-                         微調整される可能性を踏まえ、`navigator.userAgent`でのバージョン分岐は行わず、
-                         「共有ボタン（画面下の□に↑のアイコン、無い場合はアドレスバーを長押し）」と
-                         **両方の導線を1文で併記**する方針にした。バージョン判定に比べて文言はやや冗長になるが、
-                         UIが変わっても壊れない（該当する方の手順を読者が読み替えるだけで済む）。
-                         **共有アイコンをSVGで併記**（2026-07-19追加）: オーナーが実機スクリーンショットで
-                         「共有ボタンのアイコン自体（四角＋上向き矢印）はiOS26でも変わっていない」ことを確認。
-                         文字だけの「□に↑」より視覚的に伝わるよう、同アイコンを模したインラインSVG
-                         （`ShareIcon`。ラスター画像ではなくベクターなので任意サイズで鮮明）を案内文に添えた。
+    AddToHomeScreenBanner.tsx  ホーム画面追加の手順を端末判定して案内するバナー。iOS/Android/LINE内蔵
+                         ブラウザを判定し、Android+通常ブラウザは`beforeinstallprompt`を使ったワンタップ
+                         追加、iOSは共有ボタンからの手順テキスト、LINE内蔵ブラウザは外部ブラウザ
+                         (Chrome/Safari)で開き直す案内を出し分ける。既にスタンドアロン起動中やPC等の対象外
+                         環境では何も表示しない。**`/install`ページ専用**（アプリ全体には常設しない。下部固定
+                         表示のため通常利用中は下部タブナビと重なってしまうため）。
+                         iOSの案内文には**バージョン判定を行わず**「共有ボタン（画面下の□に↑のアイコン、
+                         無い場合はアドレスバーを長押し）」と両方の導線を1文で併記している。iOS26（2025年秋
+                         以降。Appleが暦年式に改称した新バージョン体系。旧「iOS 19」相当）でSafariの共有
+                         ボタンが画面下から消えアドレスバー長押し方式に変わったが、旧バージョンとの併用期間・
+                         正式リリースでのUI微調整の可能性を踏まえ、あえてUA判定で分岐しない設計にした
+                         （オーナーとの合意事項）。共有アイコン自体（四角＋上向き矢印）はiOS26でも変わって
+                         いないため、同アイコンを模したインラインSVG（`ShareIcon`）を案内文に併記している。
   layout.tsx             ルート（ReloadPrompt常設・viewport-fit=cover）, page.tsx, globals.css
 lib/
   supabase/              client.ts / server.ts / middleware.ts
