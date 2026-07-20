@@ -29,6 +29,30 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+/**
+ * iOS/Safariの共有アイコン（四角から上向き矢印）。iOS26で表示場所は変わったが
+ * アイコン自体はそのまま使われ続けている（オーナーが実機スクリーンショットで確認済み）ため、
+ * 案内文に添えて視覚的に分かりやすくする。
+ */
+function ShareIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v11" />
+      <path d="M8 7l4-4 4 4" />
+      <path d="M6 11h-.5A1.5 1.5 0 0 0 4 12.5v7A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5H18" />
+    </svg>
+  );
+}
+
 function detectEnv() {
   const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
   const isLine = /Line\//i.test(ua);
@@ -107,8 +131,11 @@ export function AddToHomeScreenBanner() {
     );
   } else if (env.isLine && env.isIOS) {
     title = "Safariで開いてください";
-    body =
-      "画面下の矢印（↗）アイコンをタップ →「Safariで開く」を選ぶと、ホーム画面に追加できます。";
+    body = (
+      <>
+        画面下の矢印（↗）アイコンをタップ →「Safariで開く」を選ぶと、ホーム画面に追加できます。
+      </>
+    );
   } else if (env.isAndroid) {
     title = "ホーム画面に追加できます";
     if (deferredPrompt) {
@@ -130,9 +157,15 @@ export function AddToHomeScreenBanner() {
     // iOS26(2025年秋以降)からSafariの共有ボタンが画面下から消え、アドレスバー長押しで
     // 出す方式に変わった。旧バージョンとの併用期間が長く続くため、バージョン判定はせず
     // 両方の導線を1文で案内する(正式版でUIがさらに変わっても壊れにくいようにするため)。
-    body =
-      "共有ボタン（画面下の□に↑のアイコン、無い場合はアドレスバーを長押し）から" +
-      "「ホーム画面に追加」を選ぶと、アプリのように使えます。";
+    // アイコン自体(四角+上向き矢印)はiOS26でも変わっていないため、視覚的な目印として添える。
+    body = (
+      <>
+        共有ボタン（
+        <ShareIcon className="inline-block h-4 w-4 -translate-y-px align-middle" />
+        のアイコン。画面下にある場合はそのまま、無い場合はアドレスバーを長押し）から
+        「ホーム画面に追加」を選ぶと、アプリのように使えます。
+      </>
+    );
   }
 
   return (
