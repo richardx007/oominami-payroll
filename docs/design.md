@@ -232,6 +232,13 @@ app/
                          ホーム画面に登録しましょう」の案内文＋QR（28mm四方、出退勤QRの70mmより小さめ）を
                          追加。印刷用の独立ウィンドウ（`handlePrint()`内のHTML文字列）とPDF生成用シート
                          （`.qr-print-sheet`。`.qr-print-install`クラス）の両方に同じ内容を反映している。
+                         **できるだけページ下部に配置**（2026-07-19追加。出退勤QRを日常読み取る際に邪魔に
+                         ならないようにするため）: シートを`display:flex; flex-direction:column`にし、
+                         `.qr-print-install`に`margin-top:auto`を指定してシート下部へ押し下げる。
+                         印刷用シートは`height:297mm`を固定せず`min-height:230mm`に留めている（Gotcha3対策
+                         で高さを用紙ぴったりに固定しない方針のため、控えめな値で「下寄せ」を実現。厳密に
+                         最下部には着地しないが、実用上は十分下に寄る）。PDF生成用シートは元々`height:297mm`
+                         固定（OS印刷余白の影響を受けないため安全）なので、正確にシート最下部へ着地する。
   manifest.ts            PWA マニフェスト（/manifest.webmanifest）
   pwa/
     ReloadPrompt.tsx     更新バナー（新版検知→ワンタップ更新）

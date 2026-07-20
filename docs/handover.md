@@ -643,6 +643,22 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - QR画像自体は既存の`installUrl`（`/install`ページへのQR、設定画面下部の小さいプレビューと同じdata URL）を
   再利用しているため、追加のQR生成コードは不要だった。
 
+### 本セッションで実施した変更（2026-07-19 その17・ホーム画面登録QRをページ下部へ配置）
+オーナーから「出退勤QRを日常読み取る際に邪魔にならないよう、追加したQRをできるだけページ下部に」と依頼。
+`src/app/admin/settings/clock.tsx`・`src/app/globals.css`のみ変更。`npm run build && npm test`(21件) 通過。
+- **PDF生成用シート(`.qr-print-sheet`)**: 元々`height:297mm`固定(用紙寸法ぴったり。html2canvas経由でOSの
+  印刷余白の影響を受けないため安全)なので、`display:flex; flex-direction:column`にして
+  `.qr-print-install`に`margin-top:auto`を指定するだけで、正確にシート最下部へ着地させられた。
+- **印刷用の独立ウィンドウ(`handlePrint()`)**: こちらは前セッションの教訓(Gotcha3。高さを用紙297mmぴったりに
+  固定するとOS側の印刷余白と競合して空白の2ページ目が出る)があるため、`height:297mm`には**しない**。
+  代わりに控えめな`min-height:230mm`のflexboxにして`.install`に`margin-top:auto`を指定し、その範囲内で
+  下寄せする、という折衷案にした。理論上は用紙全体の最下部ぴったりには着地しない(230mm分の中での下寄せ)が、
+  実用上は十分下に寄る。⚠️ 高さの値をむやみに297mmに近づけると前回の不具合が再発するリスクがあるため、
+  今後この値を調整する場合は必ず実機の印刷結果(2ページに分かれないか)を確認すること。
+- 実装時のミス: 最初`.install`の`margin`指定で`margin-top`を`auto`ではなく`10mm`のまま書いてしまい
+  (four-value shorthandの書き間違い)、下寄せが効かない状態で一度コミットしかけたため、
+  必ず4値ショートハンド(`margin: top right bottom left`)の並び順を確認すること。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 

@@ -30,7 +30,8 @@ body {
   display: none;
 }
 body.qr-capture-mode .qr-print-sheet {
-  display: block;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
   width: 210mm;
   height: 297mm;
@@ -88,10 +89,13 @@ body.qr-capture-mode .qr-print-sheet {
 }
 /* ホーム画面登録の案内QR(印刷/PDF共通) */
 .qr-print-install {
-  margin: 10mm auto 0;
+  /* margin-top:auto でシート(高さ297mm固定)の下部へ押し下げる。出退勤QRを日常
+     読み取る際に邪魔にならないようにするため。 */
+  margin: auto auto 0 auto;
   padding-top: 6mm;
   border-top: 1px solid #ddd;
   max-width: 160mm;
+  width: 100%;
 }
 .qr-print-install p {
   margin: 0 0 3mm;

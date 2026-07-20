@@ -309,15 +309,20 @@ function QrCodes({
 <title>${escapeHtml(title)}</title>
 <style>
   /* ページサイズだけ指定し、余白は指定しない(OS/ブラウザの既定に委ねる)。
-     本文の高さも固定せず内容なりに収める。1ページに強制的に合わせようとする
-     (height/min-height を297mmに固定する等)と、OS側が独自に印刷余白を確保する
-     環境で用紙からはみ出し、空白の2ページ目が生成されることがあったための対策。
-     このシートの内容(タイトル+QR2つ+注意書き)は実寸で1ページに余裕を持って収まる。 */
+     本文の高さも297mmぴったりには固定しない。1ページに強制的に合わせようとする
+     (height を297mmに固定する等)と、OS側が独自に印刷余白を確保する環境で用紙から
+     はみ出し、空白の2ページ目が生成されることがあったための対策。
+     ホーム画面登録QRをできるだけ下に配置したい(出退勤QRを日常読み取る際に
+     邪魔にならないように)ため、控えめな min-height(実測の余白を考慮し297mmより
+     十分小さい値)のflexboxにして margin-top:auto で押し下げる。 */
   @page { size: A4 portrait; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     width: 210mm;
+    min-height: 230mm;
+    display: flex;
+    flex-direction: column;
     padding: 14mm 12mm;
     text-align: center;
     font-family: "Hiragino Kaku Gothic ProN","Hiragino Sans","BIZ UDPGothic",Meiryo,system-ui,sans-serif;
@@ -330,7 +335,8 @@ function QrCodes({
   .in { color: #15803d; }
   .out { color: #ea580c; }
   ul { margin: 10mm auto 0; max-width: 160mm; text-align: left; font-size: 12px; line-height: 1.8; padding-left: 6mm; }
-  .install { margin: 10mm auto 0; padding-top: 6mm; border-top: 1px solid #ddd; max-width: 160mm; }
+  /* margin-top:auto でページ下部(min-heightの範囲内)へ押し下げる */
+  .install { margin: auto auto 0 auto; width: 100%; padding-top: 6mm; border-top: 1px solid #ddd; max-width: 160mm; }
   .install p { margin: 0 0 3mm; font-size: 13px; font-weight: 700; color: #333; }
   .install img { width: 28mm; height: 28mm; }
 </style>
