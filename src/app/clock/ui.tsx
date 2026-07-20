@@ -285,14 +285,22 @@ export function ClockConfirm({
 
             <button
               onClick={submit}
-              disabled={pending || (locationEnabled && geoStatus === "loading")}
-              className={`mt-6 w-full rounded-xl py-4 text-lg font-bold text-white disabled:opacity-50 ${accent}`}
+              disabled={
+                pending ||
+                (locationEnabled && geoStatus === "loading") ||
+                result?.blocked
+              }
+              className={`mt-6 w-full rounded-xl py-4 text-lg font-bold text-white disabled:opacity-50 ${
+                result?.blocked ? "bg-gray-400 hover:bg-gray-400" : accent
+              }`}
             >
-              {pending
-                ? "記録中..."
-                : locationEnabled && geoStatus === "loading"
-                  ? "位置情報を取得中..."
-                  : `OK（${isIn ? "出勤" : "退勤"}を記録）`}
+              {result?.blocked
+                ? "打刻できません"
+                : pending
+                  ? "記録中..."
+                  : locationEnabled && geoStatus === "loading"
+                    ? "位置情報を取得中..."
+                    : `OK（${isIn ? "出勤" : "退勤"}を記録）`}
             </button>
             <p className="mt-3 text-center text-xs text-gray-400">
               打刻時刻はサーバーの時刻で記録されます。

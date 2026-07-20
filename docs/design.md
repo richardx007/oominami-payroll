@@ -199,6 +199,16 @@ app/
                          （`body.qr-capture-mode`で`position:fixed;left:-10000px`）でもキャプチャできるよう
                          `@media print`の外（常時適用）に移動した。依存追加: `html2canvas`/`jspdf`（動的import・
                          クライアント側のみ・ボタン押下時にのみ読み込む）。
+                         **空白の2ページ目対策**（2026-07-19）: `.qr-print-sheet` を `min-height:297mm` から
+                         `height:297mm; overflow:hidden;` に変更し、`break-after`/`break-inside`(and レガシーな
+                         `page-break-*`)を `avoid` に設定。内容が万一はみ出しても2ページ目を作らせない(印刷・
+                         PDFダウンロードの両方に効く共通の保険)。
+                         **「印刷」ボタンの表示制御**（2026-07-19）: iPhone/iPad を**ホーム画面に追加した状態
+                         (PWA standalone表示)では `window.print()` が動作しない**ため、その環境を検出して
+                         「印刷」ボタン自体を非表示にする（PDFダウンロードのみ案内）。検出は
+                         `navigator.userAgent` の iPad/iPhone/iPod 判定 + iPadOS が macOS を名乗る問題への対応
+                         （`navigator.platform==="MacIntel"&&maxTouchPoints>1`）＋ `navigator.standalone`（iOS固有）
+                         または `matchMedia("(display-mode: standalone)")` で判定。
   login/                 ログイン
   register/              初回登録（メールのみ入力→マジックリンク送信）
   set-password/          マジックリンク/再設定リンク後のパスワード設定
@@ -532,6 +542,12 @@ middleware.ts            未認証は /login へ
   `打刻拒否`なら確定させない（従業員には手入力を案内）。位置未許可は「圏外」とは別扱い（記録のみ）。
   - 圏外メッセージ/ログの**距離表示は 1000m 超で km 換算**（小数第1位、`約 #0.0 km`。1000m以下は `約123m`）。
     `src/app/clock/actions.ts` の `formatDistance()`。
+  - **圏外で打刻拒否になった場合、確認画面のOKボタンをグレーアウトして再押下できなくする**（2026-07-19追加）。
+    同じ場所からの再試行では結果が変わらないため。`ClockResult.blocked`（`true`のとき再試行不可）を
+    `punchClock()` が返し、`ClockConfirm`（`src/app/clock/ui.tsx`）がボタンを`disabled`＋灰色表示にする。
+  - **操作ログの分類**（2026-07-19追加）: 「警告のみ」ポリシーで圏外のまま打刻が通った場合、通常の「打刻」
+    カテゴリではなく**「圏外打刻」カテゴリ（オレンジ色バッジ）**で記録する（`src/app/admin/logs/page.tsx`の
+    `actionClass()`）。打刻拒否（圏外・reject方針）は従来通り「エラー」カテゴリのまま。
 - 割り切り: 屋内GPS誤差・位置偽装は防ぎきれない。**サーバー時刻で時刻改ざんは防止**でき、位置は主に抑止目的。
 
 ### 7.4 想定するDB追加（実装時）

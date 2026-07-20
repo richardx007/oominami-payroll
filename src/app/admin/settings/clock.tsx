@@ -246,9 +246,21 @@ function QrCodes({
   const [outUrl, setOutUrl] = useState<string>("");
   const [mounted, setMounted] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  // iPhone/iPad をホーム画面に追加した状態(PWA standalone表示)では window.print() が
+  // 動作しないため、その環境では「印刷」ボタン自体を表示しない(PDFダウンロードのみ案内)。
+  const [printSupported, setPrintSupported] = useState(true);
   const sheetRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isStandalone =
+      (navigator as unknown as { standalone?: boolean }).standalone === true ||
+      window.matchMedia("(display-mode: standalone)").matches;
+    setPrintSupported(!(isIOS && isStandalone));
+  }, []);
 
   useEffect(() => {
     const origin = window.location.origin;
@@ -330,13 +342,15 @@ function QrCodes({
           出勤・退勤QRコード
         </h3>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
-          >
-            印刷
-          </button>
+          {printSupported && (
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+            >
+              印刷
+            </button>
+          )}
           <button
             type="button"
             onClick={handleDownloadPdf}
@@ -349,8 +363,14 @@ function QrCodes({
       </div>
       <p className="mt-1 text-sm text-gray-500">
         職場に掲示してください。従業員はスマホのカメラで読み取り、確認画面でOKすると打刻されます。
-        「印刷」ではQRコードのみが印刷されます。iPhone/iPadでホーム画面に追加している場合は印刷が動作しないことが
-        あるため、その場合は「PDFダウンロード」をお使いください。
+        {printSupported ? (
+          <>
+            「印刷」ではQRコードのみが印刷されます。iPhone/iPadでホーム画面に追加している場合は印刷が動作しないことが
+            あるため、その場合は「PDFダウンロード」をお使いください。
+          </>
+        ) : (
+          "この端末(ホーム画面に追加したiPhone/iPad)では印刷が動作しないため「PDFダウンロード」をお使いください。"
+        )}
       </p>
       {/* 画面プレビュー用 */}
       <div className="mt-4 grid grid-cols-2 gap-4">

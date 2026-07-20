@@ -523,6 +523,26 @@ DBスキーマ変更なし。`src/lib/shifts.ts`・`src/app/admin/shifts/ShiftSc
   - ボタン押下時にのみ `import("html2canvas")`/`import("jspdf")` を動的読み込みするため、通常の設定画面の
     バンドルサイズには影響しない。
 
+### 本セッションで実施した変更（2026-07-19 その10・QR印刷の空白2ページ目対策/印刷ボタン非表示/打刻拒否UI/ログ分類）
+オーナーから4件報告。DBスキーマ変更なし。`npm run build && npm test`(21件) 通過。
+- **QR印刷/PDFの空白2ページ目を修正**: 前回セッションで縦横比バグを直したところ、今度は空白の2ページ目が
+  出るようになった（過去にも同種の不具合があり一度直した経緯があるため再発防止を優先）。原因を断定できなかった
+  ため、`.qr-print-sheet` を `min-height:297mm` から **`height:297mm; overflow:hidden;`** に変更し、
+  `break-after`/`break-inside`（および互換のため `page-break-after`/`page-break-inside`）を `avoid` に設定。
+  内容が万一はみ出しても2ページ目が生成されないようにする防御的な修正で、印刷・PDFダウンロードの両方に効く。
+- **「印刷」ボタンをiPhone/iPad(ホーム画面追加=PWA standalone)では非表示に**: `window.print()`が動作しない
+  環境そのものでボタンを出さないようにした（`src/app/admin/settings/clock.tsx`）。判定は
+  `navigator.userAgent`のiPad/iPhone/iPod検出 + iPadOSがMacと名乗る問題への対応
+  (`navigator.platform==="MacIntel"&&maxTouchPoints>1`) + `navigator.standalone`(iOS固有)または
+  `matchMedia("(display-mode: standalone)")`。非対応環境では説明文も「PDFダウンロードをお使いください」に変更。
+- **打刻拒否時にOKボタンをグレーアウト**: 圏外で打刻拒否になった場合、`ClockResult`に`blocked:true`を追加し
+  (`src/app/clock/actions.ts`)、`ClockConfirm`(`src/app/clock/ui.tsx`)がそれを見てボタンを`disabled`+灰色表示に
+  する。同じ場所からの再試行では結果が変わらないため。
+- **操作ログの「打刻」を「圏外打刻」に分離**: 圏外のまま「警告のみ」ポリシーで打刻が通った場合、従来の「打刻」
+  カテゴリではなく**「圏外打刻」（オレンジ色バッジ）**で記録するよう変更（`src/app/clock/actions.ts`の
+  `logActivity`呼び出し、`src/app/admin/logs/page.tsx`の`actionClass()`にオレンジ色を追加）。打刻拒否
+  （reject方針）は従来通り「エラー」カテゴリのまま変更していない。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 

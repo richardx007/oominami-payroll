@@ -12,6 +12,8 @@ export type ClockResult = {
   message: string;
   time?: string;
   warn?: string;
+  /** true の場合、再試行しても結果は変わらない(例: 圏外での打刻拒否)。OKボタンを無効化する目安 */
+  blocked?: boolean;
 };
 
 export type ClockInput = {
@@ -151,6 +153,8 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     return {
       ok: false,
       message: `職場から${formatDistance(distance_m!)}離れているため打刻できません。管理者にご連絡ください。`,
+      // 同じ場所からの再試行では結果が変わらないため、OKボタンを無効化する目安として返す
+      blocked: true,
     };
   }
 
@@ -259,8 +263,10 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     user_agent: ua,
   });
 
+  // 圏外での打刻(警告のみポリシーで通した分)は「圏外打刻」カテゴリで記録し、
+  // ログ画面でオレンジ色のバッジで目立たせる(通常の「打刻」と区別)
   await logActivity(
-    "打刻",
+    out_of_range === true ? "圏外打刻" : "打刻",
     `${type === "in" ? "出勤" : "退勤"} ${time}${
       Number.isFinite(roundMin) && roundMin > 1 ? `(丸め${roundMin}分)` : ""
     }${out_of_range === true ? ` (圏外 ${formatDistance(distance_m!)})` : ""}${

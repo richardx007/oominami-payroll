@@ -33,10 +33,18 @@ body.qr-capture-mode .qr-print-sheet {
   display: block;
   box-sizing: border-box;
   width: 210mm;
-  min-height: 297mm;
+  /* 高さは固定(min-heightではなくheight+overflow:hidden)にして、内容が万一はみ出しても
+     2ページ目が生成されないようにする(空白の2ページ目が出る不具合対策)。 */
+  height: 297mm;
+  overflow: hidden;
   padding: 14mm 12mm;
   text-align: center;
   background: #fff;
+  /* このボックスの後ろ/内部に改ページを作らせない(念のための保険) */
+  break-after: avoid;
+  break-inside: avoid;
+  page-break-after: avoid;
+  page-break-inside: avoid;
 }
 /* PDF生成時は画面外に配置してキャプチャする(ユーザーには見えない) */
 body.qr-capture-mode .qr-print-sheet {
