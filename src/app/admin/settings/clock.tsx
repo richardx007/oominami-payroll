@@ -245,6 +245,8 @@ function QrCodes({
   const [inUrl, setInUrl] = useState<string>("");
   const [outUrl, setOutUrl] = useState<string>("");
   const [mounted, setMounted] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -278,23 +280,77 @@ function QrCodes({
     window.print();
   };
 
+  /**
+   * QRシートをPDFでダウンロードする。
+   * iPhone/iPad の PWA(ホーム画面追加・standalone表示)では window.print() が動作しない
+   * (WebKitの制限)ため、印刷に頼らず動作するダウンロード手段として用意する。
+   * html2canvas で印刷用シート(.qr-print-sheet、印刷時と同じ見た目)をそのまま画像化し、
+   * jsPDF でA4 1枚のPDFに貼り付ける(日本語テキストはブラウザ側で描画されるため、
+   * PDF側にフォントを埋め込む必要がない)。
+   */
+  const handleDownloadPdf = async () => {
+    if (typeof document === "undefined" || !inUrl || !outUrl || !sheetRef.current) {
+      return;
+    }
+    setPdfBusy(true);
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      document.body.classList.add("qr-capture-mode");
+      // レイアウト反映を待ってからキャプチャする
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      );
+
+      const canvas = await html2canvas(sheetRef.current, {
+        scale: 3,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+      });
+
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const imgData = canvas.toDataURL("image/png");
+      pdf.addImage(imgData, "PNG", 0, 0, 210, 297);
+      pdf.save("出退勤QRコード.pdf");
+    } catch {
+      alert("PDFの作成に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      document.body.classList.remove("qr-capture-mode");
+      setPdfBusy(false);
+    }
+  };
+
   return (
     <div className="mt-6 border-t border-gray-100 pt-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-700">
           出勤・退勤QRコード
         </h3>
-        <button
-          type="button"
-          onClick={handlePrint}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
-        >
-          印刷
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+          >
+            印刷
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={pdfBusy || !inUrl || !outUrl}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+          >
+            {pdfBusy ? "作成中..." : "PDFダウンロード"}
+          </button>
+        </div>
       </div>
       <p className="mt-1 text-sm text-gray-500">
         職場に掲示してください。従業員はスマホのカメラで読み取り、確認画面でOKすると打刻されます。
-        「印刷」ではQRコードのみが印刷されます。
+        「印刷」ではQRコードのみが印刷されます。iPhone/iPadでホーム画面に追加している場合は印刷が動作しないことが
+        あるため、その場合は「PDFダウンロード」をお使いください。
       </p>
       {/* 画面プレビュー用 */}
       <div className="mt-4 grid grid-cols-2 gap-4">
@@ -318,7 +374,7 @@ function QrCodes({
           display:none にして高さごと除外するため、空白ページが出ない。 */}
       {mounted &&
         createPortal(
-          <div className="qr-print-sheet">
+          <div className="qr-print-sheet" ref={sheetRef}>
             <h1 className="qr-print-title">{title}</h1>
             <div className="qr-print-codes">
               <div className="qr-print-code">

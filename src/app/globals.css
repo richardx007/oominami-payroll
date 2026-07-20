@@ -22,9 +22,71 @@ body {
     Meiryo, system-ui, sans-serif;
 }
 
-/* QR印刷シートは画面では非表示(印刷時のみ qr-print-mode で表示) */
+/* QR印刷シートは画面では非表示(印刷時=qr-print-mode / PDF生成時=qr-capture-mode でのみ表示)。
+   レイアウト自体(タイトル・QR・注意書き)は @media print の外に置き、PDF生成(html2canvas)でも
+   同じ見た目でキャプチャできるようにする。 */
 .qr-print-sheet {
   display: none;
+}
+body.qr-print-mode .qr-print-sheet,
+body.qr-capture-mode .qr-print-sheet {
+  display: block;
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 14mm 12mm;
+  text-align: center;
+  background: #fff;
+}
+/* PDF生成時は画面外に配置してキャプチャする(ユーザーには見えない) */
+body.qr-capture-mode .qr-print-sheet {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+}
+.qr-print-title {
+  margin: 4mm 0 8mm;
+  font-size: 20px;
+  font-weight: 700;
+}
+.qr-print-codes {
+  display: flex;
+  justify-content: center;
+  gap: 12mm;
+}
+.qr-print-code {
+  border: 2px solid #333;
+  border-radius: 8px;
+  padding: 6mm;
+}
+/* 縦横比を固定し、伸びて表示されるのを防ぐ(aspect-ratio + object-fit) */
+.qr-print-code img {
+  width: 70mm;
+  height: 70mm;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  display: block;
+}
+.qr-print-code-label {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4mm;
+}
+.qr-print-in {
+  color: #15803d;
+}
+.qr-print-out {
+  color: #ea580c;
+}
+.qr-print-notes {
+  margin: 10mm auto 0;
+  max-width: 160mm;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.8;
+  list-style: disc;
+  padding-left: 6mm;
 }
 
 /* 印刷 / PDF 出力の調整(給与明細の表が横にはみ出て切れるのを防ぐ) */
@@ -54,60 +116,19 @@ body {
   }
 
   /* QR印刷モード: body 直下のシート以外を display:none にして高さごと除外。
-     これで空白ページが出ない。シートは body 直下(portal)にある。 */
+     これで空白ページが出ない。シートは body 直下(portal)にある。
+     レイアウト自体(タイトル・QR・注意書き)は @media print の外の .qr-print-sheet 系ルールで定義済み
+     (PDF生成=html2canvasキャプチャでも同じ見た目にするため)。ここでは印刷固有の設定のみ行う。 */
   body.qr-print-mode > *:not(.qr-print-sheet) {
     display: none !important;
   }
   body.qr-print-mode .qr-print-sheet {
-    display: block !important;
-    width: 100%;
-    text-align: center;
     /* 名前付きページに割り当て、ブラウザ既定のヘッダ/フッタを抑制する */
     page: qrsheet;
-    padding: 14mm 12mm;
   }
   /* margin:0 でブラウザの日付/URL/ページ番号などのヘッダ・フッタを消す */
   @page qrsheet {
     size: A4 portrait;
     margin: 0;
-  }
-  .qr-print-title {
-    margin: 4mm 0 8mm;
-    font-size: 20px;
-    font-weight: 700;
-  }
-  .qr-print-codes {
-    display: flex;
-    justify-content: center;
-    gap: 12mm;
-  }
-  .qr-print-code {
-    border: 2px solid #333;
-    border-radius: 8px;
-    padding: 6mm;
-  }
-  .qr-print-code img {
-    width: 70mm;
-    height: 70mm;
-  }
-  .qr-print-code-label {
-    font-size: 18px;
-    font-weight: 700;
-    margin-bottom: 4mm;
-  }
-  .qr-print-in {
-    color: #15803d;
-  }
-  .qr-print-out {
-    color: #ea580c;
-  }
-  .qr-print-notes {
-    margin: 10mm auto 0;
-    max-width: 160mm;
-    text-align: left;
-    font-size: 12px;
-    line-height: 1.8;
-    list-style: disc;
-    padding-left: 6mm;
   }
 }

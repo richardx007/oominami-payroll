@@ -183,12 +183,22 @@ app/
                          右上に ver.表示。税額表は「源泉徴収税額表(月額表)」Web検索リンク＋手順、Excelからの
                          タブ区切り貼付に対応（桁区切りカンマ除去→タブをカンマ化、空行スキップ、数字のみ正規化）。
                          年度ごとに取り込み日時を表示。取り込みは例外安全化し body上限を5mbに拡張（next.config）
-    settings/clock.tsx   QR打刻の位置設定＋出退勤QRの生成/印刷。PC(lg以上)は地図を左2/3(縦長 lg:h-96)、
+    settings/clock.tsx   QR打刻の位置設定＋出退勤QRの生成/印刷/PDFダウンロード。PC(lg以上)は地図を左2/3(縦長 lg:h-96)、
                          許容半径/圏外の扱い/丸め/保存ボタンを右1/3に配置（スクロール時の地図ズーム誤操作を軽減）。
                          「印刷」はQRコードのみを印刷: 印刷シートを createPortal で body 直下に出し、印刷時は
                          他の body 直下要素を display:none。名前付き @page qrsheet{margin:0} でブラウザ既定の
                          ヘッダ/フッタを抑制（Safari は印刷ダイアログで「ヘッダとフッタ」を外す運用）。
-                         印刷内容: 「{会社名}　出退勤登録用QRコード」＋大QR2つ＋説明3項目（丸め単位を反映）
+                         印刷内容: 「{会社名}　出退勤登録用QRコード」＋大QR2つ＋説明3項目（丸め単位を反映）。
+                         QR画像の縦横比は `aspect-ratio`+`object-fit:contain` で固定（2026-07-19、伸びて表示される
+                         不具合を修正）。「PDFダウンロード」ボタンを追加（2026-07-19）: iPhone/iPad を**ホーム画面に
+                         追加した状態(PWA standalone)では `window.print()` が動作しない**WebKit側の制限があるため、
+                         印刷に頼らない代替手段として実装。仕組みは `html2canvas` で印刷シート(`.qr-print-sheet`。
+                         印刷と全く同じ見た目)をそのまま画像化し、`jsPDF` でA4 1枚のPDFに貼り付けて保存する
+                         （日本語テキストはブラウザ側のcanvas描画に任せるため、jsPDF側に日本語フォントを埋め込む
+                         必要がない）。`.qr-print-sheet` 系CSSは元々`@media print`内にあったが、画面外表示
+                         （`body.qr-capture-mode`で`position:fixed;left:-10000px`）でもキャプチャできるよう
+                         `@media print`の外（常時適用）に移動した。依存追加: `html2canvas`/`jspdf`（動的import・
+                         クライアント側のみ・ボタン押下時にのみ読み込む）。
   login/                 ログイン
   register/              初回登録（メールのみ入力→マジックリンク送信）
   set-password/          マジックリンク/再設定リンク後のパスワード設定

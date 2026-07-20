@@ -502,6 +502,27 @@ DBスキーマ変更なし。`src/lib/shifts.ts`・`src/app/admin/shifts/ShiftSc
     `shiftNoteLabel()` とは別関数として使い分けている（表示形式が異なるため）。
   - 割当が無い日は「この日のシフト予定はありません」を表示。
 
+### 本セッションで実施した変更（2026-07-19 その9・QR打刻シートの印刷不具合修正/PDFダウンロード追加）
+オーナーから2件報告: ①印刷したQRコードが縦に伸びて表示される、②iPhone/iPadで印刷が反応しない。
+両方とも `src/app/admin/settings/clock.tsx`・`src/app/globals.css` を変更して対応。依存追加
+（`html2canvas`・`jspdf`、いずれも動的importでクライアント側のみ）。`npm run build && npm test`(21件) 通過。
+- **QR画像が縦に伸びる不具合を修正**: `.qr-print-code img` に `aspect-ratio:1/1` と `object-fit:contain` を追加。
+  従来は `width:70mm; height:70mm` のみで理論上は正方形のはずだったが、レンダリング環境によって歪みが出ていたため、
+  縦横比を明示的に固定して確実に正方形になるようにした。
+- **PDFダウンロード機能を追加**: iPhone/iPadを**ホーム画面に追加した状態(PWA standalone表示)では
+  `window.print()` がそもそも動作しない**というWebKit側の既知の制限が原因と判明（通常のSafariタブでは動作する）。
+  印刷に依存しない代替として、「PDFダウンロード」ボタンを追加。
+  - 実装は `html2canvas`（印刷シート `.qr-print-sheet` をそのまま画像化。印刷と全く同じ見た目になる）→
+    `jsPDF`（A4 1枚のPDFにその画像を貼り付けて `.save()` でダウンロード）という2段構成。
+  - **日本語フォントをPDF側に埋め込む必要がない**のがこの方式の利点（jsPDFの標準フォントはCJK非対応だが、
+    html2canvasでの画像化はブラウザ自身のcanvas描画に任せるため、端末に入っている日本語フォントがそのまま使われる）。
+  - CSS: `.qr-print-sheet` 系のレイアウト定義（タイトル・QR・注意書きのスタイル）を `@media print` の外に出し、
+    常時定義されたクラスにした。印刷時(`body.qr-print-mode`)・PDF生成時(`body.qr-capture-mode`)のどちらでも
+    同じ見た目でレンダリングされる。PDF生成時は `position:fixed;left:-10000px` で画面外に描画してキャプチャし、
+    ユーザーには見えないようにしている。
+  - ボタン押下時にのみ `import("html2canvas")`/`import("jspdf")` を動的読み込みするため、通常の設定画面の
+    バンドルサイズには影響しない。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 
