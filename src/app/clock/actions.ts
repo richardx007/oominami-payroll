@@ -146,8 +146,10 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
       location_denied,
       user_agent: ua,
     });
+    // 圏外による打刻拒否は運用上の想定内の状況(システム障害ではない)のため「エラー」ではなく
+    // 専用カテゴリ「打刻拒否」で記録する
     await logActivity(
-      "エラー",
+      "打刻拒否",
       `打刻拒否(圏外): ${employee.name} ${type === "in" ? "出勤" : "退勤"} 距離${formatDistance(distance_m!)}`
     );
     return {

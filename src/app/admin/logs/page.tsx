@@ -37,6 +37,7 @@ function actionClass(action: string) {
   if (action === "ログイン") return "bg-green-50 text-green-700";
   if (action === "パスワード設定") return "bg-amber-50 text-amber-700";
   if (action === "圏外打刻") return "bg-orange-50 text-orange-700";
+  if (action === "打刻拒否") return "bg-orange-50 text-orange-700";
   if (action === "ログ削除") return "bg-gray-100 text-gray-500";
   return "bg-gray-100 text-gray-600";
 }

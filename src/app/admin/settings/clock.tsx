@@ -303,12 +303,16 @@ function QrCodes({
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
 <style>
-  @page { size: A4 portrait; margin: 0; }
+  /* ページサイズだけ指定し、余白は指定しない(OS/ブラウザの既定に委ねる)。
+     本文の高さも固定せず内容なりに収める。1ページに強制的に合わせようとする
+     (height/min-height を297mmに固定する等)と、OS側が独自に印刷余白を確保する
+     環境で用紙からはみ出し、空白の2ページ目が生成されることがあったための対策。
+     このシートの内容(タイトル+QR2つ+注意書き)は実寸で1ページに余裕を持って収まる。 */
+  @page { size: A4 portrait; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     width: 210mm;
-    min-height: 297mm;
     padding: 14mm 12mm;
     text-align: center;
     font-family: "Hiragino Kaku Gothic ProN","Hiragino Sans","BIZ UDPGothic",Meiryo,system-ui,sans-serif;
