@@ -51,6 +51,10 @@ export function ClockConfirm({
   >(locationEnabled ? "loading" : "idle");
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<ClockResult | null>(null);
+  // ホーム画面PWA(スタンドアロン)から開いているかどうか。iOSのSafariには「リンクを
+  // タップすると自動でPWA側が開く」仕組みが無いため、Safariで開いている場合は
+  // 「勤務表を開く」リンク(Safariが開くだけ)ではなく、ホーム画面アプリの案内文に差し替える。
+  const [isStandalone, setIsStandalone] = useState<boolean | null>(null);
 
   // 交通費(最も最近の入力をデフォルト表示。開閉式で、必要な時だけ入力)
   const [showTransport, setShowTransport] = useState(false);
@@ -61,6 +65,13 @@ export function ClockConfirm({
   const [tCost, setTCost] = useState<string>(
     transportDefault?.cost ? String(transportDefault.cost) : ""
   );
+
+  useEffect(() => {
+    const standalone =
+      (navigator as unknown as { standalone?: boolean }).standalone === true ||
+      window.matchMedia("(display-mode: standalone)").matches;
+    setIsStandalone(standalone);
+  }, []);
 
   // 画面表示用の時計(実際の打刻時刻はサーバーが確定する)
   useEffect(() => {
@@ -147,12 +158,18 @@ export function ClockConfirm({
               </p>
             )}
             <div className="mt-6 flex flex-col gap-2">
-              <Link
-                href="/timesheet"
-                className="rounded-lg bg-blue-600 py-2.5 font-medium text-white hover:bg-blue-700"
-              >
-                勤務表を開く
-              </Link>
+              {isStandalone ? (
+                <Link
+                  href="/timesheet"
+                  className="rounded-lg bg-blue-600 py-2.5 font-medium text-white hover:bg-blue-700"
+                >
+                  勤務表を開く
+                </Link>
+              ) : (
+                <p className="rounded-lg bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
+                  アプリをホーム画面に登録している場合は、そこから勤務表やシフト表を見ることができます。
+                </p>
+              )}
             </div>
           </div>
         ) : (
