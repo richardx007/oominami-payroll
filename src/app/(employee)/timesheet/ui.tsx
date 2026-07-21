@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
 import { adjacentPeriodKey, datesInPeriod, workMinutes } from "@/lib/period";
+import { useSwipeNav } from "@/lib/useSwipeNav";
 import type { ShiftInfo } from "@/lib/shifts";
 import { SHIFT_TEXT_COLOR } from "@/lib/shifts";
 import type { WorkEntry } from "./page";
@@ -80,6 +81,11 @@ export function TimesheetCalendar({
   function periodHref(delta: 1 | -1) {
     return `${basePath}?p=${adjacentPeriodKey(period.key, delta)}${empQuery}`;
   }
+  // カレンダーの左右スワイプで前後の月へ移動
+  const swipeHandlers = useSwipeNav(
+    () => router.push(periodHref(1)),
+    () => router.push(periodHref(-1))
+  );
 
   const entryMap = useMemo(
     () => new Map(entries.map((e) => [e.work_date, e])),
@@ -238,8 +244,11 @@ export function TimesheetCalendar({
           <p className="text-sm text-red-600">{result.message}</p>
         )}
 
-        {/* カレンダー */}
-        <div className="rounded-xl border-2 border-gray-400 bg-white p-2">
+        {/* カレンダー(左右スワイプで前後の月に移動) */}
+        <div
+          className="rounded-xl border-2 border-gray-400 bg-white p-2"
+          {...swipeHandlers}
+        >
           <div className="mb-1 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-xs font-semibold text-gray-600">
             {WEEKDAYS.map((w, i) => (
               <div

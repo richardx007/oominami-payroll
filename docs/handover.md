@@ -740,6 +740,18 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - `npm run build && npm test`(21件)通過。`eslint`は新規に`react-hooks/set-state-in-effect`の指摘1件が
   出るが、これは同セッション内の他箇所(`clock.tsx`の`setMounted(true)`等)と同じ既存パターンであり許容。
 
+### 本セッションで実施した変更（2026-07-21 その3・勤務表/シフト表カレンダーの左右スワイプで月移動）
+オーナー要望「モバイルでのシフト表・勤務表のカレンダーを左右スワイプすることで月を前後に移動させたい」に
+対応。共通フック`src/lib/useSwipeNav.ts`を新設し、`onTouchStart`/`onTouchEnd`でX方向の移動量が閾値(50px)を
+超え、かつY方向の移動量より大きい場合のみスワイプとみなして前月/翌月へ`router.push`する
+（縦スクロール操作を誤検知しないようにするため）。
+- `(employee)/timesheet/ui.tsx`の`TimesheetCalendar`カレンダー枠、`admin/shifts/ShiftSchedule.tsx`の
+  カレンダー枠(従業員側`/shifts`ページもこのコンポーネントを読み取り専用で共用)の両方に適用。
+  左スワイプ=翌月、右スワイプ=前月（`periodHref`の既存ロジックをそのまま再利用）。
+- シフト表(管理者編集モード)の日付タップによるシフト割当はタップ時の移動量が閾値未満のため、
+  スワイプ判定と競合しない。
+- `npm run build && npm test`(21件)・対象ファイルの`eslint`とも新規の指摘なしで通過。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 

@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
 import { adjacentPeriodKey, datesInPeriod } from "@/lib/period";
+import { useSwipeNav } from "@/lib/useSwipeNav";
 import {
   SLOT_KEYS,
   SHIFT_TEXT_COLOR,
@@ -155,6 +156,11 @@ export function ShiftSchedule({
   function periodHref(delta: 1 | -1) {
     return `${basePath}?p=${adjacentPeriodKey(period.key, delta)}`;
   }
+  // カレンダーの左右スワイプで前後の月へ移動
+  const swipeHandlers = useSwipeNav(
+    () => router.push(periodHref(1)),
+    () => router.push(periodHref(-1))
+  );
 
   function runAssign(
     employeeId: string,
@@ -218,8 +224,11 @@ export function ShiftSchedule({
           </p>
         )}
 
-        {/* カレンダー */}
-        <div className="rounded-xl border-2 border-gray-400 bg-white p-0.5 sm:p-2">
+        {/* カレンダー(左右スワイプで前後の月に移動) */}
+        <div
+          className="rounded-xl border-2 border-gray-400 bg-white p-0.5 sm:p-2"
+          {...swipeHandlers}
+        >
           <div className="mb-0.5 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-sm font-semibold text-gray-600 sm:mb-1">
             {WEEKDAYS.map((w, i) => (
               <div
