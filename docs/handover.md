@@ -774,6 +774,15 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - 呼び出し側は`{...swipe.handlers}`＋`style={swipe.style}`、セル内容は`swipe.blank ? undefined : ...`。
 - `npm run build && npm test`(21件)・対象ファイルの`eslint`とも新規の指摘なしで通過。
 
+### 本セッションで実施した変更（2026-07-21 その6・カレンダーUI/UXをスキル化）
+オーナー依頼「シフト表を中心にカレンダーのUI/UXをスキルにまとめてほしい」に対応。
+`.claude/skills/mobile-calendar-ui/` を新設。テーマは①祝日対応の赤文字表示②イベント/タスクの日単位表示
+③フォントのバランス(大きさ・中央寄せ)④枠・アウトライン・セル余白の詰め方⑤月移動スワイプと表示更新
+タイミング⑥日タップ→下(モバイル)/横(PC)に詳細を表示するmaster-detail UX。
+- `SKILL.md`: 6テーマを実装値付きで解説（`ShiftSchedule.tsx`/`timesheet/ui.tsx`を参照実装として明記）。
+- `assets/useSwipeNav.ts`: 現行フックを同梱（他プロジェクトへコピー流用できるように）。
+- `references/swipe-hook.md`: フックの設計意図（2段rAF、blank/resetKeyのタイミング、閾値調整）の詳説。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 
