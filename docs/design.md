@@ -618,6 +618,18 @@ middleware.ts            未認証は /login へ
 - 設定画面: QR生成・印刷、基準住所/半径/圏外時の扱い。
 - （任意）管理者向けに「圏外・位置未許可の打刻」一覧、または操作ログ（`activity_logs`）へ打刻・圏外を記録。
 - 融通のための原則: **打刻はあくまで補助入力**で、勤務表からの手修正を常に許す（打刻失敗＝勤怠不能にしない）。
+- **印刷/PDFポスターの表記（2026-07-21）**: QRコード下の説明文は「①出勤/退勤時にそれぞれのQRを読み取る
+  ②位置情報の確認が出たら必ず『許可』をタップ ③この職場以外からは記録できない」の3点。出勤/退勤QRは
+  印刷・PDFとも**画像55mm・QR間の間隔28mm**（`clock.tsx`の`handlePrint`インラインCSSと`globals.css`の
+  `.qr-print-code`系を同値で同期）。QRを小さく間隔を広くしたのは、カメラで**片方だけを読み取りやすくする**ため。
+  ページ高さ制約（印刷`min-height:230mm`／PDF`height:297mm`。空白2ページ目対策は
+  `.claude/skills/print-and-pdf-download/`参照）は縮小により余裕が増える方向のため影響なし。
+- **打刻完了画面のPWA誘導（2026-07-21）**: iOSのSafariには「リンクタップやQR読み取りを自動でホーム画面PWAへ
+  渡す仕組みが無い」ため、Safariで開いた打刻完了画面から`/timesheet`へ遷移してもSafariのまま（PWAで開けない）。
+  そこで`navigator.standalone`/`matchMedia("(display-mode: standalone)")`でスタンドアロン判定し、
+  **スタンドアロン時のみ「勤務表を開く」リンクを表示**、Safari等ではリンクの代わりに「アプリをホーム画面に
+  登録している場合は、そこから勤務表やシフト表を見ることができます。」の案内文を表示する（`clock/ui.tsx`）。
+  打刻自体はPWA未登録でも常に可能（この判定は表示の出し分けのみ）。
 
 ### 7.7 打刻時の交通費入力（2026-07-19追加）
 - QRの出勤・退勤どちらの確認画面でも交通費（手段・区間From/To・往復/片道・金額）を入力できる（開閉式）。
@@ -681,17 +693,39 @@ middleware.ts            未認証は /login へ
 ### 8.4 勤務表の予実表示・入力デフォルト
 - 勤務表(`TimesheetCalendar`)の下部一覧を**予実一覧**に変更。1日ごとに**上段=シフト予定(青)・下段=勤務実績(緑)**を
   色分け＋日ごとの横線で表示。予定と実績で時刻が相違する箇所は実績側を赤太字にする。カレンダー本体は従来通り**実績のみ**表記。
+- 予定行は枠バッジ（早番/遅番/深夜）が時刻の前に入るのに対し実績行はバッジが無く、時刻の開始位置がずれて
+  相違点を見比べにくかったため、両行を`grid grid-cols-[2.5rem_2.75rem_auto]`（ラベル列/バッジ列/時刻列）で
+  組み、実績行のバッジ列に空セルを置いて**予定と実績の時刻のタブ位置を揃えている**（`WorkList`。2026-07-21）。
 - 勤務表で**実績を新規入力するとき、その日のシフト予定の時刻を出勤・退勤の初期値に表示**する（既存レコードがあればそれを優先）。
 - シフト予定は `shift_assignments` から表示中従業員ぶんを取得し `buildShiftMap()` で `work_date -> ShiftInfo` に変換して渡す。
 
-### 8.5 実装ファイル
+### 8.5 カレンダーの左右スワイプ月移動（2026-07-21追加）
+- シフト表(`ShiftSchedule`)・勤務表(`TimesheetCalendar`)のカレンダーを**左右スワイプで前後の月に移動**できる
+  （左=翌月／右=前月。既存の`periodHref`＝`?p=`クエリ遷移を再利用）。＜＞ボタンも従来通り併存
+  （PC・アクセシビリティ用の代替経路）。共通フック`src/lib/useSwipeNav.ts`に集約。
+- **追従スライドアニメーション**: ドラッグ中はカレンダーが指に1:1で追従（`transition:none`）、離した時に
+  閾値（50px、かつ横移動>縦移動）を超えていればそのまま画面外へスライドアウト→遷移後に反対側から
+  スライドインさせる。閾値未満・縦移動優勢（＝スクロール）なら元位置へスナップバック。ボタン押下時の
+  「無反応→急に切替」という空振り感を、動きで待ち時間を埋めることで解消するのが狙い。
+- **スライドアウトのクリップ**: 全幅translateで横スクロールバーが出ないよう、各カレンダーを`overflow-hidden`の
+  外枠で包む。**スライドインの発火**は`router.push`後に`requestAnimationFrame`を2段重ねてから`translateX(0)`へ
+  戻す（1段だと描画前にtransitionが走りポップすることがあるため）。
+- **遷移中の白紙化**: `router.push`直後はまだ前月データがReactツリーに残っているため、フックは`blank`フラグを返す。
+  ドラッグ開始で`blank=true`、第3引数`resetKey`(=`period.key`)が変化した＝新しい月のデータが到着した時点で
+  `false`へ戻す。呼び出し側は`blank`中セルの中身（予実/シフト）を`undefined`扱いにして非表示にし、日付と枠だけを
+  スライドさせる（前月の残像を防ぐ）。設計意図の詳細はスキル`.claude/skills/mobile-calendar-ui/`に集約。
+
+### 8.6 実装ファイル
 - DB: `supabase/migrations/20260719_add_shift_scheduling.sql`（適用済みスキーマの記録。シフト関連一式）。
   時給0円許容の制約変更は別ファイル `supabase/migrations/20260719_allow_zero_wage.sql`（シフト機能とは無関係の派生対応）。
-- 共通: `src/lib/shifts.ts`（枠定義・色・正規化・予実状態型）、`src/lib/shift-data.ts`（`loadShiftData`）。
+- 共通: `src/lib/shifts.ts`（枠定義・色・正規化・予実状態型）、`src/lib/shift-data.ts`（`loadShiftData`）、
+  `src/lib/useSwipeNav.ts`（カレンダーの左右スワイプ＋スライドアニメーション＋遷移中の白紙化。§8.5）。
 - 画面: `src/app/admin/shifts/{ShiftSchedule.tsx,actions.ts}`、`src/app/admin/page.tsx`、`src/app/(employee)/shifts/page.tsx`。
 - 勤務表: `src/app/(employee)/timesheet/{ui,page}.tsx`、`src/app/admin/timesheet/page.tsx`。
 - 従業員色: `src/app/admin/employees/{ui,actions,page}.tsx`。設定: `src/app/admin/settings/{ui,actions,page}.tsx`。
 - 打刻交通費: `src/app/clock/{page,ui,actions}.ts(x)`。
+- **UI/UXスキル**: `.claude/skills/mobile-calendar-ui/`（祝日赤文字・日単位表示・フォントバランス・枠/余白・
+  スワイプ月移動・タップ→詳細のmaster-detailを、シフト表/勤務表を題材に体系化。`useSwipeNav`同梱）。
 
 ---
 

@@ -783,6 +783,13 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - `assets/useSwipeNav.ts`: 現行フックを同梱（他プロジェクトへコピー流用できるように）。
 - `references/swipe-hook.md`: フックの設計意図（2段rAF、blank/resetKeyのタイミング、閾値調整）の詳説。
 
+### 本セッションで実施した変更（2026-07-21 その7・設計書へ反映）
+その1〜その6の追加/修正を`docs/design.md`へ反映（引継書は各変更時に随時更新済み）。
+- §7.5: 印刷/PDFポスターの表記（QR下3点の説明文・QR55mm/間隔28mm）、打刻完了画面のPWA誘導（Safari判定）。
+- §8.4: 予実一覧の予定/実績のタブ位置揃え（gridレイアウト）。
+- §8.5（新設）: カレンダーの左右スワイプ月移動＋追従スライドアニメ＋遷移中の白紙化。§8.6実装ファイルに
+  `useSwipeNav.ts`とUI/UXスキル`.claude/skills/mobile-calendar-ui/`を追記。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 
