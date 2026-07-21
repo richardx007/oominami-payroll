@@ -762,6 +762,18 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - スライドインは`router.push`後に`requestAnimationFrame`を2段重ねてから`translateX(0)`へ戻すことで発火させる。
 - `npm run build && npm test`(21件)・対象ファイルの`eslint`とも新規の指摘なしで通過。
 
+### 本セッションで実施した変更（2026-07-21 その5・スワイプ中はカレンダーの中身を白紙化）
+その4の続き。オーナー指摘「月が切り替わった瞬間、切替前の月の予定が表示されたまま」に対応（`router.push`後、
+新しい期間のサーバーデータが届くまでは前月の予定/シフトが残って見えていた）。
+- `useSwipeNav`の戻り値を`{ blank, handlers, style }`に変更（従来はハンドラ+styleを直接返していた）。
+  ドラッグ開始時点で`blank=true`にし、第3引数`resetKey`(=`period.key`)が変化した=新しい月のデータが
+  読み込まれたタイミングで`useEffect`により`blank=false`へ戻す。
+- 各カレンダーは`blank`中、日付セルの中身（勤務表の予実、シフトの割当）を`undefined`扱いにして非表示にする
+  （日付の数字と枠は残す）。これによりスワイプ〜遷移完了までは白紙のカレンダーがスライドし、切替後に
+  新しい月の内容がフェードインするように見える。
+- 呼び出し側は`{...swipe.handlers}`＋`style={swipe.style}`、セル内容は`swipe.blank ? undefined : ...`。
+- `npm run build && npm test`(21件)・対象ファイルの`eslint`とも新規の指摘なしで通過。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 
