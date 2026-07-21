@@ -752,6 +752,16 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
   スワイプ判定と競合しない。
 - `npm run build && npm test`(21件)・対象ファイルの`eslint`とも新規の指摘なしで通過。
 
+### 本セッションで実施した変更（2026-07-21 その4・カレンダースワイプに追従アニメーションを追加）
+その3の続き。オーナー指摘「スワイプしてから間が空いて画面が切り替わるので空振りしたように感じる」に対応。
+`useSwipeNav`を拡張し、指の動きにカレンダーが追従するドラッグ+スライドアニメーションを追加。
+- `onTouchMove`でドラッグ中は`translateX`で指に追従（`transition:none`）。指を離した時、閾値超えなら
+  そのまま画面外へスライドアウト→遷移後に反対側からスライドインさせる。閾値未満なら元位置へスナップバック。
+- フックが`style`(transform + transition)も返すようになり、各カレンダー枠へ`{...swipeHandlers}`で適用。
+  スライドアウト時に横スクロールバーが出ないよう、各カレンダーを`overflow-hidden`の外枠で包んでクリップする。
+- スライドインは`router.push`後に`requestAnimationFrame`を2段重ねてから`translateX(0)`へ戻すことで発火させる。
+- `npm run build && npm test`(21件)・対象ファイルの`eslint`とも新規の指摘なしで通過。
+
 > ⚠️ 過去セッションは開発ブランチ `claude/payroll-system-plan-8wvobq` に直接 push して main へマージ運用してきた。
 > push 前は必ず `git fetch origin main` で差分確認のこと。
 

@@ -224,7 +224,8 @@ export function ShiftSchedule({
           </p>
         )}
 
-        {/* カレンダー(左右スワイプで前後の月に移動) */}
+        {/* カレンダー(左右スワイプで前後の月に移動)。外枠でスライドアウトをクリップする */}
+        <div className="overflow-hidden">
         <div
           className="rounded-xl border-2 border-gray-400 bg-white p-0.5 sm:p-2"
           {...swipeHandlers}
@@ -307,6 +308,7 @@ export function ShiftSchedule({
               })}
             </div>
           ))}
+        </div>
         </div>
 
         {/* シフト枠の時刻一覧(1行) + 補足説明。従業員・管理者どちらの画面にも表示する */}

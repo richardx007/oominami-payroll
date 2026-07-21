@@ -244,7 +244,8 @@ export function TimesheetCalendar({
           <p className="text-sm text-red-600">{result.message}</p>
         )}
 
-        {/* カレンダー(左右スワイプで前後の月に移動) */}
+        {/* カレンダー(左右スワイプで前後の月に移動)。外枠でスライドアウトをクリップする */}
+        <div className="overflow-hidden">
         <div
           className="rounded-xl border-2 border-gray-400 bg-white p-2"
           {...swipeHandlers}
@@ -325,6 +326,7 @@ export function TimesheetCalendar({
               })}
             </div>
           ))}
+        </div>
         </div>
       </div>
 
