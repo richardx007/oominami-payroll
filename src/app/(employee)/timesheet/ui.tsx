@@ -461,34 +461,40 @@ function WorkList({
                     </div>
                     <div className="text-xs">{WEEKDAYS[dow]}</div>
                   </div>
-                  {/* 予定行 / 実績行 */}
+                  {/* 予定行 / 実績行。ラベル・枠バッジ・時刻の列幅を両行で揃え、
+                      予定と実績の時刻の開始位置(タブ位置)が一致するようにする。 */}
                   <div className="min-w-0 flex-1 space-y-1">
                     {/* 予定(上段) */}
-                    <div className="flex items-center gap-2 rounded bg-blue-50 px-2 py-1 text-sm">
+                    <div className="grid grid-cols-[2.5rem_2.75rem_auto] items-center gap-x-1 rounded bg-blue-50 px-2 py-1 text-sm">
                       <span className="shrink-0 text-xs font-semibold text-blue-700">
                         予定
                       </span>
                       {shift ? (
-                        <span className="tabular-nums text-gray-800">
+                        <>
                           <span
-                            className="mr-1 rounded px-1 text-xs font-bold"
+                            className="w-fit rounded px-1 text-xs font-bold"
                             style={{ backgroundColor: "#dbeafe", color: SHIFT_TEXT_COLOR }}
                           >
                             {shift.label}
                           </span>
-                          {shift.start}〜{shift.end}
-                        </span>
+                          <span className="tabular-nums text-gray-800">
+                            {shift.start}〜{shift.end}
+                          </span>
+                        </>
                       ) : (
-                        <span className="text-xs text-gray-400">シフトなし</span>
+                        <span className="col-span-2 text-xs text-gray-400">
+                          シフトなし
+                        </span>
                       )}
                     </div>
                     {/* 実績(下段) */}
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded bg-green-50 px-2 py-1 text-sm">
+                    <div className="grid grid-cols-[2.5rem_2.75rem_auto] items-center gap-x-1 rounded bg-green-50 px-2 py-1 text-sm">
                       <span className="shrink-0 text-xs font-semibold text-green-700">
                         実績
                       </span>
+                      <span />
                       {e ? (
-                        <>
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span className="tabular-nums">
                             <span className={startDiff ? "font-bold text-red-600" : "text-gray-800"}>
                               {e.start_time}
@@ -512,7 +518,7 @@ function WorkList({
                               ¥{e.transport_cost.toLocaleString()}
                             </span>
                           )}
-                        </>
+                        </span>
                       ) : (
                         <span className="text-xs font-bold text-red-600">
                           実績なし

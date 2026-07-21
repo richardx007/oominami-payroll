@@ -228,20 +228,14 @@ export function ClockSettingsForm({
         </div>
       </div>
 
-      <QrCodes companyName={companyName} roundMin={round} />
+      <QrCodes companyName={companyName} />
     </section>
   );
 }
 
 /** 出勤/退勤QRの表示・印刷。URLは現在のオリジンから生成する。
  *  印刷時は QR コードのみ(会社名タイトル＋説明つき)を印刷する専用シートを出す。 */
-function QrCodes({
-  companyName,
-  roundMin,
-}: {
-  companyName: string;
-  roundMin: string;
-}) {
+function QrCodes({ companyName }: { companyName: string }) {
   const [inUrl, setInUrl] = useState<string>("");
   const [outUrl, setOutUrl] = useState<string>("");
   const [installUrl, setInstallUrl] = useState<string>("");
@@ -278,9 +272,6 @@ function QrCodes({
     );
   }, []);
 
-  // 打刻時刻の丸め単位(0/1は丸めなし=1分単位として表示)
-  const roundN = parseInt(roundMin, 10);
-  const roundLabel = Number.isFinite(roundN) && roundN > 1 ? roundN : 1;
   const title = `${companyName ? companyName + "　" : ""}出退勤登録用QRコード`;
 
   /**
@@ -328,9 +319,9 @@ function QrCodes({
     font-family: "Hiragino Kaku Gothic ProN","Hiragino Sans","BIZ UDPGothic",Meiryo,system-ui,sans-serif;
   }
   h1 { margin: 4mm 0 8mm; font-size: 20px; font-weight: 700; }
-  .codes { display: flex; justify-content: center; gap: 12mm; }
-  .code { border: 2px solid #333; border-radius: 8px; padding: 6mm; }
-  .code img { width: 70mm; height: 70mm; display: block; }
+  .codes { display: flex; justify-content: center; gap: 28mm; }
+  .code { border: 2px solid #333; border-radius: 8px; padding: 5mm; }
+  .code img { width: 55mm; height: 55mm; display: block; }
   .label { font-size: 18px; font-weight: 700; margin-bottom: 4mm; }
   .in { color: #15803d; }
   .out { color: #ea580c; }
@@ -349,7 +340,7 @@ function QrCodes({
   </div>
   <ul>
     <li>出勤と退勤の際にそれぞれのQRコードをスマホのカメラで読み取って出退勤の登録を行なってください。</li>
-    <li>記録される出退勤時刻は、${roundLabel} 分単位で丸められます。</li>
+    <li>位置情報へのアクセスに関する確認が出た場合は必ず「許可」をタップして下さい。</li>
     <li>この職場以外からでは記録できませんので、必ずここで登録してください。</li>
   </ul>
   ${
@@ -507,7 +498,7 @@ function QrCodes({
                 出勤と退勤の際にそれぞれのQRコードをスマホのカメラで読み取って出退勤の登録を行なってください。
               </li>
               <li>
-                記録される出退勤時刻は、{roundLabel} 分単位で丸められます。
+                位置情報へのアクセスに関する確認が出た場合は必ず「許可」をタップして下さい。
               </li>
               <li>
                 この職場以外からでは記録できませんので、必ずここで登録してください。
