@@ -267,6 +267,19 @@ export function TimesheetCalendar({
                 if (!date) return <div key={di} />;
                 // スワイプ中は前月の予定が残って見えないよう中身を白紙にする
                 const entry = swipeBlank ? undefined : entryMap.get(date);
+                const shift = shifts[date];
+                // 予実一覧と同じ判定: 予定と実績の相違(予定外勤務含む)は赤太字にする
+                const unplanned = !!entry && !shift;
+                const startDiff =
+                  !!entry &&
+                  (unplanned ||
+                    (!!shift &&
+                      !!shift.startInput &&
+                      entry.start_time !== shift.startInput));
+                const endDiff =
+                  !!entry &&
+                  (unplanned ||
+                    (!!shift && (entry.end_time ?? "") !== (shift.endInput ?? "")));
                 const day = Number(date.slice(8, 10));
                 const isSelected = selected === date;
                 const isToday = date === today;
@@ -306,10 +319,14 @@ export function TimesheetCalendar({
                       <span
                         className={`mt-0.5 text-[10px] leading-tight ${isSelected ? "text-blue-100" : "text-blue-700"}`}
                       >
-                        {entry.start_time}
+                        <span className={startDiff ? "font-bold text-red-600" : ""}>
+                          {entry.start_time}
+                        </span>
                         <br />
                         {entry.end_time ? (
-                          entry.end_time
+                          <span className={endDiff ? "font-bold text-red-600" : ""}>
+                            {entry.end_time}
+                          </span>
                         ) : (
                           <span
                             className={
