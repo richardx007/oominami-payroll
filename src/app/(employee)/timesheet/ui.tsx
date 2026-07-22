@@ -466,11 +466,8 @@ function WorkList({
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
       <div className="flex items-center gap-3 border-b border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-semibold text-gray-700">
         <span>予実一覧</span>
-        <span className="flex items-center gap-1 text-xs font-normal text-gray-500">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-200" />
-          予定
-          <span className="ml-2 inline-block h-2.5 w-2.5 rounded-sm bg-green-200" />
-          実績
+        <span className="text-xs font-normal text-gray-500">
+          予定と実績の不一致は<span className="font-bold text-red-600">赤字</span>
         </span>
       </div>
       {dates.length === 0 ? (
