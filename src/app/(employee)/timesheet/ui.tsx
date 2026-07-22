@@ -280,6 +280,17 @@ export function TimesheetCalendar({
                   !!entry &&
                   (unplanned ||
                     (!!shift && (entry.end_time ?? "") !== (shift.endInput ?? "")));
+                const startMatch =
+                  !!entry &&
+                  !!shift &&
+                  !!shift.startInput &&
+                  entry.start_time === shift.startInput;
+                const endMatch =
+                  !!entry &&
+                  !!shift &&
+                  !!shift.endInput &&
+                  !!entry.end_time &&
+                  entry.end_time === shift.endInput;
                 const day = Number(date.slice(8, 10));
                 const isSelected = selected === date;
                 const isToday = date === today;
@@ -319,12 +330,28 @@ export function TimesheetCalendar({
                       <span
                         className={`mt-0.5 text-[10px] leading-tight ${isSelected ? "text-blue-100" : "text-blue-700"}`}
                       >
-                        <span className={startDiff ? "font-bold text-red-600" : ""}>
+                        <span
+                          className={
+                            startDiff
+                              ? "font-bold text-red-600"
+                              : startMatch && !isSelected
+                                ? "font-bold text-gray-900"
+                                : ""
+                          }
+                        >
                           {entry.start_time}
                         </span>
                         <br />
                         {entry.end_time ? (
-                          <span className={endDiff ? "font-bold text-red-600" : ""}>
+                          <span
+                            className={
+                              endDiff
+                                ? "font-bold text-red-600"
+                                : endMatch && !isSelected
+                                  ? "font-bold text-gray-900"
+                                  : ""
+                            }
+                          >
                             {entry.end_time}
                           </span>
                         ) : (
@@ -469,7 +496,7 @@ function WorkList({
                 : null;
             // 予定が無いのに実績がある(予定外勤務)は出勤・退勤とも相違扱いで赤太字にする
             const unplanned = !!e && !shift;
-            // 予実の時刻相違(実績があるときのみ判定)
+            // 予実の時刻相違(実績があるときのみ判定)。相違=赤太字・合致=黒太字
             const startDiff =
               !!e &&
               (unplanned ||
@@ -477,6 +504,14 @@ function WorkList({
             const endDiff =
               !!e &&
               (unplanned || (!!shift && (e.end_time ?? "") !== (shift.endInput ?? "")));
+            const startMatch =
+              !!e && !!shift && !!shift.startInput && e.start_time === shift.startInput;
+            const endMatch =
+              !!e &&
+              !!shift &&
+              !!shift.endInput &&
+              !!e.end_time &&
+              e.end_time === shift.endInput;
 
             return (
               <li
@@ -529,12 +564,28 @@ function WorkList({
                       {e ? (
                         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span className="tabular-nums">
-                            <span className={startDiff ? "font-bold text-red-600" : "text-gray-800"}>
+                            <span
+                              className={
+                                startDiff
+                                  ? "font-bold text-red-600"
+                                  : startMatch
+                                    ? "font-bold text-gray-900"
+                                    : "text-gray-800"
+                              }
+                            >
                               {e.start_time}
                             </span>
                             〜
                             {e.end_time ? (
-                              <span className={endDiff ? "font-bold text-red-600" : "text-gray-800"}>
+                              <span
+                                className={
+                                  endDiff
+                                    ? "font-bold text-red-600"
+                                    : endMatch
+                                      ? "font-bold text-gray-900"
+                                      : "text-gray-800"
+                                }
+                              >
                                 {e.end_time}
                               </span>
                             ) : (
