@@ -201,22 +201,36 @@ wrong. Read `references/swipe-hook.md` for the full rationale; the essentials:
   : itemsFor(date)`). The result: a clean empty calendar slides in, then fills with the
   correct month's content the instant it loads.
 
+- **Drive the drag imperatively, not through React state.** This is the single most
+  important performance lesson. A calendar has ~35 cells; if you set `translateX` via
+  `useState` on every `touchmove`, React re-renders the whole grid each frame and the
+  finger-follow feels heavy and "catches" partway. Instead attach the touch listeners to
+  the node directly (`addEventListener(..., {passive:true})`) and mutate
+  `node.style.transform` in the handler — zero React renders during the drag. Likewise,
+  set `blank` **only at commit**, never on the first `touchmove`: blanking is a heavy
+  re-render (every cell drops its content) and doing it mid-drag reintroduces exactly the
+  jank you're trying to avoid. The bundled hook already works this way — its only outputs
+  are `{ blank, attach }`.
+
 Wiring it up:
 
 ```tsx
-const swipe = useSwipeNav(
+const { blank, attach } = useSwipeNav(
   () => router.push(hrefForMonth(+1)),  // swipe left  → next month
   () => router.push(hrefForMonth(-1)),  // swipe right → prev month
   period.key                            // resetKey: clears `blank` when data arrives
 );
 
 <div className="overflow-hidden">
-  <div className="rounded-xl border-2 border-gray-400 bg-white p-2"
-       style={swipe.style} {...swipe.handlers}>
-    {/* ...cells; use swipe.blank to hide per-day content mid-transition... */}
+  <div ref={attach} className="rounded-xl border-2 border-gray-400 bg-white p-2">
+    {/* ...cells; use `blank` to hide per-day content mid-transition... */}
   </div>
 </div>
 ```
+
+Destructure `blank`/`attach` at the call site (don't read `swipe.blank` in JSX): the hook
+returns an object that internally holds a ref, and the `react-hooks/refs` lint rule flags
+member access on it during render. Destructuring to a plain boolean sidesteps that.
 
 Keep the ＜＞ arrow buttons too — they call the same navigation. Swipe and buttons are
 complementary: swipe is the natural phone gesture, the arrows are the discoverable/

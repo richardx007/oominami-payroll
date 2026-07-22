@@ -783,6 +783,21 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - `assets/useSwipeNav.ts`: 現行フックを同梱（他プロジェクトへコピー流用できるように）。
 - `references/swipe-hook.md`: フックの設計意図（2段rAF、blank/resetKeyのタイミング、閾値調整）の詳説。
 
+### 本セッションで実施した変更（2026-07-22 その5・スワイプ引っかかりを再設計で解消）
+その4の`touch-action`追加だけでは改善せず（むしろ悪化）との報告。真因は**再レンダー由来のジャンク**と判断:
+①ドラッグ最初の`touchmove`で`setBlank(true)`が全セルを再レンダー、②`translateX`をReact stateで駆動し
+毎フレーム全カレンダーを再レンダー、していたため指の動きが重く「途中で引っかかる」体感になっていた。
+- `useSwipeNav`を**imperative方式に全面再設計**（`assets/useSwipeNav.ts`も同期）。返り値は`{ blank, attach }`のみ。
+  - `attach`はコールバックref。ノードに`addEventListener("touchstart/move/end/cancel", …, {passive:true})`を
+    直接張り、ドラッグ追従は`node.style.transform`を**直接書き換え**（React再レンダーを一切起こさない）。
+  - `blank`は遷移確定時(touchend)にのみ`true`にする（ドラッグ中は白紙化しない＝開始時の重い再レンダーを排除）。
+    `resetKey`(=`period.key`)変化で`false`へ。
+  - `touch-action: pan-y`はノードに直接設定。`touchcancel`でも元位置へ確実に戻す。
+- 呼び出し側は`ref={swipeAttach}`のみ（`style`/`{...handlers}`の受け渡しを撤廃）。`blank`は分割代入で
+  プレーンなbooleanとして受ける（フックがrefを内包するため`swipe.blank`のようなプロパティ参照は
+  `react-hooks/refs`ルールに抵触する。分割代入で回避）。
+- `npm run build && npm test`(21件)・対象ファイルの`eslint`とも新規の指摘なしで通過。
+
 ### 本セッションで実施した変更（2026-07-22 その4・予実一覧の予定外実績を赤太字化／スワイプ引っかかり対処）
 - **予実一覧（`timesheet/ui.tsx` WorkList）**: 予定が無いのに実績がある(予定外勤務=unplanned)場合も、
   出勤・退勤時刻を**赤太字**で表示するようにした（従来は予定がある日の時刻相違のみ赤太字だった）。

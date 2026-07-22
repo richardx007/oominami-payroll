@@ -7,8 +7,8 @@ that showed up on-device.
 ## Signature
 
 ```ts
-const swipe = useSwipeNav(onSwipeLeft, onSwipeRight, resetKey);
-// returns: { blank: boolean, handlers: {...touch handlers}, style: React.CSSProperties }
+const { blank, attach } = useSwipeNav(onSwipeLeft, onSwipeRight, resetKey);
+// returns: { blank: boolean, attach: (node: HTMLElement | null) => void }
 ```
 
 - `onSwipeLeft` — fired when the user swipes left (natural gesture for "next month").
@@ -16,8 +16,21 @@ const swipe = useSwipeNav(onSwipeLeft, onSwipeRight, resetKey);
 - `resetKey` — the current period key (e.g. `period.key`). The hook watches this to know
   when the *newly navigated* month's data has actually loaded. See "Blank timing" below.
 
-Apply `style={swipe.style}` and `{...swipe.handlers}` to the moving element, wrap that
-element in an `overflow-hidden` parent, and gate per-cell content on `swipe.blank`.
+Attach with `ref={attach}` on the moving element, wrap it in an `overflow-hidden` parent,
+and gate per-cell content on `blank`. The hook adds the touch listeners to the node itself
+(no `onTouch*`/`style` props on the JSX) and moves the element by writing
+`node.style.transform` directly.
+
+**Why imperative?** Driving the drag through React state (`setDragX` on every `touchmove`)
+re-renders the whole calendar every frame; with ~35 cells the finger-follow feels heavy and
+visibly "catches" partway through the gesture. Attaching listeners to the node and mutating
+`node.style.transform` in the handler keeps the drag at native smoothness with zero React
+renders. React state is used *only* for `blank`, which changes a couple of times per swipe.
+
+**Destructure at the call site.** Because the hook internally holds a ref (the node), the
+`react-hooks/refs` lint rule flags reading `swipe.blank`/`swipe.attach` as members during
+render. Pull them out with destructuring (`const { blank, attach } = useSwipeNav(...)`) so
+you're reading plain values, not accessing a ref-bearing object mid-render.
 
 ## Why each piece exists
 
@@ -60,16 +73,19 @@ tree still holds the *previous* month's data. Without intervention, the freshly
 slid-in calendar shows last month's entries for a beat, then swaps — visually jarring.
 
 The hook fixes this with a `blank` flag consumed by the caller to hide per-cell content:
-- Set `blank = true` the instant a drag begins.
-- Keep it `true` through the slide-out, navigation, and slide-in.
+- Set `blank = true` **at commit** (in `touchend`, right before calling `onSwipe*`) — NOT
+  when the drag begins. Blanking is a heavy re-render (every cell drops its content); doing
+  it on the first `touchmove` reintroduces drag jank. During the outgoing slide the current
+  month keeps its content (it's leaving anyway); only the *incoming* month needs blanking.
+- Keep it `true` through the slide-in.
 - Flip it back to `false` only when `resetKey` changes — a `useEffect([resetKey])` — which
   happens exactly when the new period's data has arrived and re-rendered.
 
-So the caller does `const items = swipe.blank ? undefined : itemsFor(date)` and renders
-only day numbers + frame while `blank`. The empty calendar slides in, and content appears
-the moment real data lands. If you ever see the wrong month's content flash during a
-swipe, the cause is almost always that `resetKey` isn't the value that changes on
-navigation, or the caller forgot to gate content on `blank`.
+So the caller does `const items = blank ? undefined : itemsFor(date)` and renders only day
+numbers + frame while `blank`. The empty calendar slides in, and content appears the moment
+real data lands. If you ever see the wrong month's content flash during a swipe, the cause
+is almost always that `resetKey` isn't the value that changes on navigation, or the caller
+forgot to gate content on `blank`.
 
 ## Tuning knobs
 - **Threshold** (default 50px): raise it if accidental swipes are firing, lower it if

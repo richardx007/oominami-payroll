@@ -157,7 +157,7 @@ export function ShiftSchedule({
     return `${basePath}?p=${adjacentPeriodKey(period.key, delta)}`;
   }
   // カレンダーの左右スワイプで前後の月へ移動
-  const swipe = useSwipeNav(
+  const { blank: swipeBlank, attach: swipeAttach } = useSwipeNav(
     () => router.push(periodHref(1)),
     () => router.push(periodHref(-1)),
     period.key
@@ -228,9 +228,8 @@ export function ShiftSchedule({
         {/* カレンダー(左右スワイプで前後の月に移動)。外枠でスライドアウトをクリップする */}
         <div className="overflow-hidden">
         <div
+          ref={swipeAttach}
           className="rounded-xl border-2 border-gray-400 bg-white p-0.5 sm:p-2"
-          style={swipe.style}
-          {...swipe.handlers}
         >
           <div className="mb-0.5 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-sm font-semibold text-gray-600 sm:mb-1">
             {WEEKDAYS.map((w, i) => (
@@ -257,7 +256,7 @@ export function ShiftSchedule({
                       ? "text-blue-500"
                       : "text-gray-700";
                 // スワイプ中は前月のシフトが残って見えないよう中身を白紙にする
-                const slotsForDay = swipe.blank ? undefined : byDate.get(date);
+                const slotsForDay = swipeBlank ? undefined : byDate.get(date);
                 return (
                   <button
                     key={date}

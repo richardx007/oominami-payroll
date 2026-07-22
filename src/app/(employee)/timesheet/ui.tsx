@@ -82,7 +82,7 @@ export function TimesheetCalendar({
     return `${basePath}?p=${adjacentPeriodKey(period.key, delta)}${empQuery}`;
   }
   // カレンダーの左右スワイプで前後の月へ移動
-  const swipe = useSwipeNav(
+  const { blank: swipeBlank, attach: swipeAttach } = useSwipeNav(
     () => router.push(periodHref(1)),
     () => router.push(periodHref(-1)),
     period.key
@@ -248,9 +248,8 @@ export function TimesheetCalendar({
         {/* カレンダー(左右スワイプで前後の月に移動)。外枠でスライドアウトをクリップする */}
         <div className="overflow-hidden">
         <div
+          ref={swipeAttach}
           className="rounded-xl border-2 border-gray-400 bg-white p-2"
-          style={swipe.style}
-          {...swipe.handlers}
         >
           <div className="mb-1 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-xs font-semibold text-gray-600">
             {WEEKDAYS.map((w, i) => (
@@ -267,7 +266,7 @@ export function TimesheetCalendar({
               {week.map((date, di) => {
                 if (!date) return <div key={di} />;
                 // スワイプ中は前月の予定が残って見えないよう中身を白紙にする
-                const entry = swipe.blank ? undefined : entryMap.get(date);
+                const entry = swipeBlank ? undefined : entryMap.get(date);
                 const day = Number(date.slice(8, 10));
                 const isSelected = selected === date;
                 const isToday = date === today;
