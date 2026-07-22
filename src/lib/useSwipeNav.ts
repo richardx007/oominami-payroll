@@ -91,10 +91,22 @@ export function useSwipeNav(
           });
         }, 180);
       },
+      // ブラウザがスクロールを引き取ると touchend ではなく touchcancel が飛び、
+      // 途中位置で止まったまま(引っかかり)になることがあるため、確実に元へ戻す。
+      onTouchCancel: () => {
+        start.current = null;
+        dragging.current = false;
+        setAnimating(true);
+        setDragX(0);
+        setBlank(false);
+      },
     },
     style: {
       transform: `translateX(${dragX}px)`,
       transition: animating ? "transform 0.18s ease-out" : "none",
+      // 縦スクロールはブラウザに任せ、横方向は自前で処理する。これを指定しないと
+      // ブラウザが横スワイプを独自にスクロール解釈して途中で引っかかることがある。
+      touchAction: "pan-y",
     } as React.CSSProperties,
   };
 }

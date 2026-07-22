@@ -451,13 +451,16 @@ function WorkList({
               e && e.end_time
                 ? workMinutes(e.start_time, e.end_time, e.break_minutes)
                 : null;
+            // 予定が無いのに実績がある(予定外勤務)は出勤・退勤とも相違扱いで赤太字にする
+            const unplanned = !!e && !shift;
             // 予実の時刻相違(実績があるときのみ判定)
             const startDiff =
-              !!e && !!shift && !!shift.startInput && e.start_time !== shift.startInput;
+              !!e &&
+              (unplanned ||
+                (!!shift && !!shift.startInput && e.start_time !== shift.startInput));
             const endDiff =
               !!e &&
-              !!shift &&
-              (e.end_time ?? "") !== (shift.endInput ?? "");
+              (unplanned || (!!shift && (e.end_time ?? "") !== (shift.endInput ?? "")));
 
             return (
               <li
