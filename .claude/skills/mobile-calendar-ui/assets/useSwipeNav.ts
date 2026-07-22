@@ -14,7 +14,7 @@ const SLIDE_MS = 180;
  * React state は blank(遷移中の白紙化)だけに使い、1スワイプで数回しか変化しないので軽い。
  *
  * 使い方: 動かしたい要素に `ref={swipe.attach}` を付け、外側を `overflow-hidden` で包む。
- * セル内容は `swipe.blank ? undefined : ...` で出し分ける。
+ * セル内容は `blank ? undefined : ...` で出し分ける。
  *
  * @param resetKey 現在の期間キー(period.key)。遷移後に新データが届いて変化した時点で白紙を解除する。
  */

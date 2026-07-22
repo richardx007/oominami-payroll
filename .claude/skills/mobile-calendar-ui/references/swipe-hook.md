@@ -47,7 +47,9 @@ A month grid is vertically scrollable content. If any horizontal-ish drag naviga
 page would be unscrollable. So a gesture only counts as navigation when the horizontal
 movement dominates (`|dx| > |dy|`) and exceeds a threshold (~50px). Below threshold or
 mostly-vertical → treat as scroll, snap back to center, do nothing. There's also a small
-(~10px) dead zone before we commit to "this is a drag" at all, so taps don't jitter.
+(~8px) dead zone before we commit to "this is a drag" at all, so taps don't jitter. The
+element also gets `touch-action: pan-y` (set on the node), so the browser handles vertical
+scrolling natively and never tries to claim the horizontal axis we're driving ourselves.
 
 ### Release: slide-out vs snap-back
 On `onTouchEnd`, if the swipe cleared the threshold we finish the motion — animate the
@@ -102,3 +104,16 @@ forgot to gate content on `blank`.
   discoverable/accessible path; swipe is a mobile enhancement, not a replacement.
 - The hook is client-only (`"use client"`), uses `window`/`requestAnimationFrame`, and
   must not run its measurements during SSR.
+- **Listeners are attached imperatively via a callback ref, not JSX `onTouch*` props.** Two
+  reasons: (1) it lets the drag mutate `node.style.transform` without going through React
+  state, which is the whole performance point; (2) it keeps the hook's return down to
+  `{ blank, attach }`, so the component never spreads a `style`/`handlers` object that the
+  `react-hooks/refs` lint rule would flag. All listeners are `{ passive: true }` — the hook
+  never calls `preventDefault` (it relies on `touch-action` instead), so passive is correct
+  and avoids scroll-jank warnings.
+- **React won't clobber the imperative transform.** Because the element has no `style`/
+  `transform` prop, React doesn't manage that property and leaves the inline transform
+  alone across re-renders (including the `blank` toggle and `router.refresh`). If you ever
+  add a `style` prop that sets `transform`, React will fight the hook — don't.
+- **Clean up on node change.** The callback ref removes its listeners when the node
+  detaches (stashed as `__swipeCleanup` on the node), so remounts don't leak or double-bind.

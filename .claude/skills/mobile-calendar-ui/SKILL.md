@@ -194,12 +194,15 @@ wrong. Read `references/swipe-hook.md` for the full rationale; the essentials:
 - **Blank stale content during the transition.** This is subtle and important. After
   `router.push`, the *old* month's data is still in memory until the server re-renders
   with the new period, so without care the new month slides in showing last month's
-  entries for a beat. The hook exposes a `blank` flag: it's `true` from the moment a drag
-  starts, and flips back to `false` only when the `resetKey` you pass (the period key)
-  actually changes — i.e. the new data has arrived. While `blank`, render each cell's
-  day number and frame but **skip its content** (`const items = swipe.blank ? undefined
-  : itemsFor(date)`). The result: a clean empty calendar slides in, then fills with the
-  correct month's content the instant it loads.
+  entries for a beat. The hook exposes a `blank` flag: it flips to `true` **at commit**
+  (when a swipe is confirmed and navigation fires — not while dragging), and back to
+  `false` only when the `resetKey` you pass (the period key) actually changes — i.e. the
+  new data has arrived. While `blank`, render each cell's day number and frame but
+  **skip its content** (`const items = blank ? undefined : itemsFor(date)`). The outgoing
+  month keeps its content as it slides away; only the incoming month is blank until its
+  data lands, then fills in. (Blanking on drag-*start* instead would re-render every cell
+  mid-gesture and reintroduce the jank the imperative drive is there to avoid — see the
+  next point.)
 
 - **Drive the drag imperatively, not through React state.** This is the single most
   important performance lesson. A calendar has ~35 cells; if you set `translateX` via
