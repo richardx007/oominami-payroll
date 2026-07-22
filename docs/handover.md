@@ -783,6 +783,23 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - `assets/useSwipeNav.ts`: 現行フックを同梱（他プロジェクトへコピー流用できるように）。
 - `references/swipe-hook.md`: フックの設計意図（2段rAF、blank/resetKeyのタイミング、閾値調整）の詳説。
 
+### 本セッションで実施した変更（2026-07-22 その2・従業員ヘッダー/メニューの刷新）
+- **ヘッダー右肩の氏名表記**を`nickname`（未設定時は`name`）に変更。`lib/auth.ts`の`Employee`型と2箇所の
+  `select`に`nickname`を追加。
+- **給与明細画面**の右上に`{name} 様`を表記（`payslips/page.tsx`。氏名は実名を使用）。
+- **下部メニューの「管理」をハンバーガー化**（`nav.tsx`）。スマホでは4つ目がハンバーガー(☰)で、タップすると
+  ポップアップに「お知らせ」「管理者へ✉️」、区切り線の下に「ログアウト」を表示。**iPad/PC(lg)ではハンバーガーに
+  閉じず、お知らせ/管理者へ✉️/ログアウトを直接列挙**（`grid-cols-4 lg:grid-cols-6`）。「お知らせ」は従来の
+  「管理」画面(`/notices`)を開く。
+- **`/notices`画面**: 上部の**ログアウトボタンを削除**し、バージョン表記を**右寄せ**に（`flex justify-end`）。
+- **「管理者へ✉️」の`mailto:`**: 宛先＝設定の送信元メール(`gmail_user`)、件名＝「給与管理システムより」、
+  本文＝`{会社名} 管理者様`＋改行＋`{氏名}です。`＋改行 を自動生成。会社名・送信元メールは`app_settings`
+  （管理者のみSELECT可）のため、SECURITY DEFINER関数**`get_contact_settings()`**を新設（anon revoke・
+  authenticatedのみ。記録: `supabase/migrations/20260722_add_get_contact_settings.sql`。本番はMCPで適用済み）。
+  layoutで取得し`EmployeeNav`へ`adminEmail`/`companyName`/`employeeName`で渡す。
+- ログアウトはサーバーアクション`(employee)/actions.ts`の`signOut`に集約（クライアントnavからform actionで呼ぶ）。
+- `npm run build && npm test`(21件)・対象ファイルの`eslint`とも新規の指摘なしで通過。
+
 ### 本セッションで実施した変更（2026-07-22・従業員画面タイトルを「給与管理」に統一）
 従業員向け画面ヘッダーのタイトルが「勤務管理」で、アプリ名（`app/layout.tsx`の`title:"給与管理システム"`）や
 メールタイトルと不整合だったため、`(employee)/layout.tsx`のヘッダー表記を**「給与管理」**へ変更。

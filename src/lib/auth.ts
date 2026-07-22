@@ -5,6 +5,7 @@ export type Employee = {
   id: string;
   employee_no: string;
   name: string;
+  nickname: string | null;
   email: string;
   is_admin: boolean;
   status: string;
@@ -21,7 +22,7 @@ export async function requireEmployee(): Promise<Employee> {
 
   let { data: employee } = await supabase
     .from("employees")
-    .select("id, employee_no, name, email, is_admin, status")
+    .select("id, employee_no, name, nickname, email, is_admin, status")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
@@ -31,7 +32,7 @@ export async function requireEmployee(): Promise<Employee> {
     if (linked) {
       ({ data: employee } = await supabase
         .from("employees")
-        .select("id, employee_no, name, email, is_admin, status")
+        .select("id, employee_no, name, nickname, email, is_admin, status")
         .eq("auth_user_id", user.id)
         .maybeSingle());
     }

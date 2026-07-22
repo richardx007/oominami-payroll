@@ -28,7 +28,12 @@ export default async function PayslipsPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <h1 className="text-lg font-bold">給与明細</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold">給与明細</h1>
+        <span className="text-sm font-medium text-gray-700">
+          {employee.name} 様
+        </span>
+      </div>
       {rows.length === 0 && (
         <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
           給与明細はまだありません
