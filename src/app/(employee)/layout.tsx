@@ -28,7 +28,7 @@ export default async function EmployeeLayout({
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <LogoButton />
-            <span className="text-lg font-bold">勤務管理</span>
+            <span className="text-lg font-bold">給与管理</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-blue-100">{employee.name}</span>
