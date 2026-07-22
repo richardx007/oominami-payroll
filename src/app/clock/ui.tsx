@@ -36,13 +36,21 @@ export function ClockConfirm({
   locationEnabled,
   roundMin,
   transportDefault,
+  adminEmail,
+  companyName,
 }: {
   employeeName: string;
   type: "in" | "out";
   locationEnabled: boolean;
   roundMin: number;
   transportDefault: TransportDefault | null;
+  adminEmail: string;
+  companyName: string;
 }) {
+  // ハンバーガーメニューの「管理者へ✉️」と同じ mailto:(件名・本文を自動生成)
+  const mailtoHref = `mailto:${adminEmail}?subject=${encodeURIComponent(
+    "給与管理システムより"
+  )}&body=${encodeURIComponent(`${companyName} 管理者様\n${employeeName}です。\n`)}`;
   const isIn = type === "in";
   const [now, setNow] = useState<string>("");
   const [coords, setCoords] = useState<Coords | null>(null);
@@ -319,6 +327,16 @@ export function ClockConfirm({
                     ? "位置情報を取得中..."
                     : `OK（${isIn ? "出勤" : "退勤"}を記録）`}
             </button>
+            {/* 圏外などで打刻できない場合、管理者へメールで連絡できるようにする
+                (ハンバーガーメニューの「管理者へ✉️」と同じ mailto:) */}
+            {result?.blocked && (
+              <a
+                href={mailtoHref}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#152449] py-3 text-base font-bold text-[#152449] hover:bg-[#152449]/5"
+              >
+                ✉️ 管理者にメール
+              </a>
+            )}
             <p className="mt-3 text-center text-xs text-gray-400">
               打刻時刻はサーバーの時刻で記録されます。
             </p>

@@ -12,10 +12,19 @@ export default async function ClockPage({
   const clockType: "in" | "out" = type === "out" ? "out" : "in";
 
   const supabase = await createClient();
-  // app_settings は管理者のみ SELECT 可のため、clock_* だけ返す関数で取得する
-  const { data } = await supabase.rpc("get_clock_settings");
+  // app_settings は管理者のみ SELECT 可のため、関数経由で取得する
+  const [{ data }, { data: contactRows }] = await Promise.all([
+    supabase.rpc("get_clock_settings"), // clock_* 設定
+    supabase.rpc("get_contact_settings"), // 会社名・送信元メール(圏外時の管理者メール用)
+  ]);
   const s = new Map(
     ((data ?? []) as { key: string; value: string }[]).map((r) => [
+      r.key,
+      r.value,
+    ])
+  );
+  const contact = new Map(
+    ((contactRows ?? []) as { key: string; value: string }[]).map((r) => [
       r.key,
       r.value,
     ])
@@ -54,6 +63,8 @@ export default async function ClockPage({
       locationEnabled={hasBase}
       roundMin={roundMin}
       transportDefault={transportDefault}
+      adminEmail={contact.get("gmail_user") ?? ""}
+      companyName={contact.get("company_name") ?? ""}
     />
   );
 }

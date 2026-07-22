@@ -783,6 +783,13 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - `assets/useSwipeNav.ts`: 現行フックを同梱（他プロジェクトへコピー流用できるように）。
 - `references/swipe-hook.md`: フックの設計意図（2段rAF、blank/resetKeyのタイミング、閾値調整）の詳説。
 
+### 本セッションで実施した変更（2026-07-22 その8・圏外打刻エラー時に「管理者にメール」ボタン）
+QR打刻で圏外等により打刻できない(`result.blocked`)場合、確認画面に**「✉️ 管理者にメール」ボタン**を表示し、
+ハンバーガーメニューの「管理者へ✉️」と同じ`mailto:`（宛先=送信元メール`gmail_user`、件名「給与管理システムより」、
+本文=会社名 管理者様/氏名です。）を発行できるようにした。`clock/page.tsx`で`get_contact_settings`を追加取得し
+`ClockConfirm`へ`adminEmail`/`companyName`を渡す（`employeeName`は既存）。build/test(21件)通過。
+eslintは既存の`set-state-in-effect`（geolocation効果）のみで新規指摘なし。
+
 ### 本セッションで実施した変更（2026-07-22 その7・予実一覧の凡例を注釈に置換）
 予実一覧のタイトル右の「予定/実績」色凡例を削除し、代わりに「予定と実績の不一致は**赤字**」の注釈を表示
 （"赤字"の文字だけ`font-bold text-red-600`）。`timesheet/ui.tsx`。build/test(21件)/eslint通過。
