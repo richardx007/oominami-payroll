@@ -1,14 +1,6 @@
-import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
 import { AdminBottomNav, AdminSidebarNav, LogoButton } from "./nav";
-
-async function signOut() {
-  "use server";
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect("/login");
-}
+import { signOut } from "./actions";
 
 export default async function AdminLayout({
   children,
@@ -49,12 +41,7 @@ export default async function AdminLayout({
             <span className="text-base font-bold">給与管理</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <span className="hidden text-blue-100 sm:inline">{admin.name}</span>
-            <form action={signOut}>
-              <button className="rounded-lg bg-white/15 px-3 py-1 text-blue-50 hover:bg-white/25">
-                ログアウト
-              </button>
-            </form>
+            <span className="text-blue-100">{admin.nickname || admin.name}</span>
           </div>
         </div>
       </header>

@@ -201,8 +201,8 @@ export function TimesheetCalendar({
                 ))}
               </select>
             ) : employeeName ? (
-              <span className="block truncate text-right text-sm font-semibold text-gray-700">
-                {employeeName}
+              <span className="block truncate text-right text-lg font-bold text-gray-700">
+                勤務実績
               </span>
             ) : null}
           </div>

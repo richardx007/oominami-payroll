@@ -121,11 +121,11 @@ export function EmployeeNav({
           </button>
         </form>
 
-        {/* スマホ: 4つ目はハンバーガー。タップでメニューを開く */}
+        {/* スマホ: 4つ目はハンバーガー(その他)。タップでメニューを開く */}
         <button
           type="button"
           onClick={() => setMenuOpen((v) => !v)}
-          aria-label="メニュー"
+          aria-label="その他のメニュー"
           aria-expanded={menuOpen}
           className={`flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition lg:hidden ${
             menuOpen ? "text-white" : "text-blue-100 hover:text-white"
@@ -135,57 +135,51 @@ export function EmployeeNav({
             <MenuIcon className="h-6 w-6" />
             {hasUnread && <UnreadDot />}
           </span>
-          メニュー
+          その他
         </button>
       </div>
 
-      {/* スマホ用のポップアップメニュー(ハンバーガーの上に開く) */}
+      {/* スマホ用のポップアップ(管理者ナビと同じ書式=右寄せ・フッタと同じ背景色) */}
       {menuOpen && (
-        <div className="lg:hidden">
-          {/* 背景タップで閉じる */}
-          <button
-            type="button"
-            aria-label="メニューを閉じる"
-            onClick={() => setMenuOpen(false)}
-            className="fixed inset-0 z-0 cursor-default bg-black/20"
-          />
-          <div className="absolute inset-x-0 bottom-full z-10 mx-auto max-w-lg px-3 pb-2">
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white text-gray-800 shadow-lg">
-              <Link
-                href="/notices"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-gray-50"
+        <div
+          className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+          onClick={() => setMenuOpen(false)}
+        >
+          <div
+            className="absolute bottom-[calc(3.75rem+env(safe-area-inset-bottom))] right-2 min-w-[10rem] overflow-hidden rounded-xl border border-white/15 bg-[#152449] text-white shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Link
+              href="/notices"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center justify-between gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <span className="flex items-center gap-2">
+                <BellIcon className="h-5 w-5 shrink-0" />
+                お知らせ
+              </span>
+              {hasUnread && (
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+              )}
+            </Link>
+            <a
+              href={mailtoHref}
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <MailIcon className="h-5 w-5 shrink-0" />
+              管理者へ✉️
+            </a>
+            {/* 区切り線の下にログアウト */}
+            <form action={signOut} className="border-t-4 border-white/15">
+              <button
+                type="submit"
+                className="flex w-full items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
               >
-                <span className="flex items-center gap-2">
-                  <BellIcon className="h-5 w-5 text-gray-500" />
-                  お知らせ
-                </span>
-                {hasUnread && (
-                  <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                )}
-              </Link>
-              <a
-                href={mailtoHref}
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2 border-t border-gray-100 px-4 py-3 text-sm font-medium hover:bg-gray-50"
-              >
-                <MailIcon className="h-5 w-5 text-gray-500" />
-                管理者へ✉️
-              </a>
-              {/* 区切り線の下にログアウト */}
-              <form
-                action={signOut}
-                className="border-t-4 border-gray-100"
-              >
-                <button
-                  type="submit"
-                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-gray-50"
-                >
-                  <LogoutIcon className="h-5 w-5" />
-                  ログアウト
-                </button>
-              </form>
-            </div>
+                <LogoutIcon className="h-5 w-5 shrink-0" />
+                ログアウト
+              </button>
+            </form>
           </div>
         </div>
       )}
