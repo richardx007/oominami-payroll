@@ -22,9 +22,90 @@ body {
     Meiryo, system-ui, sans-serif;
 }
 
-/* QR印刷シートは画面では非表示(印刷時のみ qr-print-mode で表示) */
+/* QR印刷シートは、PDFダウンロード(html2canvasでのキャプチャ)専用の非表示要素。
+   画面では常に非表示で、PDF生成時(body.qr-capture-mode)だけ画面外に描画してキャプチャする。
+   印刷(window.print())は別ウィンドウに独立したHTMLを書き出す方式に変更したため、
+   このシートは印刷には使われない(QrCodes コンポーネントの handlePrint 参照)。 */
 .qr-print-sheet {
   display: none;
+}
+body.qr-capture-mode .qr-print-sheet {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 210mm;
+  height: 297mm;
+  overflow: hidden;
+  padding: 14mm 12mm;
+  text-align: center;
+  background: #fff;
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+}
+.qr-print-title {
+  margin: 4mm 0 8mm;
+  font-size: 20px;
+  font-weight: 700;
+}
+.qr-print-codes {
+  display: flex;
+  justify-content: center;
+  gap: 28mm;
+}
+.qr-print-code {
+  border: 2px solid #333;
+  border-radius: 8px;
+  padding: 5mm;
+}
+/* 縦横比を固定し、伸びて表示されるのを防ぐ(aspect-ratio + object-fit) */
+.qr-print-code img {
+  width: 55mm;
+  height: 55mm;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  display: block;
+}
+.qr-print-code-label {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4mm;
+}
+.qr-print-in {
+  color: #15803d;
+}
+.qr-print-out {
+  color: #ea580c;
+}
+.qr-print-notes {
+  margin: 10mm auto 0;
+  max-width: 160mm;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.8;
+  list-style: disc;
+  padding-left: 6mm;
+}
+/* ホーム画面登録の案内QR(印刷/PDF共通) */
+.qr-print-install {
+  /* margin-top:auto でシート(高さ297mm固定)の下部へ押し下げる。出退勤QRを日常
+     読み取る際に邪魔にならないようにするため。 */
+  margin: auto auto 0 auto;
+  padding-top: 6mm;
+  border-top: 1px solid #ddd;
+  max-width: 160mm;
+  width: 100%;
+}
+.qr-print-install p {
+  margin: 0 0 3mm;
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+}
+.qr-print-install img {
+  width: 28mm;
+  height: 28mm;
 }
 
 /* 印刷 / PDF 出力の調整(給与明細の表が横にはみ出て切れるのを防ぐ) */
@@ -51,63 +132,5 @@ body {
     /* 桁の多い金額でも折り返して収める(画面用の nowrap を解除) */
     white-space: normal !important;
     overflow-wrap: anywhere;
-  }
-
-  /* QR印刷モード: body 直下のシート以外を display:none にして高さごと除外。
-     これで空白ページが出ない。シートは body 直下(portal)にある。 */
-  body.qr-print-mode > *:not(.qr-print-sheet) {
-    display: none !important;
-  }
-  body.qr-print-mode .qr-print-sheet {
-    display: block !important;
-    width: 100%;
-    text-align: center;
-    /* 名前付きページに割り当て、ブラウザ既定のヘッダ/フッタを抑制する */
-    page: qrsheet;
-    padding: 14mm 12mm;
-  }
-  /* margin:0 でブラウザの日付/URL/ページ番号などのヘッダ・フッタを消す */
-  @page qrsheet {
-    size: A4 portrait;
-    margin: 0;
-  }
-  .qr-print-title {
-    margin: 4mm 0 8mm;
-    font-size: 20px;
-    font-weight: 700;
-  }
-  .qr-print-codes {
-    display: flex;
-    justify-content: center;
-    gap: 12mm;
-  }
-  .qr-print-code {
-    border: 2px solid #333;
-    border-radius: 8px;
-    padding: 6mm;
-  }
-  .qr-print-code img {
-    width: 70mm;
-    height: 70mm;
-  }
-  .qr-print-code-label {
-    font-size: 18px;
-    font-weight: 700;
-    margin-bottom: 4mm;
-  }
-  .qr-print-in {
-    color: #15803d;
-  }
-  .qr-print-out {
-    color: #ea580c;
-  }
-  .qr-print-notes {
-    margin: 10mm auto 0;
-    max-width: 160mm;
-    text-align: left;
-    font-size: 12px;
-    line-height: 1.8;
-    list-style: disc;
-    padding-left: 6mm;
   }
 }

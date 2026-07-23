@@ -3,10 +3,13 @@ import { requireAdmin } from "@/lib/auth";
 import {
   EmailSettingsForm,
   LunchAllowanceForm,
+  ShiftSlotsForm,
   TaxTableForm,
+  TimesheetLockForm,
   type TaxTableRow,
 } from "./ui";
 import { ClockSettingsForm } from "./clock";
+import { parseSlots } from "@/lib/shifts";
 
 export default async function SettingsPage() {
   await requireAdmin();
@@ -30,6 +33,7 @@ export default async function SettingsPage() {
     ]);
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
+  const slots = parseSlots(settings ?? []);
 
   return (
     <div className="space-y-8">
@@ -49,6 +53,10 @@ export default async function SettingsPage() {
         gmailUser={settingsMap.get("gmail_user") ?? ""}
         taxName={settingsMap.get("tax_accountant_name") ?? ""}
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
+      />
+      <ShiftSlotsForm slots={slots} />
+      <TimesheetLockForm
+        locked={settingsMap.get("lock_employee_time_edit") === "true"}
       />
       <LunchAllowanceForm history={allowances ?? []} />
       <ClockSettingsForm

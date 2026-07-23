@@ -122,6 +122,7 @@ export default async function ClosePage({
                 <th className="px-4 py-2 text-right">日数</th>
                 <th className="px-4 py-2 text-right">時間</th>
                 <th className="px-4 py-2 text-right">基本給</th>
+                <th className="px-4 py-2 text-right">深夜手当</th>
                 <th className="px-4 py-2 text-right">交通費</th>
                 <th className="px-4 py-2 text-right">昼食補助</th>
                 <th className="px-4 py-2 text-right">総支給</th>
@@ -145,6 +146,9 @@ export default async function ClosePage({
                         ¥{p.result.base_pay.toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-right">
+                        ¥{p.result.night_pay.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
                         ¥{p.result.transport_total.toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -161,7 +165,7 @@ export default async function ClosePage({
                       </td>
                     </>
                   ) : (
-                    <td colSpan={8} className="px-4 py-3 text-red-600">
+                    <td colSpan={9} className="px-4 py-3 text-red-600">
                       {p.error}
                     </td>
                   )}
@@ -170,7 +174,7 @@ export default async function ClosePage({
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-4 py-8 text-center text-gray-400"
                   >
                     対象の従業員がいません

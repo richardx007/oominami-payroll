@@ -9,9 +9,9 @@ export default async function PayslipsPage() {
   const { data: payslips } = await supabase
     .from("payslips")
     .select(
-      `work_days, total_minutes, hourly_wage, base_pay, transport_total,
-       lunch_total, gross_pay, income_tax, net_pay, tax_category, finalized_at,
-       pay_periods ( period_label, payment_date, status )`
+      `work_days, total_minutes, night_minutes, hourly_wage, base_pay, night_pay,
+       transport_total, lunch_total, gross_pay, income_tax, net_pay, tax_category,
+       finalized_at, pay_periods ( period_label, payment_date, status )`
     )
     .eq("employee_id", employee.id)
     .order("finalized_at", { ascending: false });
@@ -28,7 +28,12 @@ export default async function PayslipsPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <h1 className="text-lg font-bold">給与明細</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold">給与明細</h1>
+        <span className="text-sm font-medium text-gray-700">
+          {employee.name} 様
+        </span>
+      </div>
       {rows.length === 0 && (
         <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
           給与明細はまだありません
@@ -72,6 +77,20 @@ export default async function PayslipsPage() {
                 label={`基本給(時給 ¥${slip.hourly_wage.toLocaleString()})`}
                 value={`¥${slip.base_pay.toLocaleString()}`}
               />
+              {slip.night_minutes > 0 && (
+                <>
+                  <Row
+                    label="深夜勤務時間(時給25%増)"
+                    value={formatMinutes(slip.night_minutes) || "0時間"}
+                  />
+                  <Row
+                    label={`深夜勤務手当(時給加算 ¥${Math.round(
+                      slip.hourly_wage * 0.25
+                    ).toLocaleString()})`}
+                    value={`¥${slip.night_pay.toLocaleString()}`}
+                  />
+                </>
+              )}
               <Row
                 label="交通費"
                 value={`¥${slip.transport_total.toLocaleString()}`}

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
+import { buildShiftMap, parseSlots, type SlotKey } from "@/lib/shifts";
 import { TimesheetCalendar } from "@/app/(employee)/timesheet/ui";
 import type { WorkEntry } from "@/app/(employee)/timesheet/page";
 import { adminUpsertWorkEntry, adminDeleteWorkEntry } from "./actions";
@@ -20,12 +21,16 @@ export default async function AdminTimesheetPage({
   // 対象従業員の一覧(在籍・非管理者)
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, name")
+    .select("id, name, nickname")
     .eq("status", "active")
     .eq("is_admin", false)
     .order("employee_no");
 
-  const list = employees ?? [];
+  // セレクトの表示名はニックネーム優先(未設定なら氏名)
+  const list = (employees ?? []).map((emp) => ({
+    id: emp.id,
+    name: emp.nickname?.trim() || emp.name,
+  }));
   const selectedId = (e && list.some((x) => x.id === e) ? e : list[0]?.id) ?? "";
 
   if (!selectedId) {
@@ -39,7 +44,12 @@ export default async function AdminTimesheetPage({
     );
   }
 
-  const [{ data: entries }, { data: pastEntries }] = await Promise.all([
+  const [
+    { data: entries },
+    { data: pastEntries },
+    { data: shiftRows },
+    { data: slotRows },
+  ] = await Promise.all([
     supabase
       .from("work_entries")
       .select(
@@ -55,7 +65,25 @@ export default async function AdminTimesheetPage({
       .eq("employee_id", selectedId)
       .order("work_date", { ascending: false })
       .limit(200),
+    supabase
+      .from("shift_assignments")
+      .select("work_date, slot, custom_start, custom_end")
+      .eq("employee_id", selectedId)
+      .gte("work_date", period.start)
+      .lte("work_date", period.end),
+    supabase.rpc("get_shift_settings"),
   ]);
+
+  const slots = parseSlots(slotRows as { key: string; value: string }[]);
+  const shifts = buildShiftMap(
+    (shiftRows ?? []) as {
+      work_date: string;
+      slot: SlotKey;
+      custom_start: string | null;
+      custom_end: string | null;
+    }[],
+    slots
+  );
 
   const normalized = (entries ?? []).map((row) => ({
     ...row,
@@ -89,6 +117,7 @@ export default async function AdminTimesheetPage({
         basePath="/admin/timesheet"
         employees={list}
         selectedEmployeeId={selectedId}
+        shifts={shifts}
       />
     </div>
   );

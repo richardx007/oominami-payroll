@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
-import { todayJST, nowTimeJST, workMinutes } from "@/lib/period";
+import { todayJST, nowTimeJST, standardBreakMinutes } from "@/lib/period";
 import { logActivity } from "@/lib/log";
 
 export type ClockResult = {
@@ -12,6 +12,8 @@ export type ClockResult = {
   message: string;
   time?: string;
   warn?: string;
+  /** true の場合、再試行しても結果は変わらない(例: 圏外での打刻拒否)。OKボタンを無効化する目安 */
+  blocked?: boolean;
 };
 
 export type ClockInput = {
@@ -19,7 +21,31 @@ export type ClockInput = {
   lat?: number | null;
   lng?: number | null;
   accuracy?: number | null;
+  // 交通費(任意。出勤・退勤どちらでも入力可能)。手段・区間・金額が揃った時のみ保存する。
+  transport_mode?: string | null;
+  station_from?: string | null;
+  station_to?: string | null;
+  round_trip?: boolean;
+  transport_cost?: number | null;
 };
+
+/** 交通費が「手段・区間1・区間2・金額(>0)」まで揃っているか(揃った時のみ保存する) */
+function transportFields(input: ClockInput) {
+  const mode = input.transport_mode?.trim() ?? "";
+  const from = input.station_from?.trim() ?? "";
+  const to = input.station_to?.trim() ?? "";
+  const cost = typeof input.transport_cost === "number" ? input.transport_cost : 0;
+  if (from && to && mode && cost > 0) {
+    return {
+      transport_mode: mode,
+      station_from: from,
+      station_to: to,
+      round_trip: input.round_trip ?? true,
+      transport_cost: Math.min(cost, 100000),
+    };
+  }
+  return null;
+}
 
 /** 2点間の距離(メートル)。Haversine */
 function haversineMeters(
@@ -120,19 +146,24 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
       location_denied,
       user_agent: ua,
     });
+    // 圏外による打刻拒否は運用上の想定内の状況(システム障害ではない)のため「エラー」ではなく
+    // 専用カテゴリ「打刻拒否」で記録する
     await logActivity(
-      "エラー",
+      "打刻拒否",
       `打刻拒否(圏外): ${employee.name} ${type === "in" ? "出勤" : "退勤"} 距離${formatDistance(distance_m!)}`
     );
     return {
       ok: false,
       message: `職場から${formatDistance(distance_m!)}離れているため打刻できません。管理者にご連絡ください。`,
+      // 同じ場所からの再試行では結果が変わらないため、OKボタンを無効化する目安として返す
+      blocked: true,
     };
   }
 
   const date = todayJST();
   // 丸め: 出勤は単位で切り上げ、退勤は切り捨て(単位0/未設定なら丸めなし)
   const time = roundTime(nowTimeJST(), roundMin, type === "in" ? "up" : "down");
+  const transport = transportFields(input);
   let workEntryId: string | null = null;
 
   if (type === "in") {
@@ -157,7 +188,8 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
           start_time: time,
           end_time: null,
           break_minutes: 0,
-          transport_cost: 0,
+          transport_cost: transport?.transport_cost ?? 0,
+          ...(transport ?? {}),
         },
         { onConflict: "employee_id,work_date" }
       )
@@ -202,12 +234,11 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
         message: "本日の出勤記録が見つかりません。先に出勤QRを読み取ってください。",
       };
     }
-    // 休憩の自動判定: 総時間(end-start, 日跨ぎ補正込み)が6時間以上なら60分
-    const span = workMinutes(target.start_time.slice(0, 5), time, 0);
-    const brk = span >= 360 ? 60 : 0;
+    // 休憩は標準休憩ルール(12-13/19-20/4-5時)から自動計算する
+    const brk = standardBreakMinutes(target.start_time.slice(0, 5), time);
     const { error } = await supabase
       .from("work_entries")
-      .update({ end_time: time, break_minutes: brk })
+      .update({ end_time: time, break_minutes: brk, ...(transport ?? {}) })
       .eq("id", target.id);
     if (error) {
       await logActivity("エラー", `退勤打刻に失敗: ${employee.name} ${error.message}`);
@@ -233,8 +264,10 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     user_agent: ua,
   });
 
+  // 圏外での打刻(警告のみポリシーで通した分)は「圏外打刻」カテゴリで記録し、
+  // ログ画面でオレンジ色のバッジで目立たせる(通常の「打刻」と区別)
   await logActivity(
-    "打刻",
+    out_of_range === true ? "圏外打刻" : "打刻",
     `${type === "in" ? "出勤" : "退勤"} ${time}${
       Number.isFinite(roundMin) && roundMin > 1 ? `(丸め${roundMin}分)` : ""
     }${out_of_range === true ? ` (圏外 ${formatDistance(distance_m!)})` : ""}${

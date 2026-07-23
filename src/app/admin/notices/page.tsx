@@ -9,14 +9,14 @@ export default async function AdminNoticesPage() {
   const [{ data: employees }, { data: notices }] = await Promise.all([
     supabase
       .from("employees")
-      .select("id, name, employee_no")
+      .select("id, name, nickname, employee_no")
       .eq("status", "active")
       .eq("is_admin", false)
       .order("employee_no"),
     supabase
       .from("notifications")
       .select(
-        "id, type, subject, body, sent_at, recipient_id, recipient:employees!notifications_recipient_id_fkey ( name )"
+        "id, type, subject, body, sent_at, recipient_id, recipient:employees!notifications_recipient_id_fkey ( name, nickname )"
       )
       .order("sent_at", { ascending: false })
       .limit(30),
@@ -41,6 +41,7 @@ export default async function AdminNoticesPage() {
           {(notices ?? []).map((n) => {
             const recipient = n.recipient as unknown as {
               name: string;
+              nickname: string | null;
             } | null;
             return (
               <li key={n.id} className="p-4 text-sm">
@@ -61,7 +62,7 @@ export default async function AdminNoticesPage() {
                         : "全員"}
                   </span>
                   <span className="min-w-0 break-words text-gray-500">
-                    宛先: {recipient?.name ?? "全員"}
+                    宛先: {recipient?.nickname?.trim() || recipient?.name || "全員"}
                   </span>
                   <time className="shrink-0 text-gray-400">
                     {new Date(n.sent_at).toLocaleString("ja-JP", {

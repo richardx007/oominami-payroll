@@ -90,6 +90,80 @@ export async function updateClockSettings(
   return { ok: true, message: "QR打刻の位置設定を保存しました" };
 }
 
+const slotFieldSchema = z.object({
+  a_label: z.string().max(10),
+  a_start: z.string().max(5),
+  a_end: z.string().max(5),
+  b_label: z.string().max(10),
+  b_start: z.string().max(5),
+  b_end: z.string().max(5),
+  c_label: z.string().max(10),
+  c_start: z.string().max(5),
+  c_end: z.string().max(5),
+});
+
+/** シフト枠(A/B/C)のラベル・時刻を保存する。時刻は "8:00"/"24:00" 等の表記のまま保持する。 */
+export async function updateShiftSlots(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = slotFieldSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: "入力内容を確認してください" };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const rows = [
+    { key: "shift_slot_a_label", value: d.a_label.trim() || "A" },
+    { key: "shift_slot_a_start", value: d.a_start.trim() },
+    { key: "shift_slot_a_end", value: d.a_end.trim() },
+    { key: "shift_slot_b_label", value: d.b_label.trim() || "B" },
+    { key: "shift_slot_b_start", value: d.b_start.trim() },
+    { key: "shift_slot_b_end", value: d.b_end.trim() },
+    { key: "shift_slot_c_label", value: d.c_label.trim() || "C" },
+    { key: "shift_slot_c_start", value: d.c_start.trim() },
+    { key: "shift_slot_c_end", value: d.c_end.trim() },
+  ];
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(rows, { onConflict: "key" });
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin");
+  return { ok: true, message: "シフト枠を保存しました" };
+}
+
+/** 従業員による出退勤時刻・休憩時間の編集ロックをON/OFF切替する。QR打刻自体は影響を受けない。 */
+export async function updateTimesheetLock(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const locked = formData.get("lock_employee_time_edit") === "on";
+
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(
+      { key: "lock_employee_time_edit", value: locked ? "true" : "false" },
+      { onConflict: "key" }
+    );
+
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/timesheet");
+  return {
+    ok: true,
+    message: locked
+      ? "従業員による時刻・休憩の編集をロックしました"
+      : "従業員による時刻・休憩の編集ロックを解除しました",
+  };
+}
+
 const allowanceSchema = z.object({
   lunch_allowance_per_day: z.coerce.number().int().min(0, "0以上で入力してください"),
   effective_from: z.string().min(1, "適用開始日を入力してください"),

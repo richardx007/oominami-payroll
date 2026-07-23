@@ -16,7 +16,12 @@ const REMINDER_TEMPLATE = {
 export function NoticeForm({
   employees,
 }: {
-  employees: { id: string; name: string; employee_no: string }[];
+  employees: {
+    id: string;
+    name: string;
+    nickname: string | null;
+    employee_no: string;
+  }[];
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -57,7 +62,7 @@ export function NoticeForm({
               <option value="">全員(一斉報知)</option>
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.employee_no}: {e.name}
+                  {e.employee_no}: {e.nickname?.trim() || e.name}
                 </option>
               ))}
             </select>

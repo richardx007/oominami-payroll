@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { periodFromKey, workMinutes } from "@/lib/period";
+import { periodFromKey, workMinutes, standardBreakMinutes } from "@/lib/period";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { effectiveAt } from "@/lib/payroll";
 import { logActivity } from "@/lib/log";
@@ -28,7 +28,7 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     return {
       ok: false,
       message: `計算できない従業員がいるため締められません: ${errors
-        .map((e) => `${e.name}(${e.error})`)
+        .map((e) => `${e.nickname?.trim() || e.name}(${e.error})`)
         .join(" / ")}`,
     };
   }
@@ -62,8 +62,10 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     pay_period_id: payPeriod.id,
     work_days: p.result!.work_days,
     total_minutes: p.result!.total_minutes,
+    night_minutes: p.result!.night_minutes,
     hourly_wage: p.result!.hourly_wage,
     base_pay: p.result!.base_pay,
+    night_pay: p.result!.night_pay,
     transport_total: p.result!.transport_total,
     lunch_total: p.result!.lunch_total,
     gross_pay: p.result!.gross_pay,
@@ -157,9 +159,9 @@ export async function emailPayslips(
   const { data: payslips } = await supabase
     .from("payslips")
     .select(
-      `id, employee_id, work_days, total_minutes, hourly_wage, base_pay, transport_total,
-       lunch_total, gross_pay, income_tax, net_pay, tax_category, emailed_at,
-       employees ( name, email )`
+      `id, employee_id, work_days, total_minutes, night_minutes, hourly_wage, base_pay,
+       night_pay, transport_total, lunch_total, gross_pay, income_tax, net_pay,
+       tax_category, emailed_at, employees ( name, email )`
     )
     .eq("pay_period_id", payPeriod.id);
 
@@ -186,12 +188,14 @@ export async function emailPayslips(
     const rows = entriesByEmployee.get(e.employee_id) ?? [];
     const start = e.start_time.slice(0, 5);
     const end = e.end_time.slice(0, 5);
+    // 休憩・勤務時間は標準休憩ルールから算出(保存済み break_minutes は使わない)
+    const brk = standardBreakMinutes(start, end);
     rows.push({
       workDate: e.work_date,
       startTime: start,
       endTime: end,
-      breakMinutes: e.break_minutes,
-      workMinutes: workMinutes(start, end, e.break_minutes),
+      breakMinutes: brk,
+      workMinutes: workMinutes(start, end, brk),
       transport: e.transport_cost,
       lunch: lunchPerDay,
     });
@@ -227,8 +231,10 @@ export async function emailPayslips(
         paymentDate: payPeriod.payment_date,
         workDays: p.work_days,
         totalMinutes: p.total_minutes,
+        nightMinutes: p.night_minutes,
         hourlyWage: p.hourly_wage,
         basePay: p.base_pay,
+        nightPay: p.night_pay,
         transportTotal: p.transport_total,
         lunchTotal: p.lunch_total,
         grossPay: p.gross_pay,

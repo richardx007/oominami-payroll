@@ -11,6 +11,9 @@ export type EmployeePayroll = {
   employee_id: string;
   employee_no: string;
   name: string;
+  /** 表示用のニックネーム(未設定なら null)。帳票・明細・メールは name を使い、
+   *  担当者向けの画面メッセージ等ではニックネームを優先して使う。 */
+  nickname: string | null;
   result: PayslipResult | null;
   error: string | null;
 };
@@ -32,7 +35,7 @@ export async function calculatePeriodPayroll(
   ] = await Promise.all([
     supabase
       .from("employees")
-      .select("id, employee_no, name")
+      .select("id, employee_no, name, nickname")
       .eq("status", "active")
       .eq("is_admin", false)
       .order("employee_no"),
@@ -87,6 +90,7 @@ export async function calculatePeriodPayroll(
         employee_id: emp.id,
         employee_no: emp.employee_no,
         name: emp.name,
+        nickname: emp.nickname,
         result,
         error: null,
       };
@@ -95,6 +99,7 @@ export async function calculatePeriodPayroll(
         employee_id: emp.id,
         employee_no: emp.employee_no,
         name: emp.name,
+        nickname: emp.nickname,
         result: null,
         error: e instanceof PayrollError ? e.message : "計算エラー",
       };

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
+import { standardBreakMinutes } from "@/lib/period";
 import { entrySchema } from "@/app/(employee)/timesheet/schema";
 import type { ActionResult } from "@/app/(employee)/timesheet/actions";
 
@@ -30,7 +31,10 @@ export async function adminUpsertWorkEntry(
       work_date: d.work_date,
       start_time: d.start_time,
       end_time: d.end_time || null,
-      break_minutes: d.break_minutes,
+      // 休憩は標準休憩ルールから自動計算(退勤未入力なら0)
+      break_minutes: d.end_time
+        ? standardBreakMinutes(d.start_time, d.end_time)
+        : 0,
       transport_cost: d.transport_cost,
       transport_mode: d.transport_mode?.trim() || null,
       station_from: d.station_from?.trim() || null,

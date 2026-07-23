@@ -3,7 +3,15 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
-import { adjacentPeriodKey, datesInPeriod, workMinutes } from "@/lib/period";
+import {
+  adjacentPeriodKey,
+  datesInPeriod,
+  workMinutes,
+  standardBreakMinutes,
+} from "@/lib/period";
+import { useSwipeNav } from "@/lib/useSwipeNav";
+import type { ShiftInfo } from "@/lib/shifts";
+import { SHIFT_TEXT_COLOR } from "@/lib/shifts";
 import type { WorkEntry } from "./page";
 import { type ActionResult } from "./actions";
 
@@ -21,15 +29,6 @@ const timeInputClass =
 
 const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
 
-/** 休憩(分)のダイアル用選択肢。0〜120分・15分刻み。既存データが刻みから外れる値でも消えないよう追加する */
-function breakMinuteOptions(current?: number | null): number[] {
-  const base = [0, 15, 30, 45, 60, 75, 90, 105, 120];
-  if (typeof current === "number" && !base.includes(current)) {
-    return [...base, current].sort((a, b) => a - b);
-  }
-  return base;
-}
-
 export function TimesheetCalendar({
   period,
   entries,
@@ -43,6 +42,8 @@ export function TimesheetCalendar({
   employees,
   selectedEmployeeId,
   employeeName,
+  shifts = {},
+  timeLocked = false,
 }: {
   period: Period;
   entries: WorkEntry[];
@@ -50,6 +51,10 @@ export function TimesheetCalendar({
   stations: string[];
   holidays: Record<string, string>;
   today: string;
+  /** 表示中の従業員のシフト予定(work_date -> ShiftInfo)。予実一覧・入力デフォルトに使う */
+  shifts?: Record<string, ShiftInfo>;
+  /** 管理者が設定でロックした場合、従業員は出勤/退勤時刻・休憩時間を編集できない(管理者画面では常にfalse) */
+  timeLocked?: boolean;
   /** 勤務記録の保存アクション(従業員=自分, 管理者=対象従業員にバインド済み) */
   save: (formData: FormData) => Promise<ActionResult>;
   /** 勤務記録の削除アクション */
@@ -72,6 +77,12 @@ export function TimesheetCalendar({
   function periodHref(delta: 1 | -1) {
     return `${basePath}?p=${adjacentPeriodKey(period.key, delta)}${empQuery}`;
   }
+  // カレンダーの左右スワイプで前後の月へ移動
+  const { blank: swipeBlank, attach: swipeAttach } = useSwipeNav(
+    () => router.push(periodHref(1)),
+    () => router.push(periodHref(-1)),
+    period.key
+  );
 
   const entryMap = useMemo(
     () => new Map(entries.map((e) => [e.work_date, e])),
@@ -105,7 +116,12 @@ export function TimesheetCalendar({
     let transport = 0;
     for (const e of entries) {
       // 退勤未入力の日は勤務時間に含めない(交通費・日数はカウント)
-      if (e.end_time) minutes += workMinutes(e.start_time, e.end_time, e.break_minutes);
+      if (e.end_time)
+        minutes += workMinutes(
+          e.start_time,
+          e.end_time,
+          standardBreakMinutes(e.start_time, e.end_time)
+        );
       transport += e.transport_cost;
     }
     return { days: entries.length, minutes, transport };
@@ -186,8 +202,8 @@ export function TimesheetCalendar({
                 ))}
               </select>
             ) : employeeName ? (
-              <span className="block truncate text-right text-sm font-semibold text-gray-700">
-                {employeeName}
+              <span className="block truncate text-right text-lg font-bold text-gray-700">
+                勤務実績
               </span>
             ) : null}
           </div>
@@ -230,8 +246,12 @@ export function TimesheetCalendar({
           <p className="text-sm text-red-600">{result.message}</p>
         )}
 
-        {/* カレンダー */}
-        <div className="rounded-xl border-2 border-gray-400 bg-white p-2">
+        {/* カレンダー(左右スワイプで前後の月に移動)。外枠でスライドアウトをクリップする */}
+        <div className="overflow-hidden">
+        <div
+          ref={swipeAttach}
+          className="rounded-xl border-2 border-gray-400 bg-white p-2"
+        >
           <div className="mb-1 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-xs font-semibold text-gray-600">
             {WEEKDAYS.map((w, i) => (
               <div
@@ -246,7 +266,32 @@ export function TimesheetCalendar({
             <div key={wi} className="grid grid-cols-7">
               {week.map((date, di) => {
                 if (!date) return <div key={di} />;
-                const entry = entryMap.get(date);
+                // スワイプ中は前月の予定が残って見えないよう中身を白紙にする
+                const entry = swipeBlank ? undefined : entryMap.get(date);
+                const shift = shifts[date];
+                // 予実一覧と同じ判定: 予定と実績の相違(予定外勤務含む)は赤太字にする
+                const unplanned = !!entry && !shift;
+                const startDiff =
+                  !!entry &&
+                  (unplanned ||
+                    (!!shift &&
+                      !!shift.startInput &&
+                      entry.start_time !== shift.startInput));
+                const endDiff =
+                  !!entry &&
+                  (unplanned ||
+                    (!!shift && (entry.end_time ?? "") !== (shift.endInput ?? "")));
+                const startMatch =
+                  !!entry &&
+                  !!shift &&
+                  !!shift.startInput &&
+                  entry.start_time === shift.startInput;
+                const endMatch =
+                  !!entry &&
+                  !!shift &&
+                  !!shift.endInput &&
+                  !!entry.end_time &&
+                  entry.end_time === shift.endInput;
                 const day = Number(date.slice(8, 10));
                 const isSelected = selected === date;
                 const isToday = date === today;
@@ -286,10 +331,30 @@ export function TimesheetCalendar({
                       <span
                         className={`mt-0.5 text-[10px] leading-tight ${isSelected ? "text-blue-100" : "text-blue-700"}`}
                       >
-                        {entry.start_time}
+                        <span
+                          className={
+                            startDiff
+                              ? "font-bold text-red-600"
+                              : startMatch && !isSelected
+                                ? "font-bold text-gray-900"
+                                : ""
+                          }
+                        >
+                          {entry.start_time}
+                        </span>
                         <br />
                         {entry.end_time ? (
-                          entry.end_time
+                          <span
+                            className={
+                              endDiff
+                                ? "font-bold text-red-600"
+                                : endMatch && !isSelected
+                                  ? "font-bold text-gray-900"
+                                  : ""
+                            }
+                          >
+                            {entry.end_time}
+                          </span>
                         ) : (
                           <span
                             className={
@@ -309,6 +374,7 @@ export function TimesheetCalendar({
             </div>
           ))}
         </div>
+        </div>
       </div>
 
       {/* 右カラム(スマホでは下): 日を選ぶと入力フォーム、未選択時は勤務一覧表 */}
@@ -319,10 +385,12 @@ export function TimesheetCalendar({
             date={selected}
             entry={selectedEntry}
             defaults={lastDefaults}
+            shift={shifts[selected]}
             pending={pending}
             stations={stations}
             onSave={handleSave}
             onDelete={remove}
+            timeLocked={timeLocked}
           />
         )}
         {selected && closed && selectedEntry && (
@@ -330,7 +398,13 @@ export function TimesheetCalendar({
             <h3 className="font-semibold">{formatDateJa(selected)}</h3>
             <p className="mt-2 text-gray-600">
               {selectedEntry.start_time}〜{selectedEntry.end_time}(休憩
-              {selectedEntry.break_minutes}分)/ 交通費 ¥
+              {selectedEntry.end_time
+                ? standardBreakMinutes(
+                    selectedEntry.start_time,
+                    selectedEntry.end_time
+                  )
+                : selectedEntry.break_minutes}
+              分)/ 交通費 ¥
               {selectedEntry.transport_cost.toLocaleString()}
             </p>
           </div>
@@ -340,6 +414,7 @@ export function TimesheetCalendar({
           <WorkList
             entries={entries}
             holidays={holidays}
+            shifts={shifts}
             onSelect={(d) => {
               setResult(null);
               const e = entryMap.get(d);
@@ -356,11 +431,14 @@ export function TimesheetCalendar({
 /** WorkEntry を FormData から組み立てる(次の新規日の既定値に流用するため) */
 function entryFromFormData(fd: FormData): WorkEntry {
   const s = (k: string) => (fd.get(k)?.toString() ?? "").trim();
+  const start = s("start_time");
+  const end = s("end_time");
   return {
     work_date: s("work_date"),
-    start_time: s("start_time"),
-    end_time: s("end_time"),
-    break_minutes: Number(s("break_minutes")) || 0,
+    start_time: start,
+    end_time: end,
+    // 休憩は標準ルールから導出(入力欄は廃止)
+    break_minutes: end ? standardBreakMinutes(start, end) : 0,
     transport_cost: Number(s("transport_cost")) || 0,
     transport_mode: s("transport_mode") || null,
     station_from: s("station_from") || null,
@@ -370,93 +448,184 @@ function entryFromFormData(fd: FormData): WorkEntry {
   };
 }
 
-/** カレンダー下(スマホ)/右(PC)の勤務一覧表。日・曜日・出勤・退勤・勤務時間・交通費。 */
+/**
+ * カレンダー下(スマホ)/右(PC)の予実一覧。1日ごとに
+ * 上段=シフト予定(青)・下段=勤務実績(緑)を色分けで表示し、日ごとに横線で区切る。
+ * 予定と実績で時刻が相違する場合は実績側の該当時刻を赤太字にする。
+ */
 function WorkList({
   entries,
   holidays,
+  shifts,
   onSelect,
 }: {
   entries: WorkEntry[];
   holidays: Record<string, string>;
+  shifts: Record<string, ShiftInfo>;
   onSelect: (workDate: string) => void;
 }) {
-  const rows = [...entries].sort((a, b) =>
-    a.work_date.localeCompare(b.work_date)
-  );
+  const entryMap = new Map(entries.map((e) => [e.work_date, e]));
+  // 予定・実績のいずれかがある日をすべて対象にする
+  const dateSet = new Set<string>([
+    ...entries.map((e) => e.work_date),
+    ...Object.keys(shifts),
+  ]);
+  const dates = [...dateSet].sort();
+
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-      <div className="border-b border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-semibold text-gray-700">
-        勤務一覧
+      <div className="flex items-center gap-3 border-b border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-semibold text-gray-700">
+        <span>予実一覧</span>
+        <span className="text-xs font-normal text-gray-500">
+          予定と実績の不一致は<span className="font-bold text-red-600">赤字</span>
+        </span>
       </div>
-      {rows.length === 0 ? (
+      {dates.length === 0 ? (
         <p className="px-3 py-8 text-center text-sm text-gray-400">
-          この月の勤務入力はまだありません。カレンダーの日付を選んで入力してください。
+          この月のシフト予定・勤務入力はまだありません。カレンダーの日付を選んで入力してください。
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
-                <th className="px-2 py-1.5 text-right">日</th>
-                <th className="px-1 py-1.5 text-center">曜</th>
-                <th className="px-2 py-1.5 text-center">出勤</th>
-                <th className="px-2 py-1.5 text-center">退勤</th>
-                <th className="px-2 py-1.5 text-right">勤務</th>
-                <th className="px-2 py-1.5 text-right">交通費</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((e) => {
-                const d = new Date(e.work_date + "T00:00:00Z");
-                const dow = d.getUTCDay();
-                // 祝日・日曜=赤、土曜=青。日と曜の両方に同じ色を適用する
-                const dowColor =
-                  holidays[e.work_date] || dow === 0
-                    ? "text-red-500"
-                    : dow === 6
-                      ? "text-blue-500"
-                      : "";
-                const mins = e.end_time
-                  ? workMinutes(e.start_time, e.end_time, e.break_minutes)
-                  : null;
-                return (
-                  <tr
-                    key={e.work_date}
-                    onClick={() => onSelect(e.work_date)}
-                    className="cursor-pointer border-b border-gray-50 hover:bg-blue-50/40"
+        <ul>
+          {dates.map((date) => {
+            const e = entryMap.get(date);
+            const shift = shifts[date];
+            const d = new Date(date + "T00:00:00Z");
+            const dow = d.getUTCDay();
+            const dowColor =
+              holidays[date] || dow === 0
+                ? "text-red-500"
+                : dow === 6
+                  ? "text-blue-500"
+                  : "text-gray-700";
+            const mins =
+              e && e.end_time
+                ? workMinutes(
+                    e.start_time,
+                    e.end_time,
+                    standardBreakMinutes(e.start_time, e.end_time)
+                  )
+                : null;
+            // 予定が無いのに実績がある(予定外勤務)は出勤・退勤とも相違扱いで赤太字にする
+            const unplanned = !!e && !shift;
+            // 予実の時刻相違(実績があるときのみ判定)。相違=赤太字・合致=黒太字
+            const startDiff =
+              !!e &&
+              (unplanned ||
+                (!!shift && !!shift.startInput && e.start_time !== shift.startInput));
+            const endDiff =
+              !!e &&
+              (unplanned || (!!shift && (e.end_time ?? "") !== (shift.endInput ?? "")));
+            const startMatch =
+              !!e && !!shift && !!shift.startInput && e.start_time === shift.startInput;
+            const endMatch =
+              !!e &&
+              !!shift &&
+              !!shift.endInput &&
+              !!e.end_time &&
+              e.end_time === shift.endInput;
+
+            return (
+              <li
+                key={date}
+                onClick={() => onSelect(date)}
+                className="cursor-pointer border-b-2 border-gray-200 px-3 py-2 hover:bg-blue-50/40"
+              >
+                <div className="flex items-start gap-3">
+                  {/* 日・曜 */}
+                  <div
+                    className={`w-10 shrink-0 text-center leading-tight ${dowColor}`}
                   >
-                    <td
-                      className={`whitespace-nowrap px-2 py-1.5 text-right ${dowColor}`}
-                    >
+                    <div className="text-lg font-bold tabular-nums">
                       {d.getUTCDate()}
-                    </td>
-                    <td className={`px-1 py-1.5 text-center ${dowColor}`}>
-                      {WEEKDAYS[dow]}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-center tabular-nums">
-                      {e.start_time}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-center tabular-nums">
-                      {e.end_time ? (
-                        e.end_time
+                    </div>
+                    <div className="text-xs">{WEEKDAYS[dow]}</div>
+                  </div>
+                  {/* 予定行 / 実績行。ラベル・枠バッジ・時刻の列幅を両行で揃え、
+                      予定と実績の時刻の開始位置(タブ位置)が一致するようにする。 */}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    {/* 予定(上段) */}
+                    <div className="grid grid-cols-[2.5rem_2.75rem_auto] items-center gap-x-1 rounded bg-blue-50 px-2 py-1 text-sm">
+                      <span className="shrink-0 text-xs font-semibold text-blue-700">
+                        予定
+                      </span>
+                      {shift ? (
+                        <>
+                          <span
+                            className="w-fit rounded px-1 text-xs font-bold"
+                            style={{ backgroundColor: "#dbeafe", color: SHIFT_TEXT_COLOR }}
+                          >
+                            {shift.label}
+                          </span>
+                          <span className="tabular-nums text-gray-800">
+                            {shift.start}〜{shift.end}
+                          </span>
+                        </>
                       ) : (
-                        <span className="rounded bg-amber-200 px-1 text-amber-800">
-                          未
+                        <span className="col-span-2 text-xs text-gray-400">
+                          シフトなし
                         </span>
                       )}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      {mins === null ? "—" : hhmm(mins)}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      ¥{e.transport_cost.toLocaleString()}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                    {/* 実績(下段) */}
+                    <div className="grid grid-cols-[2.5rem_2.75rem_auto] items-center gap-x-1 rounded bg-green-50 px-2 py-1 text-sm">
+                      <span className="shrink-0 text-xs font-semibold text-green-700">
+                        実績
+                      </span>
+                      <span />
+                      {e ? (
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className="tabular-nums">
+                            <span
+                              className={
+                                startDiff
+                                  ? "font-bold text-red-600"
+                                  : startMatch
+                                    ? "font-bold text-gray-900"
+                                    : "text-gray-800"
+                              }
+                            >
+                              {e.start_time}
+                            </span>
+                            〜
+                            {e.end_time ? (
+                              <span
+                                className={
+                                  endDiff
+                                    ? "font-bold text-red-600"
+                                    : endMatch
+                                      ? "font-bold text-gray-900"
+                                      : "text-gray-800"
+                                }
+                              >
+                                {e.end_time}
+                              </span>
+                            ) : (
+                              <span className="rounded bg-amber-200 px-1 text-amber-800">
+                                退勤未
+                              </span>
+                            )}
+                          </span>
+                          <span className="tabular-nums text-gray-500">
+                            {mins === null ? "" : `(${hhmm(mins)})`}
+                          </span>
+                          {e.transport_cost > 0 && (
+                            <span className="tabular-nums text-gray-500">
+                              ¥{e.transport_cost.toLocaleString()}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-red-600">
+                          実績なし
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );
@@ -478,28 +647,56 @@ function EntryForm({
   date,
   entry,
   defaults,
+  shift,
   pending,
   stations,
   onSave,
   onDelete,
+  timeLocked = false,
 }: {
   date: string;
   entry: WorkEntry | undefined;
   defaults: WorkEntry | null;
+  shift: ShiftInfo | undefined;
   pending: boolean;
   stations: string[];
   onSave: (fd: FormData) => void;
   onDelete: (date: string) => void;
+  /** 管理者が設定でロックした場合、出勤/退勤時刻・休憩時間を編集できない */
+  timeLocked?: boolean;
 }) {
   const init = entry ?? defaults;
+
   // 打刻で出勤のみ登録され退勤が未入力の場合、退勤欄を警告表示にする
   const endMissing = !!entry && !entry.end_time;
+  // 新規入力時はシフト予定の時刻をデフォルト表示する(既存レコードがあればそれを優先)。
+  const startDefault =
+    entry?.start_time ?? shift?.startInput ?? init?.start_time ?? "10:00";
+  const endDefault = entry?.end_time
+    ? entry.end_time
+    : endMissing
+      ? ""
+      : shift?.endInput ?? init?.end_time ?? "18:00";
 
   const formRef = useRef<HTMLFormElement>(null);
   const modeRef = useRef<HTMLSelectElement>(null);
   const costRef = useRef<HTMLInputElement>(null);
   const fromRef = useRef<HTMLInputElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
+
+  // ロック中に既存レコードが無い日は、時刻を確定できず新規作成できない
+  // (サーバー側 upsertWorkEntry も同条件で拒否する)。フォーム自体を出さず案内のみ表示する。
+  if (timeLocked && !entry) {
+    return (
+      <div className="rounded-xl border border-blue-200 bg-white p-4">
+        <h3 className="text-lg font-bold text-blue-800">{formatDateJa(date)}</h3>
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          出退勤時刻・休憩時間の編集は管理者によりロックされています。QR打刻をご利用いただくか、
+          管理者にご連絡ください。
+        </p>
+      </div>
+    );
+  }
 
   // カスタムバリデーション(吹き出し)をリセット
   function resetValidity() {
@@ -577,10 +774,18 @@ function EntryForm({
           </button>
         </div>
 
-        {/* 勤務時間。出勤・退勤・休憩を1行(3カラム)に。iOS Safari の time 入力は
-            内容幅に広がりやすいため、各セルに min-w-0、入力は横パディングを詰めて
-            はみ出し・重なりを防ぐ。 */}
-        <div className="grid grid-cols-3 gap-3">
+        {shift && (
+          <p className="-mt-1 rounded-lg bg-blue-50 px-2 py-1 text-xs text-blue-700">
+            シフト予定: <span className="font-bold">{shift.label}</span>{" "}
+            {shift.start}〜{shift.end}
+            {!entry && "（この時刻を初期表示しています）"}
+          </p>
+        )}
+
+        {/* 勤務時間。出勤・退勤を1行(2カラム)に。休憩は標準休憩ルールから自動計算するため
+            入力欄は設けない。iOS Safari の time 入力は内容幅に広がりやすいため、各セルに
+            min-w-0、入力は横パディングを詰めてはみ出し・重なりを防ぐ。 */}
+        <div className="grid grid-cols-2 gap-3">
           <div className="min-w-0">
             <label className="mb-1 block text-sm font-medium text-gray-600">
               出勤
@@ -590,8 +795,9 @@ function EntryForm({
               type="time"
               step={900}
               required
-              defaultValue={init?.start_time ?? "10:00"}
-              className={timeInputClass}
+              disabled={timeLocked}
+              defaultValue={startDefault}
+              className={`${timeInputClass} ${timeLocked ? "opacity-60" : ""}`}
             />
           </div>
           <div className="min-w-0">
@@ -605,35 +811,38 @@ function EntryForm({
               name="end_time"
               type="time"
               step={900}
-              defaultValue={init?.end_time ?? (endMissing ? "" : "18:00")}
+              disabled={timeLocked}
+              defaultValue={endDefault}
               className={`${timeInputClass} ${
                 endMissing
                   ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300"
                   : ""
-              }`}
+              } ${timeLocked ? "opacity-60" : ""}`}
             />
           </div>
-          <div className="min-w-0">
-            <label className="mb-1 block text-sm font-medium text-gray-600">
-              休憩(分)
-            </label>
-            <select
-              name="break_minutes"
-              required
-              defaultValue={init?.break_minutes ?? 60}
-              className={timeInputClass}
-            >
-              {breakMinuteOptions(init?.break_minutes).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
-        <p className="-mt-2 text-xs text-gray-500">
-          ※ 深夜勤務で退勤が翌日になる場合は、退勤にその時刻(例: 2:00)をそのまま入力してください。翌日ぶんとして計算します。
+        <p className="-mt-1 rounded-lg bg-gray-50 px-2 py-1 text-xs text-gray-500">
+          ※ 休憩は原則 12:00-13:00 / 19:00-20:00 / 4:00-5:00 で、勤務時間に重なるぶんを
+          自動で差し引きます(申告不要)。
         </p>
+        {/* disabled にした時刻入力欄は FormData に含まれないため、実際の値を hidden で補う
+            (サーバー側でもロック中は既存値に固定して二重に防御している)。休憩は保存時に
+            サーバーが標準ルールから再計算するため hidden 不要。 */}
+        {timeLocked && entry && (
+          <>
+            <input type="hidden" name="start_time" value={entry.start_time} />
+            <input type="hidden" name="end_time" value={entry.end_time ?? ""} />
+          </>
+        )}
+        {timeLocked ? (
+          <p className="-mt-2 rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-800">
+            出退勤時刻・休憩時間の編集は管理者によりロックされています。修正が必要な場合は管理者にご連絡ください。
+          </p>
+        ) : (
+          <p className="-mt-2 text-xs text-gray-500">
+            ※ 深夜勤務で退勤が翌日になる場合は、退勤にその時刻(例: 2:00)をそのまま入力してください。翌日ぶんとして計算します。
+          </p>
+        )}
 
         {/* 交通費(1つの枠にまとめる。塗りを少し濃く + 右上に×クリア) */}
         <fieldset className="rounded-xl border border-gray-200 bg-gray-100 p-3 pt-2">
@@ -764,7 +973,7 @@ function EntryForm({
           />
         </div>
 
-        {entry && (
+        {entry && !timeLocked && (
           <div className="flex justify-end">
             <button
               type="button"
