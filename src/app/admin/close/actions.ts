@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { periodFromKey, workMinutes } from "@/lib/period";
+import { periodFromKey, workMinutes, standardBreakMinutes } from "@/lib/period";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { effectiveAt } from "@/lib/payroll";
 import { logActivity } from "@/lib/log";
@@ -188,12 +188,14 @@ export async function emailPayslips(
     const rows = entriesByEmployee.get(e.employee_id) ?? [];
     const start = e.start_time.slice(0, 5);
     const end = e.end_time.slice(0, 5);
+    // 休憩・勤務時間は標準休憩ルールから算出(保存済み break_minutes は使わない)
+    const brk = standardBreakMinutes(start, end);
     rows.push({
       workDate: e.work_date,
       startTime: start,
       endTime: end,
-      breakMinutes: e.break_minutes,
-      workMinutes: workMinutes(start, end, e.break_minutes),
+      breakMinutes: brk,
+      workMinutes: workMinutes(start, end, brk),
       transport: e.transport_cost,
       lunch: lunchPerDay,
     });

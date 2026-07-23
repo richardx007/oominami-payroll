@@ -113,29 +113,71 @@ export function workMinutes(
 }
 
 /**
- * 勤務時間のうち深夜帯(22:00〜翌5:00)に該当する分数を計算する。
- *
- * 出退勤の時刻から実際に働いた区間 [開始, 終了) を求め(退勤が出勤以前なら
- * 翌日にまたぐ勤務とみなし終了に24時間を加算)、繰り返し現れる深夜帯
- * (毎日 22:00〜翌5:00)との重なりの合計を返す。
- * 休憩時間がいつ取られたかは記録していないため、休憩分は差し引かない
- * (深夜帯に物理的に在勤していた時間をそのまま深夜勤務時間とする)。
+ * 労使で合意した「標準休憩時間帯」(毎日繰り返す)。
+ * 深夜勤務のとき休憩を何時に取るかで深夜割増時間が変わってしまうため、
+ * 休憩は原則この時間帯に取るものと定め、計算もこの前提で行う(都度申告は不要)。
+ *   12:00〜13:00 / 19:00〜20:00 / 4:00〜5:00
  */
-export function nightMinutes(startTime: string, endTime: string): number {
+const BREAK_WINDOWS: [number, number][] = [
+  [12 * 60, 13 * 60],
+  [19 * 60, 20 * 60],
+  [4 * 60, 5 * 60],
+];
+// 深夜帯 = 22:00(1320分)〜翌5:00(1740分=29:00)
+const NIGHT_BAND: [number, number] = [22 * 60, 29 * 60];
+
+function overlapLen(a0: number, a1: number, b0: number, b1: number): number {
+  return Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
+}
+
+/** 出退勤時刻から勤務区間 [開始, 終了) を分で返す(日跨ぎは終了に24時間加算) */
+function shiftRange(startTime: string, endTime: string): [number, number] {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
   const start = sh * 60 + sm;
   let end = eh * 60 + em;
   if (end <= start) end += 24 * 60;
+  return [start, end];
+}
 
-  // 深夜帯 = 22:00(1320分)〜翌5:00(1740分)。前後日ぶんも重ねて重複合計を取る。
+/**
+ * 標準休憩ルールに基づく休憩分数。勤務区間に重なる標準休憩帯(BREAK_WINDOWS)の合計。
+ * 例: 10:00〜18:00 は 12:00-13:00 に重なり 60分、21:00〜翌6:00 は 4:00-5:00 に重なり 60分。
+ */
+export function standardBreakMinutes(startTime: string, endTime: string): number {
+  const [start, end] = shiftRange(startTime, endTime);
+  let total = 0;
+  for (const [w0, w1] of BREAK_WINDOWS) {
+    for (let k = -1; k <= 1; k++) {
+      total += overlapLen(start, end, w0 + k * 1440, w1 + k * 1440);
+    }
+  }
+  return total;
+}
+
+/**
+ * 深夜勤務手当の対象分数。深夜帯(22:00〜翌5:00)の勤務から、標準休憩帯ぶんを差し引く。
+ * これにより「4:00〜5:00 の休憩は深夜帯に取る」前提で深夜割増時間が一意に定まる
+ * (休憩を深夜帯のどこで取るかによって支給が変わる問題を防ぐ)。
+ */
+export function nightMinutes(startTime: string, endTime: string): number {
+  const [start, end] = shiftRange(startTime, endTime);
   let total = 0;
   for (let k = -1; k <= 1; k++) {
-    const nStart = 22 * 60 + k * 24 * 60;
-    const nEnd = 29 * 60 + k * 24 * 60; // 翌5:00 = 29:00
-    const lo = Math.max(start, nStart);
-    const hi = Math.min(end, nEnd);
-    if (hi > lo) total += hi - lo;
+    const b0 = NIGHT_BAND[0] + k * 1440;
+    const b1 = NIGHT_BAND[1] + k * 1440;
+    const nightOverlap = overlapLen(start, end, b0, b1);
+    if (nightOverlap <= 0) continue;
+    // この深夜帯に取る標準休憩(勤務区間かつ深夜帯に重なる休憩)を差し引く
+    let breakInNight = 0;
+    for (const [w0, w1] of BREAK_WINDOWS) {
+      for (let j = -1; j <= 1; j++) {
+        const lo = Math.max(start, b0, w0 + j * 1440);
+        const hi = Math.min(end, b1, w1 + j * 1440);
+        if (hi > lo) breakInNight += hi - lo;
+      }
+    }
+    total += nightOverlap - breakInNight;
   }
   return total;
 }

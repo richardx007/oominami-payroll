@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { standardBreakMinutes } from "@/lib/period";
 
 /**
  * 勤務記録の入力スキーマ(従業員・管理者で共用)。
@@ -15,7 +16,6 @@ export const entrySchema = z
       .regex(/^\d{2}:\d{2}$/)
       .optional()
       .or(z.literal("")),
-    break_minutes: z.coerce.number().int().min(0).max(600),
     transport_cost: z.coerce.number().int().min(0).max(100000),
     transport_mode: z.string().max(20).optional(),
     station_from: z.string().max(50).optional(),
@@ -27,12 +27,12 @@ export const entrySchema = z
     (d) => {
       if (!d.end_time) return true;
       // 退勤が出勤以前(例: 22:00→2:00)は翌日にまたぐ勤務として24時間を加算し、
-      // 休憩を差し引いた実働が正であることを確認する。
+      // 標準休憩(自動計算)を差し引いた実働が正であることを確認する。
       const [sh, sm] = d.start_time.split(":").map(Number);
       const [eh, em] = d.end_time.split(":").map(Number);
       let diff = eh * 60 + em - (sh * 60 + sm);
       if (diff <= 0) diff += 24 * 60;
-      return diff - d.break_minutes > 0;
+      return diff - standardBreakMinutes(d.start_time, d.end_time) > 0;
     },
     {
       message:

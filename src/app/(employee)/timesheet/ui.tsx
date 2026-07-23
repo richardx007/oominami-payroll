@@ -3,7 +3,12 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
-import { adjacentPeriodKey, datesInPeriod, workMinutes } from "@/lib/period";
+import {
+  adjacentPeriodKey,
+  datesInPeriod,
+  workMinutes,
+  standardBreakMinutes,
+} from "@/lib/period";
 import { useSwipeNav } from "@/lib/useSwipeNav";
 import type { ShiftInfo } from "@/lib/shifts";
 import { SHIFT_TEXT_COLOR } from "@/lib/shifts";
@@ -23,15 +28,6 @@ const timeInputClass =
   "w-full min-w-0 box-border rounded-lg border border-gray-300 bg-white px-1.5 py-2.5 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
 const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
-
-/** 休憩(分)のダイアル用選択肢。0〜120分・15分刻み。既存データが刻みから外れる値でも消えないよう追加する */
-function breakMinuteOptions(current?: number | null): number[] {
-  const base = [0, 15, 30, 45, 60, 75, 90, 105, 120];
-  if (typeof current === "number" && !base.includes(current)) {
-    return [...base, current].sort((a, b) => a - b);
-  }
-  return base;
-}
 
 export function TimesheetCalendar({
   period,
@@ -120,7 +116,12 @@ export function TimesheetCalendar({
     let transport = 0;
     for (const e of entries) {
       // 退勤未入力の日は勤務時間に含めない(交通費・日数はカウント)
-      if (e.end_time) minutes += workMinutes(e.start_time, e.end_time, e.break_minutes);
+      if (e.end_time)
+        minutes += workMinutes(
+          e.start_time,
+          e.end_time,
+          standardBreakMinutes(e.start_time, e.end_time)
+        );
       transport += e.transport_cost;
     }
     return { days: entries.length, minutes, transport };
@@ -397,7 +398,13 @@ export function TimesheetCalendar({
             <h3 className="font-semibold">{formatDateJa(selected)}</h3>
             <p className="mt-2 text-gray-600">
               {selectedEntry.start_time}〜{selectedEntry.end_time}(休憩
-              {selectedEntry.break_minutes}分)/ 交通費 ¥
+              {selectedEntry.end_time
+                ? standardBreakMinutes(
+                    selectedEntry.start_time,
+                    selectedEntry.end_time
+                  )
+                : selectedEntry.break_minutes}
+              分)/ 交通費 ¥
               {selectedEntry.transport_cost.toLocaleString()}
             </p>
           </div>
@@ -424,11 +431,14 @@ export function TimesheetCalendar({
 /** WorkEntry を FormData から組み立てる(次の新規日の既定値に流用するため) */
 function entryFromFormData(fd: FormData): WorkEntry {
   const s = (k: string) => (fd.get(k)?.toString() ?? "").trim();
+  const start = s("start_time");
+  const end = s("end_time");
   return {
     work_date: s("work_date"),
-    start_time: s("start_time"),
-    end_time: s("end_time"),
-    break_minutes: Number(s("break_minutes")) || 0,
+    start_time: start,
+    end_time: end,
+    // 休憩は標準ルールから導出(入力欄は廃止)
+    break_minutes: end ? standardBreakMinutes(start, end) : 0,
     transport_cost: Number(s("transport_cost")) || 0,
     transport_mode: s("transport_mode") || null,
     station_from: s("station_from") || null,
@@ -489,7 +499,11 @@ function WorkList({
                   : "text-gray-700";
             const mins =
               e && e.end_time
-                ? workMinutes(e.start_time, e.end_time, e.break_minutes)
+                ? workMinutes(
+                    e.start_time,
+                    e.end_time,
+                    standardBreakMinutes(e.start_time, e.end_time)
+                  )
                 : null;
             // 予定が無いのに実績がある(予定外勤務)は出勤・退勤とも相違扱いで赤太字にする
             const unplanned = !!e && !shift;
@@ -768,10 +782,10 @@ function EntryForm({
           </p>
         )}
 
-        {/* 勤務時間。出勤・退勤・休憩を1行(3カラム)に。iOS Safari の time 入力は
-            内容幅に広がりやすいため、各セルに min-w-0、入力は横パディングを詰めて
-            はみ出し・重なりを防ぐ。 */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* 勤務時間。出勤・退勤を1行(2カラム)に。休憩は標準休憩ルールから自動計算するため
+            入力欄は設けない。iOS Safari の time 入力は内容幅に広がりやすいため、各セルに
+            min-w-0、入力は横パディングを詰めてはみ出し・重なりを防ぐ。 */}
+        <div className="grid grid-cols-2 gap-3">
           <div className="min-w-0">
             <label className="mb-1 block text-sm font-medium text-gray-600">
               出勤
@@ -806,36 +820,18 @@ function EntryForm({
               } ${timeLocked ? "opacity-60" : ""}`}
             />
           </div>
-          <div className="min-w-0">
-            <label className="mb-1 block text-sm font-medium text-gray-600">
-              休憩(分)
-            </label>
-            <select
-              name="break_minutes"
-              required
-              disabled={timeLocked}
-              defaultValue={init?.break_minutes ?? 60}
-              className={`${timeInputClass} ${timeLocked ? "opacity-60" : ""}`}
-            >
-              {breakMinuteOptions(init?.break_minutes).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
-        {/* disabled にした時刻/休憩の入力欄は FormData に含まれないため、実際の値を
-            hidden で補う(サーバー側でもロック中は既存値に固定して二重に防御している)。 */}
+        <p className="-mt-1 rounded-lg bg-gray-50 px-2 py-1 text-xs text-gray-500">
+          ※ 休憩は原則 12:00-13:00 / 19:00-20:00 / 4:00-5:00 で、勤務時間に重なるぶんを
+          自動で差し引きます(申告不要)。
+        </p>
+        {/* disabled にした時刻入力欄は FormData に含まれないため、実際の値を hidden で補う
+            (サーバー側でもロック中は既存値に固定して二重に防御している)。休憩は保存時に
+            サーバーが標準ルールから再計算するため hidden 不要。 */}
         {timeLocked && entry && (
           <>
             <input type="hidden" name="start_time" value={entry.start_time} />
             <input type="hidden" name="end_time" value={entry.end_time ?? ""} />
-            <input
-              type="hidden"
-              name="break_minutes"
-              value={entry.break_minutes}
-            />
           </>
         )}
         {timeLocked ? (

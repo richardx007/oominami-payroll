@@ -1,4 +1,4 @@
-import { workMinutes, nightMinutes } from "./period";
+import { workMinutes, nightMinutes, standardBreakMinutes } from "./period";
 
 /**
  * 給与計算エンジン(純粋関数)
@@ -6,11 +6,12 @@ import { workMinutes, nightMinutes } from "./period";
  * 計算方法:
  * - 基本給 = Σ(勤務日ごとの 勤務分数 × 時給 ÷ 60、日単位で切り捨て)
  *   時給は勤務日時点で有効な wage_rates を適用(値上げ対応)
+ *   休憩は労使合意の標準休憩帯(12-13/19-20/4-5時)から導出する(入力値 break_minutes は使わない)
  * - 交通費 = 申告実費の合計(非課税として扱う)
  * - 昼食補助 = 勤務日数 × 定額(課税対象として扱う)
  * - 深夜勤務手当 = Σ(勤務日ごとの 深夜勤務分数 × 時給 × 25% ÷ 60、日単位で切り捨て)
- *   深夜勤務分数は勤務時間のうち 22:00〜翌5:00 に該当する時間。基本給とは別に
- *   単価の25%分を割増手当として追加支給する(課税対象)
+ *   深夜勤務分数は勤務時間のうち 22:00〜翌5:00 に該当する時間から標準休憩帯ぶんを除いたもの。
+ *   基本給とは別に単価の25%分を割増手当として追加支給する(課税対象)
  * - 課税対象額 = 基本給 + 深夜勤務手当 + 昼食補助
  * - 源泉所得税 = 月額表(甲欄/乙欄)による
  *   - 乙欄: 88,000円未満は課税対象額 × 3.063%(1円未満切り捨て)、以上は税額表を参照
@@ -171,10 +172,13 @@ export function computePayslip(params: {
         `${e.work_date} 時点で有効な時給が設定されていません`
       );
     }
-    const minutes = workMinutes(e.start_time, e.end_time as string, e.break_minutes);
+    // 休憩は標準休憩ルール(BREAK_WINDOWS)から導出する。入力された break_minutes は使わない
+    // (休憩を何時に取るかで深夜割増が変わらないよう労使合意の原則ルールで計算する)。
+    const brk = standardBreakMinutes(e.start_time, e.end_time as string);
+    const minutes = workMinutes(e.start_time, e.end_time as string, brk);
     totalMinutes += minutes;
     basePay += Math.floor((minutes * wage.hourly_wage) / 60);
-    // 深夜勤務手当: 深夜帯の勤務分数に対し時給の25%を割増して追加支給(日単位で切り捨て)
+    // 深夜勤務手当: 深夜帯の勤務分数(標準休憩ぶんを除く)に対し時給の25%を割増して追加支給(日単位で切り捨て)
     const nm = nightMinutes(e.start_time, e.end_time as string);
     nightMins += nm;
     nightPay += Math.floor((nm * wage.hourly_wage * 0.25) / 60);

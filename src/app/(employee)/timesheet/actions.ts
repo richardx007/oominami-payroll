@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
+import { standardBreakMinutes } from "@/lib/period";
 import { entrySchema } from "./schema";
 
 export type ActionResult = { ok: boolean; message: string };
@@ -23,7 +24,10 @@ export async function upsertWorkEntry(
 
   let start_time = d.start_time;
   let end_time = d.end_time || null;
-  let break_minutes = d.break_minutes;
+  // 休憩は標準休憩ルールから自動計算する(入力欄は廃止)。退勤未入力なら0。
+  let break_minutes = end_time
+    ? standardBreakMinutes(start_time, end_time)
+    : 0;
 
   if (locked) {
     // ロック中は出勤/退勤時刻・休憩時間をクライアントの入力値で信用せず、

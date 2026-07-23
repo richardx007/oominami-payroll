@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
-import { todayJST, nowTimeJST, workMinutes } from "@/lib/period";
+import { todayJST, nowTimeJST, standardBreakMinutes } from "@/lib/period";
 import { logActivity } from "@/lib/log";
 
 export type ClockResult = {
@@ -234,9 +234,8 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
         message: "本日の出勤記録が見つかりません。先に出勤QRを読み取ってください。",
       };
     }
-    // 休憩の自動判定: 総時間(end-start, 日跨ぎ補正込み)が6時間以上なら60分
-    const span = workMinutes(target.start_time.slice(0, 5), time, 0);
-    const brk = span >= 360 ? 60 : 0;
+    // 休憩は標準休憩ルール(12-13/19-20/4-5時)から自動計算する
+    const brk = standardBreakMinutes(target.start_time.slice(0, 5), time);
     const { error } = await supabase
       .from("work_entries")
       .update({ end_time: time, break_minutes: brk, ...(transport ?? {}) })

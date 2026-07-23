@@ -11,6 +11,7 @@ import {
   datesInPeriod,
   nightMinutes,
   periodOf,
+  standardBreakMinutes,
   workMinutes,
 } from "./period";
 
@@ -58,19 +59,30 @@ describe("period", () => {
     expect(workMinutes("23:30", "07:30", 60)).toBe(420);
   });
 
-  it("深夜帯(22:00〜翌5:00)の勤務分数を計算する", () => {
+  it("深夜帯(22:00〜翌5:00)の勤務分数を計算する(標準休憩帯4:00-5:00は除外)", () => {
     // 深夜帯外の勤務は0
     expect(nightMinutes("09:00", "17:00")).toBe(0);
-    // 22:00→翌2:00 → 全4時間が深夜帯
+    // 22:00→翌2:00 → 全4時間が深夜帯(4-5休憩帯に掛からない)
     expect(nightMinutes("22:00", "02:00")).toBe(240);
     // 18:00→23:00 → 22:00〜23:00の1時間のみ深夜
     expect(nightMinutes("18:00", "23:00")).toBe(60);
-    // 23:00→翌7:00 → 23:00〜翌5:00の6時間が深夜
-    expect(nightMinutes("23:00", "07:00")).toBe(360);
-    // 03:00→09:00 → 3:00〜5:00の2時間が深夜(早朝帯)
-    expect(nightMinutes("03:00", "09:00")).toBe(120);
+    // 23:00→翌7:00 → 23:00〜翌5:00の6時間から標準休憩4:00-5:00(60分)を除き5時間
+    expect(nightMinutes("23:00", "07:00")).toBe(300);
+    // 03:00→09:00 → 3:00〜5:00の2時間から標準休憩4:00-5:00(60分)を除き1時間
+    expect(nightMinutes("03:00", "09:00")).toBe(60);
     // ちょうど境界(5:00→22:00)は深夜0
     expect(nightMinutes("05:00", "22:00")).toBe(0);
+  });
+
+  it("標準休憩ルールで休憩分数を計算する(12-13/19-20/4-5時)", () => {
+    // 昼の休憩帯に掛かる
+    expect(standardBreakMinutes("09:00", "17:00")).toBe(60);
+    // どの休憩帯にも掛からない短時間勤務は0
+    expect(standardBreakMinutes("14:00", "17:00")).toBe(0);
+    // 深夜勤務は4:00-5:00に掛かる
+    expect(standardBreakMinutes("21:00", "06:00")).toBe(60);
+    // 昼・夜またぎで2つの休憩帯に掛かると120分
+    expect(standardBreakMinutes("10:00", "22:00")).toBe(120);
   });
 });
 
@@ -191,22 +203,25 @@ describe("computePayslip", () => {
           work_date: "2026-07-02",
           start_time: "10:00",
           end_time: "15:30",
-          break_minutes: 30,
+          break_minutes: 30, // 入力値は無視され、標準休憩(12-13時=60分)が適用される
           transport_cost: 500,
         },
       ],
     });
 
-    // 1日目: 420分 → 8,400円 / 2日目: 300分 → 6,000円
-    expect(result.base_pay).toBe(14400);
-    expect(result.total_minutes).toBe(720);
+    // 休憩は標準ルールで自動計算(両日とも12-13時に掛かり60分):
+    // 1日目 10:00-17:00相当ではなく 09:00-17:00 実働420分 → 8,400円
+    // 2日目 10:00-15:30 実働 330-60=270分 → 5,400円
+    expect(result.base_pay).toBe(13800);
+    expect(result.total_minutes).toBe(690);
     expect(result.work_days).toBe(2);
     expect(result.transport_total).toBe(1000);
     expect(result.lunch_total).toBe(1000);
-    expect(result.taxable_amount).toBe(15400);
-    expect(result.income_tax).toBe(Math.floor(15400 * 0.03063));
-    expect(result.gross_pay).toBe(16400);
-    expect(result.net_pay).toBe(16400 - result.income_tax);
+    // 課税対象 = 基本給13800 + 深夜0 + 昼食1000 = 14800
+    expect(result.taxable_amount).toBe(14800);
+    expect(result.income_tax).toBe(Math.floor(14800 * 0.03063));
+    expect(result.gross_pay).toBe(15800);
+    expect(result.net_pay).toBe(15800 - result.income_tax);
   });
 
   it("深夜勤務手当(時給25%増)を計算する", () => {
