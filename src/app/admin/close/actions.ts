@@ -111,19 +111,35 @@ export async function reopenPeriod(periodKey: string): Promise<ActionResult> {
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  // 現在の状態を確認して、状態に応じた明確なメッセージを返す。
+  const { data: current } = await supabase
     .from("pay_periods")
-    .update({ status: "open" })
+    .select("id, status")
     .eq("start_date", period.start)
     .eq("end_date", period.end)
-    .eq("status", "closed")
-    .select("id");
+    .maybeSingle();
 
-  if (error || !data || data.length === 0) {
+  // 既に解除済み(open)・未締め・行なしは冪等に成功扱い(2度押しでも誤解を招く
+  // エラーにしない)。支払済み(paid)のみ明確に拒否する。
+  if (!current || current.status === "open") {
+    revalidatePath("/admin/close");
+    revalidatePath("/admin");
+    return { ok: true, message: `${period.label}は締め解除されています` };
+  }
+  if (current.status === "paid") {
     return {
       ok: false,
-      message: "締め解除できませんでした(支払済みの期間は解除できません)",
+      message: "支払済みの期間は締め解除できません(先に支払済みを取り消してください)",
     };
+  }
+
+  const { error } = await supabase
+    .from("pay_periods")
+    .update({ status: "open" })
+    .eq("id", current.id);
+
+  if (error) {
+    return { ok: false, message: "締め解除に失敗しました: " + error.message };
   }
 
   revalidatePath("/admin/close");
