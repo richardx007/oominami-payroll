@@ -3,6 +3,7 @@ import { requireEmployee } from "@/lib/auth";
 import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
 import { buildShiftMap, parseSlots, type SlotKey } from "@/lib/shifts";
+import { parseBreakWindows } from "@/lib/breaks";
 import { TimesheetCalendar } from "./ui";
 import { upsertWorkEntry, deleteWorkEntry } from "./actions";
 
@@ -41,6 +42,7 @@ export default async function TimesheetPage({
     { data: shiftRows },
     { data: slotRows },
     { data: locked },
+    { data: breakRows },
   ] = await Promise.all([
       supabase
         .from("work_entries")
@@ -76,7 +78,13 @@ export default async function TimesheetPage({
       supabase.rpc("get_shift_settings"),
       // 出退勤時刻・休憩時間の編集ロック状態(app_settings は直接読めないため関数経由)
       supabase.rpc("get_timesheet_lock"),
+      // 標準休憩時間帯(app_settings は直接読めないため関数経由)
+      supabase.rpc("get_break_settings"),
     ]);
+
+  const breakWindows = parseBreakWindows(
+    breakRows as { key: string; value: string }[]
+  );
 
   const slots = parseSlots(slotRows as { key: string; value: string }[]);
   const shifts = buildShiftMap(
@@ -121,6 +129,7 @@ export default async function TimesheetPage({
       employeeName={employee.name}
       shifts={shifts}
       timeLocked={!!locked}
+      breakWindows={breakWindows}
     />
   );
 }

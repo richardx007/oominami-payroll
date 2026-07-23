@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Period } from "./period";
+import { BREAK_SETTING_KEYS, parseBreakWindows } from "./breaks";
 import {
   computePayslip,
   PayrollError,
@@ -32,6 +33,7 @@ export async function calculatePeriodPayroll(
     { data: taxSettings },
     { data: allowances },
     { data: taxRows },
+    { data: breakSettings },
   ] = await Promise.all([
     supabase
       .from("employees")
@@ -61,8 +63,11 @@ export async function calculatePeriodPayroll(
         "min_amount, max_amount, tax_kou_0, tax_kou_1, tax_kou_2, tax_kou_3, tax_kou_4, tax_kou_5, tax_kou_6, tax_kou_7, tax_otsu"
       )
       .eq("year", taxYear),
+    // 標準休憩時間帯(設定画面「休憩時間」で変更可)
+    supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
   ]);
 
+  const breakWindows = parseBreakWindows(breakSettings);
   const entriesBy = groupBy(entries ?? [], (e) => e.employee_id);
   const wagesBy = groupBy(wageRates ?? [], (w) => w.employee_id);
   const taxBy = groupBy(taxSettings ?? [], (t) => t.employee_id);
@@ -85,6 +90,7 @@ export async function calculatePeriodPayroll(
         allowances: allowances ?? [],
         taxRows: (taxRows ?? []) as TaxTableRow[],
         periodEnd: period.end,
+        breakWindows,
       });
       return {
         employee_id: emp.id,

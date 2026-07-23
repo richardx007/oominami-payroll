@@ -783,6 +783,45 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - `assets/useSwipeNav.ts`: 現行フックを同梱（他プロジェクトへコピー流用できるように）。
 - `references/swipe-hook.md`: フックの設計意図（2段rAF、blank/resetKeyのタイミング、閾値調整）の詳説。
 
+### 本セッションで実施した変更（2026-07-23 その6・給与明細列追加/休憩時間の設定化/勤務ルール文書）
+オーナー依頼4件セット。**開発ブランチで作業**。`npm run build && npm test`(25件)・関連ファイルの`eslint`とも
+新規指摘なしで通過。DB変更はSupabase MCPで本番へ適用済み（記録用migrationファイルも追加）。
+
+1. **給与明細一覧・CSVに列追加**: 締め処理画面(`admin/close/page.tsx`)の一覧表と、税理士へ送るCSV/
+   ダウンロードCSV（共通の`admin/report/actions.ts` `buildCsv()`）に、氏名の後ろへ**勤務時間**（見出しを
+   「時間」から変更）→**うち深夜**→**基本時給**の3列を追加（この順で基本給の前に並ぶ）。深夜0分は画面表示のみ
+   「―」。CSVは全行H:MM表記。`PayRow`型に`total_minutes`/`hourly_wage`を追加。
+
+2. **標準休憩時間帯(3枠)を設定画面から編集可能に**: `src/lib/breaks.ts`を新設（`BreakWindow`型・既定値
+   12-13/19-20/4-5時・`parseBreakWindows()`・`minutesToHHMM()`）。`lib/period.ts`の`standardBreakMinutes()`/
+   `nightMinutes()`に第3引数`windows`（省略時は既定値、既存呼び出し・テストは無変更で動作）を追加。
+   `lib/payroll.ts`の`computePayslip()`も`breakWindows`を受け取る。読み出しは管理者セッション(`payroll-data.ts`/
+   `admin/close/actions.ts`/`admin/timesheet/actions.ts`/`admin/timesheet/page.tsx`)は`app_settings`直接
+   SELECT、従業員セッション((employee)/timesheet/{actions,page}.tsx`/`clock/actions.ts`)は新設
+   SECURITY DEFINER関数**`get_break_settings()`**（`break_window_*`のみ返す。anon revoke・authenticated可）
+   経由。`TimesheetCalendar`/`WorkList`は`breakWindows`propで受け取り表示計算に使う。設定画面「シフト枠」の
+   下に「休憩時間」セクション追加（`updateBreakWindows`/`BreakWindowsForm`、開始<終了のバリデーション）。
+   記録: `supabase/migrations/20260723_add_get_break_settings.sql`。
+
+3. **勤務ルール文書のアップロード・閲覧**: 管理者が勤務ルール文書(jpg/png/pdf、20MBまで)をアップロードでき、
+   従業員・管理者ともハンバーガーメニュー「勤務ルール」から閲覧できる機能を新設。
+   - Supabase Storageの**非公開バケット`work-rules`**（固定パス`document`に常に上書き保存・履歴なし）。
+     RLS: SELECTはauthenticated全員、INSERT/UPDATE/DELETEは`is_admin()`のみ。
+   - メタ情報(`work_rules_path`/`filename`/`mime`/`uploaded_at`)は`app_settings`に保存し、従業員セッションから
+     読むための SECURITY DEFINER 関数**`get_work_rules_meta()`**を新設。
+   - アップロードUIは設定画面「QR打刻の位置設定」（出退勤QRコードを含む）の直後に配置
+     （`uploadWorkRules`/`WorkRulesForm`。現在の登録ファイル名と署名付きURLでのプレビューリンクを表示）。
+   - 閲覧は共有ページ`src/app/work-rules/page.tsx`（従業員/管理者どちらの画面にも属さない独立ルート。
+     `requireEmployee()`でログインのみ確認）。メタ取得→署名付きURL(60秒)発行→`redirect()`。画像/PDFとも
+     ブラウザが直接描画するため専用ビューアは実装していない。未アップロード時は案内メッセージ。
+   - 記録: `supabase/migrations/20260723_add_work_rules_storage_bucket.sql`・
+     `20260723_add_get_work_rules_meta.sql`。
+
+4. **ハンバーガーメニューに「勤務ルール」を追加**: 従業員(`(employee)/nav.tsx`)・管理者(`admin/nav.tsx`)
+   双方のハンバーガーメニュー（従業員はスマホのポップアップ＋PC/iPadの横並び、管理者はモバイルの
+   ハンバーガーシート＋PCサイドバー）に、**ログアウトの区切り線の上**へ「勤務ルール」リンクを追加。
+   `target="_blank"`で新しいタブに開き、元のアプリの状態を保持する。
+
 ### 本セッションで実施した変更（2026-07-23 その3・深夜勤務手当への対応）
 オーナー依頼。**開発ブランチ `claude/payroll-system-plan-8wvobq` で作業（main 未マージ・テスト用）**。
 `npm run build && npm test`(24件) 通過。**本番 Supabase にスキーマ適用済み**（既存明細に影響しない追加のみ）。

@@ -1,15 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import {
+  BreakWindowsForm,
   EmailSettingsForm,
   LunchAllowanceForm,
   ShiftSlotsForm,
   TaxTableForm,
   TimesheetLockForm,
+  WorkRulesForm,
   type TaxTableRow,
 } from "./ui";
 import { ClockSettingsForm } from "./clock";
 import { parseSlots } from "@/lib/shifts";
+import { parseBreakWindows } from "@/lib/breaks";
 
 export default async function SettingsPage() {
   await requireAdmin();
@@ -34,6 +37,15 @@ export default async function SettingsPage() {
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
   const slots = parseSlots(settings ?? []);
+  const breakWindows = parseBreakWindows(settings ?? []);
+
+  // 勤務ルール文書のプレビュー用署名付きURL(登録済みの場合のみ)
+  const workRulesPath = settingsMap.get("work_rules_path");
+  const workRulesPreviewUrl = workRulesPath
+    ? (
+        await supabase.storage.from("work-rules").createSignedUrl(workRulesPath, 300)
+      ).data?.signedUrl ?? null
+    : null;
 
   return (
     <div className="space-y-8">
@@ -55,6 +67,7 @@ export default async function SettingsPage() {
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
       />
       <ShiftSlotsForm slots={slots} />
+      <BreakWindowsForm windows={breakWindows} />
       <TimesheetLockForm
         locked={settingsMap.get("lock_employee_time_edit") === "true"}
       />
@@ -66,6 +79,10 @@ export default async function SettingsPage() {
         radiusM={settingsMap.get("clock_radius_m") ?? ""}
         policy={settingsMap.get("clock_out_of_range") ?? "warn"}
         roundMin={settingsMap.get("clock_round_min") ?? "0"}
+      />
+      <WorkRulesForm
+        currentFilename={settingsMap.get("work_rules_filename") ?? null}
+        previewUrl={workRulesPreviewUrl}
       />
       <TaxTableForm rows={(taxYears ?? []) as TaxTableRow[]} />
     </div>

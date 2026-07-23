@@ -28,6 +28,9 @@ export const entrySchema = z
       if (!d.end_time) return true;
       // 退勤が出勤以前(例: 22:00→2:00)は翌日にまたぐ勤務として24時間を加算し、
       // 標準休憩(自動計算)を差し引いた実働が正であることを確認する。
+      // ※スキーマはモジュール読み込み時に一度だけ定義されるため設定済みの休憩枠を
+      // 参照できず既定値で判定するが、これは「明らかに短すぎる勤務」を弾く安全チェックに
+      // すぎない(実際に保存される休憩時間は各アクション側で設定済みの休憩枠から計算する)。
       const [sh, sm] = d.start_time.split(":").map(Number);
       const [eh, em] = d.end_time.split(":").map(Number);
       let diff = eh * 60 + em - (sh * 60 + sm);

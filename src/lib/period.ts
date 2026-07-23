@@ -3,6 +3,8 @@
  * 期間キーは締め月の "YYYY-MM" で表す(例: 2026-07 → 6/26〜7/25、7月分)
  */
 
+import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "./breaks";
+
 export type Period = {
   key: string; // "YYYY-MM"(締め月)
   label: string; // "2026年7月分"
@@ -112,17 +114,6 @@ export function workMinutes(
   return Math.max(0, diff - breakMinutes);
 }
 
-/**
- * 労使で合意した「標準休憩時間帯」(毎日繰り返す)。
- * 深夜勤務のとき休憩を何時に取るかで深夜割増時間が変わってしまうため、
- * 休憩は原則この時間帯に取るものと定め、計算もこの前提で行う(都度申告は不要)。
- *   12:00〜13:00 / 19:00〜20:00 / 4:00〜5:00
- */
-const BREAK_WINDOWS: [number, number][] = [
-  [12 * 60, 13 * 60],
-  [19 * 60, 20 * 60],
-  [4 * 60, 5 * 60],
-];
 // 深夜帯 = 22:00(1320分)〜翌5:00(1740分=29:00)
 const NIGHT_BAND: [number, number] = [22 * 60, 29 * 60];
 
@@ -141,13 +132,18 @@ function shiftRange(startTime: string, endTime: string): [number, number] {
 }
 
 /**
- * 標準休憩ルールに基づく休憩分数。勤務区間に重なる標準休憩帯(BREAK_WINDOWS)の合計。
+ * 標準休憩ルールに基づく休憩分数。勤務区間に重なる標準休憩帯(windows。既定は
+ * 12:00-13:00/19:00-20:00/4:00-5:00、設定画面「休憩時間」で変更可)の合計。
  * 例: 10:00〜18:00 は 12:00-13:00 に重なり 60分、21:00〜翌6:00 は 4:00-5:00 に重なり 60分。
  */
-export function standardBreakMinutes(startTime: string, endTime: string): number {
+export function standardBreakMinutes(
+  startTime: string,
+  endTime: string,
+  windows: BreakWindow[] = DEFAULT_BREAK_WINDOWS
+): number {
   const [start, end] = shiftRange(startTime, endTime);
   let total = 0;
-  for (const [w0, w1] of BREAK_WINDOWS) {
+  for (const [w0, w1] of windows) {
     for (let k = -1; k <= 1; k++) {
       total += overlapLen(start, end, w0 + k * 1440, w1 + k * 1440);
     }
@@ -156,11 +152,15 @@ export function standardBreakMinutes(startTime: string, endTime: string): number
 }
 
 /**
- * 深夜勤務手当の対象分数。深夜帯(22:00〜翌5:00)の勤務から、標準休憩帯ぶんを差し引く。
+ * 深夜勤務手当の対象分数。深夜帯(22:00〜翌5:00)の勤務から、標準休憩帯(windows)ぶんを差し引く。
  * これにより「4:00〜5:00 の休憩は深夜帯に取る」前提で深夜割増時間が一意に定まる
  * (休憩を深夜帯のどこで取るかによって支給が変わる問題を防ぐ)。
  */
-export function nightMinutes(startTime: string, endTime: string): number {
+export function nightMinutes(
+  startTime: string,
+  endTime: string,
+  windows: BreakWindow[] = DEFAULT_BREAK_WINDOWS
+): number {
   const [start, end] = shiftRange(startTime, endTime);
   let total = 0;
   for (let k = -1; k <= 1; k++) {
@@ -170,7 +170,7 @@ export function nightMinutes(startTime: string, endTime: string): number {
     if (nightOverlap <= 0) continue;
     // この深夜帯に取る標準休憩(勤務区間かつ深夜帯に重なる休憩)を差し引く
     let breakInNight = 0;
-    for (const [w0, w1] of BREAK_WINDOWS) {
+    for (const [w0, w1] of windows) {
       for (let j = -1; j <= 1; j++) {
         const lo = Math.max(start, b0, w0 + j * 1440);
         const hi = Math.min(end, b1, w1 + j * 1440);

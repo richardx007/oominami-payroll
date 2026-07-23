@@ -58,7 +58,7 @@ export function LogoButton({ className = "" }: { className?: string }) {
   );
 }
 
-/** サイドバー(タブレット・PC)用の縦並びナビ */
+/** サイドバー(タブレット・PC)用の縦並びナビ。末尾(フッターの区切り線の上)に「勤務ルール」を追加。 */
 export function AdminSidebarNav() {
   const pathname = usePathname();
   return (
@@ -80,6 +80,15 @@ export function AdminSidebarNav() {
           </Link>
         );
       })}
+      <a
+        href="/work-rules"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-lg font-medium text-blue-50 transition-colors hover:bg-white/10 hover:text-white active:opacity-70"
+      >
+        <DocumentIcon className="h-6 w-6 shrink-0" />
+        勤務ルール
+      </a>
     </nav>
   );
 }
@@ -120,6 +129,16 @@ export function AdminBottomNav() {
                 </Link>
               );
             })}
+            <a
+              href="/work-rules"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              className="flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <DocumentIcon className="h-5 w-5 shrink-0" />
+              勤務ルール
+            </a>
             {/* 区切り線の下にログアウト(ヘッダーから移設) */}
             <form action={signOut} className="border-t-4 border-white/15">
               <button
@@ -332,6 +351,24 @@ function LogoutIcon({ className }: { className?: string }) {
     >
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
       <path d="M16 17l5-5-5-5M21 12H9" />
+    </svg>
+  );
+}
+
+function DocumentIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 3h9l3 3v15H6z" />
+      <path d="M15 3v3h3M9 12h6M9 16h6M9 8h2" />
     </svg>
   );
 }

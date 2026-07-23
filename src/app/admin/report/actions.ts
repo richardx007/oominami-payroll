@@ -12,7 +12,9 @@ import {
 
 type PayRow = {
   work_days: number;
+  total_minutes: number;
   night_minutes: number;
+  hourly_wage: number;
   base_pay: number;
   night_pay: number;
   transport_total: number;
@@ -55,7 +57,7 @@ async function loadReport(periodKey: string): Promise<LoadedReport> {
   const { data: payslips } = await supabase
     .from("payslips")
     .select(
-      `work_days, total_minutes, night_minutes, base_pay, night_pay, transport_total,
+      `work_days, total_minutes, night_minutes, hourly_wage, base_pay, night_pay, transport_total,
        lunch_total, gross_pay, income_tax, net_pay, tax_category,
        employees ( employee_no, name )`
     )
@@ -81,10 +83,19 @@ async function loadReport(periodKey: string): Promise<LoadedReport> {
   };
 }
 
+/** 分を「H:MM」表記にする(CSV用) */
+function hhmmCsv(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
 /** 支給一覧の CSV(BOM付き)文字列を生成 */
 function buildCsv(rows: PayRow[]): string {
   const totals = rows.reduce(
     (acc, r) => ({
+      totalMinutes: acc.totalMinutes + r.total_minutes,
+      nightMinutes: acc.nightMinutes + r.night_minutes,
       nightPay: acc.nightPay + r.night_pay,
       transport: acc.transport + r.transport_total,
       lunch: acc.lunch + r.lunch_total,
@@ -92,13 +103,25 @@ function buildCsv(rows: PayRow[]): string {
       tax: acc.tax + r.income_tax,
       net: acc.net + r.net_pay,
     }),
-    { nightPay: 0, transport: 0, lunch: 0, gross: 0, tax: 0, net: 0 }
+    {
+      totalMinutes: 0,
+      nightMinutes: 0,
+      nightPay: 0,
+      transport: 0,
+      lunch: 0,
+      gross: 0,
+      tax: 0,
+      net: 0,
+    }
   );
 
   const header = [
     "従業員No",
     "氏名",
     "勤務日数",
+    "勤務時間",
+    "うち深夜",
+    "基本時給",
     "基本給",
     "深夜勤務手当",
     "交通費",
@@ -113,6 +136,9 @@ function buildCsv(rows: PayRow[]): string {
       r.emp.employee_no,
       `"${r.emp.name.replace(/"/g, '""')}"`,
       r.work_days,
+      hhmmCsv(r.total_minutes),
+      hhmmCsv(r.night_minutes),
+      r.hourly_wage,
       r.base_pay,
       r.night_pay,
       r.transport_total,
@@ -126,6 +152,9 @@ function buildCsv(rows: PayRow[]): string {
   const total = [
     "合計",
     `"${rows.length}名"`,
+    "",
+    hhmmCsv(totals.totalMinutes),
+    hhmmCsv(totals.nightMinutes),
     "",
     "",
     totals.nightPay,

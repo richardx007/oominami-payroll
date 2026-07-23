@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { standardBreakMinutes } from "@/lib/period";
+import { BREAK_SETTING_KEYS, parseBreakWindows } from "@/lib/breaks";
 import { entrySchema } from "@/app/(employee)/timesheet/schema";
 import type { ActionResult } from "@/app/(employee)/timesheet/actions";
 
@@ -25,6 +26,12 @@ export async function adminUpsertWorkEntry(
   const d = parsed.data;
   const supabase = await createClient();
 
+  const { data: breakSettings } = await supabase
+    .from("app_settings")
+    .select("key, value")
+    .in("key", BREAK_SETTING_KEYS);
+  const breakWindows = parseBreakWindows(breakSettings);
+
   const { error } = await supabase.from("work_entries").upsert(
     {
       employee_id: employeeId,
@@ -33,7 +40,7 @@ export async function adminUpsertWorkEntry(
       end_time: d.end_time || null,
       // 休憩は標準休憩ルールから自動計算(退勤未入力なら0)
       break_minutes: d.end_time
-        ? standardBreakMinutes(d.start_time, d.end_time)
+        ? standardBreakMinutes(d.start_time, d.end_time, breakWindows)
         : 0,
       transport_cost: d.transport_cost,
       transport_mode: d.transport_mode?.trim() || null,

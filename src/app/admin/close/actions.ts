@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { periodFromKey, workMinutes, standardBreakMinutes } from "@/lib/period";
+import { BREAK_SETTING_KEYS, parseBreakWindows } from "@/lib/breaks";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { effectiveAt } from "@/lib/payroll";
 import { logActivity } from "@/lib/log";
@@ -181,20 +182,23 @@ export async function emailPayslips(
     )
     .eq("pay_period_id", payPeriod.id);
 
-  // 日別明細用に当期の勤務実績と昼食補助(日額)を取得する
-  const [{ data: periodEntries }, { data: allowances }] = await Promise.all([
-    supabase
-      .from("work_entries")
-      .select(
-        "employee_id, work_date, start_time, end_time, break_minutes, transport_cost"
-      )
-      .gte("work_date", period.start)
-      .lte("work_date", period.end)
-      .order("work_date"),
-    supabase
-      .from("allowance_settings")
-      .select("lunch_allowance_per_day, effective_from"),
-  ]);
+  // 日別明細用に当期の勤務実績・昼食補助(日額)・標準休憩時間帯を取得する
+  const [{ data: periodEntries }, { data: allowances }, { data: breakSettings }] =
+    await Promise.all([
+      supabase
+        .from("work_entries")
+        .select(
+          "employee_id, work_date, start_time, end_time, break_minutes, transport_cost"
+        )
+        .gte("work_date", period.start)
+        .lte("work_date", period.end)
+        .order("work_date"),
+      supabase
+        .from("allowance_settings")
+        .select("lunch_allowance_per_day, effective_from"),
+      supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
+    ]);
+  const breakWindows = parseBreakWindows(breakSettings);
   const lunchPerDay =
     effectiveAt(allowances ?? [], period.end)?.lunch_allowance_per_day ?? 0;
   const entriesByEmployee = new Map<string, PayslipDailyRow[]>();
@@ -205,7 +209,7 @@ export async function emailPayslips(
     const start = e.start_time.slice(0, 5);
     const end = e.end_time.slice(0, 5);
     // 休憩・勤務時間は標準休憩ルールから算出(保存済み break_minutes は使わない)
-    const brk = standardBreakMinutes(start, end);
+    const brk = standardBreakMinutes(start, end, breakWindows);
     rows.push({
       workDate: e.work_date,
       startTime: start,

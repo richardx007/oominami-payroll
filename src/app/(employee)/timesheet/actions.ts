@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
 import { standardBreakMinutes } from "@/lib/period";
+import { parseBreakWindows } from "@/lib/breaks";
 import { entrySchema } from "./schema";
 
 export type ActionResult = { ok: boolean; message: string };
@@ -20,13 +21,17 @@ export async function upsertWorkEntry(
   const d = parsed.data;
   const supabase = await createClient();
 
-  const { data: locked } = await supabase.rpc("get_timesheet_lock");
+  const [{ data: locked }, { data: breakSettings }] = await Promise.all([
+    supabase.rpc("get_timesheet_lock"),
+    supabase.rpc("get_break_settings"),
+  ]);
+  const breakWindows = parseBreakWindows(breakSettings);
 
   let start_time = d.start_time;
   let end_time = d.end_time || null;
   // 休憩は標準休憩ルールから自動計算する(入力欄は廃止)。退勤未入力なら0。
   let break_minutes = end_time
-    ? standardBreakMinutes(start_time, end_time)
+    ? standardBreakMinutes(start_time, end_time, breakWindows)
     : 0;
 
   if (locked) {

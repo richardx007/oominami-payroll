@@ -3,12 +3,15 @@
 import { useState, useTransition } from "react";
 import {
   importTaxTable,
+  updateBreakWindows,
   updateEmailSettings,
   updateLunchAllowance,
   updateShiftSlots,
   updateTimesheetLock,
+  uploadWorkRules,
 } from "./actions";
 import type { SlotDef, SlotKey } from "@/lib/shifts";
+import { minutesToHHMM, type BreakWindow } from "@/lib/breaks";
 import type { ActionResult } from "../employees/actions";
 
 const inputClass =
@@ -73,6 +76,71 @@ export function ShiftSlotsForm({
               />
             </div>
             <div className="pb-2 text-xs text-gray-400">枠{slots[k].label}</div>
+          </div>
+        ))}
+        {result && (
+          <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+/** 標準休憩時間帯(3枠)を編集するフォーム。深夜勤務で休憩をいつ取るかにより深夜割増が
+ *  変わってしまう問題を避けるため、休憩はこの3枠に取る前提で勤務時間・深夜勤務手当を計算する。 */
+export function BreakWindowsForm({ windows }: { windows: BreakWindow[] }) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
+        休憩時間
+      </h2>
+      <p className="mt-1 text-sm text-gray-500">
+        休憩は原則この3つの時間帯に取るものとして、勤務時間・深夜勤務手当を計算します
+        (深夜の休憩をいつ取るかで支給額が変わらないようにするため、都度申告はしません)。
+      </p>
+      <form
+        action={(fd) =>
+          startTransition(async () => setResult(await updateBreakWindows(fd)))
+        }
+        className="mt-4 max-w-md space-y-3"
+      >
+        {[1, 2, 3].map((n, i) => (
+          <div key={n} className="grid grid-cols-[auto_1fr_auto_1fr] items-end gap-2">
+            <div className="pb-2 text-xs text-gray-400">枠{n}</div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">
+                開始
+              </label>
+              <input
+                name={`break_${n}_start`}
+                defaultValue={minutesToHHMM(windows[i][0])}
+                placeholder="12:00"
+                className={inputClass}
+              />
+            </div>
+            <div className="pb-2 text-center text-xs text-gray-400">〜</div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">
+                終了
+              </label>
+              <input
+                name={`break_${n}_end`}
+                defaultValue={minutesToHHMM(windows[i][1])}
+                placeholder="13:00"
+                className={inputClass}
+              />
+            </div>
           </div>
         ))}
         {result && (
@@ -343,6 +411,72 @@ function formatDateTime(iso: string) {
 
 function yen(n: number | null) {
   return n === null || n === undefined ? "—" : n.toLocaleString();
+}
+
+/** 勤務ルール文書(jpg/png/pdf)のアップロード。既存文書があれば置き換える。 */
+export function WorkRulesForm({
+  currentFilename,
+  previewUrl,
+}: {
+  currentFilename: string | null;
+  previewUrl: string | null;
+}) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
+        勤務ルール
+      </h2>
+      <p className="mt-1 text-sm text-gray-500">
+        勤務ルールを記載した文書(jpg・png・pdf)をアップロードします。従業員・管理者ともメニューの
+        「勤務ルール」からいつでも確認できます。
+      </p>
+      {currentFilename && (
+        <p className="mt-2 text-sm text-gray-600">
+          現在の登録:{" "}
+          {previewUrl ? (
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline hover:text-blue-700"
+            >
+              {currentFilename}
+            </a>
+          ) : (
+            currentFilename
+          )}
+        </p>
+      )}
+      <form
+        action={(fd) =>
+          startTransition(async () => setResult(await uploadWorkRules(fd)))
+        }
+        className="mt-3 flex flex-wrap items-center gap-3"
+      >
+        <input
+          type="file"
+          name="file"
+          accept="image/jpeg,image/png,application/pdf"
+          required
+          className="text-sm"
+        />
+        {result && (
+          <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "アップロード中..." : "アップロードする"}
+        </button>
+      </form>
+    </section>
+  );
 }
 
 export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
