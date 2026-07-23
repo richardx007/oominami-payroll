@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
 import { todayJST, nowTimeJST, standardBreakMinutes } from "@/lib/period";
+import { parseBreakWindows } from "@/lib/breaks";
 import { logActivity } from "@/lib/log";
 
 export type ClockResult = {
@@ -234,8 +235,10 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
         message: "本日の出勤記録が見つかりません。先に出勤QRを読み取ってください。",
       };
     }
-    // 休憩は標準休憩ルール(12-13/19-20/4-5時)から自動計算する
-    const brk = standardBreakMinutes(target.start_time.slice(0, 5), time);
+    // 休憩は標準休憩ルール(設定画面「休憩時間」。既定12-13/19-20/4-5時)から自動計算する
+    const { data: breakSettings } = await supabase.rpc("get_break_settings");
+    const breakWindows = parseBreakWindows(breakSettings);
+    const brk = standardBreakMinutes(target.start_time.slice(0, 5), time, breakWindows);
     const { error } = await supabase
       .from("work_entries")
       .update({ end_time: time, break_minutes: brk, ...(transport ?? {}) })

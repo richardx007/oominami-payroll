@@ -120,7 +120,9 @@ export default async function ClosePage({
               <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
                 <th className="px-4 py-2">氏名</th>
                 <th className="px-4 py-2 text-right">日数</th>
-                <th className="px-4 py-2 text-right">時間</th>
+                <th className="px-4 py-2 text-right">勤務時間</th>
+                <th className="px-4 py-2 text-right">うち深夜</th>
+                <th className="px-4 py-2 text-right">基本時給</th>
                 <th className="px-4 py-2 text-right">基本給</th>
                 <th className="px-4 py-2 text-right">深夜手当</th>
                 <th className="px-4 py-2 text-right">交通費</th>
@@ -141,6 +143,14 @@ export default async function ClosePage({
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         {hhmm(p.result.total_minutes)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        {p.result.night_minutes > 0
+                          ? hhmm(p.result.night_minutes)
+                          : "―"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        ¥{p.result.hourly_wage.toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-right">
                         ¥{p.result.base_pay.toLocaleString()}
@@ -165,7 +175,7 @@ export default async function ClosePage({
                       </td>
                     </>
                   ) : (
-                    <td colSpan={9} className="px-4 py-3 text-red-600">
+                    <td colSpan={11} className="px-4 py-3 text-red-600">
                       {p.error}
                     </td>
                   )}
@@ -174,7 +184,7 @@ export default async function ClosePage({
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={12}
                     className="px-4 py-8 text-center text-gray-400"
                   >
                     対象の従業員がいません

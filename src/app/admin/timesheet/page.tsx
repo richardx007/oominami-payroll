@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
 import { buildShiftMap, parseSlots, type SlotKey } from "@/lib/shifts";
+import { BREAK_SETTING_KEYS, parseBreakWindows } from "@/lib/breaks";
 import { TimesheetCalendar } from "@/app/(employee)/timesheet/ui";
 import type { WorkEntry } from "@/app/(employee)/timesheet/page";
 import { adminUpsertWorkEntry, adminDeleteWorkEntry } from "./actions";
@@ -49,6 +50,7 @@ export default async function AdminTimesheetPage({
     { data: pastEntries },
     { data: shiftRows },
     { data: slotRows },
+    { data: breakSettings },
   ] = await Promise.all([
     supabase
       .from("work_entries")
@@ -72,7 +74,10 @@ export default async function AdminTimesheetPage({
       .gte("work_date", period.start)
       .lte("work_date", period.end),
     supabase.rpc("get_shift_settings"),
+    supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
   ]);
+
+  const breakWindows = parseBreakWindows(breakSettings);
 
   const slots = parseSlots(slotRows as { key: string; value: string }[]);
   const shifts = buildShiftMap(
@@ -118,6 +123,7 @@ export default async function AdminTimesheetPage({
         employees={list}
         selectedEmployeeId={selectedId}
         shifts={shifts}
+        breakWindows={breakWindows}
       />
     </div>
   );

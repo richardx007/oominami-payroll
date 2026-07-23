@@ -136,6 +136,60 @@ export async function updateShiftSlots(
   return { ok: true, message: "シフト枠を保存しました" };
 }
 
+const breakWindowFieldSchema = z
+  .object({
+    break_1_start: z.string().regex(/^\d{1,2}:\d{2}$/),
+    break_1_end: z.string().regex(/^\d{1,2}:\d{2}$/),
+    break_2_start: z.string().regex(/^\d{1,2}:\d{2}$/),
+    break_2_end: z.string().regex(/^\d{1,2}:\d{2}$/),
+    break_3_start: z.string().regex(/^\d{1,2}:\d{2}$/),
+    break_3_end: z.string().regex(/^\d{1,2}:\d{2}$/),
+  })
+  .refine(
+    (d) =>
+      [1, 2, 3].every((n) => {
+        const s = d[`break_${n}_start` as keyof typeof d];
+        const e = d[`break_${n}_end` as keyof typeof d];
+        return s < e;
+      }),
+    { message: "各枠は開始 < 終了で入力してください" }
+  );
+
+/**
+ * 標準休憩時間帯(3枠)を保存する。深夜勤務で休憩をいつ取るかによって深夜割増が
+ * 変わらないよう、休憩はこの3枠に取る前提で勤務時間・深夜勤務手当を計算する(§8参照)。
+ */
+export async function updateBreakWindows(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = breakWindowFieldSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const rows = [1, 2, 3].flatMap((n) => [
+    {
+      key: `break_window_${n}_start`,
+      value: d[`break_${n}_start` as keyof typeof d].trim(),
+    },
+    {
+      key: `break_window_${n}_end`,
+      value: d[`break_${n}_end` as keyof typeof d].trim(),
+    },
+  ]);
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(rows, { onConflict: "key" });
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "休憩時間を保存しました" };
+}
+
 /** 従業員による出退勤時刻・休憩時間の編集ロックをON/OFF切替する。QR打刻自体は影響を受けない。 */
 export async function updateTimesheetLock(
   formData: FormData
@@ -359,4 +413,65 @@ export async function importTaxTable(
       message: "取り込み処理でエラーが発生しました: " + msg,
     };
   }
+}
+
+const WORK_RULES_ALLOWED_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "application/pdf",
+];
+const WORK_RULES_MAX_SIZE = 20 * 1024 * 1024; // 20MB
+/** ストレージ内の固定パス(拡張子は付けない。実際の種別は work_rules_mime に保存する) */
+const WORK_RULES_STORAGE_PATH = "document";
+
+/**
+ * 勤務ルール文書(jpg/png/pdf)をアップロードする。既存の文書がある場合は置き換える。
+ * Supabase Storage の非公開バケット `work-rules` に固定パスで保存し(常に上書き)、
+ * 元のファイル名・MIME種別・アップロード日時を app_settings に記録する
+ * (従業員のハンバーガーメニュー「勤務ルール」から閲覧する際に使う)。
+ */
+export async function uploadWorkRules(formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, message: "ファイルを選択してください" };
+  }
+  if (!WORK_RULES_ALLOWED_TYPES.includes(file.type)) {
+    return {
+      ok: false,
+      message: "jpg・png・pdfファイルのみアップロードできます",
+    };
+  }
+  if (file.size > WORK_RULES_MAX_SIZE) {
+    return { ok: false, message: "ファイルサイズは20MB以下にしてください" };
+  }
+
+  const supabase = await createClient();
+  const { error: uploadError } = await supabase.storage
+    .from("work-rules")
+    .upload(WORK_RULES_STORAGE_PATH, file, {
+      upsert: true,
+      contentType: file.type,
+    });
+  if (uploadError) {
+    return {
+      ok: false,
+      message: "アップロードに失敗しました: " + uploadError.message,
+    };
+  }
+
+  const rows = [
+    { key: "work_rules_path", value: WORK_RULES_STORAGE_PATH },
+    { key: "work_rules_filename", value: file.name },
+    { key: "work_rules_mime", value: file.type },
+    { key: "work_rules_uploaded_at", value: new Date().toISOString() },
+  ];
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(rows, { onConflict: "key" });
+  if (error) return { ok: false, message: "設定の保存に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  return { ok: true, message: `勤務ルール(${file.name})を保存しました` };
 }

@@ -111,6 +111,15 @@ export function EmployeeNav({
           <MailIcon className="h-6 w-6" />
           管理者へ✉️
         </a>
+        <a
+          href="/work-rules"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden flex-col items-center gap-1 py-2.5 text-xs font-medium text-blue-100 transition hover:text-white lg:flex"
+        >
+          <DocumentIcon className="h-6 w-6" />
+          勤務ルール
+        </a>
         <form action={signOut} className="hidden lg:block">
           <button
             type="submit"
@@ -169,6 +178,16 @@ export function EmployeeNav({
             >
               <MailIcon className="h-5 w-5 shrink-0" />
               管理者へ✉️
+            </a>
+            <a
+              href="/work-rules"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <DocumentIcon className="h-5 w-5 shrink-0" />
+              勤務ルール
             </a>
             {/* 区切り線の下にログアウト */}
             <form action={signOut} className="border-t-4 border-white/15">
@@ -283,6 +302,24 @@ function MailIcon({ className }: { className?: string }) {
     >
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="M3 7l9 6 9-6" />
+    </svg>
+  );
+}
+
+function DocumentIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 3h9l3 3v15H6z" />
+      <path d="M15 3v3h3M9 12h6M9 16h6M9 8h2" />
     </svg>
   );
 }

@@ -10,6 +10,7 @@ import {
   standardBreakMinutes,
 } from "@/lib/period";
 import { useSwipeNav } from "@/lib/useSwipeNav";
+import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "@/lib/breaks";
 import type { ShiftInfo } from "@/lib/shifts";
 import { SHIFT_TEXT_COLOR } from "@/lib/shifts";
 import type { WorkEntry } from "./page";
@@ -44,6 +45,7 @@ export function TimesheetCalendar({
   employeeName,
   shifts = {},
   timeLocked = false,
+  breakWindows = DEFAULT_BREAK_WINDOWS,
 }: {
   period: Period;
   entries: WorkEntry[];
@@ -55,6 +57,8 @@ export function TimesheetCalendar({
   shifts?: Record<string, ShiftInfo>;
   /** 管理者が設定でロックした場合、従業員は出勤/退勤時刻・休憩時間を編集できない(管理者画面では常にfalse) */
   timeLocked?: boolean;
+  /** 標準休憩時間帯(設定画面「休憩時間」で変更可)。勤務時間の表示計算に使う(保存時の実際の値はサーバー側で確定) */
+  breakWindows?: BreakWindow[];
   /** 勤務記録の保存アクション(従業員=自分, 管理者=対象従業員にバインド済み) */
   save: (formData: FormData) => Promise<ActionResult>;
   /** 勤務記録の削除アクション */
@@ -120,12 +124,12 @@ export function TimesheetCalendar({
         minutes += workMinutes(
           e.start_time,
           e.end_time,
-          standardBreakMinutes(e.start_time, e.end_time)
+          standardBreakMinutes(e.start_time, e.end_time, breakWindows)
         );
       transport += e.transport_cost;
     }
     return { days: entries.length, minutes, transport };
-  }, [entries]);
+  }, [entries, breakWindows]);
 
   const selectedEntry = selected ? entryMap.get(selected) : undefined;
   // 新規日(未入力日)の既定値: 最後に表示/入力した勤務記録を引き継ぐ。
@@ -401,7 +405,8 @@ export function TimesheetCalendar({
               {selectedEntry.end_time
                 ? standardBreakMinutes(
                     selectedEntry.start_time,
-                    selectedEntry.end_time
+                    selectedEntry.end_time,
+                    breakWindows
                   )
                 : selectedEntry.break_minutes}
               分)/ 交通費 ¥
@@ -415,6 +420,7 @@ export function TimesheetCalendar({
             entries={entries}
             holidays={holidays}
             shifts={shifts}
+            breakWindows={breakWindows}
             onSelect={(d) => {
               setResult(null);
               const e = entryMap.get(d);
@@ -437,7 +443,9 @@ function entryFromFormData(fd: FormData): WorkEntry {
     work_date: s("work_date"),
     start_time: start,
     end_time: end,
-    // 休憩は標準ルールから導出(入力欄は廃止)
+    // 休憩は標準ルールから導出(入力欄は廃止)。ここはモジュール関数(コンポーネント外)のため
+    // 設定済みの休憩枠を参照できず既定値を使うが、これは「次の新規日への既定値プレビュー」用の
+    // 概算にすぎず、実際に保存される休憩時間はサーバー側で設定済みの休憩枠から確定計算される。
     break_minutes: end ? standardBreakMinutes(start, end) : 0,
     transport_cost: Number(s("transport_cost")) || 0,
     transport_mode: s("transport_mode") || null,
@@ -457,11 +465,13 @@ function WorkList({
   entries,
   holidays,
   shifts,
+  breakWindows,
   onSelect,
 }: {
   entries: WorkEntry[];
   holidays: Record<string, string>;
   shifts: Record<string, ShiftInfo>;
+  breakWindows: BreakWindow[];
   onSelect: (workDate: string) => void;
 }) {
   const entryMap = new Map(entries.map((e) => [e.work_date, e]));
@@ -502,7 +512,7 @@ function WorkList({
                 ? workMinutes(
                     e.start_time,
                     e.end_time,
-                    standardBreakMinutes(e.start_time, e.end_time)
+                    standardBreakMinutes(e.start_time, e.end_time, breakWindows)
                   )
                 : null;
             // 予定が無いのに実績がある(予定外勤務)は出勤・退勤とも相違扱いで赤太字にする
