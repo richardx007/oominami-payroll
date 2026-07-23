@@ -80,11 +80,13 @@ export default async function PayslipsPage() {
               {slip.night_minutes > 0 && (
                 <>
                   <Row
-                    label="深夜勤務時間"
+                    label="深夜勤務時間(時給25%増)"
                     value={formatMinutes(slip.night_minutes) || "0時間"}
                   />
                   <Row
-                    label="深夜勤務手当(時給25%増)"
+                    label={`深夜勤務手当(時給加算 ¥${Math.round(
+                      slip.hourly_wage * 0.25
+                    ).toLocaleString()})`}
                     value={`¥${slip.night_pay.toLocaleString()}`}
                   />
                 </>
