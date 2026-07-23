@@ -21,7 +21,9 @@ export default async function AdminLayout({
           <AdminSidebarNav />
         </div>
         <div className="border-t border-white/15 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-sm">
-          <div className="mb-2 truncate text-blue-100">{admin.name}</div>
+          <div className="mb-2 truncate text-blue-100">
+            {admin.nickname || admin.name}
+          </div>
           <form action={signOut}>
             <button className="w-full rounded-lg bg-white/15 px-3 py-1.5 text-blue-50 hover:bg-white/25">
               ログアウト
