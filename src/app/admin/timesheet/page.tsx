@@ -21,12 +21,16 @@ export default async function AdminTimesheetPage({
   // 対象従業員の一覧(在籍・非管理者)
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, name")
+    .select("id, name, nickname")
     .eq("status", "active")
     .eq("is_admin", false)
     .order("employee_no");
 
-  const list = employees ?? [];
+  // セレクトの表示名はニックネーム優先(未設定なら氏名)
+  const list = (employees ?? []).map((emp) => ({
+    id: emp.id,
+    name: emp.nickname?.trim() || emp.name,
+  }));
   const selectedId = (e && list.some((x) => x.id === e) ? e : list[0]?.id) ?? "";
 
   if (!selectedId) {
