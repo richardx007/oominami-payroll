@@ -12,7 +12,9 @@ import {
 
 type PayRow = {
   work_days: number;
+  night_minutes: number;
   base_pay: number;
+  night_pay: number;
   transport_total: number;
   lunch_total: number;
   gross_pay: number;
@@ -53,8 +55,8 @@ async function loadReport(periodKey: string): Promise<LoadedReport> {
   const { data: payslips } = await supabase
     .from("payslips")
     .select(
-      `work_days, total_minutes, base_pay, transport_total, lunch_total,
-       gross_pay, income_tax, net_pay, tax_category,
+      `work_days, total_minutes, night_minutes, base_pay, night_pay, transport_total,
+       lunch_total, gross_pay, income_tax, net_pay, tax_category,
        employees ( employee_no, name )`
     )
     .eq("pay_period_id", payPeriod.id);
@@ -83,13 +85,14 @@ async function loadReport(periodKey: string): Promise<LoadedReport> {
 function buildCsv(rows: PayRow[]): string {
   const totals = rows.reduce(
     (acc, r) => ({
+      nightPay: acc.nightPay + r.night_pay,
       transport: acc.transport + r.transport_total,
       lunch: acc.lunch + r.lunch_total,
       gross: acc.gross + r.gross_pay,
       tax: acc.tax + r.income_tax,
       net: acc.net + r.net_pay,
     }),
-    { transport: 0, lunch: 0, gross: 0, tax: 0, net: 0 }
+    { nightPay: 0, transport: 0, lunch: 0, gross: 0, tax: 0, net: 0 }
   );
 
   const header = [
@@ -97,6 +100,7 @@ function buildCsv(rows: PayRow[]): string {
     "氏名",
     "勤務日数",
     "基本給",
+    "深夜勤務手当",
     "交通費",
     "昼食補助",
     "総支給額",
@@ -110,6 +114,7 @@ function buildCsv(rows: PayRow[]): string {
       `"${r.emp.name.replace(/"/g, '""')}"`,
       r.work_days,
       r.base_pay,
+      r.night_pay,
       r.transport_total,
       r.lunch_total,
       r.gross_pay,
@@ -123,6 +128,7 @@ function buildCsv(rows: PayRow[]): string {
     `"${rows.length}名"`,
     "",
     "",
+    totals.nightPay,
     totals.transport,
     totals.lunch,
     totals.gross,

@@ -1,4 +1,4 @@
-import { workMinutes } from "./period";
+import { workMinutes, nightMinutes } from "./period";
 
 /**
  * 給与計算エンジン(純粋関数)
@@ -8,7 +8,10 @@ import { workMinutes } from "./period";
  *   時給は勤務日時点で有効な wage_rates を適用(値上げ対応)
  * - 交通費 = 申告実費の合計(非課税として扱う)
  * - 昼食補助 = 勤務日数 × 定額(課税対象として扱う)
- * - 課税対象額 = 基本給 + 昼食補助
+ * - 深夜勤務手当 = Σ(勤務日ごとの 深夜勤務分数 × 時給 × 25% ÷ 60、日単位で切り捨て)
+ *   深夜勤務分数は勤務時間のうち 22:00〜翌5:00 に該当する時間。基本給とは別に
+ *   単価の25%分を割増手当として追加支給する(課税対象)
+ * - 課税対象額 = 基本給 + 深夜勤務手当 + 昼食補助
  * - 源泉所得税 = 月額表(甲欄/乙欄)による
  *   - 乙欄: 88,000円未満は課税対象額 × 3.063%(1円未満切り捨て)、以上は税額表を参照
  *   - 甲欄: 88,000円未満は 0円、以上は税額表(扶養親族数別)を参照
@@ -49,8 +52,10 @@ export type TaxTableRow = {
 export type PayslipResult = {
   work_days: number;
   total_minutes: number;
+  night_minutes: number; // 深夜帯(22:00〜翌5:00)の勤務分数
   hourly_wage: number; // 期間末時点の時給(明細表示用)
   base_pay: number;
+  night_pay: number; // 深夜勤務手当(単価の25%割増分)
   transport_total: number;
   lunch_total: number;
   gross_pay: number;
@@ -155,6 +160,8 @@ export function computePayslip(params: {
 
   let basePay = 0;
   let totalMinutes = 0;
+  let nightMins = 0;
+  let nightPay = 0;
   let transportTotal = 0;
 
   for (const e of entries) {
@@ -167,6 +174,10 @@ export function computePayslip(params: {
     const minutes = workMinutes(e.start_time, e.end_time as string, e.break_minutes);
     totalMinutes += minutes;
     basePay += Math.floor((minutes * wage.hourly_wage) / 60);
+    // 深夜勤務手当: 深夜帯の勤務分数に対し時給の25%を割増して追加支給(日単位で切り捨て)
+    const nm = nightMinutes(e.start_time, e.end_time as string);
+    nightMins += nm;
+    nightPay += Math.floor((nm * wage.hourly_wage * 0.25) / 60);
     transportTotal += e.transport_cost;
   }
 
@@ -177,17 +188,19 @@ export function computePayslip(params: {
   const category = taxSetting?.tax_category ?? "otsu";
   const dependents = taxSetting?.dependents ?? 0;
 
-  const taxable = basePay + lunchTotal;
+  const taxable = basePay + nightPay + lunchTotal;
   const incomeTax = computeIncomeTax(taxable, category, dependents, taxRows);
 
-  const grossPay = basePay + lunchTotal + transportTotal;
+  const grossPay = basePay + nightPay + lunchTotal + transportTotal;
   const currentWage = effectiveAt(wageRates, periodEnd);
 
   return {
     work_days: entries.length,
     total_minutes: totalMinutes,
+    night_minutes: nightMins,
     hourly_wage: currentWage?.hourly_wage ?? wageRates[0].hourly_wage,
     base_pay: basePay,
+    night_pay: nightPay,
     transport_total: transportTotal,
     lunch_total: lunchTotal,
     gross_pay: grossPay,

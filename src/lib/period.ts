@@ -112,6 +112,34 @@ export function workMinutes(
   return Math.max(0, diff - breakMinutes);
 }
 
+/**
+ * 勤務時間のうち深夜帯(22:00〜翌5:00)に該当する分数を計算する。
+ *
+ * 出退勤の時刻から実際に働いた区間 [開始, 終了) を求め(退勤が出勤以前なら
+ * 翌日にまたぐ勤務とみなし終了に24時間を加算)、繰り返し現れる深夜帯
+ * (毎日 22:00〜翌5:00)との重なりの合計を返す。
+ * 休憩時間がいつ取られたかは記録していないため、休憩分は差し引かない
+ * (深夜帯に物理的に在勤していた時間をそのまま深夜勤務時間とする)。
+ */
+export function nightMinutes(startTime: string, endTime: string): number {
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  const start = sh * 60 + sm;
+  let end = eh * 60 + em;
+  if (end <= start) end += 24 * 60;
+
+  // 深夜帯 = 22:00(1320分)〜翌5:00(1740分)。前後日ぶんも重ねて重複合計を取る。
+  let total = 0;
+  for (let k = -1; k <= 1; k++) {
+    const nStart = 22 * 60 + k * 24 * 60;
+    const nEnd = 29 * 60 + k * 24 * 60; // 翌5:00 = 29:00
+    const lo = Math.max(start, nStart);
+    const hi = Math.min(end, nEnd);
+    if (hi > lo) total += hi - lo;
+  }
+  return total;
+}
+
 export function formatMinutes(min: number): string {
   return `${Math.floor(min / 60)}時間${min % 60 > 0 ? `${min % 60}分` : ""}`;
 }

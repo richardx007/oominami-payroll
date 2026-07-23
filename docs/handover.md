@@ -783,6 +783,24 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - `assets/useSwipeNav.ts`: 現行フックを同梱（他プロジェクトへコピー流用できるように）。
 - `references/swipe-hook.md`: フックの設計意図（2段rAF、blank/resetKeyのタイミング、閾値調整）の詳説。
 
+### 本セッションで実施した変更（2026-07-23 その3・深夜勤務手当への対応）
+オーナー依頼。**開発ブランチ `claude/payroll-system-plan-8wvobq` で作業（main 未マージ・テスト用）**。
+`npm run build && npm test`(24件) 通過。**本番 Supabase にスキーマ適用済み**（既存明細に影響しない追加のみ）。
+- **要件**: 勤務時間のうち **22:00〜翌5:00** の深夜帯に当たる時間に対し、**時給の25%**を深夜勤務手当として
+  基本給とは別に追加支給する。明細にも内訳（深夜勤務時間・深夜勤務手当）を表示する。
+- **計算ロジック**: `src/lib/period.ts` に `nightMinutes(start,end)` を新設。出退勤区間 [開始,終了)（退勤≤出勤なら
+  翌日跨ぎとして+24h）と毎日の深夜帯 22:00〜翌5:00（前後日ぶんも重ねる）の重なりの合計を返す。**休憩がいつ
+  取られたかは記録が無いため休憩分は差し引かない**（深夜帯に在勤した時間をそのまま深夜勤務時間とする）。
+  `src/lib/payroll.ts` の `computePayslip` が勤務日ごとに `floor(深夜分 × 時給 × 0.25 / 60)` を合算し `night_pay`、
+  深夜分合計を `night_minutes` として返す。**課税対象額・総支給額に含める**（`PayslipResult` に2フィールド追加）。
+- **DB**: `payslips` に `night_minutes`・`night_pay`（ともに integer not null default 0）を追加
+  （`supabase/migrations/20260723_add_night_pay.sql`）。締め保存（`admin/close/actions.ts`）で両値を保存。
+- **表示**: 従業員の給与明細画面（`(employee)/payslips/page.tsx`）と給与明細メール（`lib/email.ts`
+  `buildPayslipMailText`）は**深夜勤務があるときのみ**「深夜勤務時間」「深夜勤務手当(時給25%増)」を基本給の直下に
+  表示。締め処理表（`admin/close/page.tsx`）に「深夜手当」列を追加（colSpanを9/10に調整）。税理士CSV
+  （`admin/report/actions.ts`）に「深夜勤務手当」列と合計を追加。
+- **テスト**: `nightMinutes` の各パターンと `computePayslip` の深夜手当計算・深夜なし0を追加（計24件）。
+
 ### 本セッションで実施した変更（2026-07-23・管理者勤務表の従業員セレクトをニックネーム表示に）
 管理者の勤務表(`admin/timesheet/page.tsx`)右上の従業員選択メニューの表示名を、氏名→**ニックネーム
 （未設定なら氏名）**に変更。`employees`取得に`nickname`を追加し、`list`生成時に`name`へ`nickname||name`を

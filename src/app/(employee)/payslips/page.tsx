@@ -9,9 +9,9 @@ export default async function PayslipsPage() {
   const { data: payslips } = await supabase
     .from("payslips")
     .select(
-      `work_days, total_minutes, hourly_wage, base_pay, transport_total,
-       lunch_total, gross_pay, income_tax, net_pay, tax_category, finalized_at,
-       pay_periods ( period_label, payment_date, status )`
+      `work_days, total_minutes, night_minutes, hourly_wage, base_pay, night_pay,
+       transport_total, lunch_total, gross_pay, income_tax, net_pay, tax_category,
+       finalized_at, pay_periods ( period_label, payment_date, status )`
     )
     .eq("employee_id", employee.id)
     .order("finalized_at", { ascending: false });
@@ -77,6 +77,18 @@ export default async function PayslipsPage() {
                 label={`基本給(時給 ¥${slip.hourly_wage.toLocaleString()})`}
                 value={`¥${slip.base_pay.toLocaleString()}`}
               />
+              {slip.night_minutes > 0 && (
+                <>
+                  <Row
+                    label="深夜勤務時間"
+                    value={formatMinutes(slip.night_minutes) || "0時間"}
+                  />
+                  <Row
+                    label="深夜勤務手当(時給25%増)"
+                    value={`¥${slip.night_pay.toLocaleString()}`}
+                  />
+                </>
+              )}
               <Row
                 label="交通費"
                 value={`¥${slip.transport_total.toLocaleString()}`}

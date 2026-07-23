@@ -9,6 +9,7 @@ import {
 import {
   currentPeriod,
   datesInPeriod,
+  nightMinutes,
   periodOf,
   workMinutes,
 } from "./period";
@@ -55,6 +56,21 @@ describe("period", () => {
     expect(workMinutes("22:00", "02:00", 0)).toBe(240);
     // 23:30→7:30 休憩60 → 8時間0分
     expect(workMinutes("23:30", "07:30", 60)).toBe(420);
+  });
+
+  it("深夜帯(22:00〜翌5:00)の勤務分数を計算する", () => {
+    // 深夜帯外の勤務は0
+    expect(nightMinutes("09:00", "17:00")).toBe(0);
+    // 22:00→翌2:00 → 全4時間が深夜帯
+    expect(nightMinutes("22:00", "02:00")).toBe(240);
+    // 18:00→23:00 → 22:00〜23:00の1時間のみ深夜
+    expect(nightMinutes("18:00", "23:00")).toBe(60);
+    // 23:00→翌7:00 → 23:00〜翌5:00の6時間が深夜
+    expect(nightMinutes("23:00", "07:00")).toBe(360);
+    // 03:00→09:00 → 3:00〜5:00の2時間が深夜(早朝帯)
+    expect(nightMinutes("03:00", "09:00")).toBe(120);
+    // ちょうど境界(5:00→22:00)は深夜0
+    expect(nightMinutes("05:00", "22:00")).toBe(0);
   });
 });
 
@@ -191,6 +207,48 @@ describe("computePayslip", () => {
     expect(result.income_tax).toBe(Math.floor(15400 * 0.03063));
     expect(result.gross_pay).toBe(16400);
     expect(result.net_pay).toBe(16400 - result.income_tax);
+  });
+
+  it("深夜勤務手当(時給25%増)を計算する", () => {
+    const result = computePayslip({
+      ...base,
+      entries: [
+        {
+          // 22:00→翌2:00 休憩0 → 実働4時間、うち深夜4時間
+          work_date: "2026-07-10",
+          start_time: "22:00",
+          end_time: "02:00",
+          break_minutes: 0,
+          transport_cost: 0,
+        },
+      ],
+    });
+    // 基本給: 240分 × 1200 / 60 = 4800
+    expect(result.base_pay).toBe(4800);
+    expect(result.night_minutes).toBe(240);
+    // 深夜手当: 240分 × 1200 × 0.25 / 60 = 1200
+    expect(result.night_pay).toBe(1200);
+    // 課税対象額 = 基本給 + 深夜手当 + 昼食補助(500)
+    expect(result.taxable_amount).toBe(4800 + 1200 + 500);
+    // 総支給 = 基本給 + 深夜手当 + 昼食補助 + 交通費(0)
+    expect(result.gross_pay).toBe(4800 + 1200 + 500);
+  });
+
+  it("深夜勤務がない場合は深夜手当0", () => {
+    const result = computePayslip({
+      ...base,
+      entries: [
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "17:00",
+          break_minutes: 60,
+          transport_cost: 0,
+        },
+      ],
+    });
+    expect(result.night_minutes).toBe(0);
+    expect(result.night_pay).toBe(0);
   });
 
   it("退勤未入力(end_time=null)の日があるとエラー(締めを止める)", () => {

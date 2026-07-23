@@ -203,8 +203,10 @@ export function buildPayslipMailText(params: {
   paymentDate: string;
   workDays: number;
   totalMinutes: number;
+  nightMinutes?: number;
   hourlyWage: number;
   basePay: number;
+  nightPay?: number;
   transportTotal: number;
   lunchTotal: number;
   grossPay: number;
@@ -215,6 +217,8 @@ export function buildPayslipMailText(params: {
 }): string {
   const yen = (n: number) => `${n.toLocaleString()}円`;
   const hours = toHHMM(params.totalMinutes);
+  const nightMins = params.nightMinutes ?? 0;
+  const nightPay = params.nightPay ?? 0;
   return [
     `${params.name} 様`,
     "",
@@ -226,6 +230,13 @@ export function buildPayslipMailText(params: {
     `勤務日数: ${params.workDays}日`,
     `勤務時間: ${hours}`,
     `基本給(時給${yen(params.hourlyWage)}): ${yen(params.basePay)}`,
+    // 深夜勤務(22:00〜翌5:00)がある場合のみ内訳を表示する
+    ...(nightMins > 0
+      ? [
+          `深夜勤務時間: ${toHHMM(nightMins)}`,
+          `深夜勤務手当(時給25%増): ${yen(nightPay)}`,
+        ]
+      : []),
     `交通費: ${yen(params.transportTotal)}`,
     `昼食補助: ${yen(params.lunchTotal)}`,
     `総支給額: ${yen(params.grossPay)}`,
