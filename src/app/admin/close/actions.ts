@@ -64,9 +64,11 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     work_days: p.result!.work_days,
     total_minutes: p.result!.total_minutes,
     night_minutes: p.result!.night_minutes,
+    overtime_minutes: p.result!.overtime_minutes,
     hourly_wage: p.result!.hourly_wage,
     base_pay: p.result!.base_pay,
     night_pay: p.result!.night_pay,
+    overtime_pay: p.result!.overtime_pay,
     transport_total: p.result!.transport_total,
     lunch_total: p.result!.lunch_total,
     gross_pay: p.result!.gross_pay,
@@ -176,8 +178,8 @@ export async function emailPayslips(
   const { data: payslips } = await supabase
     .from("payslips")
     .select(
-      `id, employee_id, work_days, total_minutes, night_minutes, hourly_wage, base_pay,
-       night_pay, transport_total, lunch_total, gross_pay, income_tax, net_pay,
+      `id, employee_id, work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay,
+       night_pay, overtime_pay, transport_total, lunch_total, gross_pay, income_tax, net_pay,
        tax_category, emailed_at, employees ( name, email )`
     )
     .eq("pay_period_id", payPeriod.id);
@@ -252,9 +254,11 @@ export async function emailPayslips(
         workDays: p.work_days,
         totalMinutes: p.total_minutes,
         nightMinutes: p.night_minutes,
+        overtimeMinutes: p.overtime_minutes,
         hourlyWage: p.hourly_wage,
         basePay: p.base_pay,
         nightPay: p.night_pay,
+        overtimePay: p.overtime_pay,
         transportTotal: p.transport_total,
         lunchTotal: p.lunch_total,
         grossPay: p.gross_pay,

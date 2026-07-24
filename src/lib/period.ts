@@ -226,6 +226,14 @@ export function nightMinutes(
   return total;
 }
 
+// 1日の法定労働時間(8時間=480分)。これを超えた実働分は残業として時給25%増を加算する。
+const OVERTIME_THRESHOLD_MINUTES = 8 * 60;
+
+/** 勤務分数(休憩控除後)のうち、1日8時間を超えた残業分を返す */
+export function overtimeMinutes(workedMinutes: number): number {
+  return Math.max(0, workedMinutes - OVERTIME_THRESHOLD_MINUTES);
+}
+
 export function formatMinutes(min: number): string {
   return `${Math.floor(min / 60)}時間${min % 60 > 0 ? `${min % 60}分` : ""}`;
 }

@@ -204,9 +204,11 @@ export function buildPayslipMailText(params: {
   workDays: number;
   totalMinutes: number;
   nightMinutes?: number;
+  overtimeMinutes?: number;
   hourlyWage: number;
   basePay: number;
   nightPay?: number;
+  overtimePay?: number;
   transportTotal: number;
   lunchTotal: number;
   grossPay: number;
@@ -219,6 +221,8 @@ export function buildPayslipMailText(params: {
   const hours = toHHMM(params.totalMinutes);
   const nightMins = params.nightMinutes ?? 0;
   const nightPay = params.nightPay ?? 0;
+  const overtimeMins = params.overtimeMinutes ?? 0;
+  const overtimePay = params.overtimePay ?? 0;
   return [
     `${params.name} 様`,
     "",
@@ -235,6 +239,13 @@ export function buildPayslipMailText(params: {
       ? [
           `深夜勤務時間: ${toHHMM(nightMins)}`,
           `深夜勤務手当(時給25%増): ${yen(nightPay)}`,
+        ]
+      : []),
+    // 残業(1日8時間超過分)がある場合のみ内訳を表示する
+    ...(overtimeMins > 0
+      ? [
+          `残業時間: ${toHHMM(overtimeMins)}`,
+          `残業手当(時給25%増): ${yen(overtimePay)}`,
         ]
       : []),
     `交通費: ${yen(params.transportTotal)}`,

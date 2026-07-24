@@ -124,9 +124,11 @@ export default async function ClosePage({
                 <th className="px-4 py-2 text-right">日数</th>
                 <th className="px-4 py-2 text-right">勤務時間</th>
                 <th className="px-4 py-2 text-right">うち深夜</th>
+                <th className="px-4 py-2 text-right">うち残業</th>
                 <th className="px-4 py-2 text-right">基本時給</th>
                 <th className="px-4 py-2 text-right">基本給</th>
                 <th className="px-4 py-2 text-right">深夜手当</th>
+                <th className="px-4 py-2 text-right">残業手当</th>
                 <th className="px-4 py-2 text-right">交通費</th>
                 <th className="px-4 py-2 text-right">昼食補助</th>
                 <th className="px-4 py-2 text-right">総支給</th>
@@ -154,6 +156,11 @@ export default async function ClosePage({
                           : "―"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
+                        {p.result.overtime_minutes > 0
+                          ? hhmm(p.result.overtime_minutes)
+                          : "―"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
                         ¥{p.result.hourly_wage.toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -161,6 +168,9 @@ export default async function ClosePage({
                       </td>
                       <td className="px-4 py-3 text-right">
                         ¥{p.result.night_pay.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        ¥{p.result.overtime_pay.toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-right">
                         ¥{p.result.transport_total.toLocaleString()}
@@ -179,7 +189,7 @@ export default async function ClosePage({
                       </td>
                     </>
                   ) : (
-                    <td colSpan={11} className="px-4 py-3 text-red-600">
+                    <td colSpan={13} className="px-4 py-3 text-red-600">
                       {p.error}
                     </td>
                   )}
@@ -188,7 +198,7 @@ export default async function ClosePage({
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={12}
+                    colSpan={14}
                     className="px-4 py-8 text-center text-gray-400"
                   >
                     対象の従業員がいません

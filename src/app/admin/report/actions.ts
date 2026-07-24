@@ -14,9 +14,11 @@ type PayRow = {
   work_days: number;
   total_minutes: number;
   night_minutes: number;
+  overtime_minutes: number;
   hourly_wage: number;
   base_pay: number;
   night_pay: number;
+  overtime_pay: number;
   transport_total: number;
   lunch_total: number;
   gross_pay: number;
@@ -57,8 +59,8 @@ async function loadReport(periodKey: string): Promise<LoadedReport> {
   const { data: payslips } = await supabase
     .from("payslips")
     .select(
-      `work_days, total_minutes, night_minutes, hourly_wage, base_pay, night_pay, transport_total,
-       lunch_total, gross_pay, income_tax, net_pay, tax_category,
+      `work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay, night_pay,
+       overtime_pay, transport_total, lunch_total, gross_pay, income_tax, net_pay, tax_category,
        employees ( employee_no, name )`
     )
     .eq("pay_period_id", payPeriod.id);
@@ -97,6 +99,8 @@ function buildCsv(rows: PayRow[]): string {
       totalMinutes: acc.totalMinutes + r.total_minutes,
       nightMinutes: acc.nightMinutes + r.night_minutes,
       nightPay: acc.nightPay + r.night_pay,
+      overtimeMinutes: acc.overtimeMinutes + r.overtime_minutes,
+      overtimePay: acc.overtimePay + r.overtime_pay,
       transport: acc.transport + r.transport_total,
       lunch: acc.lunch + r.lunch_total,
       gross: acc.gross + r.gross_pay,
@@ -107,6 +111,8 @@ function buildCsv(rows: PayRow[]): string {
       totalMinutes: 0,
       nightMinutes: 0,
       nightPay: 0,
+      overtimeMinutes: 0,
+      overtimePay: 0,
       transport: 0,
       lunch: 0,
       gross: 0,
@@ -121,9 +127,11 @@ function buildCsv(rows: PayRow[]): string {
     "勤務日数",
     "勤務時間",
     "うち深夜",
+    "うち残業",
     "基本時給",
     "基本給",
     "深夜勤務手当",
+    "残業手当",
     "交通費",
     "昼食補助",
     "総支給額",
@@ -138,9 +146,11 @@ function buildCsv(rows: PayRow[]): string {
       r.work_days,
       hhmmCsv(r.total_minutes),
       hhmmCsv(r.night_minutes),
+      hhmmCsv(r.overtime_minutes),
       r.hourly_wage,
       r.base_pay,
       r.night_pay,
+      r.overtime_pay,
       r.transport_total,
       r.lunch_total,
       r.gross_pay,
@@ -155,9 +165,11 @@ function buildCsv(rows: PayRow[]): string {
     "",
     hhmmCsv(totals.totalMinutes),
     hhmmCsv(totals.nightMinutes),
+    hhmmCsv(totals.overtimeMinutes),
     "",
     "",
     totals.nightPay,
+    totals.overtimePay,
     totals.transport,
     totals.lunch,
     totals.gross,
