@@ -285,6 +285,15 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
     });
   }
 
+  // 時給履歴の編集・削除・追加は連続で操作することが多いため、
+  // 吹き出しを閉じずに一覧をその場で更新する。
+  function runKeepOpen(action: () => Promise<ActionResult>) {
+    startTransition(async () => {
+      const res = await action();
+      setResult(res);
+    });
+  }
+
   return (
     <section className="rounded-xl border border-gray-200 bg-white">
       <div className="rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
@@ -323,6 +332,7 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
                     setEditing(editing === emp.id ? null : emp.id)
                   }
                   onRun={run}
+                  onRunKeepOpen={runKeepOpen}
                 />
               );
             })}
@@ -534,6 +544,7 @@ function EmployeeTableRow({
   pending,
   onEdit,
   onRun,
+  onRunKeepOpen,
 }: {
   emp: EmployeeRow;
   tax: { tax_category: string; dependents: number; effective_from: string } | null;
@@ -541,6 +552,7 @@ function EmployeeTableRow({
   pending: boolean;
   onEdit: () => void;
   onRun: (action: () => Promise<ActionResult>) => void;
+  onRunKeepOpen: (action: () => Promise<ActionResult>) => void;
 }) {
   const retired = emp.status === "retired";
   const status = inviteStatus(emp);
@@ -751,7 +763,11 @@ function EmployeeTableRow({
 
               {!emp.is_admin && (
                 <div className="grid gap-6 border-t border-gray-100 pt-4 md:grid-cols-2">
-                  <WageHistory emp={emp} pending={pending} onRun={onRun} />
+                  <WageHistory
+                    emp={emp}
+                    pending={pending}
+                    onRun={onRunKeepOpen}
+                  />
                   <form
                     action={(fd) => onRun(() => updateTaxSetting(fd))}
                     className="space-y-2"
