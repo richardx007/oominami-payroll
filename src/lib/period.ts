@@ -45,6 +45,50 @@ export function periodFromKey(key: string): Period | null {
   return periodOf(year, month);
 }
 
+/**
+ * 暦月(1日〜末日)の期間を返す。シフト予定表を「1日始まり」で表示するとき用。
+ * キーは給与期間と同じ "YYYY-MM" 形式(暦月そのもの)なので adjacentPeriodKey を共用できる。
+ * paymentDate は暦月では意味を持たないため末日を入れておく(シフト表では未使用)。
+ */
+export function monthPeriodOf(year: number, month: number): Period {
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    key: `${year}-${pad(month)}`,
+    label: `${year}年${month}月`,
+    start: ymd(year, month, 1),
+    end: ymd(year, month, lastDay),
+    paymentDate: ymd(year, month, lastDay),
+  };
+}
+
+/** "YYYY-MM" 形式のキーから暦月の期間を返す(不正値は null) */
+export function monthPeriodFromKey(key: string): Period | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (month < 1 || month > 12 || year < 2000 || year > 2100) return null;
+  return monthPeriodOf(year, month);
+}
+
+/** 今日が属する暦月(日本時間ベース) */
+export function currentMonthPeriod(now: Date = new Date()): Period {
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return monthPeriodOf(jst.getUTCFullYear(), jst.getUTCMonth() + 1);
+}
+
+/**
+ * シフト予定表で使う期間を、暦月始まり(monthStart=true)か給与期間(26日始まり)かで切り替える。
+ * p はURLの期間キー("YYYY-MM")。未指定なら現在の期間。
+ */
+export function shiftPeriodFor(
+  p: string | undefined,
+  monthStart: boolean
+): Period {
+  if (monthStart) return (p && monthPeriodFromKey(p)) || currentMonthPeriod();
+  return (p && periodFromKey(p)) || currentPeriod();
+}
+
 /** 今日が属する期間(日本時間ベース) */
 export function currentPeriod(now: Date = new Date()): Period {
   // JST に変換

@@ -20,8 +20,10 @@ const inputClass =
 /** シフト枠(A/B/C)のラベル・時刻を編集するフォーム */
 export function ShiftSlotsForm({
   slots,
+  monthStart,
 }: {
   slots: Record<SlotKey, SlotDef>;
+  monthStart: boolean;
 }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -78,6 +80,23 @@ export function ShiftSlotsForm({
             <div className="pb-2 text-xs text-gray-400">枠{slots[k].label}</div>
           </div>
         ))}
+        {/* シフト予定表の月の区切り。勤務表(給与計算)は26日始まりのまま。 */}
+        <label className="flex items-start gap-2 rounded-lg bg-gray-50 p-3 text-sm">
+          <input
+            type="checkbox"
+            name="month_start"
+            defaultChecked={monthStart}
+            className="mt-0.5 h-4 w-4 shrink-0"
+          />
+          <span>
+            <span className="font-medium text-gray-700">
+              シフト予定表を「1日始まり」で表示する
+            </span>
+            <span className="mt-0.5 block text-xs text-gray-500">
+              オフのときは給与期間と同じ26日始まり。勤務表(給与計算)は変更されません。
+            </span>
+          </span>
+        </label>
         {result && (
           <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
             {result.message}
