@@ -426,31 +426,33 @@ function EditRow({
           iOSではtimeウィジェットが指定幅より広がるため、固定幅+shrink-0で確保し行は折り返す。 */}
       {cur && (
         <div className="mt-1 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
-          <span className="text-xs font-semibold text-gray-500">
-            変則勤務時間
-          </span>
+          <span className="text-xs font-semibold text-gray-500">変則勤務</span>
           <input
             type="time"
-            value={cs}
+            value={cs || (toInputTime(slots[cur].start) ?? "")}
             onChange={(e) => setCs(e.target.value)}
             onBlur={() => {
               if (cs !== csSaved) onAssign(m.id, date, cur, cs, ce);
             }}
             disabled={pending}
             aria-label="変則出勤予定"
-            className="w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              cs ? "" : "text-gray-400"
+            }`}
           />
           <span className="text-xs text-gray-400">〜</span>
           <input
             type="time"
-            value={ce}
+            value={ce || (toInputTime(slots[cur].end) ?? "")}
             onChange={(e) => setCe(e.target.value)}
             onBlur={() => {
               if (ce !== ceSaved) onAssign(m.id, date, cur, cs, ce);
             }}
             disabled={pending}
             aria-label="変則退勤予定"
-            className="w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              ce ? "" : "text-gray-400"
+            }`}
           />
         </div>
       )}
