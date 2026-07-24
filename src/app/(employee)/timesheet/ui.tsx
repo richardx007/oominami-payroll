@@ -484,13 +484,16 @@ function WorkList({
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-      <div className="flex items-center gap-3 border-b border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-semibold text-gray-700">
-        <span>予実一覧</span>
-        <span className="text-xs font-normal text-gray-500">
+      <div className="border-b border-blue-100 bg-blue-50/70 px-3 py-2">
+        <div className="whitespace-nowrap text-sm font-semibold text-gray-700">
+          予実一覧
+        </div>
+        <div className="mt-0.5 text-xs font-normal text-gray-500">
           上段:予定、下段:実績、予実不一致は
           <span className="font-bold text-red-600">赤字</span>
-          。（）内:深夜
-        </span>
+          <br />
+          （）内は深夜、¥〜は交通費
+        </div>
       </div>
       {dates.length === 0 ? (
         <p className="px-3 py-8 text-center text-sm text-gray-400">
@@ -571,8 +574,8 @@ function WorkList({
                     {/* 実績(下段) */}
                     <div className="rounded bg-green-50 px-2 py-1 text-sm">
                       {e ? (
-                        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <span className="tabular-nums">
+                        <span className="flex flex-nowrap items-center gap-x-1.5 overflow-x-auto">
+                          <span className="shrink-0 tabular-nums">
                             <span
                               className={
                                 startDiff
@@ -604,13 +607,13 @@ function WorkList({
                             )}
                           </span>
                           {mins !== null && (
-                            <span className="tabular-nums text-gray-500">
+                            <span className="shrink-0 tabular-nums text-gray-500">
                               {hhmm(mins)}
-                              {nightMins ? `（深夜${hhmm(nightMins)}）` : ""}
+                              {nightMins ? `（${hhmm(nightMins)}）` : ""}
                             </span>
                           )}
                           {e.transport_cost > 0 && (
-                            <span className="tabular-nums text-gray-500">
+                            <span className="shrink-0 tabular-nums text-gray-500">
                               ¥{e.transport_cost.toLocaleString()}
                             </span>
                           )}
