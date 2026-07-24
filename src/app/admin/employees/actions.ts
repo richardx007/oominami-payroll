@@ -215,8 +215,114 @@ export async function updateWage(formData: FormData): Promise<ActionResult> {
 
   if (error) return { ok: false, message: "時給の更新に失敗しました" };
 
+  await logActivity(
+    "時給変更",
+    `時給を設定: employee=${d.employee_id} ${d.effective_from}〜 ¥${d.hourly_wage}`
+  );
   revalidatePath("/admin/employees");
   return { ok: true, message: "時給を更新しました" };
+}
+
+const editWageSchema = z.object({
+  employee_id: z.uuid(),
+  // 編集対象の履歴行を特定するための元の適用開始日
+  original_effective_from: z.string().min(1),
+  hourly_wage: z.coerce.number().int().min(0, "時給は0以上の整数で入力してください"),
+  effective_from: z.string().min(1, "適用開始日を入力してください"),
+});
+
+/** 時給履歴の1行を訂正する(金額・適用開始日の変更に対応)。
+ *  適用開始日を変える場合は (employee_id, effective_from) の一意制約に
+ *  他の行が衝突しないか確認してから、旧行を消して入れ直す。 */
+export async function editWageRate(formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = editWageSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const dateChanged = d.effective_from !== d.original_effective_from;
+
+  if (dateChanged) {
+    // 変更後の適用開始日に既存の別レートがあると上書きしてしまうため事前に確認
+    const { data: clash } = await supabase
+      .from("wage_rates")
+      .select("effective_from")
+      .eq("employee_id", d.employee_id)
+      .eq("effective_from", d.effective_from)
+      .maybeSingle();
+    if (clash) {
+      return {
+        ok: false,
+        message: `${d.effective_from} には既に別の時給が登録されています。先にそちらを整理してください。`,
+      };
+    }
+    const { error: delError } = await supabase
+      .from("wage_rates")
+      .delete()
+      .eq("employee_id", d.employee_id)
+      .eq("effective_from", d.original_effective_from);
+    if (delError) {
+      return { ok: false, message: "時給の訂正に失敗しました" };
+    }
+  }
+
+  const { error } = await supabase.from("wage_rates").upsert(
+    {
+      employee_id: d.employee_id,
+      hourly_wage: d.hourly_wage,
+      effective_from: d.effective_from,
+    },
+    { onConflict: "employee_id,effective_from" }
+  );
+
+  if (error) return { ok: false, message: "時給の訂正に失敗しました" };
+
+  await logActivity(
+    "時給変更",
+    dateChanged
+      ? `時給履歴を訂正: employee=${d.employee_id} ${d.original_effective_from}〜 → ${d.effective_from}〜 ¥${d.hourly_wage}`
+      : `時給履歴を訂正: employee=${d.employee_id} ${d.effective_from}〜 ¥${d.hourly_wage}`
+  );
+  revalidatePath("/admin/employees");
+  return { ok: true, message: "時給履歴を訂正しました" };
+}
+
+const deleteWageSchema = z.object({
+  employee_id: z.uuid(),
+  effective_from: z.string().min(1),
+});
+
+/** 時給履歴の1行を削除する(誤って追加したレートの取り消し用) */
+export async function deleteWageRate(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = deleteWageSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("wage_rates")
+    .delete()
+    .eq("employee_id", d.employee_id)
+    .eq("effective_from", d.effective_from);
+
+  if (error) return { ok: false, message: "時給履歴の削除に失敗しました" };
+
+  await logActivity(
+    "時給変更",
+    `時給履歴を削除: employee=${d.employee_id} ${d.effective_from}〜`
+  );
+  revalidatePath("/admin/employees");
+  return { ok: true, message: "時給履歴を削除しました" };
 }
 
 const taxSchema = z.object({

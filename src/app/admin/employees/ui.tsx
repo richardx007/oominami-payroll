@@ -8,6 +8,8 @@ import {
   inviteEmployee,
   resetEmployeePassword,
   updateWage,
+  editWageRate,
+  deleteWageRate,
   updateTaxSetting,
   updateEmployeeProfile,
   toggleEmployeeStatus,
@@ -283,6 +285,15 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
     });
   }
 
+  // 時給履歴の編集・削除・追加は連続で操作することが多いため、
+  // 吹き出しを閉じずに一覧をその場で更新する。
+  function runKeepOpen(action: () => Promise<ActionResult>) {
+    startTransition(async () => {
+      const res = await action();
+      setResult(res);
+    });
+  }
+
   return (
     <section className="rounded-xl border border-gray-200 bg-white">
       <div className="rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
@@ -309,13 +320,11 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
           </thead>
           <tbody>
             {employees.map((emp) => {
-              const wage = currentOf(emp.wage_rates);
               const tax = currentOf(emp.tax_settings);
               return (
                 <EmployeeTableRow
                   key={emp.id}
                   emp={emp}
-                  wage={wage}
                   tax={tax}
                   editing={editing === emp.id}
                   pending={pending}
@@ -323,6 +332,7 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
                     setEditing(editing === emp.id ? null : emp.id)
                   }
                   onRun={run}
+                  onRunKeepOpen={runKeepOpen}
                 />
               );
             })}
@@ -340,22 +350,209 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
   );
 }
 
+/** "YYYY-MM-DD" を "YYYY/MM/DD" 表記にする(時給履歴の適用開始日表示用) */
+function slashDate(ymd: string) {
+  return ymd.replaceAll("-", "/");
+}
+
+/**
+ * 時給の履歴(wage_rates)を一覧表示し、各行の訂正・削除と新レートの追加を行う。
+ * どの適用開始日から何円が効いているかを可視化し、誤って残った旧レートを
+ * 削除・訂正できるようにする。
+ */
+function WageHistory({
+  emp,
+  pending,
+  onRun,
+}: {
+  emp: EmployeeRow;
+  pending: boolean;
+  onRun: (action: () => Promise<ActionResult>) => void;
+}) {
+  // 適用開始日の降順(新しい順)に並べる
+  const rates = [...emp.wage_rates].sort((a, b) =>
+    b.effective_from.localeCompare(a.effective_from)
+  );
+  const current = currentOf(emp.wage_rates);
+  // 編集中の行(適用開始日で識別)。null は非編集。
+  const [editingFrom, setEditingFrom] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-xs font-semibold text-gray-500">時給の履歴</h4>
+
+      {rates.length === 0 ? (
+        <p className="text-xs text-gray-400">時給がまだ登録されていません。</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+          {rates.map((r) => {
+            const isCurrent =
+              current?.effective_from === r.effective_from;
+            const isEditing = editingFrom === r.effective_from;
+            return (
+              <li key={r.effective_from} className="px-3 py-2">
+                {isEditing ? (
+                  <form
+                    action={(fd) =>
+                      onRun(async () => {
+                        const res = await editWageRate(fd);
+                        if (res.ok) setEditingFrom(null);
+                        return res;
+                      })
+                    }
+                    className="space-y-2"
+                  >
+                    <input type="hidden" name="employee_id" value={emp.id} />
+                    <input
+                      type="hidden"
+                      name="original_effective_from"
+                      value={r.effective_from}
+                    />
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                      <label className="flex items-center gap-1 text-xs text-gray-500">
+                        時給
+                        <input
+                          name="hourly_wage"
+                          type="number"
+                          min={0}
+                          defaultValue={r.hourly_wage}
+                          required
+                          className={inputClass}
+                        />
+                      </label>
+                      <label className="flex items-center gap-1 text-xs text-gray-500">
+                        開始
+                        <input
+                          name="effective_from"
+                          type="date"
+                          defaultValue={r.effective_from}
+                          required
+                          className={inputClass}
+                        />
+                      </label>
+                      <div className="col-span-2 flex gap-2 sm:col-span-1">
+                        <button
+                          disabled={pending}
+                          className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          保存
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingFrom(null)}
+                          className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="tabular-nums font-medium">
+                        ¥{r.hourly_wage.toLocaleString()}
+                      </span>
+                      <span className="ml-2 whitespace-nowrap text-xs text-gray-500">
+                        {slashDate(r.effective_from)}〜
+                      </span>
+                      {isCurrent && (
+                        <span className="ml-2 whitespace-nowrap rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                          現在有効
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => setEditingFrom(r.effective_from)}
+                        className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        編集
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `${slashDate(r.effective_from)}〜 の時給 ¥${r.hourly_wage.toLocaleString()} を削除します。過去の給与計算に影響する場合があります。よろしいですか?`
+                            )
+                          )
+                            return;
+                          const fd = new FormData();
+                          fd.set("employee_id", emp.id);
+                          fd.set("effective_from", r.effective_from);
+                          onRun(() => deleteWageRate(fd));
+                        }}
+                        className="rounded-lg border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* 新しいレートの追加(値上げ等) */}
+      <form
+        action={(fd) => onRun(() => updateWage(fd))}
+        className="space-y-1.5 border-t border-dashed border-gray-200 pt-3"
+      >
+        <p className="text-xs font-medium text-gray-500">
+          時給を追加(値上げは適用開始日を指定)
+        </p>
+        <input type="hidden" name="employee_id" value={emp.id} />
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <input
+            name="hourly_wage"
+            type="number"
+            min={0}
+            defaultValue={current?.hourly_wage}
+            required
+            placeholder="時給(円)"
+            className={inputClass}
+          />
+          <input
+            name="effective_from"
+            type="date"
+            defaultValue={today()}
+            required
+            className={inputClass}
+          />
+          <button
+            disabled={pending}
+            className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            追加
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function EmployeeTableRow({
   emp,
-  wage,
   tax,
   editing,
   pending,
   onEdit,
   onRun,
+  onRunKeepOpen,
 }: {
   emp: EmployeeRow;
-  wage: { hourly_wage: number; effective_from: string } | null;
   tax: { tax_category: string; dependents: number; effective_from: string } | null;
   editing: boolean;
   pending: boolean;
   onEdit: () => void;
   onRun: (action: () => Promise<ActionResult>) => void;
+  onRunKeepOpen: (action: () => Promise<ActionResult>) => void;
 }) {
   const retired = emp.status === "retired";
   const status = inviteStatus(emp);
@@ -566,39 +763,11 @@ function EmployeeTableRow({
 
               {!emp.is_admin && (
                 <div className="grid gap-6 border-t border-gray-100 pt-4 md:grid-cols-2">
-                  <form
-                    action={(fd) => onRun(() => updateWage(fd))}
-                    className="space-y-2"
-                  >
-                    <h4 className="text-xs font-semibold text-gray-500">
-                      時給の変更(値上げは適用開始日を指定)
-                    </h4>
-                    <input type="hidden" name="employee_id" value={emp.id} />
-                    <div className="grid grid-cols-2 gap-2 sm:flex">
-                      <input
-                        name="hourly_wage"
-                        type="number"
-                        min={0}
-                        defaultValue={wage?.hourly_wage}
-                        required
-                        placeholder="時給(円)"
-                        className={inputClass}
-                      />
-                      <input
-                        name="effective_from"
-                        type="date"
-                        defaultValue={today()}
-                        required
-                        className={inputClass}
-                      />
-                      <button
-                        disabled={pending}
-                        className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        更新
-                      </button>
-                    </div>
-                  </form>
+                  <WageHistory
+                    emp={emp}
+                    pending={pending}
+                    onRun={onRunKeepOpen}
+                  />
                   <form
                     action={(fd) => onRun(() => updateTaxSetting(fd))}
                     className="space-y-2"

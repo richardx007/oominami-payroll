@@ -8,11 +8,11 @@ import {
   datesInPeriod,
   workMinutes,
   standardBreakMinutes,
+  nightMinutes,
 } from "@/lib/period";
 import { useSwipeNav } from "@/lib/useSwipeNav";
 import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "@/lib/breaks";
 import type { ShiftInfo } from "@/lib/shifts";
-import { SHIFT_TEXT_COLOR } from "@/lib/shifts";
 import type { WorkEntry } from "./page";
 import { type ActionResult } from "./actions";
 
@@ -484,11 +484,16 @@ function WorkList({
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-      <div className="flex items-center gap-3 border-b border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-semibold text-gray-700">
-        <span>予実一覧</span>
-        <span className="text-xs font-normal text-gray-500">
-          予定と実績の不一致は<span className="font-bold text-red-600">赤字</span>
-        </span>
+      <div className="border-b border-blue-100 bg-blue-50/70 px-3 py-2">
+        <div className="whitespace-nowrap text-sm font-semibold text-gray-700">
+          予実一覧
+        </div>
+        <div className="mt-0.5 text-xs font-normal text-gray-500">
+          上段:予定、下段:実績、予実不一致は
+          <span className="font-bold text-red-600">赤字</span>
+          <br />
+          （）内は深夜、¥〜は交通費
+        </div>
       </div>
       {dates.length === 0 ? (
         <p className="px-3 py-8 text-center text-sm text-gray-400">
@@ -514,6 +519,10 @@ function WorkList({
                     e.end_time,
                     standardBreakMinutes(e.start_time, e.end_time, breakWindows)
                   )
+                : null;
+            const nightMins =
+              e && e.end_time
+                ? nightMinutes(e.start_time, e.end_time, breakWindows)
                 : null;
             // 予定が無いのに実績がある(予定外勤務)は出勤・退勤とも相違扱いで赤太字にする
             const unplanned = !!e && !shift;
@@ -550,41 +559,23 @@ function WorkList({
                     </div>
                     <div className="text-xs">{WEEKDAYS[dow]}</div>
                   </div>
-                  {/* 予定行 / 実績行。ラベル・枠バッジ・時刻の列幅を両行で揃え、
-                      予定と実績の時刻の開始位置(タブ位置)が一致するようにする。 */}
+                  {/* 予定行 / 実績行。見出し・枠バッジは表示せず、時刻の開始位置を両行で揃える。 */}
                   <div className="min-w-0 flex-1 space-y-1">
                     {/* 予定(上段) */}
-                    <div className="grid grid-cols-[2.5rem_2.75rem_auto] items-center gap-x-1 rounded bg-blue-50 px-2 py-1 text-sm">
-                      <span className="shrink-0 text-xs font-semibold text-blue-700">
-                        予定
-                      </span>
+                    <div className="rounded bg-blue-50 px-2 py-1 text-sm">
                       {shift ? (
-                        <>
-                          <span
-                            className="w-fit rounded px-1 text-xs font-bold"
-                            style={{ backgroundColor: "#dbeafe", color: SHIFT_TEXT_COLOR }}
-                          >
-                            {shift.label}
-                          </span>
-                          <span className="tabular-nums text-gray-800">
-                            {shift.start}〜{shift.end}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="col-span-2 text-xs text-gray-400">
-                          シフトなし
+                        <span className="tabular-nums text-gray-800">
+                          {shift.start}〜{shift.end}
                         </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">シフトなし</span>
                       )}
                     </div>
                     {/* 実績(下段) */}
-                    <div className="grid grid-cols-[2.5rem_2.75rem_auto] items-center gap-x-1 rounded bg-green-50 px-2 py-1 text-sm">
-                      <span className="shrink-0 text-xs font-semibold text-green-700">
-                        実績
-                      </span>
-                      <span />
+                    <div className="rounded bg-green-50 px-2 py-1 text-sm">
                       {e ? (
-                        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <span className="tabular-nums">
+                        <span className="flex flex-nowrap items-center gap-x-1.5 overflow-x-auto">
+                          <span className="shrink-0 tabular-nums">
                             <span
                               className={
                                 startDiff
@@ -615,11 +606,14 @@ function WorkList({
                               </span>
                             )}
                           </span>
-                          <span className="tabular-nums text-gray-500">
-                            {mins === null ? "" : `(${hhmm(mins)})`}
-                          </span>
+                          {mins !== null && (
+                            <span className="shrink-0 tabular-nums text-gray-500">
+                              {hhmm(mins)}
+                              {nightMins ? `（${hhmm(nightMins)}）` : ""}
+                            </span>
+                          )}
                           {e.transport_cost > 0 && (
-                            <span className="tabular-nums text-gray-500">
+                            <span className="shrink-0 tabular-nums text-gray-500">
                               ¥{e.transport_cost.toLocaleString()}
                             </span>
                           )}
