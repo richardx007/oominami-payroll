@@ -1177,6 +1177,12 @@ npm test           # Vitest（給与計算ロジック）
   この統一は表示のみで予実突き合わせ・給与計算の結果を変えない（安全）。
   勤務表の予実(上下段)では予定行も `shift.startInput`/`endInput`(HH:MM 2桁)で表示し、下段の実績と
   桁を揃える(`(employee)/timesheet/ui.tsx`)。
+- **営業カレンダー(外部サービス)への導線**: 別セッション運用の「オオミナミ営業カレンダー」
+  (`https://oominami-calendar.shinsekai.workers.dev`)への参照リンクのみをハンバーガーメニューに追加
+  (方式A=参照。給与システム側にカレンダー描画・Google APIキーは持たない)。リンク先はポスター表示
+  `?poster`(`target="_blank"`)。従業員`(employee)/nav.tsx`・管理者`admin/nav.tsx`双方の「勤務ルール」の
+  直下に配置。従業員ナビのPC/iPad行は項目が増えたため`lg:grid-cols-6`→`lg:grid-cols-8`に変更。
+  画面内iframeは不採用。ツールバー連携等の追加要望があればカレンダー側セッションに依頼する。
 - **残業手当(1日8時間超過分に時給25%増)**: `lib/period.ts`の`overtimeMinutes(workedMinutes)`(8h=480分を超えた分)、
   `lib/payroll.ts`の`computePayslip()`に`overtime_minutes`/`overtime_pay`を追加(深夜手当と同じロジックで日単位切り捨て、
   課税対象額・総支給額に加算)。DB`payslips`に`overtime_minutes`/`overtime_pay`列を追加

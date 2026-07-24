@@ -11,6 +11,9 @@ const mainItems = [
   { href: "/payslips", label: "給与明細", icon: YenIcon },
 ];
 
+// オオミナミ営業カレンダー(別サービス。参照のみ・別タブで開く)のポスター表示URL
+const CALENDAR_URL = "https://oominami-calendar.shinsekai.workers.dev/?poster";
+
 const SEEN_KEY = "notices_seen_at";
 const SEEN_EVENT = "notices-seen-changed";
 
@@ -70,7 +73,7 @@ export function EmployeeNav({
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white">
-      <div className="mx-auto grid max-w-lg grid-cols-4 lg:max-w-2xl lg:grid-cols-6">
+      <div className="mx-auto grid max-w-lg grid-cols-4 lg:max-w-3xl lg:grid-cols-8">
         {mainItems.map((item) => {
           const active = pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -119,6 +122,15 @@ export function EmployeeNav({
         >
           <DocumentIcon className="h-6 w-6" />
           勤務ルール
+        </a>
+        <a
+          href={CALENDAR_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden flex-col items-center gap-1 py-2.5 text-xs font-medium text-blue-100 transition hover:text-white lg:flex"
+        >
+          <PosterIcon className="h-6 w-6" />
+          営業カレンダー
         </a>
         <form action={signOut} className="hidden lg:block">
           <button
@@ -188,6 +200,16 @@ export function EmployeeNav({
             >
               <DocumentIcon className="h-5 w-5 shrink-0" />
               勤務ルール
+            </a>
+            <a
+              href={CALENDAR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <PosterIcon className="h-5 w-5 shrink-0" />
+              営業カレンダー
             </a>
             {/* 区切り線の下にログアウト */}
             <form action={signOut} className="border-t-4 border-white/15">
@@ -338,6 +360,26 @@ function LogoutIcon({ className }: { className?: string }) {
     >
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
       <path d="M16 17l5-5-5-5M21 12H9" />
+    </svg>
+  );
+}
+
+/** 営業カレンダー(ポスター表示)へのリンク用アイコン */
+function PosterIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <circle cx="9" cy="9" r="1.6" />
+      <path d="M4 16l4.5-4.5a1.5 1.5 0 0 1 2.1 0L14 15l1-1a1.5 1.5 0 0 1 2.1 0L20 17" />
     </svg>
   );
 }

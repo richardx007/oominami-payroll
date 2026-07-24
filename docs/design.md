@@ -891,6 +891,24 @@ middleware.ts            未認証は /login へ
   ログアウトの区切り線の**上**（従業員はスマホのポップアップ内・PC/iPadの横並び双方、管理者はモバイルの
   ハンバーガーシートとPCサイドバー双方に配置）。
 
+### 10.3 営業カレンダー(外部サービス・参照のみ)への導線（2026-07-24追加）
+- 別セッションで構築・本番稼働中の「オオミナミ営業カレンダー」(Cloudflare Workers、
+  `https://oominami-calendar.shinsekai.workers.dev`)への**参照リンクのみ**を追加。**方式A(参照)**:
+  給与システム側にカレンダー描画コード・Google APIキーは一切持たせない。データはカレンダー側が
+  Googleカレンダー(`oominami2026@gmail.com`)からブラウザ直結取得(給与システムのバックエンドは不関与)。
+- ハンバーガーメニューの「勤務ルール」の直下に**「営業カレンダー」**を追加（従業員
+  `(employee)/nav.tsx`・管理者`admin/nav.tsx`双方、モバイルのハンバーガーシート/ポップアップと
+  PC/iPadの横並び双方）。リンク先はポスター表示URL
+  `https://oominami-calendar.shinsekai.workers.dev/?poster`（`target="_blank"`で別タブに開く。
+  `ym=YYYY-MM`パラメータで対象月を指定できるが、メニューからは省略=当月表示で開く）。
+  ポスター側にPDF/画像の印刷・共有ボタンが用意されており、給与システム側での実装は不要。
+  従業員ナビの下部タブ（PC/iPad表示、lg:flex）が1項目増えたため、グリッドを
+  `lg:grid-cols-6`→`lg:grid-cols-8`（3主要項目+お知らせ+管理者へ✉️+勤務ルール+営業カレンダー+
+  ログアウト=8列）に変更。
+- 画面内 iframe 埋め込みは不採用（別タブ導線のみ）。将来「給与UI側で月選択・印刷ボタンを持ちたい」等の
+  要望が出た場合は、カレンダー側にツールバー非表示パラメータ＋`postMessage`連携の追加改修を
+  カレンダー側セッションへ依頼する（このリポジトリでは対応しない）。
+
 ### 9.3 実装ファイル
 - DB: `supabase/migrations/20260720_add_timesheet_lock.sql`（`app_settings`の既定値・`get_timesheet_lock()`）。
 - 設定画面: `src/app/admin/settings/{actions,ui,page}.tsx`（`updateTimesheetLock`/`TimesheetLockForm`）。

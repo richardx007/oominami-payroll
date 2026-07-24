@@ -22,6 +22,9 @@ const moreLinks = [
 ];
 const links = [...primaryLinks, ...moreLinks];
 
+// オオミナミ営業カレンダー(別サービス。参照のみ・別タブで開く)のポスター表示URL
+const CALENDAR_URL = "https://oominami-calendar.shinsekai.workers.dev/?poster";
+
 function isActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
   return pathname === href || pathname.startsWith(href + "/");
@@ -89,6 +92,15 @@ export function AdminSidebarNav() {
         <DocumentIcon className="h-6 w-6 shrink-0" />
         勤務ルール
       </a>
+      <a
+        href={CALENDAR_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-lg font-medium text-blue-50 transition-colors hover:bg-white/10 hover:text-white active:opacity-70"
+      >
+        <PosterIcon className="h-6 w-6 shrink-0" />
+        営業カレンダー
+      </a>
     </nav>
   );
 }
@@ -138,6 +150,16 @@ export function AdminBottomNav() {
             >
               <DocumentIcon className="h-5 w-5 shrink-0" />
               勤務ルール
+            </a>
+            <a
+              href={CALENDAR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              className="flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <PosterIcon className="h-5 w-5 shrink-0" />
+              営業カレンダー
             </a>
             {/* 区切り線の下にログアウト(ヘッダーから移設) */}
             <form action={signOut} className="border-t-4 border-white/15">
@@ -369,6 +391,26 @@ function DocumentIcon({ className }: { className?: string }) {
     >
       <path d="M6 3h9l3 3v15H6z" />
       <path d="M15 3v3h3M9 12h6M9 16h6M9 8h2" />
+    </svg>
+  );
+}
+
+/** 営業カレンダー(ポスター表示)へのリンク用アイコン */
+function PosterIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <circle cx="9" cy="9" r="1.6" />
+      <path d="M4 16l4.5-4.5a1.5 1.5 0 0 1 2.1 0L14 15l1-1a1.5 1.5 0 0 1 2.1 0L20 17" />
     </svg>
   );
 }
