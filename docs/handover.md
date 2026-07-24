@@ -1177,6 +1177,15 @@ npm test           # Vitest（給与計算ロジック）
   この統一は表示のみで予実突き合わせ・給与計算の結果を変えない（安全）。
   勤務表の予実(上下段)では予定行も `shift.startInput`/`endInput`(HH:MM 2桁)で表示し、下段の実績と
   桁を揃える(`(employee)/timesheet/ui.tsx`)。
+- **残業手当(1日8時間超過分に時給25%増)**: `lib/period.ts`の`overtimeMinutes(workedMinutes)`(8h=480分を超えた分)、
+  `lib/payroll.ts`の`computePayslip()`に`overtime_minutes`/`overtime_pay`を追加(深夜手当と同じロジックで日単位切り捨て、
+  課税対象額・総支給額に加算)。DB`payslips`に`overtime_minutes`/`overtime_pay`列を追加
+  (マイグレーション`20260724_add_overtime_pay.sql`)。反映箇所: 締め処理表(`admin/close/page.tsx`。
+  うち深夜の次に「うち残業」、深夜手当の次に「残業手当」)、CSV(`admin/report/actions.ts`の`buildCsv()`。
+  税理士送付・ダウンロード共通)、給与明細メール(`lib/email.ts`の`buildPayslipMailText()`。残業がある時のみ内訳表示)、
+  従業員の給与明細画面(`(employee)/payslips/page.tsx`。残業がある時のみ内訳表示)、勤務表の予実一覧
+  (`(employee)/timesheet/ui.tsx`の`WorkList`。実績行に`(深夜)<残業>`の順で表示、凡例に「&lt;&gt;内は残業」追加)。
+  Vitestに2件追加(計27件)。
 - **シフト予定表の1日始まり切替**: 設定「シフト枠」のチェックボックス`shift_month_start`(既定'0'=26日始まり)。
   `lib/period.ts` の `shiftPeriodFor(p, monthStart)`/`monthPeriodOf`/`currentMonthPeriod` が暦月/給与期間を切替。
   `loadShiftData(supabase, p)` が `get_shift_settings`(RPCに`shift_month_start`を追加)からフラグを読んで

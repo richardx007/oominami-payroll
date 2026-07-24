@@ -9,6 +9,7 @@ import {
   workMinutes,
   standardBreakMinutes,
   nightMinutes,
+  overtimeMinutes,
 } from "@/lib/period";
 import { useSwipeNav } from "@/lib/useSwipeNav";
 import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "@/lib/breaks";
@@ -492,7 +493,7 @@ function WorkList({
           上段:予定、下段:実績、予実不一致は
           <span className="font-bold text-red-600">赤字</span>
           <br />
-          （）内は深夜、¥〜は交通費
+          （）内は深夜、&lt;&gt;内は残業、¥〜は交通費
         </div>
       </div>
       {dates.length === 0 ? (
@@ -524,6 +525,7 @@ function WorkList({
               e && e.end_time
                 ? nightMinutes(e.start_time, e.end_time, breakWindows)
                 : null;
+            const otMins = mins !== null ? overtimeMinutes(mins) : null;
             // 予定が無いのに実績がある(予定外勤務)は出勤・退勤とも相違扱いで赤太字にする
             const unplanned = !!e && !shift;
             // 予実の時刻相違(実績があるときのみ判定)。相違=赤太字・合致=黒太字
@@ -611,6 +613,7 @@ function WorkList({
                             <span className="shrink-0 tabular-nums text-gray-500">
                               {hhmm(mins)}
                               {nightMins ? `（${hhmm(nightMins)}）` : ""}
+                              {otMins ? `<${hhmm(otMins)}>` : ""}
                             </span>
                           )}
                           {e.transport_cost > 0 && (

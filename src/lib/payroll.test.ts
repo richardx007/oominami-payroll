@@ -249,6 +249,48 @@ describe("computePayslip", () => {
     expect(result.gross_pay).toBe(4800 + 1200 + 500);
   });
 
+  it("残業手当(1日8時間超過分に時給25%増)を計算する", () => {
+    const result = computePayslip({
+      ...base,
+      entries: [
+        {
+          // 09:00→19:00 休憩60(12-13時) → 実働9時間 → 8時間超過は1時間
+          work_date: "2026-07-10",
+          start_time: "09:00",
+          end_time: "19:00",
+          break_minutes: 0,
+          transport_cost: 0,
+        },
+      ],
+    });
+    // 実働540分、基本給 540×1200/60=10800
+    expect(result.total_minutes).toBe(540);
+    expect(result.base_pay).toBe(10800);
+    // 残業60分(540-480)、残業手当 60×1200×0.25/60=300
+    expect(result.overtime_minutes).toBe(60);
+    expect(result.overtime_pay).toBe(300);
+    // 課税対象額 = 基本給 + 深夜0 + 残業300 + 昼食500
+    expect(result.taxable_amount).toBe(10800 + 300 + 500);
+    expect(result.gross_pay).toBe(10800 + 300 + 500);
+  });
+
+  it("1日8時間以内は残業手当0", () => {
+    const result = computePayslip({
+      ...base,
+      entries: [
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "17:00",
+          break_minutes: 60,
+          transport_cost: 0,
+        },
+      ],
+    });
+    expect(result.overtime_minutes).toBe(0);
+    expect(result.overtime_pay).toBe(0);
+  });
+
   it("深夜勤務がない場合は深夜手当0", () => {
     const result = computePayslip({
       ...base,
