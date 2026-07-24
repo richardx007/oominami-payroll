@@ -39,8 +39,8 @@ create policy shift_assignments_admin on public.shift_assignments
 -- シフト枠の既定値(app_settings。ラベル・時刻は設定画面から編集可能)
 insert into public.app_settings (key, value) values
   ('shift_slot_a_label', '早番'), ('shift_slot_a_start', '8:00'),  ('shift_slot_a_end', '17:00'),
-  ('shift_slot_b_label', '遅番'), ('shift_slot_b_start', '15:00'), ('shift_slot_b_end', '24:00'),
-  ('shift_slot_c_label', '深夜'), ('shift_slot_c_start', '24:00'), ('shift_slot_c_end', '9:00')
+  ('shift_slot_b_label', '遅番'), ('shift_slot_b_start', '15:00'), ('shift_slot_b_end', '0:00'),
+  ('shift_slot_c_label', '深夜'), ('shift_slot_c_start', '0:00'), ('shift_slot_c_end', '9:00')
 on conflict (key) do nothing;
 
 -- "H:MM"/"HH:MM"/"24:00" を "HH24:MI"(00:00-23:59) に正規化する補助関数

@@ -783,6 +783,15 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - `assets/useSwipeNav.ts`: 現行フックを同梱（他プロジェクトへコピー流用できるように）。
 - `references/swipe-hook.md`: フックの設計意図（2段rAF、blank/resetKeyのタイミング、閾値調整）の詳説。
 
+### 本セッションで実施した変更（2026-07-24 その5・iOS日付/時刻入力のスキル化）
+その4の対応を踏まえ、モバイル画面に日付/時刻フィールドを置く際の定石を
+`.claude/skills/mobile-date-time-inputs/` としてスキル化。要点: ①iOS Safariのdate/time入力は指定幅より
+広く描画され縮まないため、full幅/50%グリッド/flex-1では枠からはみ出す ②対策は日付を固定幅＋`shrink-0`、
+値側を`flex-1 min-w-0`、行は`flex-wrap`（`flex-col`は縦長・`grid-cols-2`は重なる） ③狭くしたい時はフォント縮小＋
+パディング詰め（`timeInputClass`方式） ④この不具合はデスクトップやビルドでは検知できず実機確認が必須。
+参照実装として`admin/employees/ui.tsx`(`historyDateClass`/`historyFieldClass`)・`timesheet/ui.tsx`
+(`timeInputClass`)を明記。
+
 ### 本セッションで実施した変更（2026-07-24 その4・時給/税区分履歴フォームのレイアウトを再修正）
 その2で`flex-col`(スマホ縦積み)にしたところ、各`w-full`入力が1つずつ縦に並んで**フォームが縦に長すぎ**、かつ
 iOSの`<input type=date>`がfull幅でも**枠から数字がはみ出す**とのオーナー再指摘（実機スクショ）。根本原因は
@@ -1159,6 +1168,13 @@ npm test           # Vitest（給与計算ロジック）
 - 従業員の完全削除: `admin/employees/actions.ts`（`deleteEmployee`/`countEmployeeWorkEntries`）＋
   DB 関数 `delete_employee`/`count_employee_work_entries`。UIの2段階警告は `admin/employees/ui.tsx`。
 - 勤務表の時刻入力（1行3カラム・iOS重なり対策）: `(employee)/timesheet/ui.tsx` の `timeInputClass`。
+- **夜中0時の表記統一（0時に統一）**: `src/lib/shifts.ts` の `normalizeSlotTime()` が "24:00"→"0:00"
+  （時を `% 24`・分2桁・時の先頭ゼロなし）へ変換。`parseSlots`/`buildShiftMap`/`customTimeParen`/`rawHour`
+  すべて 0時基準で表示する。保存側でも正規化（設定画面 `admin/settings/actions.ts` `updateShiftSlots`、
+  シフト割当 `admin/shifts/actions.ts` `assignShift`）。DB既定値・既存値は
+  マイグレーション `20260724_normalize_midnight_zero.sql` で '24:00'→'0:00' に更新済み。
+  ※処理は元々 `norm_hhmm`(SQL)・`toInputTime`(TS) が `% 24` で 24:00 と 0:00 を同一視していたため、
+  この統一は表示のみで予実突き合わせ・給与計算の結果を変えない（安全）。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
 ---

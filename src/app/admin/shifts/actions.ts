@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
+import { normalizeSlotTime } from "@/lib/shifts";
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -11,7 +12,7 @@ const assignSchema = z.object({
   employee_id: z.uuid(),
   work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   slot: z.enum(["A", "B", "C"]),
-  // 変則出勤/退勤予定(任意)。枠の既定時刻と表記を合わせ "8:00"/"24:00" 等をそのまま許容する。
+  // 変則出勤/退勤予定(任意)。"8:00"/"24:00" 等を許容し、保存時に深夜0時=0:00へ正規化する。
   custom_start: z.string().max(5).optional(),
   custom_end: z.string().max(5).optional(),
 });
@@ -37,8 +38,8 @@ export async function assignShift(input: {
       employee_id: d.employee_id,
       work_date: d.work_date,
       slot: d.slot,
-      custom_start: d.custom_start?.trim() || null,
-      custom_end: d.custom_end?.trim() || null,
+      custom_start: d.custom_start?.trim() ? normalizeSlotTime(d.custom_start) : null,
+      custom_end: d.custom_end?.trim() ? normalizeSlotTime(d.custom_end) : null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "employee_id,work_date" }
