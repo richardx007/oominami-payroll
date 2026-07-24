@@ -33,7 +33,7 @@ export function ShiftSlotsForm({
         シフト枠
       </h2>
       <p className="mt-1 text-sm text-gray-500">
-        シフト予定表で使う3枠の名前と時刻を設定します。深夜0時は「24:00」と入力できます。
+        シフト予定表で使う3枠の名前と時刻を設定します。深夜0時は「0:00」で表記します。
       </p>
       <form
         action={(fd) =>

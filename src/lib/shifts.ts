@@ -14,12 +14,26 @@ export type SlotDef = {
   end: string;
 };
 
-/** app_settings 未設定時の既定(要件: 早番 8:00-17:00 / 遅番 15:00-24:00 / 深夜 24:00-9:00) */
+/** app_settings 未設定時の既定(要件: 早番 8:00-17:00 / 遅番 15:00-0:00 / 深夜 0:00-9:00) */
 export const DEFAULT_SLOTS: Record<SlotKey, SlotDef> = {
   A: { key: "A", label: "早番", start: "8:00", end: "17:00" },
-  B: { key: "B", label: "遅番", start: "15:00", end: "24:00" },
-  C: { key: "C", label: "深夜", start: "24:00", end: "9:00" },
+  B: { key: "B", label: "遅番", start: "15:00", end: "0:00" },
+  C: { key: "C", label: "深夜", start: "0:00", end: "9:00" },
 };
+
+/**
+ * 表示用の時刻文字列を「深夜0時=0時」に統一した "H:MM" 表記へ正規化する。
+ * "24:00"→"0:00"、"08:00"→"8:00"、"24:30"→"0:30"。
+ * 時は 0-23 に丸め(% 24)、分は2桁、時は先頭ゼロなし。パースできない値はそのまま返す。
+ */
+export function normalizeSlotTime(t: string | null | undefined): string {
+  if (!t) return t ?? "";
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(t.trim());
+  if (!m) return t.trim();
+  const h = Number(m[1]) % 24;
+  const min = Number(m[2]);
+  return `${h}:${String(min).padStart(2, "0")}`;
+}
 
 /** app_settings の key/value 配列からシフト枠定義を組み立てる */
 export function parseSlots(
@@ -36,8 +50,8 @@ export function parseSlots(
     out[k] = {
       key: k,
       label: get(k, "label", d.label),
-      start: get(k, "start", d.start),
-      end: get(k, "end", d.end),
+      start: normalizeSlotTime(get(k, "start", d.start)),
+      end: normalizeSlotTime(get(k, "end", d.end)),
     };
   }
   return out;
@@ -68,10 +82,10 @@ export function slotRangeLabel(slot: SlotDef): string {
   return `${slot.start}〜${slot.end}`;
 }
 
-/** "8:00"/"24:00" 等から時(HH)だけを取り出す(24時表記はそのまま24として扱う・折り返さない) */
+/** "8:00"/"24:00" 等から時(HH)だけを取り出す(深夜0時は0時に統一・24→0に丸める) */
 function rawHour(t: string): string {
   const m = /^(\d{1,2}):/.exec(t.trim());
-  return m ? String(Number(m[1])) : t.trim();
+  return m ? String(Number(m[1]) % 24) : t.trim();
 }
 
 /** 枠の時刻を「8〜17時」形式(時のみ)で表示する。シフト編集パネルの凡例など、短く収めたい場所で使う */
@@ -124,8 +138,8 @@ export function buildShiftMap(
   for (const r of rows) {
     const s = slots[r.slot];
     if (!s) continue;
-    const start = r.custom_start?.trim() || s.start;
-    const end = r.custom_end?.trim() || s.end;
+    const start = normalizeSlotTime(r.custom_start?.trim() || s.start);
+    const end = normalizeSlotTime(r.custom_end?.trim() || s.end);
     out[r.work_date] = {
       slot: r.slot,
       label: s.label,
@@ -169,8 +183,8 @@ export function customTimeParen(
   customStart: string | null | undefined,
   customEnd: string | null | undefined
 ): string {
-  const cs = customStart?.trim();
-  const ce = customEnd?.trim();
+  const cs = customStart?.trim() ? normalizeSlotTime(customStart) : "";
+  const ce = customEnd?.trim() ? normalizeSlotTime(customEnd) : "";
   if (cs && ce) return `（${cs}〜${ce}）`;
   if (cs) return `（${cs}〜）`;
   if (ce) return `（〜${ce}）`;

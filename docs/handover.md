@@ -1168,6 +1168,13 @@ npm test           # Vitest（給与計算ロジック）
 - 従業員の完全削除: `admin/employees/actions.ts`（`deleteEmployee`/`countEmployeeWorkEntries`）＋
   DB 関数 `delete_employee`/`count_employee_work_entries`。UIの2段階警告は `admin/employees/ui.tsx`。
 - 勤務表の時刻入力（1行3カラム・iOS重なり対策）: `(employee)/timesheet/ui.tsx` の `timeInputClass`。
+- **夜中0時の表記統一（0時に統一）**: `src/lib/shifts.ts` の `normalizeSlotTime()` が "24:00"→"0:00"
+  （時を `% 24`・分2桁・時の先頭ゼロなし）へ変換。`parseSlots`/`buildShiftMap`/`customTimeParen`/`rawHour`
+  すべて 0時基準で表示する。保存側でも正規化（設定画面 `admin/settings/actions.ts` `updateShiftSlots`、
+  シフト割当 `admin/shifts/actions.ts` `assignShift`）。DB既定値・既存値は
+  マイグレーション `20260724_normalize_midnight_zero.sql` で '24:00'→'0:00' に更新済み。
+  ※処理は元々 `norm_hhmm`(SQL)・`toInputTime`(TS) が `% 24` で 24:00 と 0:00 を同一視していたため、
+  この統一は表示のみで予実突き合わせ・給与計算の結果を変えない（安全）。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
 ---

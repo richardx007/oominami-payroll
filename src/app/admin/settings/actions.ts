@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/log";
+import { normalizeSlotTime } from "@/lib/shifts";
 import type { ActionResult } from "../employees/actions";
 
 const emailSettingsSchema = z.object({
@@ -102,7 +103,7 @@ const slotFieldSchema = z.object({
   c_end: z.string().max(5),
 });
 
-/** シフト枠(A/B/C)のラベル・時刻を保存する。時刻は "8:00"/"24:00" 等の表記のまま保持する。 */
+/** シフト枠(A/B/C)のラベル・時刻を保存する。時刻は深夜0時=0:00に正規化して保持する。 */
 export async function updateShiftSlots(
   formData: FormData
 ): Promise<ActionResult> {
@@ -117,14 +118,14 @@ export async function updateShiftSlots(
 
   const rows = [
     { key: "shift_slot_a_label", value: d.a_label.trim() || "A" },
-    { key: "shift_slot_a_start", value: d.a_start.trim() },
-    { key: "shift_slot_a_end", value: d.a_end.trim() },
+    { key: "shift_slot_a_start", value: normalizeSlotTime(d.a_start) },
+    { key: "shift_slot_a_end", value: normalizeSlotTime(d.a_end) },
     { key: "shift_slot_b_label", value: d.b_label.trim() || "B" },
-    { key: "shift_slot_b_start", value: d.b_start.trim() },
-    { key: "shift_slot_b_end", value: d.b_end.trim() },
+    { key: "shift_slot_b_start", value: normalizeSlotTime(d.b_start) },
+    { key: "shift_slot_b_end", value: normalizeSlotTime(d.b_end) },
     { key: "shift_slot_c_label", value: d.c_label.trim() || "C" },
-    { key: "shift_slot_c_start", value: d.c_start.trim() },
-    { key: "shift_slot_c_end", value: d.c_end.trim() },
+    { key: "shift_slot_c_start", value: normalizeSlotTime(d.c_start) },
+    { key: "shift_slot_c_end", value: normalizeSlotTime(d.c_end) },
   ];
   const { error } = await supabase
     .from("app_settings")
