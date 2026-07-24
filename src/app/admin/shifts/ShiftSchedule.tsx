@@ -12,6 +12,7 @@ import {
   nicknameStyle,
   shiftNoteLabel,
   slotHourRangeLabel,
+  toInputTime,
   type NicknameStyle,
   type SlotDef,
   type SlotKey,
@@ -381,8 +382,12 @@ function EditRow({
     customEnd?: string
   ) => void;
 }) {
-  const [cs, setCs] = useState(customStart ?? "");
-  const [ce, setCe] = useState(customEnd ?? "");
+  // <input type="time"> は "HH:MM"(2桁)を要求するため、保存値("8:00"等)を正規化して保持する。
+  // 空文字は「変則なし=枠の既定時刻を使う」を意味する。
+  const [cs, setCs] = useState(toInputTime(customStart) ?? "");
+  const [ce, setCe] = useState(toInputTime(customEnd) ?? "");
+  const csSaved = toInputTime(customStart) ?? "";
+  const ceSaved = toInputTime(customEnd) ?? "";
 
   return (
     <div className="border-b border-gray-50 py-1">
@@ -416,38 +421,38 @@ function EditRow({
           ))}
         </div>
       </div>
-      {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ入力。
-          見出しは入力欄と同じ行、入力欄のすぐ左に配置する。 */}
+      {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ保存。
+          時刻はネイティブのダイアル選択(<input type="time">)で入力する。
+          iOSではtimeウィジェットが指定幅より広がるため、固定幅+shrink-0で確保し行は折り返す。 */}
       {cur && (
-        <div className="mt-1 flex items-center justify-end gap-1.5">
-          <span className="text-xs font-semibold text-gray-500">
-            変則勤務時間
-          </span>
+        <div className="mt-1 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
+          <span className="text-xs font-semibold text-gray-500">変則勤務</span>
           <input
-            value={cs}
+            type="time"
+            value={cs || (toInputTime(slots[cur].start) ?? "")}
             onChange={(e) => setCs(e.target.value)}
             onBlur={() => {
-              if (cs !== (customStart ?? ""))
-                onAssign(m.id, date, cur, cs, ce);
+              if (cs !== csSaved) onAssign(m.id, date, cur, cs, ce);
             }}
-            placeholder={slots[cur].start}
-            maxLength={5}
             disabled={pending}
             aria-label="変則出勤予定"
-            className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              cs ? "" : "text-gray-400"
+            }`}
           />
           <span className="text-xs text-gray-400">〜</span>
           <input
-            value={ce}
+            type="time"
+            value={ce || (toInputTime(slots[cur].end) ?? "")}
             onChange={(e) => setCe(e.target.value)}
             onBlur={() => {
-              if (ce !== (customEnd ?? "")) onAssign(m.id, date, cur, cs, ce);
+              if (ce !== ceSaved) onAssign(m.id, date, cur, cs, ce);
             }}
-            placeholder={slots[cur].end}
-            maxLength={5}
             disabled={pending}
             aria-label="変則退勤予定"
-            className="w-16 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              ce ? "" : "text-gray-400"
+            }`}
           />
         </div>
       )}
