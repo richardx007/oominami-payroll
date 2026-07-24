@@ -1175,6 +1175,8 @@ npm test           # Vitest（給与計算ロジック）
   マイグレーション `20260724_normalize_midnight_zero.sql` で '24:00'→'0:00' に更新済み。
   ※処理は元々 `norm_hhmm`(SQL)・`toInputTime`(TS) が `% 24` で 24:00 と 0:00 を同一視していたため、
   この統一は表示のみで予実突き合わせ・給与計算の結果を変えない（安全）。
+  勤務表の予実(上下段)では予定行も `shift.startInput`/`endInput`(HH:MM 2桁)で表示し、下段の実績と
+  桁を揃える(`(employee)/timesheet/ui.tsx`)。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
 ---
