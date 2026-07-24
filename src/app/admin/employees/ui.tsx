@@ -40,6 +40,15 @@ function TrashIcon({ className }: { className?: string }) {
 const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
+// 履歴の編集・追加フォーム用。iOSの <input type=date> は内容(YYYY/MM/DD)に合わせて
+// 一定の実測幅を必要とし、狭い枠に入れると数字が枠からはみ出す。そのため日付は
+// 固定幅(w-36≒144px、iOSウィジェットが収まる幅)にして shrink させず、
+// 値・区分などの入力を flex-1 で残り幅に伸ばす。行は flex-wrap で必要時のみ折り返す。
+const historyDateClass =
+  "w-36 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const historyFieldClass =
+  "min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -408,29 +417,26 @@ function WageHistory({
                       name="original_effective_from"
                       value={r.effective_from}
                     />
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="flex min-w-0 items-center gap-1 text-xs text-gray-500">
-                        開始
-                        <input
-                          name="effective_from"
-                          type="date"
-                          defaultValue={r.effective_from}
-                          required
-                          className={`${inputClass} min-w-0`}
-                        />
-                      </label>
-                      <label className="flex min-w-0 items-center gap-1 text-xs text-gray-500">
-                        時給
-                        <input
-                          name="hourly_wage"
-                          type="number"
-                          min={0}
-                          defaultValue={r.hourly_wage}
-                          required
-                          className={`${inputClass} min-w-0`}
-                        />
-                      </label>
-                      <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        name="effective_from"
+                        type="date"
+                        defaultValue={r.effective_from}
+                        required
+                        aria-label="適用開始日"
+                        className={historyDateClass}
+                      />
+                      <input
+                        name="hourly_wage"
+                        type="number"
+                        min={0}
+                        defaultValue={r.hourly_wage}
+                        required
+                        aria-label="時給(円)"
+                        placeholder="時給(円)"
+                        className={historyFieldClass}
+                      />
+                      <div className="flex shrink-0 gap-2">
                         <button
                           disabled={pending}
                           className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
@@ -508,13 +514,14 @@ function WageHistory({
           時給を追加(値上げは適用開始日を指定)
         </p>
         <input type="hidden" name="employee_id" value={emp.id} />
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             name="effective_from"
             type="date"
             defaultValue={today()}
             required
-            className={`${inputClass} min-w-0`}
+            aria-label="適用開始日"
+            className={historyDateClass}
           />
           <input
             name="hourly_wage"
@@ -523,7 +530,7 @@ function WageHistory({
             defaultValue={current?.hourly_wage}
             required
             placeholder="時給(円)"
-            className={`${inputClass} min-w-0`}
+            className={historyFieldClass}
           />
         </div>
         <div className="flex justify-end">
@@ -595,47 +602,53 @@ function TaxHistory({
                       name="original_effective_from"
                       value={t.effective_from}
                     />
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <label className="flex min-w-0 items-center gap-1 text-xs text-gray-500">
-                        開始
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <input
                           name="effective_from"
                           type="date"
                           defaultValue={t.effective_from}
                           required
-                          className={`${inputClass} min-w-0`}
+                          aria-label="適用開始日"
+                          className={historyDateClass}
                         />
-                      </label>
-                      <select
-                        name="tax_category"
-                        defaultValue={t.tax_category}
-                        className={`${inputClass} min-w-0`}
-                      >
-                        <option value="otsu">乙欄</option>
-                        <option value="kou">甲欄</option>
-                      </select>
-                      <input
-                        name="dependents"
-                        type="number"
-                        min={0}
-                        defaultValue={t.dependents}
-                        title="扶養親族数"
-                        className={`${inputClass} min-w-0`}
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          disabled={pending}
-                          className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                        <select
+                          name="tax_category"
+                          defaultValue={t.tax_category}
+                          className={historyFieldClass}
                         >
-                          保存
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingFrom(null)}
-                          className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
-                        >
-                          取消
-                        </button>
+                          <option value="otsu">乙欄</option>
+                          <option value="kou">甲欄</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="flex shrink-0 items-center gap-1 text-xs text-gray-500">
+                          扶養
+                          <input
+                            name="dependents"
+                            type="number"
+                            min={0}
+                            defaultValue={t.dependents}
+                            title="扶養親族数"
+                            className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          人
+                        </label>
+                        <div className="ml-auto flex shrink-0 gap-2">
+                          <button
+                            disabled={pending}
+                            className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            保存
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingFrom(null)}
+                            className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                          >
+                            取消
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </form>
@@ -700,30 +713,35 @@ function TaxHistory({
           税区分を追加(変更は適用開始日を指定)
         </p>
         <input type="hidden" name="employee_id" value={emp.id} />
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             name="effective_from"
             type="date"
             defaultValue={today()}
             required
-            className={`${inputClass} min-w-0`}
+            aria-label="適用開始日"
+            className={historyDateClass}
           />
           <select
             name="tax_category"
             defaultValue={current?.tax_category ?? "otsu"}
-            className={`${inputClass} min-w-0`}
+            className={historyFieldClass}
           >
             <option value="otsu">乙欄</option>
             <option value="kou">甲欄</option>
           </select>
-          <input
-            name="dependents"
-            type="number"
-            min={0}
-            defaultValue={current?.dependents ?? 0}
-            title="扶養親族数"
-            className={`${inputClass} min-w-0`}
-          />
+          <label className="flex shrink-0 items-center gap-1 text-xs text-gray-500">
+            扶養
+            <input
+              name="dependents"
+              type="number"
+              min={0}
+              defaultValue={current?.dependents ?? 0}
+              title="扶養親族数"
+              className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            人
+          </label>
         </div>
         <div className="flex justify-end">
           <button
