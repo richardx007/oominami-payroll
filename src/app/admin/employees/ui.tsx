@@ -408,7 +408,7 @@ function WageHistory({
                       name="original_effective_from"
                       value={r.effective_from}
                     />
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <label className="flex min-w-0 items-center gap-1 text-xs text-gray-500">
                         開始
                         <input
@@ -430,7 +430,7 @@ function WageHistory({
                           className={`${inputClass} min-w-0`}
                         />
                       </label>
-                      <div className="col-span-2 flex gap-2 sm:col-span-1">
+                      <div className="flex gap-2">
                         <button
                           disabled={pending}
                           className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
@@ -508,7 +508,7 @@ function WageHistory({
           時給を追加(値上げは適用開始日を指定)
         </p>
         <input type="hidden" name="employee_id" value={emp.id} />
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             name="effective_from"
             type="date"
@@ -595,7 +595,7 @@ function TaxHistory({
                       name="original_effective_from"
                       value={t.effective_from}
                     />
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <label className="flex min-w-0 items-center gap-1 text-xs text-gray-500">
                         開始
                         <input
@@ -622,7 +622,7 @@ function TaxHistory({
                         title="扶養親族数"
                         className={`${inputClass} min-w-0`}
                       />
-                      <div className="col-span-2 flex gap-2 sm:col-span-1">
+                      <div className="flex gap-2">
                         <button
                           disabled={pending}
                           className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
@@ -640,12 +640,12 @@ function TaxHistory({
                     </div>
                   </form>
                 ) : (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <span className="whitespace-nowrap text-xs text-gray-500">
                         {slashDate(t.effective_from)}〜
                       </span>
-                      <span className="ml-2 font-medium">
+                      <span className="ml-2 whitespace-nowrap font-medium">
                         {taxLabel(t.tax_category, t.dependents)}
                       </span>
                       {isCurrent && (
@@ -654,7 +654,7 @@ function TaxHistory({
                         </span>
                       )}
                     </div>
-                    <div className="flex shrink-0 gap-1">
+                    <div className="ml-auto flex shrink-0 gap-1">
                       <button
                         type="button"
                         disabled={pending}
@@ -700,7 +700,7 @@ function TaxHistory({
           税区分を追加(変更は適用開始日を指定)
         </p>
         <input type="hidden" name="employee_id" value={emp.id} />
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             name="effective_from"
             type="date"
