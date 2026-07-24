@@ -117,7 +117,7 @@ export default async function ClosePage({
         <div className="overflow-x-auto print-report">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
+              <tr className="whitespace-nowrap border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
                 <th className="px-4 py-2">氏名</th>
                 <th className="px-4 py-2 text-right">日数</th>
                 <th className="px-4 py-2 text-right">勤務時間</th>

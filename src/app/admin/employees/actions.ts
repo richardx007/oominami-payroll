@@ -356,8 +356,115 @@ export async function updateTaxSetting(
 
   if (error) return { ok: false, message: "税区分の更新に失敗しました" };
 
+  await logActivity(
+    "税区分変更",
+    `税区分を設定: employee=${d.employee_id} ${d.effective_from}〜 ${d.tax_category === "kou" ? "甲欄" : "乙欄"}(扶養${d.dependents}人)`
+  );
   revalidatePath("/admin/employees");
   return { ok: true, message: "税区分を更新しました" };
+}
+
+const editTaxSchema = z.object({
+  employee_id: z.uuid(),
+  // 編集対象の履歴行を特定するための元の適用開始日
+  original_effective_from: z.string().min(1),
+  tax_category: z.enum(["kou", "otsu"]),
+  dependents: z.coerce.number().int().min(0),
+  effective_from: z.string().min(1, "適用開始日を入力してください"),
+});
+
+/** 税区分履歴の1行を訂正する(区分・扶養人数・適用開始日の変更に対応)。
+ *  適用開始日を変える場合は (employee_id, effective_from) の一意制約に
+ *  他の行が衝突しないか確認してから、旧行を消して入れ直す（時給履歴と同じパターン）。 */
+export async function editTaxSetting(formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = editTaxSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const dateChanged = d.effective_from !== d.original_effective_from;
+
+  if (dateChanged) {
+    const { data: clash } = await supabase
+      .from("tax_settings")
+      .select("effective_from")
+      .eq("employee_id", d.employee_id)
+      .eq("effective_from", d.effective_from)
+      .maybeSingle();
+    if (clash) {
+      return {
+        ok: false,
+        message: `${d.effective_from} には既に別の税区分が登録されています。先にそちらを整理してください。`,
+      };
+    }
+    const { error: delError } = await supabase
+      .from("tax_settings")
+      .delete()
+      .eq("employee_id", d.employee_id)
+      .eq("effective_from", d.original_effective_from);
+    if (delError) {
+      return { ok: false, message: "税区分の訂正に失敗しました" };
+    }
+  }
+
+  const { error } = await supabase.from("tax_settings").upsert(
+    {
+      employee_id: d.employee_id,
+      tax_category: d.tax_category,
+      dependents: d.dependents,
+      effective_from: d.effective_from,
+    },
+    { onConflict: "employee_id,effective_from" }
+  );
+
+  if (error) return { ok: false, message: "税区分の訂正に失敗しました" };
+
+  await logActivity(
+    "税区分変更",
+    dateChanged
+      ? `税区分履歴を訂正: employee=${d.employee_id} ${d.original_effective_from}〜 → ${d.effective_from}〜`
+      : `税区分履歴を訂正: employee=${d.employee_id} ${d.effective_from}〜`
+  );
+  revalidatePath("/admin/employees");
+  return { ok: true, message: "税区分履歴を訂正しました" };
+}
+
+const deleteTaxSchema = z.object({
+  employee_id: z.uuid(),
+  effective_from: z.string().min(1),
+});
+
+/** 税区分履歴の1行を削除する(誤って追加した設定の取り消し用) */
+export async function deleteTaxSetting(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = deleteTaxSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("tax_settings")
+    .delete()
+    .eq("employee_id", d.employee_id)
+    .eq("effective_from", d.effective_from);
+
+  if (error) return { ok: false, message: "税区分履歴の削除に失敗しました" };
+
+  await logActivity(
+    "税区分変更",
+    `税区分履歴を削除: employee=${d.employee_id} ${d.effective_from}〜`
+  );
+  revalidatePath("/admin/employees");
+  return { ok: true, message: "税区分履歴を削除しました" };
 }
 
 /** 未登録の従業員に初回登録を依頼するメールを送る */
