@@ -101,6 +101,8 @@ const slotFieldSchema = z.object({
   c_label: z.string().max(10),
   c_start: z.string().max(5),
   c_end: z.string().max(5),
+  // 「1日始まり」チェックボックス。チェック時のみ "on" が送られる(未チェックは欠落)。
+  month_start: z.string().optional(),
 });
 
 /** シフト枠(A/B/C)のラベル・時刻を保存する。時刻は深夜0時=0:00に正規化して保持する。 */
@@ -126,6 +128,7 @@ export async function updateShiftSlots(
     { key: "shift_slot_c_label", value: d.c_label.trim() || "C" },
     { key: "shift_slot_c_start", value: normalizeSlotTime(d.c_start) },
     { key: "shift_slot_c_end", value: normalizeSlotTime(d.c_end) },
+    { key: "shift_month_start", value: d.month_start ? "1" : "0" },
   ];
   const { error } = await supabase
     .from("app_settings")
@@ -134,6 +137,7 @@ export async function updateShiftSlots(
 
   revalidatePath("/admin/settings");
   revalidatePath("/admin");
+  revalidatePath("/shifts");
   return { ok: true, message: "シフト枠を保存しました" };
 }
 

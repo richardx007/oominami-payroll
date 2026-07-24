@@ -1177,6 +1177,11 @@ npm test           # Vitest（給与計算ロジック）
   この統一は表示のみで予実突き合わせ・給与計算の結果を変えない（安全）。
   勤務表の予実(上下段)では予定行も `shift.startInput`/`endInput`(HH:MM 2桁)で表示し、下段の実績と
   桁を揃える(`(employee)/timesheet/ui.tsx`)。
+- **シフト予定表の1日始まり切替**: 設定「シフト枠」のチェックボックス`shift_month_start`(既定'0'=26日始まり)。
+  `lib/period.ts` の `shiftPeriodFor(p, monthStart)`/`monthPeriodOf`/`currentMonthPeriod` が暦月/給与期間を切替。
+  `loadShiftData(supabase, p)` が `get_shift_settings`(RPCに`shift_month_start`を追加)からフラグを読んで
+  期間を決める。**勤務表(給与計算)は常に26日始まり**でこの設定の影響を受けない。
+  マイグレーション `20260724_shift_month_start.sql`。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
 ---

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
-import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
+import { todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
 import { loadShiftData } from "@/lib/shift-data";
 import { ShiftSchedule } from "@/app/admin/shifts/ShiftSchedule";
@@ -12,10 +12,10 @@ export default async function EmployeeShiftsPage({
 }) {
   await requireEmployee();
   const { p } = await searchParams;
-  const period = (p && periodFromKey(p)) || currentPeriod();
 
   const supabase = await createClient();
-  const shiftData = await loadShiftData(supabase, period);
+  const shiftData = await loadShiftData(supabase, p);
+  const period = shiftData.period;
 
   const years = Array.from(
     new Set([Number(period.start.slice(0, 4)), Number(period.end.slice(0, 4))])

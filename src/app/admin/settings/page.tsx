@@ -66,7 +66,10 @@ export default async function SettingsPage() {
         taxName={settingsMap.get("tax_accountant_name") ?? ""}
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
       />
-      <ShiftSlotsForm slots={slots} />
+      <ShiftSlotsForm
+        slots={slots}
+        monthStart={settingsMap.get("shift_month_start") === "1"}
+      />
       <BreakWindowsForm windows={breakWindows} />
       <TimesheetLockForm
         locked={settingsMap.get("lock_employee_time_edit") === "true"}
