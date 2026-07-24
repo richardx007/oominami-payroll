@@ -783,6 +783,15 @@ QR印刷の一連の試行錯誤（別ウィンドウ方式への変更・高さ
 - `assets/useSwipeNav.ts`: 現行フックを同梱（他プロジェクトへコピー流用できるように）。
 - `references/swipe-hook.md`: フックの設計意図（2段rAF、blank/resetKeyのタイミング、閾値調整）の詳説。
 
+### 本セッションで実施した変更（2026-07-24 その5・iOS日付/時刻入力のスキル化）
+その4の対応を踏まえ、モバイル画面に日付/時刻フィールドを置く際の定石を
+`.claude/skills/mobile-date-time-inputs/` としてスキル化。要点: ①iOS Safariのdate/time入力は指定幅より
+広く描画され縮まないため、full幅/50%グリッド/flex-1では枠からはみ出す ②対策は日付を固定幅＋`shrink-0`、
+値側を`flex-1 min-w-0`、行は`flex-wrap`（`flex-col`は縦長・`grid-cols-2`は重なる） ③狭くしたい時はフォント縮小＋
+パディング詰め（`timeInputClass`方式） ④この不具合はデスクトップやビルドでは検知できず実機確認が必須。
+参照実装として`admin/employees/ui.tsx`(`historyDateClass`/`historyFieldClass`)・`timesheet/ui.tsx`
+(`timeInputClass`)を明記。
+
 ### 本セッションで実施した変更（2026-07-24 その4・時給/税区分履歴フォームのレイアウトを再修正）
 その2で`flex-col`(スマホ縦積み)にしたところ、各`w-full`入力が1つずつ縦に並んで**フォームが縦に長すぎ**、かつ
 iOSの`<input type=date>`がfull幅でも**枠から数字がはみ出す**とのオーナー再指摘（実機スクショ）。根本原因は
