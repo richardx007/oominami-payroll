@@ -565,7 +565,8 @@ function WorkList({
                     <div className="rounded bg-blue-50 px-2 py-1 text-sm">
                       {shift ? (
                         <span className="tabular-nums text-gray-800">
-                          {shift.start}〜{shift.end}
+                          {shift.startInput ?? shift.start}〜
+                          {shift.endInput ?? shift.end}
                         </span>
                       ) : (
                         <span className="text-xs text-gray-400">シフトなし</span>
