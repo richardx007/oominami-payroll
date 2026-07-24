@@ -11,6 +11,8 @@ import {
   editWageRate,
   deleteWageRate,
   updateTaxSetting,
+  editTaxSetting,
+  deleteTaxSetting,
   updateEmployeeProfile,
   toggleEmployeeStatus,
   countEmployeeWorkEntries,
@@ -314,18 +316,16 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
           <thead>
             <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
               <th className="px-4 py-2">氏名</th>
-              <th className="px-4 py-2">招待状態</th>
-              <th className="px-4 py-2">在籍</th>
+              <th className="whitespace-nowrap px-4 py-2">招待状態</th>
+              <th className="whitespace-nowrap px-4 py-2">在籍</th>
             </tr>
           </thead>
           <tbody>
             {employees.map((emp) => {
-              const tax = currentOf(emp.tax_settings);
               return (
                 <EmployeeTableRow
                   key={emp.id}
                   emp={emp}
-                  tax={tax}
                   editing={editing === emp.id}
                   pending={pending}
                   onEdit={() =>
@@ -369,9 +369,9 @@ function WageHistory({
   pending: boolean;
   onRun: (action: () => Promise<ActionResult>) => void;
 }) {
-  // 適用開始日の降順(新しい順)に並べる
+  // 適用開始日の昇順(古い順)に並べる
   const rates = [...emp.wage_rates].sort((a, b) =>
-    b.effective_from.localeCompare(a.effective_from)
+    a.effective_from.localeCompare(b.effective_from)
   );
   const current = currentOf(emp.wage_rates);
   // 編集中の行(適用開始日で識別)。null は非編集。
@@ -408,8 +408,18 @@ function WageHistory({
                       name="original_effective_from"
                       value={r.effective_from}
                     />
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                      <label className="flex items-center gap-1 text-xs text-gray-500">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="flex min-w-0 items-center gap-1 text-xs text-gray-500">
+                        開始
+                        <input
+                          name="effective_from"
+                          type="date"
+                          defaultValue={r.effective_from}
+                          required
+                          className={`${inputClass} min-w-0`}
+                        />
+                      </label>
+                      <label className="flex min-w-0 items-center gap-1 text-xs text-gray-500">
                         時給
                         <input
                           name="hourly_wage"
@@ -417,20 +427,10 @@ function WageHistory({
                           min={0}
                           defaultValue={r.hourly_wage}
                           required
-                          className={inputClass}
+                          className={`${inputClass} min-w-0`}
                         />
                       </label>
-                      <label className="flex items-center gap-1 text-xs text-gray-500">
-                        開始
-                        <input
-                          name="effective_from"
-                          type="date"
-                          defaultValue={r.effective_from}
-                          required
-                          className={inputClass}
-                        />
-                      </label>
-                      <div className="col-span-2 flex gap-2 sm:col-span-1">
+                      <div className="flex gap-2">
                         <button
                           disabled={pending}
                           className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
@@ -450,11 +450,11 @@ function WageHistory({
                 ) : (
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="tabular-nums font-medium">
-                        ¥{r.hourly_wage.toLocaleString()}
-                      </span>
-                      <span className="ml-2 whitespace-nowrap text-xs text-gray-500">
+                      <span className="whitespace-nowrap text-xs text-gray-500">
                         {slashDate(r.effective_from)}〜
+                      </span>
+                      <span className="ml-2 tabular-nums font-medium">
+                        ¥{r.hourly_wage.toLocaleString()}
                       </span>
                       {isCurrent && (
                         <span className="ml-2 whitespace-nowrap rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
@@ -508,7 +508,14 @@ function WageHistory({
           時給を追加(値上げは適用開始日を指定)
         </p>
         <input type="hidden" name="employee_id" value={emp.id} />
-        <div className="grid grid-cols-2 gap-2 sm:flex">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            name="effective_from"
+            type="date"
+            defaultValue={today()}
+            required
+            className={`${inputClass} min-w-0`}
+          />
           <input
             name="hourly_wage"
             type="number"
@@ -516,18 +523,212 @@ function WageHistory({
             defaultValue={current?.hourly_wage}
             required
             placeholder="時給(円)"
-            className={inputClass}
+            className={`${inputClass} min-w-0`}
           />
+        </div>
+        <div className="flex justify-end">
+          <button
+            disabled={pending}
+            className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            追加
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/** 税区分ラベル("甲欄(扶養2人)"のような表示文字列)を組み立てる */
+function taxLabel(category: string, dependents: number) {
+  return `${category === "kou" ? "甲欄" : "乙欄"}(扶養${dependents}人)`;
+}
+
+/**
+ * 税区分の履歴(tax_settings)を一覧表示し、各行の訂正・削除と新設定の追加を行う。
+ * WageHistory と同じフォーマット(適用年月日を左に、履歴一覧＋下に追加フォーム)に揃える。
+ */
+function TaxHistory({
+  emp,
+  pending,
+  onRun,
+}: {
+  emp: EmployeeRow;
+  pending: boolean;
+  onRun: (action: () => Promise<ActionResult>) => void;
+}) {
+  // 適用開始日の昇順(古い順)に並べる
+  const settings = [...emp.tax_settings].sort((a, b) =>
+    a.effective_from.localeCompare(b.effective_from)
+  );
+  const current = currentOf(emp.tax_settings);
+  // 編集中の行(適用開始日で識別)。null は非編集。
+  const [editingFrom, setEditingFrom] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-xs font-semibold text-gray-500">税区分の履歴</h4>
+
+      {settings.length === 0 ? (
+        <p className="text-xs text-gray-400">税区分がまだ登録されていません。</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+          {settings.map((t) => {
+            const isCurrent = current?.effective_from === t.effective_from;
+            const isEditing = editingFrom === t.effective_from;
+            return (
+              <li key={t.effective_from} className="px-3 py-2">
+                {isEditing ? (
+                  <form
+                    action={(fd) =>
+                      onRun(async () => {
+                        const res = await editTaxSetting(fd);
+                        if (res.ok) setEditingFrom(null);
+                        return res;
+                      })
+                    }
+                    className="space-y-2"
+                  >
+                    <input type="hidden" name="employee_id" value={emp.id} />
+                    <input
+                      type="hidden"
+                      name="original_effective_from"
+                      value={t.effective_from}
+                    />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <label className="flex min-w-0 items-center gap-1 text-xs text-gray-500">
+                        開始
+                        <input
+                          name="effective_from"
+                          type="date"
+                          defaultValue={t.effective_from}
+                          required
+                          className={`${inputClass} min-w-0`}
+                        />
+                      </label>
+                      <select
+                        name="tax_category"
+                        defaultValue={t.tax_category}
+                        className={`${inputClass} min-w-0`}
+                      >
+                        <option value="otsu">乙欄</option>
+                        <option value="kou">甲欄</option>
+                      </select>
+                      <input
+                        name="dependents"
+                        type="number"
+                        min={0}
+                        defaultValue={t.dependents}
+                        title="扶養親族数"
+                        className={`${inputClass} min-w-0`}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          disabled={pending}
+                          className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          保存
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingFrom(null)}
+                          className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="whitespace-nowrap text-xs text-gray-500">
+                        {slashDate(t.effective_from)}〜
+                      </span>
+                      <span className="ml-2 whitespace-nowrap font-medium">
+                        {taxLabel(t.tax_category, t.dependents)}
+                      </span>
+                      {isCurrent && (
+                        <span className="ml-2 whitespace-nowrap rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                          現在有効
+                        </span>
+                      )}
+                    </div>
+                    <div className="ml-auto flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => setEditingFrom(t.effective_from)}
+                        className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        編集
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `${slashDate(t.effective_from)}〜 の${taxLabel(t.tax_category, t.dependents)}を削除します。過去の給与計算に影響する場合があります。よろしいですか?`
+                            )
+                          )
+                            return;
+                          const fd = new FormData();
+                          fd.set("employee_id", emp.id);
+                          fd.set("effective_from", t.effective_from);
+                          onRun(() => deleteTaxSetting(fd));
+                        }}
+                        className="rounded-lg border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* 新しい税区分の追加(変更時は適用開始日を指定) */}
+      <form
+        action={(fd) => onRun(() => updateTaxSetting(fd))}
+        className="space-y-1.5 border-t border-dashed border-gray-200 pt-3"
+      >
+        <p className="text-xs font-medium text-gray-500">
+          税区分を追加(変更は適用開始日を指定)
+        </p>
+        <input type="hidden" name="employee_id" value={emp.id} />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             name="effective_from"
             type="date"
             defaultValue={today()}
             required
-            className={inputClass}
+            className={`${inputClass} min-w-0`}
           />
+          <select
+            name="tax_category"
+            defaultValue={current?.tax_category ?? "otsu"}
+            className={`${inputClass} min-w-0`}
+          >
+            <option value="otsu">乙欄</option>
+            <option value="kou">甲欄</option>
+          </select>
+          <input
+            name="dependents"
+            type="number"
+            min={0}
+            defaultValue={current?.dependents ?? 0}
+            title="扶養親族数"
+            className={`${inputClass} min-w-0`}
+          />
+        </div>
+        <div className="flex justify-end">
           <button
             disabled={pending}
-            className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
             追加
           </button>
@@ -539,7 +740,6 @@ function WageHistory({
 
 function EmployeeTableRow({
   emp,
-  tax,
   editing,
   pending,
   onEdit,
@@ -547,7 +747,6 @@ function EmployeeTableRow({
   onRunKeepOpen,
 }: {
   emp: EmployeeRow;
-  tax: { tax_category: string; dependents: number; effective_from: string } | null;
   editing: boolean;
   pending: boolean;
   onEdit: () => void;
@@ -625,9 +824,9 @@ function EmployeeTableRow({
             </span>
           )}
         </td>
-        <td className="px-4 py-3">
+        <td className="whitespace-nowrap px-4 py-3">
           <span
-            className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}
+            className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}
           >
             {status.label}
           </span>
@@ -637,7 +836,7 @@ function EmployeeTableRow({
             </span>
           )}
         </td>
-        <td className="px-4 py-3">
+        <td className="whitespace-nowrap px-4 py-3">
           <span
             aria-label={retired ? "退職" : "在籍"}
             className={retired ? "text-gray-400" : "text-green-600"}
@@ -768,46 +967,11 @@ function EmployeeTableRow({
                     pending={pending}
                     onRun={onRunKeepOpen}
                   />
-                  <form
-                    action={(fd) => onRun(() => updateTaxSetting(fd))}
-                    className="space-y-2"
-                  >
-                    <h4 className="text-xs font-semibold text-gray-500">
-                      税区分の変更
-                    </h4>
-                    <input type="hidden" name="employee_id" value={emp.id} />
-                    <div className="grid grid-cols-2 gap-2 sm:flex">
-                      <select
-                        name="tax_category"
-                        defaultValue={tax?.tax_category ?? "otsu"}
-                        className={inputClass}
-                      >
-                        <option value="otsu">乙欄</option>
-                        <option value="kou">甲欄</option>
-                      </select>
-                      <input
-                        name="dependents"
-                        type="number"
-                        min={0}
-                        defaultValue={tax?.dependents ?? 0}
-                        className={inputClass}
-                        title="扶養親族数"
-                      />
-                      <input
-                        name="effective_from"
-                        type="date"
-                        defaultValue={today()}
-                        required
-                        className={inputClass}
-                      />
-                      <button
-                        disabled={pending}
-                        className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        更新
-                      </button>
-                    </div>
-                  </form>
+                  <TaxHistory
+                    emp={emp}
+                    pending={pending}
+                    onRun={onRunKeepOpen}
+                  />
                 </div>
               )}
 

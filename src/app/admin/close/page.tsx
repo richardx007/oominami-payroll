@@ -117,8 +117,10 @@ export default async function ClosePage({
         <div className="overflow-x-auto print-report">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
-                <th className="px-4 py-2">氏名</th>
+              <tr className="whitespace-nowrap border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
+                <th className="sticky left-0 z-10 bg-blue-100 px-4 py-2 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
+                  氏名
+                </th>
                 <th className="px-4 py-2 text-right">日数</th>
                 <th className="px-4 py-2 text-right">勤務時間</th>
                 <th className="px-4 py-2 text-right">うち深夜</th>
@@ -135,7 +137,9 @@ export default async function ClosePage({
             <tbody>
               {payrolls.map((p) => (
                 <tr key={p.employee_id} className="border-b border-gray-50">
-                  <td className="whitespace-nowrap px-4 py-3">{p.name}</td>
+                  <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
+                    {p.name}
+                  </td>
                   {p.result ? (
                     <>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
