@@ -1,5 +1,6 @@
 import { requireEmployee } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { todayJST } from "@/lib/period";
 import { ClockConfirm } from "./ui";
 
 export default async function ClockPage({
@@ -35,20 +36,23 @@ export default async function ClockPage({
     parseInt(s.get("clock_radius_m") ?? "", 10) > 0;
   const roundMin = parseInt(s.get("clock_round_min") ?? "", 10) || 0;
 
-  // 直近の交通費入力(区間・金額・往復/片道・手段)をデフォルト表示に使う
+  // 直近(当日以前)の勤務記録の交通費入力状況を、そのままデフォルト表示に使う。
+  // 交通費なし(0円)の日が直近であればデフォルトも「なし」にする。
+  // ※以前は「交通費が入力済みの直近の日」を探していたため、普段は交通費が不要な人が
+  //   臨時で1回入力すると、その内容がその後ずっと初期表示され続ける問題があった。
   const { data: recent } = await supabase
     .from("work_entries")
     .select("transport_mode, station_from, station_to, round_trip, transport_cost")
     .eq("employee_id", employee.id)
-    .gt("transport_cost", 0)
-    .not("station_from", "is", null)
+    .lte("work_date", todayJST())
     .order("work_date", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   const transportDefault = recent
     ? {
-        mode: recent.transport_mode ?? "",
+        // 手段は未入力なら既定の「鉄道」に戻す(金額・区間が空なら実質未入力扱い)
+        mode: recent.transport_mode?.trim() || "鉄道",
         from: recent.station_from ?? "",
         to: recent.station_to ?? "",
         roundTrip: recent.round_trip ?? true,
