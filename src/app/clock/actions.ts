@@ -73,6 +73,12 @@ function formatDistance(m: number): string {
   return `約${Math.round(m)}m`;
 }
 
+/** RLSの行ポリシー違反(42501)かどうか。締め済み期間への書き込みは work_entries の
+ *  RLS(is_period_open)で弾かれるため、原因不明の「登録に失敗」ではなく専用メッセージを返す */
+function isRlsViolation(error: { code?: string } | null): boolean {
+  return error?.code === "42501";
+}
+
 /** "HH:MM" を単位(分)で丸める。up=切り上げ(出勤) / down=切り捨て(退勤)。unit<=0 は丸めなし */
 function roundTime(hhmm: string, unit: number, dir: "up" | "down"): string {
   if (!Number.isFinite(unit) || unit <= 1) return hhmm;
@@ -162,6 +168,19 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
   }
 
   const date = todayJST();
+
+  // 対象日の給与期間が締め済み(受付中でない)なら、DBのRLSで弾かれる前に分かりやすいメッセージを返す
+  // (締め処理が月末より早く行われた場合など、原因不明の「登録に失敗」表示を避けるため)
+  const { data: periodOpen } = await supabase.rpc("is_period_open", {
+    d: date,
+  });
+  if (periodOpen === false) {
+    return {
+      ok: false,
+      message: "既に今月は締められています。管理者にご連絡ください。",
+    };
+  }
+
   // 丸め: 出勤は単位で切り上げ、退勤は切り捨て(単位0/未設定なら丸めなし)
   const time = roundTime(nowTimeJST(), roundMin, type === "in" ? "up" : "down");
   const transport = transportFields(input);
@@ -200,7 +219,9 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
       await logActivity("エラー", `出勤打刻に失敗: ${employee.name} ${error.message}`);
       return {
         ok: false,
-        message: "出勤の登録に失敗しました。時間をおいて再度お試しください。",
+        message: isRlsViolation(error)
+          ? "既に今月は締められています。管理者にご連絡ください。"
+          : "出勤の登録に失敗しました。時間をおいて再度お試しください。",
       };
     }
     workEntryId = ins.id;
@@ -247,7 +268,9 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
       await logActivity("エラー", `退勤打刻に失敗: ${employee.name} ${error.message}`);
       return {
         ok: false,
-        message: "退勤の登録に失敗しました。時間をおいて再度お試しください。",
+        message: isRlsViolation(error)
+          ? "既に今月は締められています。管理者にご連絡ください。"
+          : "退勤の登録に失敗しました。時間をおいて再度お試しください。",
       };
     }
     workEntryId = target.id;

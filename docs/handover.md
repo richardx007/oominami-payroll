@@ -1183,6 +1183,14 @@ npm test           # Vitest（給与計算ロジック）
   `?poster`(`target="_blank"`)。従業員`(employee)/nav.tsx`・管理者`admin/nav.tsx`双方の「勤務ルール」の
   直下に配置。従業員ナビのPC/iPad行は項目が増えたため`lg:grid-cols-6`→`lg:grid-cols-8`に変更。
   画面内iframeは不採用。ツールバー連携等の追加要望があればカレンダー側セッションに依頼する。
+- **QR打刻: 締め済み期間へのエラーメッセージ明確化(2026-07-25)**: 給与期間が月末より早く締められた
+  状態で当日QR打刻すると、`work_entries`のRLS(`is_period_open`)により挿入/更新が拒否され、従来は
+  「出勤/退勤の登録に失敗しました」という原因不明のエラーになっていた。`clock/actions.ts`の
+  `punchClock()`で、打刻処理の前に`is_period_open(date)`RPC(authenticated実行可)を呼び、締め済みなら
+  「既に今月は締められています。管理者にご連絡ください。」を返すよう変更。念のため、RLS違反(Postgres
+  エラーコード`42501`)を検知した場合も同じメッセージにフォールバックする(`isRlsViolation()`)。
+  ※本番で実際にこの状態が発生(2026-07-25、7月分の期間が最終日より前に締められていた)し、複数の
+  従業員の打刻が失敗した。該当期間は締め解除して復旧済み。
 - **残業手当(1日8時間超過分に時給25%増)**: `lib/period.ts`の`overtimeMinutes(workedMinutes)`(8h=480分を超えた分)、
   `lib/payroll.ts`の`computePayslip()`に`overtime_minutes`/`overtime_pay`を追加(深夜手当と同じロジックで日単位切り捨て、
   課税対象額・総支給額に加算)。DB`payslips`に`overtime_minutes`/`overtime_pay`列を追加
