@@ -2,7 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { periodFromKey, type Period } from "@/lib/period";
+import { type Period } from "@/lib/period";
+import { effectivePeriodFromKey } from "@/lib/payroll-start";
 import {
   getCompanyName,
   getTaxEmail,
@@ -40,7 +41,7 @@ type LoadedReport =
 
 /** 締め済み期間の支給明細を取得(CSV生成・メール送信で共用) */
 async function loadReport(periodKey: string): Promise<LoadedReport> {
-  const period = periodFromKey(periodKey);
+  const period = await effectivePeriodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
   const supabase = await createClient();

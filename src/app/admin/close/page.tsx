@@ -6,6 +6,7 @@ import {
   currentPeriod,
   periodFromKey,
 } from "@/lib/period";
+import { clampPeriodStart, getPayrollStartDate } from "@/lib/payroll-start";
 
 /** 分を「H:MM」表記にする(単位を省いて数字だけ・改行させない用) */
 function hhmm(minutes: number) {
@@ -24,7 +25,14 @@ export default async function ClosePage({
 }) {
   await requireAdmin();
   const { p } = await searchParams;
-  const period = (p && periodFromKey(p)) || currentPeriod();
+  const rawPeriod = (p && periodFromKey(p)) || currentPeriod();
+
+  // 運用開始日(設定画面)が期間の途中にある場合、開始日まで期間を繰り下げて計算する。
+  // 開店直後など、期間前半を日当で支払った分の二重払いを防ぐ。
+  const payrollStart = await getPayrollStartDate();
+  const period = clampPeriodStart(rawPeriod, payrollStart);
+  const clamped = period.start !== rawPeriod.start;
+  const wholeBeforeStart = period.start > period.end;
 
   const supabase = await createClient();
   const [{ data: payPeriod }, payrolls] = await Promise.all([
@@ -83,6 +91,13 @@ export default async function ClosePage({
             締め日：{period.end.replaceAll("-", "/")}、支払日{" "}
             {period.paymentDate.replaceAll("-", "/")}
           </p>
+          {clamped && (
+            <p className="mt-1 text-sm font-medium text-amber-700">
+              {wholeBeforeStart
+                ? `この期間は給与計算の運用開始日(${payrollStart?.replaceAll("-", "/")})より前のため、給与計算の対象外です`
+                : `給与計算の運用開始日(${payrollStart?.replaceAll("-", "/")})以降のみ計算しています(対象: ${period.start.replaceAll("-", "/")}〜${period.end.replaceAll("-", "/")})。開始日より前の勤務分は日当レポートで確認してください`}
+            </p>
+          )}
         </div>
 
         {/* 操作ボタンはヘッダ部分に配置(締め/支払・明細配信・締め解除・税理士資料操作) */}

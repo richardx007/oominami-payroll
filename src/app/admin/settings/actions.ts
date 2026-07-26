@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/log";
 import { normalizeSlotTime } from "@/lib/shifts";
+import { PAYROLL_START_KEY } from "@/lib/payroll-start";
 import type { ActionResult } from "../employees/actions";
 
 const emailSettingsSchema = z.object({
@@ -479,4 +480,50 @@ export async function uploadWorkRules(formData: FormData): Promise<ActionResult>
 
   revalidatePath("/admin/settings");
   return { ok: true, message: `勤務ルール(${file.name})を保存しました` };
+}
+
+const payrollStartSchema = z.object({
+  payroll_start_date: z.union([
+    z.literal(""),
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日付の形式が正しくありません"),
+  ]),
+});
+
+/**
+ * 給与計算の運用開始日を保存する。給与期間(前月26日〜当月25日)のうち、この日より前は
+ * 給与計算・締め・明細・税理士向けCSVの対象から外れる(勤務表・QR打刻には影響しない)。
+ * 開店直後など、期間前半を日当で現金支払いする場合の二重払いを防ぐための設定。
+ */
+export async function updatePayrollStartDate(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = payrollStartSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const value = parsed.data.payroll_start_date.trim();
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert([{ key: PAYROLL_START_KEY, value }], { onConflict: "key" });
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  await logActivity(
+    "設定",
+    value
+      ? `給与計算の運用開始日を ${value} に設定`
+      : "給与計算の運用開始日を解除(制限なし)"
+  );
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/close");
+  return {
+    ok: true,
+    message: value
+      ? `運用開始日を ${value} に設定しました`
+      : "運用開始日を解除しました(全期間が給与計算の対象になります)",
+  };
 }

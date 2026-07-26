@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { periodFromKey, workMinutes, standardBreakMinutes } from "@/lib/period";
+import { workMinutes, standardBreakMinutes } from "@/lib/period";
+import {
+  effectivePeriodFromKey,
+  getPayrollStartDate,
+} from "@/lib/payroll-start";
 import { BREAK_SETTING_KEYS, parseBreakWindows } from "@/lib/breaks";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { effectiveAt } from "@/lib/payroll";
@@ -19,8 +23,18 @@ import type { ActionResult } from "../employees/actions";
 /** 締め処理: 期間をロックし、全員分の給与明細を確定保存する */
 export async function closePeriod(periodKey: string): Promise<ActionResult> {
   await requireAdmin();
-  const period = periodFromKey(periodKey);
+  const period = await effectivePeriodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
+
+  // 運用開始日で開始日を繰り下げた結果、期間が丸ごと開始日より前になった場合は
+  // 全員0円の明細ができてしまうため締めさせない。
+  if (period.start > period.end) {
+    const startDate = await getPayrollStartDate();
+    return {
+      ok: false,
+      message: `${period.label}は給与計算の運用開始日(${startDate})より前の期間のため締められません`,
+    };
+  }
 
   try {
   const payrolls = await calculatePeriodPayroll(period);
@@ -110,7 +124,7 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
 /** 締め解除: 申告漏れ対応のため期間を再オープンする(支払済みは不可) */
 export async function reopenPeriod(periodKey: string): Promise<ActionResult> {
   await requireAdmin();
-  const period = periodFromKey(periodKey);
+  const period = await effectivePeriodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
   const supabase = await createClient();
@@ -159,7 +173,7 @@ export async function emailPayslips(
   onlyUnsent: boolean
 ): Promise<ActionResult> {
   await requireAdmin();
-  const period = periodFromKey(periodKey);
+  const period = await effectivePeriodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
   const supabase = await createClient();
@@ -292,7 +306,7 @@ export async function emailPayslips(
 /** 支払済みにする */
 export async function markPaid(periodKey: string): Promise<ActionResult> {
   await requireAdmin();
-  const period = periodFromKey(periodKey);
+  const period = await effectivePeriodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
   const supabase = await createClient();

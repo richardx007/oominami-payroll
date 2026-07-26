@@ -4,6 +4,7 @@ import {
   BreakWindowsForm,
   EmailSettingsForm,
   LunchAllowanceForm,
+  PayrollStartForm,
   ShiftSlotsForm,
   TaxTableForm,
   TimesheetLockForm,
@@ -75,6 +76,7 @@ export default async function SettingsPage() {
         locked={settingsMap.get("lock_employee_time_edit") === "true"}
       />
       <LunchAllowanceForm history={allowances ?? []} />
+      <PayrollStartForm startDate={settingsMap.get("payroll_start_date") ?? ""} />
       <ClockSettingsForm
         companyName={settingsMap.get("company_name") ?? ""}
         lat={settingsMap.get("clock_base_lat") ?? ""}
