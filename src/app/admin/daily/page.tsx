@@ -177,6 +177,9 @@ export default async function DailyReportPage({
                   <th className="sticky left-0 z-10 bg-blue-100 px-3 py-2 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
                     日付
                   </th>
+                  {/* 支給額・前払金は横スクロールせずに支払状況を確認できるよう日付の直後に置く */}
+                  <th className="px-3 py-2 text-right">支給額</th>
+                  <th className="px-3 py-2 text-right">前払金</th>
                   <th className="px-3 py-2 text-right">出勤</th>
                   <th className="px-3 py-2 text-right">退勤</th>
                   <th className="px-3 py-2 text-right">休憩</th>
@@ -189,8 +192,6 @@ export default async function DailyReportPage({
                   <th className="px-3 py-2 text-right">残業手当</th>
                   <th className="px-3 py-2 text-right">昼食補助</th>
                   <th className="px-3 py-2 text-right">交通費</th>
-                  <th className="px-3 py-2 text-right">支給額</th>
-                  <th className="px-3 py-2 text-right">前払金</th>
                 </tr>
               </thead>
               <tbody>
@@ -216,12 +217,8 @@ export default async function DailyReportPage({
                       </th>
                       {r.error ? (
                         <>
-                          <td
-                            colSpan={13}
-                            className="px-3 py-2 text-left text-red-600"
-                          >
-                            {r.startTime}
-                            {r.endTime ? `〜${r.endTime}` : "〜"} — {r.error}
+                          <td className="px-3 py-2 text-right text-gray-400">
+                            ―
                           </td>
                           {/* 金額が確定できない日は前払金を記録させない */}
                           <td className="px-3 py-2 text-right">
@@ -233,9 +230,27 @@ export default async function DailyReportPage({
                               disabled
                             />
                           </td>
+                          <td
+                            colSpan={12}
+                            className="px-3 py-2 text-left text-red-600"
+                          >
+                            {r.startTime}
+                            {r.endTime ? `〜${r.endTime}` : "〜"} — {r.error}
+                          </td>
                         </>
                       ) : (
                         <>
+                          <td className="px-3 py-2 text-right font-bold">
+                            {yen(r.total)}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <AdvanceToggle
+                              employeeId={emp.employeeId}
+                              workDate={r.workDate}
+                              amount={r.total}
+                              recorded={r.advance}
+                            />
+                          </td>
                           <td className="px-3 py-2 text-right">{r.startTime}</td>
                           <td className="px-3 py-2 text-right">{r.endTime}</td>
                           <td className="px-3 py-2 text-right text-gray-500">
@@ -268,17 +283,6 @@ export default async function DailyReportPage({
                           <td className="px-3 py-2 text-right">
                             {yen(r.transport)}
                           </td>
-                          <td className="px-3 py-2 text-right font-bold">
-                            {yen(r.total)}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <AdvanceToggle
-                              employeeId={emp.employeeId}
-                              workDate={r.workDate}
-                              amount={r.total}
-                              recorded={r.advance}
-                            />
-                          </td>
                         </>
                       )}
                     </tr>
@@ -291,6 +295,13 @@ export default async function DailyReportPage({
                   >
                     小計
                   </th>
+                  <td className="px-3 py-2 text-right">
+                    {yen(emp.totals.total)}
+                  </td>
+                  <td className="px-3 py-2 text-right text-amber-700">
+                    {yen(emp.totals.advance)}
+                  </td>
+                  {/* 出勤・退勤・休憩は合計しない */}
                   <td className="px-3 py-2" colSpan={3} />
                   <td className="px-3 py-2 text-right">
                     {hhmm(emp.totals.workMinutes)}
@@ -316,12 +327,6 @@ export default async function DailyReportPage({
                   </td>
                   <td className="px-3 py-2 text-right">
                     {yen(emp.totals.transport)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {yen(emp.totals.total)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-amber-700">
-                    {yen(emp.totals.advance)}
                   </td>
                 </tr>
               </tbody>
