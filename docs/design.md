@@ -64,7 +64,8 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 | `allowance_settings` | 昼食補助設定 | lunch_allowance_per_day, effective_from |
 | `pay_periods` | 給与計算期間 | period_label, start_date, end_date, payment_date, status(open/closed/paid) |
 | `work_entries` | 勤務表 | employee_id, work_date, start_time, end_time, break_minutes, transport_cost, transport_mode(手段), station_from(駅1), station_to(駅2), round_trip(往復), note ／ ※深夜勤務(退勤翌日, 例18:00→2:00)を許容するため `end_time > start_time` のCHECK制約は撤去済み。end≤start は翌日とみなし `workMinutes` が24時間加算 |
-| `payslips` | 給与明細（締め時に確定保存） | employee_id, pay_period_id, work_days, total_minutes, night_minutes(深夜帯勤務分), overtime_minutes(1日8h超過分), hourly_wage, base_pay, night_pay(深夜勤務手当=時給25%割増分), overtime_pay(残業手当=時給25%割増分), transport_total, lunch_total, gross_pay, income_tax, net_pay, tax_category, finalized_at, emailed_at |
+| `payslips` | 給与明細（締め時に確定保存） | employee_id, pay_period_id, work_days, total_minutes, night_minutes(深夜帯勤務分), overtime_minutes(1日8h超過分), hourly_wage, base_pay, night_pay(深夜勤務手当=時給25%割増分), overtime_pay(残業手当=時給25%割増分), transport_total, lunch_total, gross_pay, income_tax, advance_deduction(前払金控除。既定0), net_pay, tax_category, finalized_at, emailed_at |
+| `advance_payments` | 前払金（日当として先に現金で支払った分。§11） | employee_id, work_date, amount, note, created_at, unique(employee_id,work_date)。RLS=従業員は自分の行を参照のみ・登録/変更/削除は管理者(`is_admin()`) |
 | `notifications` | 連絡・催促・一斉報知 | sender_id, recipient_id(null=全員), type(individual/broadcast/reminder), subject, body, emailed, sent_at |
 | `tax_reports` | 税理士送付記録（※現在は書き込みなし・将来用に残置） | pay_period_id, emailed_to, emailed_at |
 | `withholding_tax_table` | 源泉徴収税額表（月額表。国税庁公開の甲欄0〜7人＋乙欄を保持） | year, min_amount, max_amount, tax_kou_0..7, tax_otsu, created_at(取り込み日時) |
@@ -183,10 +184,11 @@ app/
     actions.ts           signOut サーバーアクション（layout・nav から共用）
     nav.tsx              Logo / AdminSidebarNav / AdminBottomNav（現在ページをハイライト）
                          メニュー(アイコン+キャプション): ホーム(家) / 勤務表(カレンダー) /
-                         給与明細(¥) / 従業員(人が重なる) / 配信(紙飛行機) / 設定(歯車) / 操作ログ(書類)。
+                         給与明細(¥) / 日当(紙幣) / 従業員(人が重なる) / 配信(紙飛行機) / 設定(歯車) / 操作ログ(書類)。
                          下部タブナビはヘッダと同じネイビー背景＋白アイコン/文字（従業員ナビも同配色）。
-                         スマホ下部タブは主要4項目＋「その他」(ハンバーガー)で、配信・設定・操作ログ＋区切り線＋
-                         ログアウトを右下の最小幅カード(右寄せ)に収める。「配信」は PC サイドバーでは従業員の直後に並ぶ。
+                         スマホ下部タブは主要4項目(ホーム/勤務表/給与明細/日当)＋「その他」(ハンバーガー)で、
+                         従業員・配信・設定・操作ログ＋区切り線＋ログアウトを右下の最小幅カード(右寄せ)に収める。
+                         「従業員」は PC サイドバーでは日当の直後に並ぶ（2026-07-26に日当と従業員の順を入替）。
                          ※「税理士資料」はメニュー・画面とも廃止（部品は close から利用）
     logs/                操作ログ閲覧(管理者)。表形式=時刻｜種別バッジ｜操作者｜詳細、1行1ログ・列揃え、
                          日替わりで太い区切り線。新しい順・最新300件。
@@ -208,6 +210,11 @@ app/
                          の3列に集約（各セルwhitespace-nowrapで折り返し防止）、行タップで吹き出し詳細
                          (レスポンシブ)を開く。詳細トップにパスワード再設定 / 招待・再招待ボタン。
                          招待状態=未招待→招待済→登録済。詳細下部に時給・税区分の履歴編集（下記参照）
+    daily/               日当レポート（page/ui/actions）。任意期間の「従業員×日ごと」の勤務時間・支給額一覧。
+                         列は 日付(固定列) / 支給額 / 前払金 / 出勤 / 退勤 / 休憩 / 実働 / 深夜 / 残業 / 時給 /
+                         基本給 / 深夜手当 / 残業手当 / 昼食補助 / 交通費（スマホで横スクロールせずに
+                         「いくら・前払済か」を確認できるよう金額2列を日付の直後に置く）。各行の「前払済」ボタンで
+                         その日の支給額を前払金として記録/取消（`setAdvancePayment`）。CSV出力・印刷対応。詳しくは「11. 日当レポート・前払金」
     close/               締め処理 + 税理士資料を統合（プレビュー・締め・支払済み・明細メール配信）。
                          タイトルは省略、期間は「締め日：{終了日}、支払日 {支払日}」の1行。操作ボタンはヘッダ部に配置。
                          締め済みは 1行目=締め解除/支払済みにする、2行目=明細をメール配信(アイコン+「従業員へ」)/
@@ -391,7 +398,11 @@ middleware.ts            未認証は /login へ
   - **88,000円以上** → `withholding_tax_table`（設定画面から貼付取込。形式は国税庁公開様式に準拠: 以上,未満,甲0〜甲7,乙。乙欄のみ3列も可）を参照。取り込み済みデータは設定画面に表形式で表示。甲欄は扶養0〜7人まで参照（`Math.min(dependents,7)`）。データが無ければエラーで締めを止める（誤計算防止）。
     - 取込時、国税庁月額表の先頭にある「(最小額)円未満→0」の変則行（未満欄が空で「以上」に最小額が入る行）は**取り込み対象外**（上限なしの正当な行は最終行=最大の「以上」のみ）。その帯（=**表の最小「以上」金額未満**）は `computeIncomeTax` が**非課税(0円)**と判定する。
   - 国税庁からの自動取得は非対応（NTAは月額表をPDF/Excelでのみ公開しており安定した機械可読源が無く、当環境からnta.go.jpはネットワーク遮断のため）。年に1度、国税庁の月額表を貼り付けて取り込む運用。
-- テストは `npm test`（Vitest 27件）。
+- **前払金控除（2026-07-26導入）**: 当期の勤務日について `advance_payments` に記録された額の合計を `computePayslip()` の
+  `advanceTotal` に渡し、**差引支給額からのみ控除**する（`net_pay = gross_pay - income_tax - advance_deduction`）。
+  **総支給額・課税対象額・源泉所得税は前払金があっても変わらない**（所得の控除ではなく既払い分の精算のため、
+  源泉徴収は月額表による月単位の計算のまま）。詳細は「11. 日当レポート・前払金」参照。
+- テストは `npm test`（Vitest 29件）。
 
 ### メール送信（`lib/smtp.ts` / `lib/email.ts`）
 - 外部ライブラリなし。`cloudflare:sockets` で smtp.gmail.com:465 に TLS 接続し AUTH PLAIN。
@@ -915,3 +926,83 @@ middleware.ts            未認証は /login へ
 - 従業員側: `src/app/(employee)/timesheet/{actions,page,ui}.tsx`（`upsertWorkEntry`/`deleteWorkEntry`の
   ロックチェック、`EntryForm`の`timeLocked`prop）。
 - 管理者側（`admin/timesheet`）・QR打刻（`clock/actions.ts`）はこの機能による変更なし（従来通り）。
+
+---
+
+## 11. 日当レポート・前払金（2026-07-26追加）
+
+### 11.1 背景と方式
+
+給与期間は「前月26日〜当月25日」のため、開店直後など**期間の途中から日当を現金で手渡す**運用をすると、
+同じ勤務が月末の給与にも含まれて**二重払い**になる。
+
+実際の検討では、給与計算の「運用開始日」を設けて期間の開始日を繰り下げる案（A案）を一度実装したが、
+**源泉徴収を月額表による月単位の計算のまま維持したい**というオーナー判断により撤回し、
+**前払金方式（B案）**を採用した（A案のコード・設定は削除済み。`payroll_start_date` は存在しない）。
+
+前払金方式の計算：
+
+```
+差引支給額 = 総支給額 − 源泉所得税 − 前払金控除
+```
+
+- **総支給額・課税対象額・源泉所得税は期間全体（前月26日〜当月25日）で計算し、前払金の影響を受けない。**
+  前払金は所得の控除ではなく「既に支払った分の精算」であるため、源泉徴収は従来どおり月額表で月単位に計算する。
+- 日当として渡した分は `advance_payments` に記録し、差引支給額からのみ差し引く。
+
+### 11.2 前払金の記録単位（重要）
+
+`advance_payments` は **(employee_id, work_date) で一意**。`work_date` は「対象の勤務日」であり、
+支払日ではない。これにより**前払いした勤務と控除が必ず同じ給与期間から差し引かれる**ことが保証される
+（支払日で紐づけると、月をまたいだときに控除が別期間にずれて二重払いが再発しうる）。この不変条件は
+仕様変更時に壊さないこと。
+
+- 締め済み・支払済みの期間に属する日は前払金を変更できない（`setAdvancePayment` が `pay_periods` を
+  引いて拒否。確定済み明細と画面の金額がずれるのを防ぐ）。変更するには先に締め解除する。
+- 金額が確定できない日（退勤未入力・時給未設定）は記録できない（ボタンを無効化）。
+
+### 11.3 日当レポート（`/admin/daily`）
+
+任意の開始日〜終了日を指定して、従業員ごとの日別の勤務時間・支給額を一覧表示する恒久機能。
+**金額の計算方法（標準休憩の導出・深夜25%増・8時間超の残業25%増・昼食補助・日単位の切り捨て）は
+月次の給与計算と完全に同一**（`lib/daily-report.ts`。時給・昼食補助はその勤務日時点で有効な設定を使う）。
+
+- 源泉所得税は月単位の計算のためこの画面には含めない（画面上にも明記）。
+- 従業員ごとの小計と全体合計（前払金の記録済み合計を含む）を表示。
+- CSV出力（BOM付き）・印刷/PDF。**CSVの列順は勤務内容順のまま**（画面＝支払確認用、CSV＝記録用として
+  意図的に分けている。2026-07-26にオーナー了承済み）。
+- 勤務のなかった従業員は表示しない。
+
+### 11.4 前払金の表示箇所
+
+前払金が 0 円のときは行を出さない（通常月の見え方は従来どおり）。
+
+| 画面・帳票 | 表示 |
+|---|---|
+| 日当レポート | 「前払金」列＋「前払済/取消」ボタン、小計・合計 |
+| 管理者の給与明細一覧（`admin/close/page.tsx`） | 「前払金」列、サマリの前払金控除合計 |
+| 給与明細メール（`lib/email.ts`） | `前払金(日当としてお支払い済み): -◯◯円` ＋ 説明の注記 |
+| 従業員の明細画面（`(employee)/payslips/page.tsx`） | 控除行として表示 |
+| 税理士向けCSV（`admin/report/actions.ts`） | 「前払金控除」列 |
+
+### 11.5 実装で踏んだ落とし穴（再発注意）
+
+- **`useTransition` の pending が解除されない**: 前払金ボタンの保存中フラグを `useTransition` で持つと、
+  pending はサーバーアクションの完了ではなく **`revalidatePath` による再レンダーの適用まで解除されない**。
+  複数行を続けてタップすると後の行の遷移が先の行の再レンダーに巻き取られ、「記録中...」のまま固まった
+  （**保存自体は成功していた**）。自前の `useState` ＋ `finally` で必ず解除し、押下直後にローカル状態で
+  表示を切り替える方式に変更（`admin/daily/ui.tsx` の `AdvanceToggle`）。**行単位で並行実行しうるボタンでは
+  `useTransition` を使わないこと。**
+- **固定列がヘッダーを乗り越える**: モバイルヘッダー（`admin/layout.tsx` / `(employee)/layout.tsx`）と
+  表の固定列（`sticky left-0 z-10`）が**どちらも `z-10`** で、DOM順で後ろの表セルがヘッダーの上に描画されていた。
+  ヘッダーを **`z-30`** に変更して解消（下部タブ `z-40` とハンバーガーのシート `z-30` より下、固定列 `z-10` より上）。
+  日当・勤務表・給与明細の各表に共通する問題だったため、ヘッダー側の1箇所で直している。
+
+### 11.6 実装ファイル
+
+- DB: `supabase/migrations/20260726_advance_payments.sql`（`advance_payments` 新設＋`payslips.advance_deduction` 追加）。
+- 計算: `lib/payroll.ts`（`computePayslip` の `advanceTotal` / `advance_deduction`）、
+  `lib/payroll-data.ts`（当期の前払金を従業員ごとに集計して渡す）、`lib/daily-report.ts`（日当レポートの集計）。
+- 画面: `admin/daily/{page,ui,actions}.tsx`（一覧・`AdvanceToggle`・`setAdvancePayment`・`buildDailyReportCsv`）。
+- 反映先: `admin/close/{page,actions}.ts(x)`、`admin/report/actions.ts`、`lib/email.ts`、`(employee)/payslips/page.tsx`。
+- テスト: `lib/payroll.test.ts` に2件追加（前払金が総支給額・課税対象額・源泉所得税を変えず差引支給額のみ減らすこと）。
