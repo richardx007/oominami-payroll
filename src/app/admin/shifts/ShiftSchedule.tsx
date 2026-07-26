@@ -232,7 +232,7 @@ export function ShiftSchedule({
           ref={swipeAttach}
           className="rounded-xl border-2 border-gray-400 bg-white p-0.5 sm:p-2"
         >
-          <div className="mb-0.5 grid grid-cols-7 rounded-lg bg-gray-100 text-center text-sm font-semibold text-gray-600 sm:mb-1">
+          <div className="mb-0.5 grid grid-cols-7 rounded-lg bg-blue-50 text-center text-sm font-semibold text-gray-600 sm:mb-1">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}

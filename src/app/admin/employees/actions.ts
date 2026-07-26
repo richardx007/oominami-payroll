@@ -32,6 +32,19 @@ const employeeSchema = z
 
 export type ActionResult = { ok: boolean; message: string };
 
+/** 操作ログ用の表示名(ニックネーム優先、無ければ氏名)を取得する */
+async function employeeLabel(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  employeeId: string
+): Promise<string> {
+  const { data } = await supabase
+    .from("employees")
+    .select("name, nickname")
+    .eq("id", employeeId)
+    .maybeSingle();
+  return data?.nickname?.trim() || data?.name || employeeId;
+}
+
 /** 役割に応じた従業員No(管理者=M001〜、従業員=E001〜)を自動採番する */
 async function nextEmployeeNo(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -217,7 +230,7 @@ export async function updateWage(formData: FormData): Promise<ActionResult> {
 
   await logActivity(
     "時給変更",
-    `時給を設定: employee=${d.employee_id} ${d.effective_from}〜 ¥${d.hourly_wage}`
+    `時給を設定: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜 ¥${d.hourly_wage}`
   );
   revalidatePath("/admin/employees");
   return { ok: true, message: "時給を更新しました" };
@@ -281,11 +294,12 @@ export async function editWageRate(formData: FormData): Promise<ActionResult> {
 
   if (error) return { ok: false, message: "時給の訂正に失敗しました" };
 
+  const wageLabel = await employeeLabel(supabase, d.employee_id);
   await logActivity(
     "時給変更",
     dateChanged
-      ? `時給履歴を訂正: employee=${d.employee_id} ${d.original_effective_from}〜 → ${d.effective_from}〜 ¥${d.hourly_wage}`
-      : `時給履歴を訂正: employee=${d.employee_id} ${d.effective_from}〜 ¥${d.hourly_wage}`
+      ? `時給履歴を訂正: ${wageLabel} ${d.original_effective_from}〜 → ${d.effective_from}〜 ¥${d.hourly_wage}`
+      : `時給履歴を訂正: ${wageLabel} ${d.effective_from}〜 ¥${d.hourly_wage}`
   );
   revalidatePath("/admin/employees");
   return { ok: true, message: "時給履歴を訂正しました" };
@@ -319,7 +333,7 @@ export async function deleteWageRate(
 
   await logActivity(
     "時給変更",
-    `時給履歴を削除: employee=${d.employee_id} ${d.effective_from}〜`
+    `時給履歴を削除: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜`
   );
   revalidatePath("/admin/employees");
   return { ok: true, message: "時給履歴を削除しました" };
@@ -358,7 +372,7 @@ export async function updateTaxSetting(
 
   await logActivity(
     "税区分変更",
-    `税区分を設定: employee=${d.employee_id} ${d.effective_from}〜 ${d.tax_category === "kou" ? "甲欄" : "乙欄"}(扶養${d.dependents}人)`
+    `税区分を設定: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜 ${d.tax_category === "kou" ? "甲欄" : "乙欄"}(扶養${d.dependents}人)`
   );
   revalidatePath("/admin/employees");
   return { ok: true, message: "税区分を更新しました" };
@@ -423,11 +437,12 @@ export async function editTaxSetting(formData: FormData): Promise<ActionResult> 
 
   if (error) return { ok: false, message: "税区分の訂正に失敗しました" };
 
+  const taxLabel = await employeeLabel(supabase, d.employee_id);
   await logActivity(
     "税区分変更",
     dateChanged
-      ? `税区分履歴を訂正: employee=${d.employee_id} ${d.original_effective_from}〜 → ${d.effective_from}〜`
-      : `税区分履歴を訂正: employee=${d.employee_id} ${d.effective_from}〜`
+      ? `税区分履歴を訂正: ${taxLabel} ${d.original_effective_from}〜 → ${d.effective_from}〜`
+      : `税区分履歴を訂正: ${taxLabel} ${d.effective_from}〜`
   );
   revalidatePath("/admin/employees");
   return { ok: true, message: "税区分履歴を訂正しました" };
@@ -461,7 +476,7 @@ export async function deleteTaxSetting(
 
   await logActivity(
     "税区分変更",
-    `税区分履歴を削除: employee=${d.employee_id} ${d.effective_from}〜`
+    `税区分履歴を削除: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜`
   );
   revalidatePath("/admin/employees");
   return { ok: true, message: "税区分履歴を削除しました" };

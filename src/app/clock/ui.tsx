@@ -226,7 +226,7 @@ export function ClockConfirm({
                 <span>
                   交通費
                   {tFrom && tTo && Number(tCost) > 0 && (
-                    <span className="ml-2 font-normal text-gray-500">
+                    <span className="ml-2 font-bold text-green-700">
                       {tFrom}
                       {tRound ? "⇔" : "→"}
                       {tTo} ¥{(Number(tCost) || 0).toLocaleString()}
@@ -295,9 +295,19 @@ export function ClockConfirm({
                       片道
                     </label>
                   </div>
-                  <p className="text-xs text-gray-400">
-                    手段・区間・金額がすべて揃った時に記録します(不要なら空欄のまま)。
-                  </p>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTFrom("");
+                        setTTo("");
+                        setTCost("");
+                      }}
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                    >
+                      クリア
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -337,9 +347,6 @@ export function ClockConfirm({
                 ✉️ 管理者にメール
               </a>
             )}
-            <p className="mt-3 text-center text-xs text-gray-400">
-              打刻時刻はサーバーの時刻で記録されます。
-            </p>
           </>
         )}
       </div>
