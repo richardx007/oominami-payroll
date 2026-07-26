@@ -73,6 +73,7 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     lunch_total: p.result!.lunch_total,
     gross_pay: p.result!.gross_pay,
     income_tax: p.result!.income_tax,
+    advance_deduction: p.result!.advance_deduction,
     net_pay: p.result!.net_pay,
     tax_category: p.result!.tax_category,
     finalized_at: now,
@@ -179,8 +180,8 @@ export async function emailPayslips(
     .from("payslips")
     .select(
       `id, employee_id, work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay,
-       night_pay, overtime_pay, transport_total, lunch_total, gross_pay, income_tax, net_pay,
-       tax_category, emailed_at, employees ( name, email )`
+       night_pay, overtime_pay, transport_total, lunch_total, gross_pay, income_tax,
+       advance_deduction, net_pay, tax_category, emailed_at, employees ( name, email )`
     )
     .eq("pay_period_id", payPeriod.id);
 
@@ -263,6 +264,7 @@ export async function emailPayslips(
         lunchTotal: p.lunch_total,
         grossPay: p.gross_pay,
         incomeTax: p.income_tax,
+        advanceDeduction: p.advance_deduction,
         netPay: p.net_pay,
         taxCategory: p.tax_category,
         dailyRows: entriesByEmployee.get(p.employee_id) ?? [],

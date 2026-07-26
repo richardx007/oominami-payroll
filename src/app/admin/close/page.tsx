@@ -43,11 +43,12 @@ export default async function ClosePage({
       if (p.result) {
         acc.gross += p.result.gross_pay;
         acc.tax += p.result.income_tax;
+        acc.advance += p.result.advance_deduction;
         acc.net += p.result.net_pay;
       }
       return acc;
     },
-    { gross: 0, tax: 0, net: 0 }
+    { gross: 0, tax: 0, advance: 0, net: 0 }
   );
 
   return (
@@ -107,6 +108,14 @@ export default async function ClosePage({
                 <dt>源泉所得税</dt>
                 <dd className="tabular-nums">¥{totals.tax.toLocaleString()}</dd>
               </div>
+              {totals.advance > 0 && (
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt>前払金控除</dt>
+                  <dd className="tabular-nums">
+                    ¥{totals.advance.toLocaleString()}
+                  </dd>
+                </div>
+              )}
               <div className="flex items-baseline justify-between gap-4">
                 <dt>差引支給</dt>
                 <dd className="tabular-nums">¥{totals.net.toLocaleString()}</dd>
@@ -133,6 +142,7 @@ export default async function ClosePage({
                 <th className="px-4 py-2 text-right">昼食補助</th>
                 <th className="px-4 py-2 text-right">総支給</th>
                 <th className="px-4 py-2 text-right">所得税</th>
+                <th className="px-4 py-2 text-right">前払金</th>
                 <th className="px-4 py-2 text-right">差引支給</th>
               </tr>
             </thead>
@@ -184,12 +194,18 @@ export default async function ClosePage({
                       <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">
                         −¥{p.result.income_tax.toLocaleString()}
                       </td>
+                      {/* 日当として先に現金で支払った分。差引支給からのみ控除する */}
+                      <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">
+                        {p.result.advance_deduction > 0
+                          ? `−¥${p.result.advance_deduction.toLocaleString()}`
+                          : "―"}
+                      </td>
                       <td className="px-4 py-3 text-right font-bold">
                         ¥{p.result.net_pay.toLocaleString()}
                       </td>
                     </>
                   ) : (
-                    <td colSpan={13} className="px-4 py-3 text-red-600">
+                    <td colSpan={14} className="px-4 py-3 text-red-600">
                       {p.error}
                     </td>
                   )}
@@ -198,7 +214,7 @@ export default async function ClosePage({
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={14}
+                    colSpan={15}
                     className="px-4 py-8 text-center text-gray-400"
                   >
                     対象の従業員がいません

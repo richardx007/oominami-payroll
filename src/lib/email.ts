@@ -213,6 +213,8 @@ export function buildPayslipMailText(params: {
   lunchTotal: number;
   grossPay: number;
   incomeTax: number;
+  /** 前払金控除(日当として先に受け取った額)。0 なら明細に行を出さない */
+  advanceDeduction?: number;
   netPay: number;
   taxCategory: string;
   dailyRows?: PayslipDailyRow[];
@@ -223,6 +225,7 @@ export function buildPayslipMailText(params: {
   const nightPay = params.nightPay ?? 0;
   const overtimeMins = params.overtimeMinutes ?? 0;
   const overtimePay = params.overtimePay ?? 0;
+  const advance = params.advanceDeduction ?? 0;
   return [
     `${params.name} 様`,
     "",
@@ -252,7 +255,18 @@ export function buildPayslipMailText(params: {
     `昼食補助: ${yen(params.lunchTotal)}`,
     `総支給額: ${yen(params.grossPay)}`,
     `源泉所得税(${params.taxCategory === "kou" ? "甲欄" : "乙欄"}): -${yen(params.incomeTax)}`,
+    // 日当として先にお渡しした分がある場合のみ、控除として表示する
+    ...(advance > 0
+      ? [`前払金(日当としてお支払い済み): -${yen(advance)}`]
+      : []),
     `差引支給額: ${yen(params.netPay)}`,
+    ...(advance > 0
+      ? [
+          "",
+          "※前払金は、日当として既に現金でお支払いした分です。総支給額・源泉所得税は",
+          "  期間全体で計算したうえで、お支払い済みの分を差引支給額から控除しています。",
+        ]
+      : []),
     ...buildDailyDetail(params.dailyRows ?? []),
     "",
     "詳細はアプリの「給与明細」からもご確認いただけます。",

@@ -367,6 +367,47 @@ describe("computePayslip", () => {
     ).toThrow(PayrollError);
   });
 
+  it("前払金は差引支給額からのみ控除し、課税対象額・源泉所得税は変えない", () => {
+    const entries = [
+      {
+        work_date: "2026-07-01",
+        start_time: "09:00",
+        end_time: "18:00",
+        break_minutes: 0,
+        transport_cost: 500,
+      },
+      {
+        work_date: "2026-07-02",
+        start_time: "09:00",
+        end_time: "18:00",
+        break_minutes: 0,
+        transport_cost: 500,
+      },
+    ];
+    const without = computePayslip({ ...base, entries });
+    // 1日目の支給額相当(基本給+昼食補助+交通費)を日当として先に支払ったケース
+    const advance = 9600 + 500 + 500;
+    const withAdvance = computePayslip({
+      ...base,
+      entries,
+      advanceTotal: advance,
+    });
+
+    // 総支給額・課税対象額・源泉所得税は前払金があっても変わらない
+    expect(withAdvance.gross_pay).toBe(without.gross_pay);
+    expect(withAdvance.taxable_amount).toBe(without.taxable_amount);
+    expect(withAdvance.income_tax).toBe(without.income_tax);
+    // 差引支給額からのみ控除される
+    expect(withAdvance.advance_deduction).toBe(advance);
+    expect(withAdvance.net_pay).toBe(without.net_pay - advance);
+  });
+
+  it("前払金の指定がなければ控除は0", () => {
+    const result = computePayslip({ ...base, entries: [] });
+    expect(result.advance_deduction).toBe(0);
+    expect(result.net_pay).toBe(0);
+  });
+
   it("日割り計算は日単位で切り捨て", () => {
     const result = computePayslip({
       ...base,

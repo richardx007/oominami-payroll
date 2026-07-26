@@ -37,7 +37,7 @@ export default async function EmployeeLayout({
 
   return (
     <div className="min-h-screen pb-20">
-      <header className="sticky top-0 z-10 bg-[#152449] text-white shadow-md">
+      <header className="sticky top-0 z-30 bg-[#152449] text-white shadow-md">
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <LogoButton />
