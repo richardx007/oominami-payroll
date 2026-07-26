@@ -36,7 +36,7 @@ export default async function AdminLayout({
       </aside>
 
       {/* モバイル用ヘッダー(下部タブナビは AdminBottomNav) */}
-      <header className="sticky top-0 z-10 bg-[#152449] text-white shadow-md md:hidden print:hidden">
+      <header className="sticky top-0 z-30 bg-[#152449] text-white shadow-md md:hidden print:hidden">
         <div className="flex items-center justify-between gap-2 px-4 py-2.5">
           <div className="flex items-center gap-2">
             <LogoButton />

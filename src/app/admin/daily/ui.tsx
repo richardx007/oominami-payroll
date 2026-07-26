@@ -110,6 +110,11 @@ export function DownloadDailyCsvButton({
  * その日の日当を「前払金」として記録/取消するボタン。
  * 記録すると、その勤務日を含む給与期間の給与計算で差引支給額から控除される
  * (総支給額・課税対象額・源泉所得税は変わらない)。
+ *
+ * 保存中フラグは useTransition ではなく自前の state で持つ。useTransition の
+ * pending は revalidatePath による再レンダーが適用されるまで解除されず、複数行を
+ * 続けて押すと後から押した行の遷移が先の行の再レンダーに巻き取られて「記録中...」の
+ * まま固まることがあったため(保存自体は成功している)。finally で必ず解除する。
  */
 export function AdvanceToggle({
   employeeId,
@@ -127,32 +132,52 @@ export function AdvanceToggle({
   /** 退勤未入力など、金額が確定できない日は記録させない */
   disabled?: boolean;
 }) {
+  // サーバーの再レンダーを待たず即座に表示を切り替えるためのローカル状態
+  const [value, setValue] = useState(recorded);
+  const [serverValue, setServerValue] = useState(recorded);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
 
-  function run(next: number | null) {
-    setError(null);
-    startTransition(async () => {
-      const res = await setAdvancePayment(employeeId, workDate, next);
-      if (!res.ok) setError(res.message);
-    });
+  // サーバー側の値が変わったら追従する(期間の切り替え・再読み込み時)
+  if (serverValue !== recorded) {
+    setServerValue(recorded);
+    setValue(recorded);
   }
 
-  if (recorded !== null) {
+  async function run(next: number | null) {
+    setError(null);
+    setSaving(true);
+    const before = value;
+    setValue(next);
+    try {
+      const res = await setAdvancePayment(employeeId, workDate, next);
+      if (!res.ok) {
+        setValue(before);
+        setError(res.message);
+      }
+    } catch {
+      setValue(before);
+      setError("保存に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (value !== null) {
     return (
       <span className="inline-flex flex-col items-end gap-0.5">
         <span className="inline-flex items-center gap-1.5">
           <span className="font-medium text-amber-700 tabular-nums">
-            ¥{recorded.toLocaleString()}
+            ¥{value.toLocaleString()}
           </span>
           <button
             type="button"
-            disabled={pending}
+            disabled={saving}
             onClick={() => run(null)}
             title="前払金の記録を取り消す"
             className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 print:hidden"
           >
-            取消
+            {saving ? "..." : "取消"}
           </button>
         </span>
         {error && <span className="text-xs text-red-600">{error}</span>}
@@ -164,12 +189,12 @@ export function AdvanceToggle({
     <span className="inline-flex flex-col items-end gap-0.5">
       <button
         type="button"
-        disabled={pending || disabled}
+        disabled={saving || disabled}
         onClick={() => run(amount)}
         title="この日の支給額を前払金として記録する"
         className="rounded border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-40 print:hidden"
       >
-        {pending ? "記録中..." : "前払済"}
+        {saving ? "記録中..." : "前払済"}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
