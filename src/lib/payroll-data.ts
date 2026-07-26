@@ -34,6 +34,7 @@ export async function calculatePeriodPayroll(
     { data: allowances },
     { data: taxRows },
     { data: breakSettings },
+    { data: advances },
   ] = await Promise.all([
     supabase
       .from("employees")
@@ -65,12 +66,22 @@ export async function calculatePeriodPayroll(
       .eq("year", taxYear),
     // 標準休憩時間帯(設定画面「休憩時間」で変更可)
     supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
+    // 前払金(日当として先に現金で支払った分)。差引支給額から控除する
+    supabase
+      .from("advance_payments")
+      .select("employee_id, amount")
+      .gte("work_date", period.start)
+      .lte("work_date", period.end),
   ]);
 
   const breakWindows = parseBreakWindows(breakSettings);
   const entriesBy = groupBy(entries ?? [], (e) => e.employee_id);
   const wagesBy = groupBy(wageRates ?? [], (w) => w.employee_id);
   const taxBy = groupBy(taxSettings ?? [], (t) => t.employee_id);
+  const advanceBy = new Map<string, number>();
+  for (const a of advances ?? []) {
+    advanceBy.set(a.employee_id, (advanceBy.get(a.employee_id) ?? 0) + a.amount);
+  }
 
   return (employees ?? []).map((emp) => {
     const empEntries = (entriesBy.get(emp.id) ?? []).map((e) => ({
@@ -91,6 +102,7 @@ export async function calculatePeriodPayroll(
         taxRows: (taxRows ?? []) as TaxTableRow[],
         periodEnd: period.end,
         breakWindows,
+        advanceTotal: advanceBy.get(emp.id) ?? 0,
       });
       return {
         employee_id: emp.id,

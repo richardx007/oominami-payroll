@@ -1,8 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { loadDailyReport } from "@/lib/daily-report";
 import { WEEKDAYS, todayJST, weekdayOf } from "@/lib/period";
-import { getPayrollStartDate } from "@/lib/payroll-start";
-import { DownloadDailyCsvButton, PrintButton } from "./ui";
+import { AdvanceToggle, DownloadDailyCsvButton, PrintButton } from "./ui";
 
 /** 分を「H:MM」表記にする */
 function hhmm(minutes: number) {
@@ -26,8 +25,9 @@ function firstOfMonth(date: string) {
 
 /**
  * 日当レポート: 任意期間の「従業員 × 日ごと」の勤務時間・支給額一覧。
- * 給与計算の運用開始日より前の勤務分など、月次給与の外で現金精算する分の
- * 金額を確認するために使う(計算方法は月次の給与計算と同じ)。
+ * 日当を現金で手渡すときに、その日いくら渡せばよいかを確認するために使う
+ * (計算方法は月次の給与計算と同じ)。渡した分は各行から「前払金」として
+ * 記録でき、その勤務日を含む給与期間の差引支給額から控除される。
  */
 export default async function DailyReportPage({
   searchParams,
@@ -42,20 +42,20 @@ export default async function DailyReportPage({
   const to = isDate(qTo) ? qTo : today;
   const invalidRange = from > to;
 
-  const [report, payrollStart] = await Promise.all([
-    invalidRange
-      ? Promise.resolve({ from, to, employees: [] })
-      : loadDailyReport(from, to),
-    getPayrollStartDate(),
-  ]);
+  const report = invalidRange
+    ? { from, to, employees: [] as Awaited<
+        ReturnType<typeof loadDailyReport>
+      >["employees"] }
+    : await loadDailyReport(from, to);
 
   const grand = report.employees.reduce(
     (acc, e) => ({
       days: acc.days + e.totals.days,
       workMinutes: acc.workMinutes + e.totals.workMinutes,
       total: acc.total + e.totals.total,
+      advance: acc.advance + e.totals.advance,
     }),
-    { days: 0, workMinutes: 0, total: 0 }
+    { days: 0, workMinutes: 0, total: 0, advance: 0 }
   );
 
   return (
@@ -66,6 +66,7 @@ export default async function DailyReportPage({
           <p className="mt-1 text-sm text-gray-500">
             期間を指定して、従業員ごとの日別の勤務時間と支給額を表示します。
             金額の計算方法(休憩・深夜手当・残業手当・昼食補助)は月次の給与計算と同じです。
+            日当を現金で渡したら「前払済」を押して記録してください。
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2 print:hidden">
@@ -98,13 +99,6 @@ export default async function DailyReportPage({
           表示
         </button>
       </form>
-
-      {payrollStart && (
-        <p className="text-sm text-gray-500">
-          給与計算の運用開始日は {payrollStart.replaceAll("-", "/")} です。
-          これより前の勤務は月次の給与計算に含まれないため、この画面の金額で精算してください。
-        </p>
-      )}
 
       {invalidRange && (
         <p className="text-sm font-medium text-red-600">
@@ -139,10 +133,15 @@ export default async function DailyReportPage({
               <dt>支給額合計</dt>
               <dd className="tabular-nums">{yen(grand.total)}</dd>
             </div>
+            <div className="flex items-baseline justify-between gap-4">
+              <dt>前払金 記録済み</dt>
+              <dd className="tabular-nums">{yen(grand.advance)}</dd>
+            </div>
           </dl>
           <p className="mt-2 text-xs text-gray-500">
-            源泉所得税は月額表による月単位の計算のため、この画面の金額には含まれていません
-            (日当として支払う場合の源泉徴収の扱いは税理士の指示に従ってください)。
+            源泉所得税は月額表による月単位の計算のため、この画面の金額には含まれていません。
+            記録した前払金は、その勤務日を含む給与期間の給与計算で差引支給額から控除されます
+            (総支給額・課税対象額・源泉所得税は期間全体で計算されるため変わりません)。
           </p>
         </div>
       )}
@@ -164,6 +163,11 @@ export default async function DailyReportPage({
             <p className="text-sm font-semibold tabular-nums text-gray-900">
               {emp.totals.days}日 / {hhmm(emp.totals.workMinutes)} /{" "}
               {yen(emp.totals.total)}
+              {emp.totals.advance > 0 && (
+                <span className="ml-2 font-medium text-amber-700">
+                  (前払 {yen(emp.totals.advance)})
+                </span>
+              )}
             </p>
           </div>
           <div className="overflow-x-auto print-report">
@@ -186,6 +190,7 @@ export default async function DailyReportPage({
                   <th className="px-3 py-2 text-right">昼食補助</th>
                   <th className="px-3 py-2 text-right">交通費</th>
                   <th className="px-3 py-2 text-right">支給額</th>
+                  <th className="px-3 py-2 text-right">前払金</th>
                 </tr>
               </thead>
               <tbody>
@@ -210,13 +215,25 @@ export default async function DailyReportPage({
                         {WEEKDAYS[wd]})
                       </th>
                       {r.error ? (
-                        <td
-                          colSpan={13}
-                          className="px-3 py-2 text-left text-red-600"
-                        >
-                          {r.startTime}
-                          {r.endTime ? `〜${r.endTime}` : "〜"} — {r.error}
-                        </td>
+                        <>
+                          <td
+                            colSpan={13}
+                            className="px-3 py-2 text-left text-red-600"
+                          >
+                            {r.startTime}
+                            {r.endTime ? `〜${r.endTime}` : "〜"} — {r.error}
+                          </td>
+                          {/* 金額が確定できない日は前払金を記録させない */}
+                          <td className="px-3 py-2 text-right">
+                            <AdvanceToggle
+                              employeeId={emp.employeeId}
+                              workDate={r.workDate}
+                              amount={0}
+                              recorded={r.advance}
+                              disabled
+                            />
+                          </td>
+                        </>
                       ) : (
                         <>
                           <td className="px-3 py-2 text-right">{r.startTime}</td>
@@ -253,6 +270,14 @@ export default async function DailyReportPage({
                           </td>
                           <td className="px-3 py-2 text-right font-bold">
                             {yen(r.total)}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <AdvanceToggle
+                              employeeId={emp.employeeId}
+                              workDate={r.workDate}
+                              amount={r.total}
+                              recorded={r.advance}
+                            />
                           </td>
                         </>
                       )}
@@ -294,6 +319,9 @@ export default async function DailyReportPage({
                   </td>
                   <td className="px-3 py-2 text-right">
                     {yen(emp.totals.total)}
+                  </td>
+                  <td className="px-3 py-2 text-right text-amber-700">
+                    {yen(emp.totals.advance)}
                   </td>
                 </tr>
               </tbody>

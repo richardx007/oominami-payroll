@@ -3,11 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { workMinutes, standardBreakMinutes } from "@/lib/period";
-import {
-  effectivePeriodFromKey,
-  getPayrollStartDate,
-} from "@/lib/payroll-start";
+import { periodFromKey, workMinutes, standardBreakMinutes } from "@/lib/period";
 import { BREAK_SETTING_KEYS, parseBreakWindows } from "@/lib/breaks";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { effectiveAt } from "@/lib/payroll";
@@ -23,18 +19,8 @@ import type { ActionResult } from "../employees/actions";
 /** 締め処理: 期間をロックし、全員分の給与明細を確定保存する */
 export async function closePeriod(periodKey: string): Promise<ActionResult> {
   await requireAdmin();
-  const period = await effectivePeriodFromKey(periodKey);
+  const period = periodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
-
-  // 運用開始日で開始日を繰り下げた結果、期間が丸ごと開始日より前になった場合は
-  // 全員0円の明細ができてしまうため締めさせない。
-  if (period.start > period.end) {
-    const startDate = await getPayrollStartDate();
-    return {
-      ok: false,
-      message: `${period.label}は給与計算の運用開始日(${startDate})より前の期間のため締められません`,
-    };
-  }
 
   try {
   const payrolls = await calculatePeriodPayroll(period);
@@ -87,6 +73,7 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     lunch_total: p.result!.lunch_total,
     gross_pay: p.result!.gross_pay,
     income_tax: p.result!.income_tax,
+    advance_deduction: p.result!.advance_deduction,
     net_pay: p.result!.net_pay,
     tax_category: p.result!.tax_category,
     finalized_at: now,
@@ -124,7 +111,7 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
 /** 締め解除: 申告漏れ対応のため期間を再オープンする(支払済みは不可) */
 export async function reopenPeriod(periodKey: string): Promise<ActionResult> {
   await requireAdmin();
-  const period = await effectivePeriodFromKey(periodKey);
+  const period = periodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
   const supabase = await createClient();
@@ -173,7 +160,7 @@ export async function emailPayslips(
   onlyUnsent: boolean
 ): Promise<ActionResult> {
   await requireAdmin();
-  const period = await effectivePeriodFromKey(periodKey);
+  const period = periodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
   const supabase = await createClient();
@@ -193,8 +180,8 @@ export async function emailPayslips(
     .from("payslips")
     .select(
       `id, employee_id, work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay,
-       night_pay, overtime_pay, transport_total, lunch_total, gross_pay, income_tax, net_pay,
-       tax_category, emailed_at, employees ( name, email )`
+       night_pay, overtime_pay, transport_total, lunch_total, gross_pay, income_tax,
+       advance_deduction, net_pay, tax_category, emailed_at, employees ( name, email )`
     )
     .eq("pay_period_id", payPeriod.id);
 
@@ -277,6 +264,7 @@ export async function emailPayslips(
         lunchTotal: p.lunch_total,
         grossPay: p.gross_pay,
         incomeTax: p.income_tax,
+        advanceDeduction: p.advance_deduction,
         netPay: p.net_pay,
         taxCategory: p.tax_category,
         dailyRows: entriesByEmployee.get(p.employee_id) ?? [],
@@ -306,7 +294,7 @@ export async function emailPayslips(
 /** 支払済みにする */
 export async function markPaid(periodKey: string): Promise<ActionResult> {
   await requireAdmin();
-  const period = await effectivePeriodFromKey(periodKey);
+  const period = periodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
   const supabase = await createClient();

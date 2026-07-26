@@ -6,7 +6,6 @@ import {
   currentPeriod,
   periodFromKey,
 } from "@/lib/period";
-import { clampPeriodStart, getPayrollStartDate } from "@/lib/payroll-start";
 
 /** 分を「H:MM」表記にする(単位を省いて数字だけ・改行させない用) */
 function hhmm(minutes: number) {
@@ -25,14 +24,7 @@ export default async function ClosePage({
 }) {
   await requireAdmin();
   const { p } = await searchParams;
-  const rawPeriod = (p && periodFromKey(p)) || currentPeriod();
-
-  // 運用開始日(設定画面)が期間の途中にある場合、開始日まで期間を繰り下げて計算する。
-  // 開店直後など、期間前半を日当で支払った分の二重払いを防ぐ。
-  const payrollStart = await getPayrollStartDate();
-  const period = clampPeriodStart(rawPeriod, payrollStart);
-  const clamped = period.start !== rawPeriod.start;
-  const wholeBeforeStart = period.start > period.end;
+  const period = (p && periodFromKey(p)) || currentPeriod();
 
   const supabase = await createClient();
   const [{ data: payPeriod }, payrolls] = await Promise.all([
@@ -51,11 +43,12 @@ export default async function ClosePage({
       if (p.result) {
         acc.gross += p.result.gross_pay;
         acc.tax += p.result.income_tax;
+        acc.advance += p.result.advance_deduction;
         acc.net += p.result.net_pay;
       }
       return acc;
     },
-    { gross: 0, tax: 0, net: 0 }
+    { gross: 0, tax: 0, advance: 0, net: 0 }
   );
 
   return (
@@ -91,13 +84,6 @@ export default async function ClosePage({
             締め日：{period.end.replaceAll("-", "/")}、支払日{" "}
             {period.paymentDate.replaceAll("-", "/")}
           </p>
-          {clamped && (
-            <p className="mt-1 text-sm font-medium text-amber-700">
-              {wholeBeforeStart
-                ? `この期間は給与計算の運用開始日(${payrollStart?.replaceAll("-", "/")})より前のため、給与計算の対象外です`
-                : `給与計算の運用開始日(${payrollStart?.replaceAll("-", "/")})以降のみ計算しています(対象: ${period.start.replaceAll("-", "/")}〜${period.end.replaceAll("-", "/")})。開始日より前の勤務分は日当レポートで確認してください`}
-            </p>
-          )}
         </div>
 
         {/* 操作ボタンはヘッダ部分に配置(締め/支払・明細配信・締め解除・税理士資料操作) */}
@@ -122,6 +108,14 @@ export default async function ClosePage({
                 <dt>源泉所得税</dt>
                 <dd className="tabular-nums">¥{totals.tax.toLocaleString()}</dd>
               </div>
+              {totals.advance > 0 && (
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt>前払金控除</dt>
+                  <dd className="tabular-nums">
+                    ¥{totals.advance.toLocaleString()}
+                  </dd>
+                </div>
+              )}
               <div className="flex items-baseline justify-between gap-4">
                 <dt>差引支給</dt>
                 <dd className="tabular-nums">¥{totals.net.toLocaleString()}</dd>
@@ -148,6 +142,7 @@ export default async function ClosePage({
                 <th className="px-4 py-2 text-right">昼食補助</th>
                 <th className="px-4 py-2 text-right">総支給</th>
                 <th className="px-4 py-2 text-right">所得税</th>
+                <th className="px-4 py-2 text-right">前払金</th>
                 <th className="px-4 py-2 text-right">差引支給</th>
               </tr>
             </thead>
@@ -199,12 +194,18 @@ export default async function ClosePage({
                       <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">
                         −¥{p.result.income_tax.toLocaleString()}
                       </td>
+                      {/* 日当として先に現金で支払った分。差引支給からのみ控除する */}
+                      <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">
+                        {p.result.advance_deduction > 0
+                          ? `−¥${p.result.advance_deduction.toLocaleString()}`
+                          : "―"}
+                      </td>
                       <td className="px-4 py-3 text-right font-bold">
                         ¥{p.result.net_pay.toLocaleString()}
                       </td>
                     </>
                   ) : (
-                    <td colSpan={13} className="px-4 py-3 text-red-600">
+                    <td colSpan={14} className="px-4 py-3 text-red-600">
                       {p.error}
                     </td>
                   )}
@@ -213,7 +214,7 @@ export default async function ClosePage({
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={14}
+                    colSpan={15}
                     className="px-4 py-8 text-center text-gray-400"
                   >
                     対象の従業員がいません

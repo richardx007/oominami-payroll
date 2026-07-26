@@ -10,7 +10,8 @@ export default async function PayslipsPage() {
     .from("payslips")
     .select(
       `work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay, night_pay,
-       overtime_pay, transport_total, lunch_total, gross_pay, income_tax, net_pay, tax_category,
+       overtime_pay, transport_total, lunch_total, gross_pay, income_tax, advance_deduction,
+       net_pay, tax_category,
        finalized_at, pay_periods ( period_label, payment_date, status )`
     )
     .eq("employee_id", employee.id)
@@ -125,6 +126,14 @@ export default async function PayslipsPage() {
                 value={`−¥${slip.income_tax.toLocaleString()}`}
                 negative
               />
+              {/* 日当として先に受け取った分。ある場合のみ控除として表示する */}
+              {slip.advance_deduction > 0 && (
+                <Row
+                  label="前払金(日当としてお支払い済み)"
+                  value={`−¥${slip.advance_deduction.toLocaleString()}`}
+                  negative
+                />
+              )}
               <div className="border-t border-gray-100 pt-2">
                 <Row
                   label="差引支給額"

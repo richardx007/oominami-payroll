@@ -25,6 +25,10 @@ import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "./breaks";
  * - 源泉所得税 = 月額表(甲欄/乙欄)による
  *   - 乙欄: 88,000円未満は課税対象額 × 3.063%(1円未満切り捨て)、以上は税額表を参照
  *   - 甲欄: 88,000円未満は 0円、以上は税額表(扶養親族数別)を参照
+ * - 前払金控除 = 当期の勤務日に対して日当として先に現金で支払った額の合計
+ *   総支給額・課税対象額・源泉所得税には影響させず、差引支給額からのみ差し引く
+ *   (所得の控除ではなく既払い分の精算のため、源泉徴収は月額表による月単位の計算のまま)
+ * - 差引支給額 = 総支給額 - 源泉所得税 - 前払金控除
  */
 
 export type WorkEntryInput = {
@@ -73,6 +77,9 @@ export type PayslipResult = {
   gross_pay: number;
   taxable_amount: number;
   income_tax: number;
+  /** 前払金控除(日当として先に支払った額の合計)。差引支給額からのみ差し引く */
+  advance_deduction: number;
+  /** 差引支給額 = 総支給額 - 源泉所得税 - 前払金控除(前払いが多ければマイナスになりうる) */
   net_pay: number;
   tax_category: "kou" | "otsu";
 };
@@ -156,6 +163,8 @@ export function computePayslip(params: {
   periodEnd: string;
   /** 標準休憩時間帯(設定画面で変更可)。未指定なら既定値(12-13/19-20/4-5時) */
   breakWindows?: BreakWindow[];
+  /** 当期に日当として先に支払った前払金の合計(未指定なら0) */
+  advanceTotal?: number;
 }): PayslipResult {
   const {
     entries,
@@ -165,6 +174,7 @@ export function computePayslip(params: {
     taxRows,
     periodEnd,
     breakWindows = DEFAULT_BREAK_WINDOWS,
+    advanceTotal = 0,
   } = params;
 
   if (wageRates.length === 0) {
@@ -238,7 +248,9 @@ export function computePayslip(params: {
     gross_pay: grossPay,
     taxable_amount: taxable,
     income_tax: incomeTax,
-    net_pay: grossPay - incomeTax,
+    advance_deduction: advanceTotal,
+    // 前払金は課税対象額・源泉所得税には影響させず、差引支給額からのみ控除する
+    net_pay: grossPay - incomeTax - advanceTotal,
     tax_category: category,
   };
 }

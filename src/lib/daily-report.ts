@@ -2,8 +2,8 @@
  * 日当レポート: 任意期間の「従業員 × 日ごと」の勤務時間・支給額一覧
  *
  * 給与期間(前月26日〜当月25日)とは無関係に、開始日〜終了日を自由に指定して
- * 1日単位の支給額を確認するための集計。開店直後など、給与計算の運用開始日
- * (lib/payroll-start.ts)より前の勤務分を日当として現金で支払うときに使う。
+ * 1日単位の支給額を確認するための集計。日当を現金で手渡すときに、その日いくら
+ * 渡せばよいかを確認するために使う。
  *
  * 金額の計算方法は給与計算(lib/payroll.ts の computePayslip)と同一:
  *   基本給   = 勤務分数(標準休憩控除後) × 時給 ÷ 60 を日単位で切り捨て
@@ -12,8 +12,10 @@
  *   昼食補助 = 勤務日ごとに定額 / 交通費 = 申告実費
  * 月次の給与計算と同じ数字になるよう、休憩は入力値ではなく標準休憩帯から導出する。
  *
- * 源泉所得税は月額表による月単位の計算のため、このレポートには含まない
- * (日当として支払う場合の源泉徴収の扱いは税理士の指示に従うこと)。
+ * 源泉所得税は月額表による月単位の計算のため、このレポートには含まない。
+ * 日当として現金で支払った分は各行から「前払金」として記録でき、その勤務日を含む
+ * 給与期間の給与計算で差引支給額から控除される(lib/payroll.ts の advanceTotal)。
+ * これにより日当と月末給与の二重払いを防ぎつつ、源泉徴収は月単位のまま維持できる。
  */
 
 import { createClient } from "./supabase/server";
@@ -43,6 +45,8 @@ export type DailyRow = {
   transport: number;
   /** その日の支給額合計(基本給+深夜+残業+昼食補助+交通費、源泉徴収前) */
   total: number;
+  /** 前払金として記録済みの金額。null なら未記録(まだ日当を渡していない) */
+  advance: number | null;
   /** 計算できない場合の理由(退勤未入力・時給未設定など)。null なら正常 */
   error: string | null;
 };
@@ -64,6 +68,8 @@ export type DailyEmployeeReport = {
     lunch: number;
     transport: number;
     total: number;
+    /** 前払金として記録済みの合計 */
+    advance: number;
   };
 };
 
@@ -85,6 +91,7 @@ function emptyTotals(): DailyEmployeeReport["totals"] {
     lunch: 0,
     transport: 0,
     total: 0,
+    advance: 0,
   };
 }
 
@@ -104,6 +111,7 @@ export async function loadDailyReport(
     { data: wageRates },
     { data: allowances },
     { data: breakSettings },
+    { data: advances },
   ] = await Promise.all([
     supabase
       .from("employees")
@@ -123,7 +131,18 @@ export async function loadDailyReport(
       .from("allowance_settings")
       .select("lunch_allowance_per_day, effective_from"),
     supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
+    supabase
+      .from("advance_payments")
+      .select("employee_id, work_date, amount")
+      .gte("work_date", from)
+      .lte("work_date", to),
   ]);
+
+  // 前払金は (従業員, 勤務日) で一意。行ごとの記録状況の表示に使う
+  const advanceBy = new Map<string, number>();
+  for (const a of advances ?? []) {
+    advanceBy.set(`${a.employee_id}_${a.work_date}`, a.amount);
+  }
 
   const breakWindows = parseBreakWindows(breakSettings);
 
@@ -157,6 +176,7 @@ export async function loadDailyReport(
       const lunch =
         effectiveAt(allowances ?? [], e.work_date)?.lunch_allowance_per_day ?? 0;
       const wage = effectiveAt(wagesBy.get(emp.id) ?? [], e.work_date);
+      const advance = advanceBy.get(`${emp.id}_${e.work_date}`) ?? null;
 
       if (!end || !wage) {
         rows.push({
@@ -174,6 +194,7 @@ export async function loadDailyReport(
           lunch: 0,
           transport: e.transport_cost,
           total: 0,
+          advance,
           error: !end ? "退勤未入力" : "時給未設定",
         });
         continue;
@@ -204,6 +225,7 @@ export async function loadDailyReport(
         lunch,
         transport: e.transport_cost,
         total,
+        advance,
         error: null,
       });
 
@@ -217,6 +239,7 @@ export async function loadDailyReport(
       totals.lunch += lunch;
       totals.transport += e.transport_cost;
       totals.total += total;
+      totals.advance += advance ?? 0;
     }
 
     result.push({

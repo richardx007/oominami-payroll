@@ -2,8 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { type Period } from "@/lib/period";
-import { effectivePeriodFromKey } from "@/lib/payroll-start";
+import { periodFromKey, type Period } from "@/lib/period";
 import {
   getCompanyName,
   getTaxEmail,
@@ -24,6 +23,7 @@ type PayRow = {
   lunch_total: number;
   gross_pay: number;
   income_tax: number;
+  advance_deduction: number;
   net_pay: number;
   tax_category: string;
   emp: { employee_no: string; name: string };
@@ -41,7 +41,7 @@ type LoadedReport =
 
 /** 締め済み期間の支給明細を取得(CSV生成・メール送信で共用) */
 async function loadReport(periodKey: string): Promise<LoadedReport> {
-  const period = await effectivePeriodFromKey(periodKey);
+  const period = periodFromKey(periodKey);
   if (!period) return { ok: false, message: "期間の指定が不正です" };
 
   const supabase = await createClient();
@@ -61,8 +61,8 @@ async function loadReport(periodKey: string): Promise<LoadedReport> {
     .from("payslips")
     .select(
       `work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay, night_pay,
-       overtime_pay, transport_total, lunch_total, gross_pay, income_tax, net_pay, tax_category,
-       employees ( employee_no, name )`
+       overtime_pay, transport_total, lunch_total, gross_pay, income_tax, advance_deduction,
+       net_pay, tax_category, employees ( employee_no, name )`
     )
     .eq("pay_period_id", payPeriod.id);
 
@@ -106,6 +106,7 @@ function buildCsv(rows: PayRow[]): string {
       lunch: acc.lunch + r.lunch_total,
       gross: acc.gross + r.gross_pay,
       tax: acc.tax + r.income_tax,
+      advance: acc.advance + r.advance_deduction,
       net: acc.net + r.net_pay,
     }),
     {
@@ -118,6 +119,7 @@ function buildCsv(rows: PayRow[]): string {
       lunch: 0,
       gross: 0,
       tax: 0,
+      advance: 0,
       net: 0,
     }
   );
@@ -137,6 +139,7 @@ function buildCsv(rows: PayRow[]): string {
     "昼食補助",
     "総支給額",
     "源泉所得税",
+    "前払金控除",
     "差引支給額",
     "税区分",
   ].join(",");
@@ -156,6 +159,7 @@ function buildCsv(rows: PayRow[]): string {
       r.lunch_total,
       r.gross_pay,
       r.income_tax,
+      r.advance_deduction,
       r.net_pay,
       r.tax_category === "kou" ? "甲" : "乙",
     ].join(",")
@@ -175,6 +179,7 @@ function buildCsv(rows: PayRow[]): string {
     totals.lunch,
     totals.gross,
     totals.tax,
+    totals.advance,
     totals.net,
     "",
   ].join(",");

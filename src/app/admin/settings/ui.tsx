@@ -6,7 +6,6 @@ import {
   updateBreakWindows,
   updateEmailSettings,
   updateLunchAllowance,
-  updatePayrollStartDate,
   updateShiftSlots,
   updateTimesheetLock,
   uploadWorkRules,
@@ -222,62 +221,6 @@ export function TimesheetLockForm({ locked }: { locked: boolean }) {
           {pending ? "保存中..." : "保存する"}
         </button>
       </form>
-    </section>
-  );
-}
-
-/**
- * 給与計算の運用開始日。給与期間(前月26日〜当月25日)のうち、この日より前の勤務は
- * 給与計算・締め・明細の対象から外れる(勤務表・QR打刻の記録には影響しない)。
- * 開店直後など、期間の前半を日当で現金支払いしたときの二重払いを防ぐための設定。
- */
-export function PayrollStartForm({ startDate }: { startDate: string }) {
-  const [result, setResult] = useState<ActionResult | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-        給与計算の運用開始日
-      </h2>
-      <p className="mt-1 text-sm text-gray-500">
-        この日より前の勤務は給与計算・締め・給与明細・税理士向けCSVの対象になりません
-        (勤務表・QR打刻には影響しないので、記録は普通に残ります)。開店直後などに
-        期間の前半を日当で現金支払いする場合、その分の二重払いを防げます。開始日より
-        前の支払額は「日当」画面で確認してください。空欄にすると制限なしになります。
-      </p>
-      <p className="mt-2 text-sm font-medium text-amber-700">
-        締め済みの期間がある状態で変更すると、その期間の明細と対象範囲がずれます。
-        運用開始時に一度だけ設定してください。
-      </p>
-      <form
-        action={(fd) =>
-          startTransition(async () => setResult(await updatePayrollStartDate(fd)))
-        }
-        className="mt-4 flex flex-wrap items-center gap-2"
-      >
-        {/* iOS の日付ピッカーは指定幅より広く描画されるため、幅を固定して縮ませない */}
-        <input
-          type="date"
-          name="payroll_start_date"
-          aria-label="給与計算の運用開始日"
-          defaultValue={startDate}
-          className="w-40 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
-        <button
-          disabled={pending}
-          className="shrink-0 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {pending ? "保存中..." : "保存する"}
-        </button>
-      </form>
-      {result && (
-        <p
-          className={`mt-2 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
-        >
-          {result.message}
-        </p>
-      )}
     </section>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { buildDailyReportCsv } from "./actions";
+import { buildDailyReportCsv, setAdvancePayment } from "./actions";
 
 const iconBtn =
   "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-blue-300 bg-white text-blue-700 hover:bg-blue-50 disabled:opacity-50";
@@ -100,6 +100,76 @@ export function DownloadDailyCsvButton({
         className={iconBtn}
       >
         <DownloadIcon />
+      </button>
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </span>
+  );
+}
+
+/**
+ * その日の日当を「前払金」として記録/取消するボタン。
+ * 記録すると、その勤務日を含む給与期間の給与計算で差引支給額から控除される
+ * (総支給額・課税対象額・源泉所得税は変わらない)。
+ */
+export function AdvanceToggle({
+  employeeId,
+  workDate,
+  amount,
+  recorded,
+  disabled,
+}: {
+  employeeId: string;
+  workDate: string;
+  /** その日の支給額(記録するときの金額) */
+  amount: number;
+  /** 記録済みの金額。null なら未記録 */
+  recorded: number | null;
+  /** 退勤未入力など、金額が確定できない日は記録させない */
+  disabled?: boolean;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function run(next: number | null) {
+    setError(null);
+    startTransition(async () => {
+      const res = await setAdvancePayment(employeeId, workDate, next);
+      if (!res.ok) setError(res.message);
+    });
+  }
+
+  if (recorded !== null) {
+    return (
+      <span className="inline-flex flex-col items-end gap-0.5">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-medium text-amber-700 tabular-nums">
+            ¥{recorded.toLocaleString()}
+          </span>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => run(null)}
+            title="前払金の記録を取り消す"
+            className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 print:hidden"
+          >
+            取消
+          </button>
+        </span>
+        {error && <span className="text-xs text-red-600">{error}</span>}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex flex-col items-end gap-0.5">
+      <button
+        type="button"
+        disabled={pending || disabled}
+        onClick={() => run(amount)}
+        title="この日の支給額を前払金として記録する"
+        className="rounded border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-40 print:hidden"
+      >
+        {pending ? "記録中..." : "前払済"}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
