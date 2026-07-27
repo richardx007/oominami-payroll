@@ -6,11 +6,18 @@ import { ClockConfirm } from "./ui";
 export default async function ClockPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ type?: string; from?: string }>;
 }) {
   const employee = await requireEmployee();
-  const { type } = await searchParams;
+  const { type, from } = await searchParams;
   const clockType: "in" | "out" = type === "out" ? "out" : "in";
+  // 戻り先。アプリのメニューから開いた場合のみ付く(QRから開いた場合は無し)。
+  // オープンリダイレクトを避けるため、自サイト内の単純なパスだけを許可する
+  // ("//example.com" のような protocol-relative URL を弾く)。
+  const backHref =
+    from && /^\/[A-Za-z0-9\-_/]*$/.test(from) && !from.startsWith("//")
+      ? from
+      : null;
 
   const supabase = await createClient();
   // app_settings は管理者のみ SELECT 可のため、関数経由で取得する
@@ -69,6 +76,7 @@ export default async function ClockPage({
       transportDefault={transportDefault}
       adminEmail={contact.get("gmail_user") ?? ""}
       companyName={contact.get("company_name") ?? ""}
+      backHref={backHref}
     />
   );
 }

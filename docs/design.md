@@ -155,8 +155,8 @@ app/
     loading.tsx          画面遷移中のスピナー
     actions.ts           signOut サーバーアクション（クライアントnavから form action で呼ぶ）
     nav.tsx              下部ナビ(単色フラットSVGアイコン)。シフト/勤務表/給与明細＋4つ目。4つ目はスマホ=
-                         ハンバーガー(キャプション「その他」。タップでお知らせ/管理者へ✉️/区切り線/ログアウトの
-                         ポップアップ＝管理者ナビと同書式の右寄せ・ネイビー背景)、
+                         ハンバーガー(キャプション「その他」。タップで出退勤の記録/お知らせ/管理者へ✉️/
+                         区切り線/ログアウトのポップアップ＝管理者ナビと同書式の右寄せ・ネイビー背景)、
                          iPad/PC(lg)=閉じずお知らせ/管理者へ✉️/ログアウトを直接列挙(grid lg:grid-cols-6)。
                          「管理者へ✉️」は mailto:(宛先=送信元メール, 件名「給与管理システムより」,
                          本文=会社名 管理者様/氏名です。)。お知らせに未読赤ドット
@@ -1006,3 +1006,24 @@ middleware.ts            未認証は /login へ
 - 画面: `admin/daily/{page,ui,actions}.tsx`（一覧・`AdvanceToggle`・`setAdvancePayment`・`buildDailyReportCsv`）。
 - 反映先: `admin/close/{page,actions}.ts(x)`、`admin/report/actions.ts`、`lib/email.ts`、`(employee)/payslips/page.tsx`。
 - テスト: `lib/payroll.test.ts` に2件追加（前払金が総支給額・課税対象額・源泉所得税を変えず差引支給額のみ減らすこと）。
+
+---
+
+## 12. アプリからの打刻導線（2026-07-27追加）
+
+QRコードを読まなくてもアプリ内から打刻できる導線。従業員ナビ（`(employee)/nav.tsx`）の
+**ハンバーガーの一番上**に「出退勤の記録」を置き（PC/iPadの横並び行にも「出退勤」として追加。
+項目が増えたため `lg:grid-cols-8`→`lg:grid-cols-9`）、タップすると画面下部に
+**出勤 / 退勤 / キャンセル**の確認シートを出す。
+
+- 出勤 → `/clock?type=in&from=<現在のパス>`、退勤 → `/clock?type=out&from=...` へ遷移。
+- 確認シートは**画面下部**に出す（中央に置くとヘッダー `z-30` に重なるため。ナビ自身が `z-10` で
+  スタッキングコンテキストを作っており、その内側の要素は `z-50` にしてもヘッダーより前に出せない。
+  ハンバーガーのシートと同じ `fixed inset-0 z-30` + 下部配置で揃えている）。
+- **戻り先（`from`）**: 打刻画面は `from` を受け取り、**打刻前（キャンセル相当）と打刻成功後の両方に
+  「戻る」**を出す。QRから開いた場合は `from` が無いため「戻る」は出ない（従来どおりの見た目）。
+- **オープンリダイレクト対策**: `from` は `clock/page.tsx` で `/^\/[A-Za-z0-9\-_/]*$/` に一致し、かつ
+  `//` 始まりでないものだけを採用する（`//example.com` のような protocol-relative URL を弾く）。
+  **`from` をそのまま `href` に渡さないこと。**
+- 実装: `(employee)/nav.tsx`（`clockOpen` 状態・`clockHref()`・確認シート・`ClockIcon`）、
+  `clock/page.tsx`（`from` の検証と `backHref` の受け渡し）、`clock/ui.tsx`（`backHref` prop と「戻る」）。
