@@ -56,6 +56,8 @@ export function EmployeeNav({
   const pathname = usePathname();
   const seenAt = useSyncExternalStore(subscribeSeen, getSeen, () => null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // 「出退勤の記録」を選んだときに出す 出勤/退勤/キャンセル の確認ダイアログ
+  const [clockOpen, setClockOpen] = useState(false);
 
   // お知らせ画面を開いたら既読にする(最新受信時刻を localStorage に保存)
   useEffect(() => {
@@ -71,9 +73,19 @@ export function EmployeeNav({
     "給与管理システムより"
   )}&body=${encodeURIComponent(`${companyName} 管理者様\n${employeeName}です。\n`)}`;
 
+  // QRを読まなくてもアプリから打刻できるようにする導線。打刻後・キャンセル時に
+  // 元の画面へ戻れるよう、現在のパスを from で渡す(打刻画面側で検証してから使う)。
+  const clockHref = (type: "in" | "out") =>
+    `/clock?type=${type}&from=${encodeURIComponent(pathname)}`;
+
+  function openClock() {
+    setMenuOpen(false);
+    setClockOpen(true);
+  }
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white">
-      <div className="mx-auto grid max-w-lg grid-cols-4 lg:max-w-3xl lg:grid-cols-8">
+      <div className="mx-auto grid max-w-lg grid-cols-4 lg:max-w-3xl lg:grid-cols-9">
         {mainItems.map((item) => {
           const active = pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -92,7 +104,15 @@ export function EmployeeNav({
           );
         })}
 
-        {/* iPad/PC: ハンバーガーに閉じず、お知らせ・管理者へ✉️・ログアウトをそのまま列挙 */}
+        {/* iPad/PC: ハンバーガーに閉じず、出退勤・お知らせ・管理者へ✉️・ログアウトをそのまま列挙 */}
+        <button
+          type="button"
+          onClick={openClock}
+          className="hidden flex-col items-center gap-1 py-2.5 text-xs font-medium text-blue-100 transition hover:text-white lg:flex"
+        >
+          <ClockIcon className="h-6 w-6" />
+          出退勤
+        </button>
         <Link
           href="/notices"
           className={`hidden flex-col items-center gap-1 py-2.5 text-xs font-medium transition lg:flex ${
@@ -170,6 +190,15 @@ export function EmployeeNav({
             className="absolute bottom-[calc(3.75rem+env(safe-area-inset-bottom))] right-2 min-w-[10rem] overflow-hidden rounded-xl border border-white/15 bg-[#152449] text-white shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* 一番上に打刻の導線(QRを読まなくてもアプリから打刻できる) */}
+            <button
+              type="button"
+              onClick={openClock}
+              className="flex w-full items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <ClockIcon className="h-5 w-5 shrink-0" />
+              出退勤の記録
+            </button>
             <Link
               href="/notices"
               onClick={() => setMenuOpen(false)}
@@ -224,7 +253,70 @@ export function EmployeeNav({
           </div>
         </div>
       )}
+
+      {/* 「出退勤の記録」を選んだときの確認シート。出勤/退勤で打刻画面へ、キャンセルで閉じる。
+          ヘッダー(z-30)と重ならないよう、ハンバーガーのシートと同じく画面下部に出す。 */}
+      {clockOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40"
+          onClick={() => setClockOpen(false)}
+        >
+          <div
+            className="absolute inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] mx-auto max-w-sm rounded-2xl bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-center text-base font-bold text-gray-900">
+              出退勤の記録
+            </p>
+            <p className="mt-1 text-center text-sm text-gray-500">
+              どちらを記録しますか？
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <Link
+                href={clockHref("in")}
+                onClick={() => setClockOpen(false)}
+                className="rounded-xl bg-green-600 py-3.5 text-center text-lg font-bold text-white active:opacity-80"
+              >
+                出勤
+              </Link>
+              <Link
+                href={clockHref("out")}
+                onClick={() => setClockOpen(false)}
+                className="rounded-xl bg-orange-500 py-3.5 text-center text-lg font-bold text-white active:opacity-80"
+              >
+                退勤
+              </Link>
+              <button
+                type="button"
+                onClick={() => setClockOpen(false)}
+                className="rounded-xl border border-gray-300 py-3 text-center text-base font-medium text-gray-600 active:opacity-70"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
+  );
+}
+
+/** 出退勤の記録メニュー用の時計アイコン */
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.5 2" />
+    </svg>
   );
 }
 

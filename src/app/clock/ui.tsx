@@ -38,6 +38,7 @@ export function ClockConfirm({
   transportDefault,
   adminEmail,
   companyName,
+  backHref,
 }: {
   employeeName: string;
   type: "in" | "out";
@@ -46,6 +47,8 @@ export function ClockConfirm({
   transportDefault: TransportDefault | null;
   adminEmail: string;
   companyName: string;
+  /** 戻り先のパス。アプリのメニューから開いたときのみ渡る(QRから開いた場合は null) */
+  backHref?: string | null;
 }) {
   // ハンバーガーメニューの「管理者へ✉️」と同じ mailto:(件名・本文を自動生成)
   const mailtoHref = `mailto:${adminEmail}?subject=${encodeURIComponent(
@@ -166,6 +169,15 @@ export function ClockConfirm({
               </p>
             )}
             <div className="mt-6 flex flex-col gap-2">
+              {/* アプリのメニューから開いた場合は元の画面へ戻れるようにする */}
+              {backHref && (
+                <Link
+                  href={backHref}
+                  className="rounded-lg border border-[#152449] py-2.5 text-center font-medium text-[#152449] hover:bg-[#152449]/5"
+                >
+                  戻る
+                </Link>
+              )}
               {isStandalone ? (
                 <Link
                   href="/timesheet"
@@ -346,6 +358,15 @@ export function ClockConfirm({
               >
                 ✉️ 管理者にメール
               </a>
+            )}
+            {/* 打刻せずに元の画面へ戻る(アプリのメニューから開いた場合のみ) */}
+            {backHref && (
+              <Link
+                href={backHref}
+                className="mt-3 block w-full rounded-xl border border-gray-300 py-3 text-center text-base font-medium text-gray-600 hover:bg-gray-50"
+              >
+                戻る
+              </Link>
             )}
           </>
         )}
