@@ -45,7 +45,7 @@ function DownloadIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-export function PrintButton() {
+function PrintButton() {
   return (
     <button
       type="button"
@@ -59,7 +59,7 @@ export function PrintButton() {
   );
 }
 
-export function DownloadDailyCsvButton({
+function DownloadDailyCsvButton({
   from,
   to,
 }: {
@@ -103,6 +103,99 @@ export function DownloadDailyCsvButton({
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`h-5 w-5 shrink-0 text-gray-400 transition-transform ${
+        open ? "rotate-180" : ""
+      }`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+function hhmm(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * 対象期間の合計をまとめた枠。見出し(対象期間)をタップで開閉し、既定は閉じておく
+ * (日ごとの明細をすぐ見たいことが多いため)。CSVダウンロード・印刷もこの枠に収める。
+ */
+export function DailySummary({
+  from,
+  to,
+  days,
+  workMinutes,
+  total,
+  advance,
+}: {
+  from: string;
+  to: string;
+  days: number;
+  workMinutes: number;
+  total: number;
+  advance: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const yen = (n: number) => `¥${n.toLocaleString()}`;
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50/70">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-4 p-4 text-left"
+      >
+        <span className="text-sm font-semibold text-gray-900">
+          対象期間{" "}
+          <span className="tabular-nums">
+            {from.replaceAll("-", "/")}〜{to.replaceAll("-", "/")}
+          </span>
+        </span>
+        <ChevronIcon open={open} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4">
+          <dl className="max-w-xs space-y-1 text-sm font-semibold text-gray-900">
+            <div className="flex items-baseline justify-between gap-4">
+              <dt>のべ勤務日数</dt>
+              <dd className="tabular-nums">{days}日</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-4">
+              <dt>合計勤務時間</dt>
+              <dd className="tabular-nums">{hhmm(workMinutes)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-4">
+              <dt>支給額合計</dt>
+              <dd className="tabular-nums">{yen(total)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-4">
+              <dt>前払金 記録済み</dt>
+              <dd className="tabular-nums">{yen(advance)}</dd>
+            </div>
+          </dl>
+          <div className="mt-3 flex items-center gap-2 print:hidden">
+            <DownloadDailyCsvButton from={from} to={to} />
+            <PrintButton />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -1,7 +1,14 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { loadDailyReport } from "@/lib/daily-report";
-import { WEEKDAYS, todayJST, weekdayOf } from "@/lib/period";
-import { AdvanceToggle, DownloadDailyCsvButton, PrintButton } from "./ui";
+import {
+  WEEKDAYS,
+  adjacentPeriodKey,
+  currentPeriod,
+  periodFromKey,
+  weekdayOf,
+} from "@/lib/period";
+import { AdvanceToggle, DailySummary } from "./ui";
 
 /** 分を「H:MM」表記にする */
 function hhmm(minutes: number) {
@@ -14,17 +21,8 @@ function yen(n: number) {
   return `¥${n.toLocaleString()}`;
 }
 
-function isDate(v: string | undefined): v is string {
-  return !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
-}
-
-/** その月の1日("YYYY-MM-01") */
-function firstOfMonth(date: string) {
-  return date.slice(0, 8) + "01";
-}
-
 /**
- * 日当レポート: 任意期間の「従業員 × 日ごと」の勤務時間・支給額一覧。
+ * 日当設定: 給与期間(前月26日〜当月25日)ごとの「従業員 × 日ごと」の勤務時間・支給額一覧。
  * 日当を現金で手渡すときに、その日いくら渡せばよいかを確認するために使う
  * (計算方法は月次の給与計算と同じ)。渡した分は各行から「前払金」として
  * 記録でき、その勤務日を含む給与期間の差引支給額から控除される。
@@ -32,21 +30,16 @@ function firstOfMonth(date: string) {
 export default async function DailyReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ p?: string }>;
 }) {
   await requireAdmin();
-  const { from: qFrom, to: qTo } = await searchParams;
+  const { p } = await searchParams;
+  // 期間の指定方法は給与明細画面と揃える(月度単位・前月/翌月で移動)
+  const period = (p && periodFromKey(p)) || currentPeriod();
+  const from = period.start;
+  const to = period.end;
 
-  const today = todayJST();
-  const from = isDate(qFrom) ? qFrom : firstOfMonth(today);
-  const to = isDate(qTo) ? qTo : today;
-  const invalidRange = from > to;
-
-  const report = invalidRange
-    ? { from, to, employees: [] as Awaited<
-        ReturnType<typeof loadDailyReport>
-      >["employees"] }
-    : await loadDailyReport(from, to);
+  const report = await loadDailyReport(from, to);
 
   const grand = report.employees.reduce(
     (acc, e) => ({
@@ -60,90 +53,52 @@ export default async function DailyReportPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">日当</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            期間を指定して、従業員ごとの日別の勤務時間と支給額を表示します。
-            金額の計算方法(休憩・深夜手当・残業手当・昼食補助)は月次の給与計算と同じです。
-            日当を現金で渡したら「前払済」を押して記録してください。
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* 前月/翌月は給与明細画面と同じ ＜ 年月 ＞ のスタイル・配色に統一 */}
+        <div className="flex items-center gap-1.5">
+          <Link
+            href={`/admin/daily?p=${adjacentPeriodKey(period.key, -1)}`}
+            aria-label="前月"
+            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+          >
+            ＜
+          </Link>
+          <span className="text-xl font-extrabold tracking-tight text-blue-800">
+            {period.label}
+          </span>
+          <Link
+            href={`/admin/daily?p=${adjacentPeriodKey(period.key, 1)}`}
+            aria-label="翌月"
+            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+          >
+            ＞
+          </Link>
         </div>
-        <div className="flex shrink-0 items-center gap-2 print:hidden">
-          <DownloadDailyCsvButton from={from} to={to} />
-          <PrintButton />
-        </div>
+        <h1 className="text-xl font-bold">日当設定</h1>
       </div>
 
-      {/* 期間指定。iOS の日付ピッカーは指定幅より広く描画されるため幅を固定して縮ませない */}
-      <form
-        method="get"
-        className="flex flex-wrap items-center gap-2 print:hidden"
-      >
-        <input
-          type="date"
-          name="from"
-          aria-label="開始日"
-          defaultValue={from}
-          className="w-40 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
-        <span className="text-sm text-gray-400">〜</span>
-        <input
-          type="date"
-          name="to"
-          aria-label="終了日"
-          defaultValue={to}
-          className="w-40 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
-        <button className="shrink-0 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
-          表示
-        </button>
-      </form>
+      <ul className="space-y-1 text-sm text-gray-500">
+        <li>・日別の支給額が確認できます。（源泉徴収は月給時にまとめます。）</li>
+        <li>
+          ・日当の前払いをした場合は「前払済」ボタンを押してください。月末の支給額からは除外されます。
+        </li>
+      </ul>
 
-      {invalidRange && (
-        <p className="text-sm font-medium text-red-600">
-          開始日は終了日以前にしてください
-        </p>
-      )}
-
-      {!invalidRange && report.employees.length === 0 && (
+      {report.employees.length === 0 && (
         <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
           対象期間に勤務データがありません
         </p>
       )}
 
       {report.employees.length > 0 && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4">
-          <dl className="max-w-xs space-y-1 text-sm font-semibold text-gray-900">
-            <div className="flex items-baseline justify-between gap-4">
-              <dt>対象期間</dt>
-              <dd className="tabular-nums">
-                {from.replaceAll("-", "/")}〜{to.replaceAll("-", "/")}
-              </dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-4">
-              <dt>のべ勤務日数</dt>
-              <dd className="tabular-nums">{grand.days}日</dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-4">
-              <dt>合計勤務時間</dt>
-              <dd className="tabular-nums">{hhmm(grand.workMinutes)}</dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-4">
-              <dt>支給額合計</dt>
-              <dd className="tabular-nums">{yen(grand.total)}</dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-4">
-              <dt>前払金 記録済み</dt>
-              <dd className="tabular-nums">{yen(grand.advance)}</dd>
-            </div>
-          </dl>
-          <p className="mt-2 text-xs text-gray-500">
-            源泉所得税は月額表による月単位の計算のため、この画面の金額には含まれていません。
-            記録した前払金は、その勤務日を含む給与期間の給与計算で差引支給額から控除されます
-            (総支給額・課税対象額・源泉所得税は期間全体で計算されるため変わりません)。
-          </p>
-        </div>
+        <DailySummary
+          from={from}
+          to={to}
+          days={grand.days}
+          workMinutes={grand.workMinutes}
+          total={grand.total}
+          advance={grand.advance}
+        />
       )}
 
       {report.employees.map((emp) => (
