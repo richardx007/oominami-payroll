@@ -107,13 +107,10 @@ export default async function DailyReportPage({
           className="rounded-xl border border-gray-200 bg-white"
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
+            {/* 画面上の従業員表示は原則ニックネーム優先(未設定なら氏名)。
+                CSVは帳票のため従来どおり氏名を出力する。 */}
             <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-              {emp.name}
-              {emp.nickname?.trim() && (
-                <span className="ml-2 text-sm font-normal text-gray-500">
-                  ({emp.nickname.trim()})
-                </span>
-              )}
+              {emp.nickname?.trim() || emp.name}
             </h2>
             <p className="text-sm font-semibold tabular-nums text-gray-900">
               {emp.totals.days}日 / {hhmm(emp.totals.workMinutes)} /{" "}
