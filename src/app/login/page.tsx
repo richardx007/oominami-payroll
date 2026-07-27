@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { requestPasswordReset } from "./actions";
+import { describeClient, formatClientInfo } from "@/lib/client-info";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,11 +33,14 @@ export default function LoginPage() {
       return;
     }
 
-    // 操作ログ(ログイン)を記録。失敗しても無視する
+    // 操作ログ(ログイン)を記録。失敗しても無視する。
+    // 端末情報(PWA/ブラウザ・デバイス・OS・ブラウザ)も併記する。PWAかどうかは
+    // User-Agent では分からずクライアントでしか判定できないため、ここで組み立てる。
     try {
+      const info = describeClient();
       await supabase.rpc("log_activity", {
         p_action: "ログイン",
-        p_detail: email,
+        p_detail: info ? `${email} / ${formatClientInfo(info)}` : email,
       });
     } catch {}
 

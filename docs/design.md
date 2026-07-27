@@ -587,6 +587,27 @@ middleware.ts            未認証は /login へ
 
 ---
 
+### 6.3 ログイン時の端末情報記録（2026-07-27追加）
+
+操作ログの「ログイン」に、**起動方法 / デバイス / OS / ブラウザ**を併記する
+（例: `staff@example.com / PWA / iPhone / iOS 18.5 / Safari 18`）。
+問い合わせ（「アプリが更新されない」「打刻できない」等）のときに利用環境を追えるようにするため。
+
+- **PWA（ホーム画面アプリ）かブラウザかは User-Agent では判別できない。**
+  display-mode は表示中のウィンドウの状態でリクエストヘッダーには乗らず、`Sec-CH-UA-*` にも
+  標準ヘッダーが無い。したがって**サーバー側では判定不可**で、ログイン画面のクライアント側で
+  `navigator.standalone`（iOS Safari）と `(display-mode: standalone|minimal-ui|fullscreen)` を見て判定する。
+- デバイス・OS・ブラウザは `navigator.userAgent` から推定（`lib/client-info.ts` の `parseUserAgent()`。純粋関数）。
+  **判定順が重要**: Edge は UA に "Chrome" を、Chrome は "Safari" を含むため **Edge → Chrome → Safari** の順に見る。
+  iOS 上の Chrome/Firefox/Edge は CriOS/FxiOS/EdgiOS を名乗る（中身は WebKit）。
+- **iPadOS 13以降は既定で `Macintosh` を名乗る**ため UA だけでは Mac と区別できない。
+  `navigator.maxTouchPoints > 1` の Mac を iPad とみなす（`clock/ui.tsx` の PWA 判定と同じ手法）。
+- ログイン処理はクライアントから `log_activity` RPC を直接呼ぶ作りのため、記録は
+  `login/page.tsx` の `handleSubmit` 内で組み立てる。**記録の失敗はログインを妨げない**（try/catch で無視）。
+- 実装: `lib/client-info.ts`（`parseUserAgent`/`describeClient`/`formatClientInfo`）、`login/page.tsx`。
+  テストは `lib/client-info.test.ts`（主要UAの判定・9件）。
+
+
 ## 7. QR打刻（実装済み・運用テスト中）
 
 > ステータス: **実装済み**（本番反映・運用テスト中）。目的は「従業員の入力の手間・誤入力の低減」。
