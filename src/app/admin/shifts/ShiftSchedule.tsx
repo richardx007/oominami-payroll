@@ -14,6 +14,8 @@ import {
   slotHourRangeLabel,
   toInputTime,
   type NicknameStyle,
+  shiftModeLabel,
+  type ShiftMode,
   type SlotDef,
   type SlotKey,
   type ShiftStatus,
@@ -65,6 +67,10 @@ export function ShiftSchedule({
   editable = false,
   assign,
   clear,
+  mode,
+  canSwitchMode = false,
+  setMode,
+  selfOnly = false,
 }: {
   period: Period;
   slots: Record<SlotKey, SlotDef>;
@@ -85,6 +91,13 @@ export function ShiftSchedule({
     custom_end?: string;
   }) => Promise<ActionResult>;
   clear?: (employeeId: string, workDate: string) => Promise<ActionResult>;
+  /** その月のモード。"draft"(調整中)=従業員が自分の希望を入力できる / "confirmed"(確定) */
+  mode: ShiftMode;
+  /** モードの切り替えボタンを出すか(管理者のみ) */
+  canSwitchMode?: boolean;
+  setMode?: (periodKey: string, status: ShiftMode) => Promise<ActionResult>;
+  /** 調整中に従業員が自分の希望だけを編集する画面か(案内文の出し分けに使う) */
+  selfOnly?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -209,14 +222,60 @@ export function ShiftSchedule({
           >
             ＞
           </button>
-          <span className="ml-auto text-lg font-bold text-gray-700">
+          <span
+            className={`ml-auto shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+              mode === "draft"
+                ? "bg-amber-100 text-amber-800"
+                : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            {shiftModeLabel(mode)}
+          </span>
+          <span className="shrink-0 text-lg font-bold text-gray-700">
             シフト予定
           </span>
         </div>
 
+        {/* モード切替(管理者のみ)。調整中は従業員が自分の希望を入力でき、確定にすると
+            従業員は変更できなくなる(かわりに全員が全員のシフトを見られる)。 */}
+        {canSwitchMode && setMode && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  setResult(
+                    await setMode(
+                      period.key,
+                      mode === "draft" ? "confirmed" : "draft"
+                    )
+                  );
+                  router.refresh();
+                })
+              }
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {mode === "draft" ? "確定にする" : "調整中に戻す"}
+            </button>
+            <span className="text-xs text-gray-500">
+              {mode === "draft"
+                ? "従業員が自分の希望を入力できる状態です"
+                : "従業員は変更できません(閲覧のみ)"}
+            </span>
+          </div>
+        )}
+
         {editable && (
           <p className="text-xs font-medium text-gray-800">
-            日をタップしてシフトを指定してください
+            {selfOnly
+              ? "日をタップして自分の希望シフトを入力してください(他の人の希望は表示されません)"
+              : "日をタップしてシフトを指定してください"}
+          </p>
+        )}
+        {!editable && mode === "draft" && (
+          <p className="text-xs font-medium text-amber-800">
+            この月は調整中です(確定後に全員のシフトが表示されます)
           </p>
         )}
 

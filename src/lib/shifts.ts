@@ -207,3 +207,30 @@ export function nicknameStyle(status: ShiftStatus | undefined): NicknameStyle {
   if (status === "timediff" || status === "unplanned") return "mismatch";
   return "normal";
 }
+
+/**
+ * シフトのモード（月ごと）。
+ * - "confirmed"(確定): 管理者だけが編集でき、全員が全員のシフトを閲覧できる（従来の動作）
+ * - "draft"(調整中): 各従業員が自分の希望を自分で入力する。従業員には自分の希望だけが見え、
+ *   他人の希望は見えない（管理者は全員分を参照・編集できる）
+ *
+ * 希望と確定は同じ `shift_assignments` に持つ。モードを切り替えても
+ * データは移し替えず、編集・参照の可否（RLS）だけが変わる。
+ */
+export type ShiftMode = "draft" | "confirmed";
+
+/**
+ * shift_modes に行が無い月の既定モード。
+ * 翌月度以降（=これから調整する未来の月）は調整中、今月度以前は確定とする。
+ * ※DB側の `is_shift_draft()` と同じ規則。**片方だけ変えないこと。**
+ */
+export function defaultShiftMode(
+  periodKey: string,
+  currentPeriodKey: string
+): ShiftMode {
+  return periodKey > currentPeriodKey ? "draft" : "confirmed";
+}
+
+export function shiftModeLabel(mode: ShiftMode): string {
+  return mode === "draft" ? "調整中" : "確定";
+}
