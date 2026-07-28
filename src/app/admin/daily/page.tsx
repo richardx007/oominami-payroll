@@ -59,17 +59,17 @@ export default async function DailyReportPage({
           <Link
             href={`/admin/daily?p=${adjacentPeriodKey(period.key, -1)}`}
             aria-label="前月"
-            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
           >
             ＜
           </Link>
-          <span className="text-xl font-extrabold tracking-tight text-blue-800">
+          <span className="text-lg font-extrabold tracking-tight text-blue-800">
             {period.label}
           </span>
           <Link
             href={`/admin/daily?p=${adjacentPeriodKey(period.key, 1)}`}
             aria-label="翌月"
-            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
           >
             ＞
           </Link>

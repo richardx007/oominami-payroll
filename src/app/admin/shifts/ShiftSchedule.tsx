@@ -261,17 +261,17 @@ export function ShiftSchedule({
           <button
             onClick={() => router.push(periodHref(-1))}
             aria-label="前月"
-            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
           >
             ＜
           </button>
-          <span className="text-xl font-extrabold tracking-tight text-blue-800">
+          <span className="text-lg font-extrabold tracking-tight text-blue-800">
             {period.label}
           </span>
           <button
             onClick={() => router.push(periodHref(1))}
             aria-label="翌月"
-            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
           >
             ＞
           </button>
@@ -306,7 +306,7 @@ export function ShiftSchedule({
         </div>
 
         {canSwitchMode && setMode && (
-          <p className="text-xs text-gray-500">
+          <p className="text-right text-xs text-gray-500">
             {mode === "draft"
               ? "調整中をタップして確定にできます。"
               : "確定を押して調整中に戻せます"}
@@ -325,7 +325,12 @@ export function ShiftSchedule({
           ref={swipeAttach}
           className="rounded-xl border-2 border-gray-400 bg-white p-0.5 sm:p-2"
         >
-          <div className="mb-0.5 grid grid-cols-7 rounded-lg bg-blue-50 text-center text-sm font-semibold text-gray-600 sm:mb-1">
+          <div
+            className={`mb-0.5 grid grid-cols-7 rounded-lg text-center text-sm font-semibold text-gray-600 sm:mb-1 ${
+              /* 調整中はモードバッジと同じイエローにして、一目で状態が分かるようにする */
+              mode === "draft" ? "bg-yellow-200" : "bg-plan-100"
+            }`}
+          >
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
