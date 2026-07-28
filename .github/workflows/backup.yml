@@ -49,51 +49,40 @@ jobs:
           token: ${{ secrets.BACKUP_REPO_TOKEN }}
           path: backup
 
-      - name: Supabase CLI を用意
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: 接続文字列を組み立て
-        env:
-          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          DB_URL_OVERRIDE: ${{ secrets.SUPABASE_DB_URL }}
+      # Supabase CLI は使わない。CLI は pg_dump をコンテナ内で実行する際に接続URLを
+      # 解析し直すため、Session pooler 用のユーザー名(postgres.<project-ref>)が
+      # postgres に落ちて認証に失敗した(2026-07-28)。pg_dump を直接使えばこの解析が挟まらない。
+      # サーバーが Postgres 17 系のため、クライアントも 17 を入れる(古いと版違いで拒否される)。
+      - name: PostgreSQLクライアント(17)を用意
         run: |
           set -euo pipefail
-          if [ -n "${DB_PASSWORD:-}" ]; then
-            # Secrets に貼るとき末尾に改行や空白が入ることがあるため取り除く。
-            # 残っていると URL エンコードで %0A などになり、必ず認証に失敗する。
-            DB_PASSWORD=$(printf %s "$DB_PASSWORD" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-            export DB_PASSWORD
-            # パスワードに記号（@ # / : ? など）が含まれていても壊れないよう URL エンコードする
-            ENC=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""))')
-            URL="postgresql://${DB_USER}:${ENC}@${DB_HOST}:${DB_PORT}/postgres"
-            # 切り分け用（パスワードそのものは出さない）。
-            # ※Session pooler は内部で postgres として認証するため、認証エラーの文言は
-            #   ユーザー名を正しく送っていても常に user "postgres" と表示される。
-            echo "接続先: ${DB_USER}@${DB_HOST}:${DB_PORT} / パスワード長: ${#DB_PASSWORD}"
-          elif [ -n "${DB_URL_OVERRIDE:-}" ]; then
-            URL="$DB_URL_OVERRIDE"
-          else
-            echo "SUPABASE_DB_PASSWORD も SUPABASE_DB_URL も設定されていません" >&2
-            exit 1
-          fi
-          # 組み立てた文字列がログに出ないようマスクする
-          echo "::add-mask::$URL"
-          echo "DB_URL=$URL" >> "$GITHUB_ENV"
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      # 認証が通るかどうかを最初に確かめる。ここで失敗するなら資格情報の問題、
+      # 通るのにダンプで失敗するならダンプ側の問題、と切り分けられる。
+      - name: 接続テスト
+        run: psql "$DB_URL" -Atc "select current_user, version()"
 
       - name: ダンプを取得
         run: |
           set -euo pipefail
           cd backup
-          # スキーマ（テーブル・RLS・関数・トリガ）: これが再構築の土台になる
-          supabase db dump --db-url "$DB_URL" -f schema.sql
-          # ロール（権限まわり）
-          supabase db dump --db-url "$DB_URL" -f roles.sql --role-only
-          # 業務データ（public スキーマ）
-          supabase db dump --db-url "$DB_URL" -f data.sql --data-only
-          # 認証ユーザー（auth スキーマ）。これが無いとログインを復元できない
-          supabase db dump --db-url "$DB_URL" -f auth_data.sql --data-only --schema auth
+          # スキーマ(テーブル・RLSポリシー・関数・トリガ・権限)。再構築の土台。
+          # --no-owner: 復元先では所有者が変わるため、所有者指定は落とす。
+          # 権限(GRANT)は落とさない。SECURITY DEFINER 関数の authenticated への
+          # 実行権限など、無いと動かないものが含まれるため。
+          pg_dump "$DB_URL" --schema-only --no-owner --schema=public -f schema.sql
+          # 業務データ
+          pg_dump "$DB_URL" --data-only --no-owner --schema=public -f data.sql
+          # 認証ユーザー。これが無いとログインを復元できない
+          pg_dump "$DB_URL" --data-only --no-owner \
+            --table=auth.users --table=auth.identities -f auth_data.sql
 
       - name: 変更があればコミット
         run: |
@@ -113,7 +102,7 @@ jobs:
             echo ""
             echo "| ファイル | サイズ |"
             echo "|---|---|"
-            for f in schema.sql roles.sql data.sql auth_data.sql; do
+            for f in schema.sql data.sql auth_data.sql; do
               echo "| $f | $(du -h "$f" | cut -f1) |"
             done
           } >> "$GITHUB_STEP_SUMMARY"
