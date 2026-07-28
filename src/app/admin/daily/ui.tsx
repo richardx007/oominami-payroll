@@ -154,7 +154,7 @@ export function DailySummary({
   const yen = (n: number) => `¥${n.toLocaleString()}`;
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50/70">
+    <div className="rounded-xl border border-result-200 bg-result-50">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

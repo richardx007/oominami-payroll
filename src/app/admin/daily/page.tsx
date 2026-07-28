@@ -106,7 +106,7 @@ export default async function DailyReportPage({
           key={emp.employeeId}
           className="rounded-xl border border-gray-200 bg-white"
         >
-          <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-t-xl border-b border-result-200 bg-result-50 p-4">
             {/* 画面上の従業員表示は原則ニックネーム優先(未設定なら氏名)。
                 CSVは帳票のため従来どおり氏名を出力する。 */}
             <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
@@ -125,8 +125,8 @@ export default async function DailyReportPage({
           <div className="overflow-x-auto print-report">
             <table className="w-full text-sm">
               <thead>
-                <tr className="whitespace-nowrap border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
-                  <th className="sticky left-0 z-10 bg-blue-100 px-3 py-2 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
+                <tr className="whitespace-nowrap border-b border-result-200 bg-result-100 text-left text-xs font-semibold text-gray-700">
+                  <th className="sticky left-0 z-10 bg-result-100 px-3 py-2 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
                     日付
                   </th>
                   {/* 支給額・前払金は横スクロールせずに支払状況を確認できるよう日付の直後に置く */}

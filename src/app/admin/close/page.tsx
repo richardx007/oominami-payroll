@@ -91,7 +91,7 @@ export default async function ClosePage({
       </div>
 
       <section className="rounded-xl border border-gray-200 bg-white">
-        <div className="rounded-t-xl border-b border-blue-100 bg-blue-50/70 p-4">
+        <div className="rounded-t-xl border-b border-result-200 bg-result-50 p-4">
           <div>
             <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
               {status === "open" ? "給与計算プレビュー" : "確定明細"}
@@ -126,8 +126,8 @@ export default async function ClosePage({
         <div className="overflow-x-auto print-report">
           <table className="w-full text-sm">
             <thead>
-              <tr className="whitespace-nowrap border-b border-blue-200 bg-blue-100 text-left text-xs font-semibold text-gray-700">
-                <th className="sticky left-0 z-10 bg-blue-100 px-4 py-2 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
+              <tr className="whitespace-nowrap border-b border-result-200 bg-result-100 text-left text-xs font-semibold text-gray-700">
+                <th className="sticky left-0 z-10 bg-result-100 px-4 py-2 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
                   氏名
                 </th>
                 <th className="px-4 py-2 text-right">日数</th>

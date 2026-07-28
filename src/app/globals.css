@@ -8,6 +8,15 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  /* 予定=ブルー / 実績=グリーン の統一配色。
+     実績側は Tailwind の green だと彩度が高くギラつくため、彩度を抑えた
+     落ち着いたグリーン(セージ系)を独自に定義する。色味の調整はここだけを直せばよい。
+     使用箇所: 勤務表カレンダーの曜日行・予実一覧の実績、給与明細/日当の表の見出し行と枠。 */
+  --color-result-50: #e6eee8; /* 淡い面(カレンダーの曜日行・カードの見出し帯) */
+  --color-result-100: #d2e0d6; /* 表の見出し行 */
+  --color-result-200: #b4c9ba; /* 罫線 */
+  --color-result-700: #2f6b47; /* 文字(実績の強調) */
 }
 
 html {
