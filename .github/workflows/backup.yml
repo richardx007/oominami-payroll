@@ -62,7 +62,10 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          # ランナーには 16 系が入っており、そのままだと /usr/bin/pg_dump が 16 を指して
+          # 「aborting because of server version mismatch」で失敗する。17 を先に見せる。
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       # 接続文字列はここで組み立てる。手で組み立てるとユーザー名の付け忘れ
       # (Session pooler は postgres.<project-ref> が必須)やパスワードの記号の
@@ -103,6 +106,7 @@ jobs:
             echo "DB_URL が空です（接続文字列の組み立てに失敗しています）" >&2
             exit 1
           fi
+          echo "使用する pg_dump: $(command -v pg_dump) / $(pg_dump --version)"
           psql "$DB_URL" -Atc "select current_user, version()"
 
       - name: ダンプを取得
