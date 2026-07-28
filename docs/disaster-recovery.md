@@ -85,10 +85,15 @@ GitHub を見に行かなくても、**管理画面の「操作ログ」に毎�
    - Expiration: 1年
    - Repository access: **Only select repositories** → `oominami-payroll-backups` のみ
    - Permissions → Repository permissions → **Contents: Read and write**
-3. 表示されたトークンをコピー（**この画面を閉じると二度と見られない**）
-4. https://github.com/richardx007/oominami-payroll/settings/secrets/actions で
-   `BACKUP_REPO_TOKEN` を鉛筆アイコンから更新
-5. Actions から「Daily backup」を手動実行し、成功すること・操作ログの警告が消えることを確認
+   - 発行後、**表示されたトークンをコピー**する（**この画面を閉じると二度と見られない**）
+3. https://github.com/richardx007/oominami-payroll/settings/secrets/actions を開き、
+   **Repository secrets** にある下記の値を、取得したトークンで更新する（鉛筆アイコンから編集）
+
+   | 名前 | 値 |
+   |---|---|
+   | `BACKUP_REPO_TOKEN` | 手順2でコピーしたトークン |
+
+4. Actions から「Daily backup」を手動実行し、成功すること・操作ログの警告が消えることを確認
 
 ### 必要な Secrets（このリポジトリの Settings > Secrets and variables > Actions）
 
