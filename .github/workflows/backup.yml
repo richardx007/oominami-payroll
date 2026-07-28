@@ -132,17 +132,68 @@ jobs:
           git config user.email "backup-bot@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
-            echo "内容に変更がないためコミットしません" >> "$GITHUB_STEP_SUMMARY"
+            RESULT="変更なし"
           else
             git commit -m "backup: $(date -u +%Y-%m-%d)"
             git push
-            echo "バックアップをコミットしました" >> "$GITHUB_STEP_SUMMARY"
+            RESULT="コミット済み"
           fi
+          SIZES=$(du -h schema.sql data.sql auth_data.sql | awk '{printf "%s %s / ", $2, $1}' | sed 's| / $||')
+          echo "BACKUP_RESULT=$RESULT" >> "$GITHUB_ENV"
+          echo "BACKUP_SIZES=$SIZES" >> "$GITHUB_ENV"
           {
+            echo "バックアップ: $RESULT"
             echo ""
-            echo "| ファイル | サイズ |"
-            echo "|---|---|"
-            for f in schema.sql data.sql auth_data.sql; do
-              echo "| $f | $(du -h "$f" | cut -f1) |"
-            done
+            echo "$SIZES"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # バックアップ用トークンの有効期限を確認する。期限切れに気づかず
+      # バックアップが止まるのを防ぐため、残り30日を切ったら警告する。
+      # 有効期限は GitHub API のレスポンスヘッダーから取得できる。
+      - name: トークンの有効期限を確認
+        continue-on-error: true
+        env:
+          TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          set -uo pipefail
+          EXP=$(curl -sI -H "Authorization: Bearer $TOKEN" https://api.github.com/user \
+            | tr -d '\r' \
+            | awk -F': ' 'tolower($1)=="github-authentication-token-expiration"{print $2}')
+          if [ -z "$EXP" ]; then
+            echo "有効期限を取得できませんでした（無期限のトークンの可能性）"
+            exit 0
+          fi
+          DAYS=$(( ( $(date -d "$EXP" +%s) - $(date +%s) ) / 86400 ))
+          echo "トークンの有効期限: $EXP （残り ${DAYS} 日）"
+          echo "TOKEN_DAYS_LEFT=$DAYS" >> "$GITHUB_ENV"
+          if [ "$DAYS" -le 30 ]; then
+            echo "::warning::バックアップ用トークンの期限まで残り ${DAYS} 日です。再発行してください（docs/disaster-recovery.md 参照）"
+            echo "⚠️ バックアップ用トークンの期限まで残り **${DAYS} 日**。再発行してください。" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # アプリの操作ログにも残す。GitHub を見に行かなくても、管理画面の
+      # 「操作ログ」でバックアップが動いているか確認できるようにするため。
+      - name: 操作ログに記録
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          DETAIL="${BACKUP_RESULT:-不明} / ${BACKUP_SIZES:-}"
+          ACTION="バックアップ"
+          if [ -n "${TOKEN_DAYS_LEFT:-}" ] && [ "${TOKEN_DAYS_LEFT}" -le 30 ]; then
+            ACTION="バックアップ警告"
+            DETAIL="$DETAIL / ⚠️トークンの期限まで残り${TOKEN_DAYS_LEFT}日。再発行が必要です"
+          fi
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -v action="$ACTION" -v detail="$DETAIL" \
+            -c "insert into public.activity_logs (actor_name, action, detail) values ('自動バックアップ', :'action', :'detail')"
+
+      # 失敗したときも操作ログに残す（気づかず放置されるのを防ぐ）。
+      # 元の失敗を隠さないよう continue-on-error にしている。
+      - name: 失敗を操作ログに記録
+        if: failure()
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          [ -n "${DB_URL:-}" ] || exit 0
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -v detail="自動バックアップに失敗しました。GitHub Actions のログを確認してください: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -c "insert into public.activity_logs (actor_name, action, detail) values ('自動バックアップ', 'エラー', :'detail')"

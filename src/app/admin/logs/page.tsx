@@ -46,6 +46,8 @@ const RANK_BY_ACTION: Record<string, LogRank> = {
   パスワード設定: "event",
   メール送信: "event",
   削除: "event",
+  バックアップ: "routine",
+  バックアップ警告: "warning",
   打刻拒否: "warning",
   圏外打刻: "warning",
   エラー: "error",
