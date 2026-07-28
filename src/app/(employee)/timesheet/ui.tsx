@@ -257,7 +257,7 @@ export function TimesheetCalendar({
           ref={swipeAttach}
           className="rounded-xl border-2 border-gray-400 bg-white p-2"
         >
-          <div className="mb-1 grid grid-cols-7 rounded-lg bg-green-50 text-center text-xs font-semibold text-gray-600">
+          <div className="mb-1 grid grid-cols-7 rounded-lg bg-result-100 text-center text-xs font-semibold text-gray-700">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
@@ -575,7 +575,7 @@ function WorkList({
                       )}
                     </div>
                     {/* 実績(下段) */}
-                    <div className="rounded bg-green-50 px-2 py-1 text-sm">
+                    <div className="rounded bg-result-50 px-2 py-1 text-sm">
                       {e ? (
                         <span className="flex flex-nowrap items-center gap-x-1.5 overflow-x-auto">
                           <span className="shrink-0 tabular-nums">
@@ -617,7 +617,7 @@ function WorkList({
                             </span>
                           )}
                           {e.transport_cost > 0 && (
-                            <span className="shrink-0 tabular-nums font-bold text-green-700">
+                            <span className="shrink-0 tabular-nums font-bold text-result-700">
                               ¥{e.transport_cost.toLocaleString()}
                             </span>
                           )}
