@@ -219,12 +219,15 @@ app/
                          色を決め打ちせず、まずランクを割り当ててからランクの色を適用する（`src/app/admin/logs/page.tsx`
                          の`RANK_BY_ACTION`/`RANK_CLASS`）。詳細は「6.2 操作ログのランク制」参照。
     loading.tsx          画面遷移中のスピナー（連打防止・iPad体感改善）
-    page.tsx             ホーム=シフト予定表(2026-07-19に旧ダッシュボードから置換)。ShiftSchedule を editable で表示。
+    page.tsx             ホーム=シフト表(2026-07-19に旧ダッシュボードから置換)。ShiftSchedule を editable＋
+                         canSwitchMode(モード切替可)で表示。
                          右上に状態バッジ。旧 DashboardCalendar(勤務者数カレンダー)は廃止。
-    shifts/              シフト予定表の共有部品(ShiftSchedule.tsx=管理者は編集可/従業員は閲覧のみ)と
+    shifts/              シフト表の共有部品(ShiftSchedule.tsx=管理者は常に編集可/従業員は「調整中」の月だけ
+                         自分の希望を編集可。§13)と
                          サーバーアクション(assignShift/clearShift)。カレンダーの各日にニックネームを色付きチップで表示、
                          予実相違(get_shift_status が match 以外)の従業員名を太字の赤字にする。従業員側は
-                         (employee)/shifts/page.tsx が同じ ShiftSchedule を読み取り専用で使う。詳しくは「8. 勤務予定・シフト管理」
+                         (employee)/shifts/page.tsx が同じ ShiftSchedule を使う(確定の月は読み取り専用、
+                         調整中の月は editableEmployeeId=自分 で編集可)。詳しくは「8. 勤務予定・シフト管理」「13. シフトのモード」
     timesheet/           管理者用の勤務表（page/actions）。従業員用 TimesheetCalendar を共用し、
                          右上の従業員セレクトで対象を切替(?e=)、管理者は任意従業員の勤務記録を CRUD。
                          RLS の work_entries_admin(ALL/is_admin) により締め済みでも編集可(closed=false固定)
@@ -774,14 +777,16 @@ middleware.ts            未認証は /login へ
   同一視するため、0時統一は表示のみで予実突き合わせ・給与計算の結果を変えない。
 
 ### 8.2 シフト予定表（ホーム画面）
-- 管理者ホーム(`/admin`)を**シフト予定表に置換**。従業員も `(employee)/shifts`(`/shifts`・下部ナビに「シフト」タブ追加)で閲覧可能。
+- 管理者ホーム(`/admin`)を**シフト表に置換**。従業員も `(employee)/shifts`(`/shifts`・下部ナビに「シフト」タブ追加)で閲覧可能。
+  ※2026-07-27に「確定/調整中」モードを追加し、**調整中の月は従業員も自分の希望を入力できる**ようになった(§13)。
 - **月の区切りを「1日始まり(暦月)」か「26日始まり(給与期間)」で切替可能**（設定画面「シフト枠」の
   チェックボックス`shift_month_start`。既定=オフ=26日始まり）。**勤務表(給与計算)は常に26日始まりのまま**で、
   この設定はシフト予定表のカレンダー範囲にのみ影響する。期間は `lib/period.ts` の `shiftPeriodFor(p, monthStart)`
   が `monthPeriodOf`（暦月）か `periodOf`（給与期間）を選ぶ。期間キーはどちらも "YYYY-MM" なので
   前後移動(`adjacentPeriodKey`)は共通。フラグは `loadShiftData` が `get_shift_settings`（従業員も読める
   SECURITY DEFINER・`shift_month_start` を返却対象に追加）から読み、期間を決めてから割当を取得する。
-- 給与期間カレンダーの各日に、枠（早番/遅番/深夜）ごとの担当者を**ニックネーム**の色付きチップで表示（全員が全員のシフトを閲覧可）。
+- 給与期間カレンダーの各日に、枠（早番/遅番/深夜）ごとの担当者を**ニックネーム**の色付きチップで表示
+  （全員が全員のシフトを閲覧可。**調整中の月も表示は全員分**＝§13）。
 - カレンダーのセルは**縦位置で枠を表現**（上段=早番/中段=遅番/下段=深夜）し、
   各人を**横幅いっぱいの色帯＋ニックネーム**で表示（実運用の紙カレンダーに合わせたレイアウト）。
 - 予定入力は**管理者のみ**（日をタップ→従業員ごとに枠を選択/解除）。今後の運用で入力者を変える可能性あり。
