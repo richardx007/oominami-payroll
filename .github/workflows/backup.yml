@@ -9,8 +9,14 @@
 # 世代管理は Git の履歴そのもの。「3日前の状態」は `git show HEAD~3:data.sql` で取り出せる。
 #
 # 必要な Secrets（このリポジトリの Settings > Secrets and variables > Actions）:
-#   SUPABASE_DB_URL   … Supabase の「Session pooler」接続文字列（ポート 5432）
-#   BACKUP_REPO_TOKEN … バックアップ先リポジトリへ push できる Personal Access Token
+#   SUPABASE_DB_PASSWORD … SupabaseのDBパスワード（そのまま。URLエンコード不要）
+#   BACKUP_REPO_TOKEN    … バックアップ先リポジトリへ push できる Personal Access Token
+#
+# 接続文字列は下の DB_HOST/DB_PORT/DB_USER から組み立てる。手で組み立てると
+# ユーザー名の付け忘れ（Session pooler は `postgres.<project-ref>` が必須）や
+# パスワードの記号のエンコード漏れで認証に失敗しやすいため、機械的に組み立てる。
+# どうしても文字列を直接指定したい場合は Secrets に SUPABASE_DB_URL を入れれば
+# そちらが使われる（SUPABASE_DB_PASSWORD が未設定のときのみ）。
 name: Daily backup
 
 on:
@@ -19,9 +25,14 @@ on:
     - cron: "0 18 * * *"
   workflow_dispatch: # 手動実行（動作確認用）
 
-# バックアップ先リポジトリ。変更する場合はここだけ直す
 env:
+  # バックアップ先リポジトリ。変更する場合はここだけ直す
   BACKUP_REPO: richardx007/oominami-payroll-backups
+  # Supabase の Session pooler の接続先（秘密情報ではないのでここに置く）。
+  # ⚠️ DB_USER は必ず `postgres.<project-ref>`。`postgres` だけだと認証に失敗する。
+  DB_HOST: aws-0-ap-northeast-1.pooler.supabase.com
+  DB_PORT: "5432"
+  DB_USER: postgres.zvrwkmriosaldjqpxdwi
 
 concurrency:
   group: backup
@@ -32,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: バックアップ先リポジトリを取得
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ env.BACKUP_REPO }}
           token: ${{ secrets.BACKUP_REPO_TOKEN }}
@@ -43,9 +54,27 @@ jobs:
         with:
           version: latest
 
-      - name: ダンプを取得
+      - name: 接続文字列を組み立て
         env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          DB_URL_OVERRIDE: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DB_PASSWORD:-}" ]; then
+            # パスワードに記号（@ # / : ? など）が含まれていても壊れないよう URL エンコードする
+            ENC=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""))')
+            URL="postgresql://${DB_USER}:${ENC}@${DB_HOST}:${DB_PORT}/postgres"
+          elif [ -n "${DB_URL_OVERRIDE:-}" ]; then
+            URL="$DB_URL_OVERRIDE"
+          else
+            echo "SUPABASE_DB_PASSWORD も SUPABASE_DB_URL も設定されていません" >&2
+            exit 1
+          fi
+          # 組み立てた文字列がログに出ないようマスクする
+          echo "::add-mask::$URL"
+          echo "DB_URL=$URL" >> "$GITHUB_ENV"
+
+      - name: ダンプを取得
         run: |
           set -euo pipefail
           cd backup

@@ -47,12 +47,18 @@
 
 | 名前 | 値 |
 |---|---|
-| `SUPABASE_DB_URL` | Supabase の **Session pooler**（ポート **5432**）の接続文字列 |
+| `SUPABASE_DB_PASSWORD` | Supabase のDBパスワード（**そのまま**。URLエンコード不要） |
 | `BACKUP_REPO_TOKEN` | バックアップ先リポジトリへ push できる Personal Access Token |
 
-> ⚠️ **直結（`db.<ref>.supabase.co`）ではなく Session pooler を使うこと。**
-> GitHub Actions は IPv4 で、Supabase の直結は IPv4 では有料アドオンが必要なため。
-> また **Transaction pooler（6543）では `pg_dump` が動かない**。必ず 5432 の Session pooler を使う。
+接続文字列はワークフロー内で `DB_HOST` / `DB_PORT` / `DB_USER`（ファイル冒頭の `env`）と
+パスワードから組み立てる。手で組み立てると失敗しやすいため機械的に作る。
+
+> ⚠️ **Session pooler のユーザー名は `postgres.<project-ref>`。**
+> `postgres` だけだと `password authentication failed for user "postgres"` で失敗する
+> （2026-07-28 に実際にこれで躓いた）。
+> また **直結（`db.<ref>.supabase.co`）は使えない**（GitHub Actions は IPv4 で、Supabase の
+> 直結は IPv4 だと有料アドオンが必要）。**Transaction pooler（6543）では `pg_dump` が動かない**ため、
+> 必ず **5432 の Session pooler** を使う。
 
 ---
 
