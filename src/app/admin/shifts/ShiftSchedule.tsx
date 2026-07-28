@@ -114,21 +114,35 @@ export function ShiftSchedule({
     [roster]
   );
 
+  // 枠ボタンを押した瞬間にカレンダーへ反映するためのローカル状態(楽観的更新)。
+  // サーバーの応答と再レンダーを待つと1秒ほど反応が遅れて見えるため、先に画面を
+  // 更新し、保存はその裏で行う。失敗したら router.refresh() でサーバーの内容に戻す。
+  const [local, setLocal] = useState(assignments);
+  const [serverRef, setServerRef] = useState(assignments);
+  // 保存中の件数。サーバーからの再取得でローカルの未反映分を消さないために使う
+  // (ref だとレンダー中に読めないため state で持つ)
+  const [savingCount, setSavingCount] = useState(0);
+  if (serverRef !== assignments) {
+    setServerRef(assignments);
+    // 保存中の操作があるときは、まだサーバーに反映されていない分を消さないよう据え置く
+    if (savingCount === 0) setLocal(assignments);
+  }
+
   // `${empId}|${date}` -> slot / 変則出勤・退勤予定
   const slotByKey = useMemo(() => {
     const m = new Map<string, SlotKey>();
-    for (const a of assignments) m.set(`${a.employee_id}|${a.work_date}`, a.slot);
+    for (const a of local) m.set(`${a.employee_id}|${a.work_date}`, a.slot);
     return m;
-  }, [assignments]);
+  }, [local]);
   const customByKey = useMemo(() => {
     const m = new Map<string, { start: string | null; end: string | null }>();
-    for (const a of assignments)
+    for (const a of local)
       m.set(`${a.employee_id}|${a.work_date}`, {
         start: a.custom_start,
         end: a.custom_end,
       });
     return m;
-  }, [assignments]);
+  }, [local]);
 
   // 日付 -> 枠 -> {メンバー, 変則時刻}配列
   const byDate = useMemo(() => {
@@ -139,7 +153,7 @@ export function ShiftSchedule({
         { member: RosterMember; customStart: string | null; customEnd: string | null }[]
       >
     >();
-    for (const a of assignments) {
+    for (const a of local) {
       const member = memberById.get(a.employee_id);
       if (!member) continue;
       if (!m.has(a.work_date)) m.set(a.work_date, { A: [], B: [], C: [] });
@@ -150,7 +164,7 @@ export function ShiftSchedule({
       });
     }
     return m;
-  }, [assignments, memberById]);
+  }, [local, memberById]);
 
   const dates = useMemo(() => datesInPeriod(period), [period]);
   const weeks = useMemo(() => {
@@ -182,7 +196,13 @@ export function ShiftSchedule({
     period.key
   );
 
-  function runAssign(
+  /**
+   * 枠の割当/解除。**先にローカル状態を書き換えて即座にカレンダーへ反映**し、
+   * 保存はその裏で行う(useTransition は使わない。pending がサーバーの再レンダー完了まで
+   * 解除されず、押してから1秒ほど反応が無いように見えたため)。
+   * 失敗した場合はメッセージを出し、router.refresh() でサーバーの内容に戻す。
+   */
+  async function runAssign(
     employeeId: string,
     workDate: string,
     slot: SlotKey | null,
@@ -190,7 +210,28 @@ export function ShiftSchedule({
     customEnd?: string
   ) {
     if (!editable || !assign || !clear) return;
-    startTransition(async () => {
+
+    // 楽観的更新: その日その人の行を差し替える(slot が null なら取り除く)
+    setLocal((prev) => {
+      const rest = prev.filter(
+        (a) => !(a.employee_id === employeeId && a.work_date === workDate)
+      );
+      if (!slot) return rest;
+      return [
+        ...rest,
+        {
+          employee_id: employeeId,
+          work_date: workDate,
+          slot,
+          custom_start: customStart?.trim() ? customStart : null,
+          custom_end: customEnd?.trim() ? customEnd : null,
+        },
+      ];
+    });
+    setResult(null);
+
+    setSavingCount((n) => n + 1);
+    try {
       const res = slot
         ? await assign({
             employee_id: employeeId,
@@ -200,9 +241,14 @@ export function ShiftSchedule({
             custom_end: customEnd,
           })
         : await clear(employeeId, workDate);
-      setResult(res);
-      if (res.ok) router.refresh();
-    });
+      if (!res.ok) setResult(res);
+    } catch {
+      setResult({ ok: false, message: "保存に失敗しました" });
+    } finally {
+      setSavingCount((n) => n - 1);
+      // 予実状態など派生表示をサーバーの内容に合わせる(失敗時はここで巻き戻る)
+      router.refresh();
+    }
   }
 
   return (
@@ -388,7 +434,6 @@ export function ShiftSchedule({
             statusMap={statusMap}
             editable={editable}
             editableEmployeeId={editableEmployeeId}
-            pending={pending}
             onAssign={runAssign}
           />
         ) : (
@@ -411,7 +456,6 @@ function EditRow({
   customStart,
   customEnd,
   style,
-  pending,
   readOnly = false,
   onAssign,
 }: {
@@ -422,7 +466,6 @@ function EditRow({
   customStart: string | null;
   customEnd: string | null;
   style: NicknameStyle;
-  pending: boolean;
   /** 他の人の行(調整中の従業員画面)。表示はするが操作はできない */
   readOnly?: boolean;
   onAssign: (
@@ -457,7 +500,7 @@ function EditRow({
           {SLOT_KEYS.map((k) => (
             <button
               key={k}
-              disabled={pending || readOnly}
+              disabled={readOnly}
               onClick={() =>
                 onAssign(m.id, date, cur === k ? null : k, cs, ce)
               }
@@ -468,7 +511,7 @@ function EditRow({
                     : "border-gray-200 bg-white text-gray-300"
                   : cur === k
                     ? "border-blue-600 bg-blue-600 text-white"
-                    : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
               }`}
             >
               {slots[k].label}
@@ -489,7 +532,7 @@ function EditRow({
             onBlur={() => {
               if (cs !== csSaved) onAssign(m.id, date, cur, cs, ce);
             }}
-            disabled={pending || readOnly}
+            disabled={readOnly}
             aria-label="変則出勤予定"
             className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
               cs ? "" : "text-gray-400"
@@ -503,7 +546,7 @@ function EditRow({
             onBlur={() => {
               if (ce !== ceSaved) onAssign(m.id, date, cur, cs, ce);
             }}
-            disabled={pending || readOnly}
+            disabled={readOnly}
             aria-label="変則退勤予定"
             className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
               ce ? "" : "text-gray-400"
@@ -529,7 +572,6 @@ function DayPanel({
   statusMap,
   editable,
   editableEmployeeId,
-  pending,
   onAssign,
 }: {
   date: string;
@@ -541,7 +583,6 @@ function DayPanel({
   editable: boolean;
   /** 編集を1人に限定する場合の従業員ID(null なら全員を編集できる) */
   editableEmployeeId?: string | null;
-  pending: boolean;
   onAssign: (
     employeeId: string,
     workDate: string,
@@ -615,7 +656,6 @@ function DayPanel({
                 customStart={c?.start ?? null}
                 customEnd={c?.end ?? null}
                 style={nicknameStyle(statusMap[`${m.id}|${date}`])}
-                pending={pending}
                 readOnly={!canEdit}
                 onAssign={onAssign}
               />
