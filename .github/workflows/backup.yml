@@ -61,9 +61,17 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${DB_PASSWORD:-}" ]; then
+            # Secrets に貼るとき末尾に改行や空白が入ることがあるため取り除く。
+            # 残っていると URL エンコードで %0A などになり、必ず認証に失敗する。
+            DB_PASSWORD=$(printf %s "$DB_PASSWORD" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            export DB_PASSWORD
             # パスワードに記号（@ # / : ? など）が含まれていても壊れないよう URL エンコードする
             ENC=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""))')
             URL="postgresql://${DB_USER}:${ENC}@${DB_HOST}:${DB_PORT}/postgres"
+            # 切り分け用（パスワードそのものは出さない）。
+            # ※Session pooler は内部で postgres として認証するため、認証エラーの文言は
+            #   ユーザー名を正しく送っていても常に user "postgres" と表示される。
+            echo "接続先: ${DB_USER}@${DB_HOST}:${DB_PORT} / パスワード長: ${#DB_PASSWORD}"
           elif [ -n "${DB_URL_OVERRIDE:-}" ]; then
             URL="$DB_URL_OVERRIDE"
           else
