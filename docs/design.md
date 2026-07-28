@@ -1142,7 +1142,10 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
 - 共通: `lib/shifts.ts`（`ShiftMode`/`defaultShiftMode()`/`shiftModeLabel()`）、
   `lib/shift-data.ts`（`loadShiftData` が `mode` を返す）。
 - 画面: `admin/shifts/ShiftSchedule.tsx`（見出し「シフト」＋モードバッジ〈確定=ブルー/調整中=イエロー〉、
-  右寄せの切替ボタン。`mode`/`canSwitchMode`/`setMode`/`editableEmployeeId` prop）、
+  右寄せの切替ボタン。`mode`/`canSwitchMode`/`setMode`/`editableEmployeeId` prop）。
+  **枠ボタンは楽観的更新**（押した瞬間にローカル状態を書き換えてカレンダーへ反映し、保存は裏で行う。
+  `useTransition` だとサーバーの再レンダー完了まで反映されず約1秒待たされるため）。
+  保存中はサーバー props からの同期を見送り、未反映の操作が消えてちらつくのを防ぐ、
   `admin/page.tsx`（管理者）、`(employee)/shifts/page.tsx`（従業員）。
 - アクション: `admin/shifts/actions.ts`（`canEditShift()`/`setShiftMode()`。`assignShift`/`clearShift` は
   管理者専用から「管理者 or 調整中の本人」に緩和）。
