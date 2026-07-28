@@ -80,7 +80,8 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 | テーブル | 用途 | 主なカラム |
 |---------|------|-----------|
 | `employees` | 従業員（管理者含む） | id, employee_no, name, furigana(ふりがな・任意), nickname(ニックネーム・任意), color(シフト表の識別色・任意), email, auth_user_id, is_admin, status(active/retired) |
-| `shift_assignments` | 勤務予定（1日3枠A/B/Cの交代制・1従業員1日1枠） | employee_id, work_date, slot(A/B/C), unique(employee_id,work_date)。RLS=閲覧は全ログインユーザー・追加/変更/削除は管理者のみ |
+| `shift_assignments` | 勤務予定/希望（1日3枠A/B/Cの交代制・1従業員1日1枠） | employee_id, work_date, slot(A/B/C), custom_start, custom_end, unique(employee_id,work_date)。RLS は月のモードで変わる（§13）|
+| `shift_modes` | シフトの月ごとのモード（確定/調整中。§13） | period_key("YYYY-MM"), status(draft/confirmed), updated_at。RLS=閲覧は全ログインユーザー・変更は管理者のみ |
 | `wage_rates` | 時給履歴（値上げ対応） | employee_id, hourly_wage, effective_from |
 | `tax_settings` | 税区分履歴 | employee_id, tax_category(kou/otsu), dependents, effective_from |
 | `allowance_settings` | 昼食補助設定 | lunch_allowance_per_day, effective_from |
@@ -1081,3 +1082,63 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
   **`from` をそのまま `href` に渡さないこと。**
 - 実装: `(employee)/nav.tsx`（`clockOpen` 状態・`clockHref()`・確認シート・`ClockIcon`）、
   `clock/page.tsx`（`from` の検証と `backHref` の受け渡し）、`clock/ui.tsx`（`backHref` prop と「戻る」）。
+
+---
+
+## 13. シフトの「確定 / 調整中」モード（2026-07-27追加）
+
+### 13.1 目的とモード
+
+シフト調整を「まず各従業員が自分の希望を入力 → ぶつかった所・足りない所だけを調整 → 管理者が確定」
+という流れで回せるようにする。モードは**月ごと**に `shift_modes` で保持する。
+
+| モード | 従業員 | 管理者 |
+|---|---|---|
+| **確定**(`confirmed`) | 閲覧のみ。**全員のシフトが見える**（従来どおり） | 全員分を編集できる |
+| **調整中**(`draft`) | **自分の希望だけ**を入力・変更できる。**他人の希望は見えない** | 全員分を参照・編集できる |
+
+- **希望と確定は同じ `shift_assignments` に持つ**（希望をそのまま調整して確定させる運用）。
+  モードを切り替えてもデータの移し替えは起きず、**RLS の判定だけが変わる**。
+  そのため確定後に「もともとの希望は何だったか」は辿れない（2026-07-27にオーナー了承済み）。
+- 1従業員1日1枠の制約は調整中も維持する（「早番でも遅番でも可」のような複数希望は持てない）。
+- モードを切り替えられるのは管理者のみ（シフト画面の「確定にする / 調整中に戻す」ボタン）。
+
+### 13.2 既定モード（レコードが無い月）
+
+**翌月度以降 = 調整中 / 今月度以前 = 確定**。これから調整する未来の月は、管理者が何もしなくても
+従業員が希望を入れられる状態にするため。
+
+- **同じ規則が2箇所にある**: DBの `is_shift_draft()` と TSの `defaultShiftMode()`（`lib/shifts.ts`）。
+  **片方だけ変えないこと**（TS側は画面表示、DB側は権限判定に使うため、ずれると「画面では編集できるのに
+  保存が弾かれる」状態になる）。
+- 期間キーは `shift_period_key(date)`（SQL）が算出する。設定「シフト表を1日始まり」に応じて
+  暦月 / 給与期間（26日始まり）を切り替えるため、**シフト表の期間の決め方と必ず一致させる**。
+
+### 13.3 他人の希望を見せないための多層防御
+
+「調整中は自分の希望しか見えない」は**2箇所**で担保している。**どちらか一方だけでは漏れる。**
+
+1. `shift_assignments` の SELECT ポリシー
+   （`is_admin() or employee_id = current_employee_id() or not is_shift_draft(work_date)`）
+2. **`get_shift_status()` にも同じ条件の `where` を付ける**。この関数は SECURITY DEFINER で
+   全員分の予実状態を返すため、これが無いと**割当自体は隠れていても「誰がどの日に希望を出しているか」が
+   この関数経由で分かってしまう**。
+3. 画面側でも、調整中は従業員の名簿を自分1人に絞る（`(employee)/shifts/page.tsx`）。
+   これは UX のため（他人の名前が並んで押せてしまうのを防ぐ）で、防御の主体は上記1・2。
+
+書き込みは `shift_assignments_self_draft_{insert,update,delete}` ポリシー
+（本人 かつ 調整中の月）で制御する。サーバーアクション側の `canEditShift()` は
+**画面に分かりやすい理由を返すためのもの**で、最終的な担保は RLS。
+
+### 13.4 実装ファイル
+
+- DB: `supabase/migrations/20260727_shift_modes.sql`（`shift_modes`・`shift_period_key()`・
+  `is_shift_draft()`・`shift_assignments` のRLS）、`20260727_shift_status_draft_filter.sql`
+  （`get_shift_status()` の絞り込み）。
+- 共通: `lib/shifts.ts`（`ShiftMode`/`defaultShiftMode()`/`shiftModeLabel()`）、
+  `lib/shift-data.ts`（`loadShiftData` が `mode` を返す）。
+- 画面: `admin/shifts/ShiftSchedule.tsx`（モードバッジ・切替ボタン・案内文。`mode`/`canSwitchMode`/
+  `setMode`/`selfOnly` prop）、`admin/page.tsx`（管理者）、`(employee)/shifts/page.tsx`（従業員）。
+- アクション: `admin/shifts/actions.ts`（`canEditShift()`/`setShiftMode()`。`assignShift`/`clearShift` は
+  管理者専用から「管理者 or 調整中の本人」に緩和）。
+- テスト: `lib/shifts.test.ts`（既定モードの判定）。

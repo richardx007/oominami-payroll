@@ -4,7 +4,7 @@ import { todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
 import { loadShiftData } from "@/lib/shift-data";
 import { ShiftSchedule } from "./shifts/ShiftSchedule";
-import { assignShift, clearShift } from "./shifts/actions";
+import { assignShift, clearShift, setShiftMode } from "./shifts/actions";
 
 export default async function AdminHomePage({
   searchParams,
@@ -38,6 +38,9 @@ export default async function AdminHomePage({
         editable
         assign={assignShift}
         clear={clearShift}
+        mode={shiftData.mode}
+        canSwitchMode
+        setMode={setShiftMode}
       />
     </div>
   );

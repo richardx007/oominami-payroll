@@ -1,6 +1,12 @@
 import type { createClient } from "@/lib/supabase/server";
 import { shiftPeriodFor } from "@/lib/period";
-import { parseSlots, type ShiftStatus, type SlotKey } from "@/lib/shifts";
+import {
+  defaultShiftMode,
+  parseSlots,
+  type ShiftMode,
+  type ShiftStatus,
+  type SlotKey,
+} from "@/lib/shifts";
 import type {
   Assignment,
   RosterMember,
@@ -33,8 +39,12 @@ export async function loadShiftData(
   );
   const period = shiftPeriodFor(p, monthStart);
 
-  const [{ data: rosterRows }, { data: assignRows }, { data: statusRows }] =
-    await Promise.all([
+  const [
+    { data: rosterRows },
+    { data: assignRows },
+    { data: statusRows },
+    { data: modeRow },
+  ] = await Promise.all([
       supabase.rpc("get_shift_roster"),
       supabase
         .from("shift_assignments")
@@ -45,7 +55,19 @@ export async function loadShiftData(
         p_start: period.start,
         p_end: period.end,
       }),
+      // シフトのモード(確定/調整中)。行が無い月は既定(翌月度以降=調整中)を使う
+      supabase
+        .from("shift_modes")
+        .select("status")
+        .eq("period_key", period.key)
+        .maybeSingle(),
     ]);
+
+  // 既定モードの判定に使う「今の期間」のキー(1日始まり設定を反映)
+  const currentKey = shiftPeriodFor(undefined, monthStart).key;
+  const mode: ShiftMode =
+    (modeRow?.status as ShiftMode | undefined) ??
+    defaultShiftMode(period.key, currentKey);
 
   const slots = parseSlots(settingRows as { key: string; value: string }[]);
   const roster = (rosterRows ?? []) as RosterMember[];
@@ -60,7 +82,7 @@ export async function loadShiftData(
     statusMap[`${r.employee_id}|${r.work_date}`] = r.status;
   }
 
-  return { period, slots, roster, assignments, statusMap, monthStart };
+  return { period, slots, roster, assignments, statusMap, monthStart, mode };
 }
 
 /** 従業員の指定枠の割当を SlotKey で引くマップを作る(勤務表の予定時刻デフォルト用) */
