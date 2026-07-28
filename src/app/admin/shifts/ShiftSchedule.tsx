@@ -108,6 +108,8 @@ export function ShiftSchedule({
   const [selected, setSelected] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
+  // モード切替の確認ダイアログ(管理者のみ)
+  const [confirmMode, setConfirmMode] = useState(false);
 
   const memberById = useMemo(
     () => new Map(roster.map((m) => [m.id, m] as const)),
@@ -276,41 +278,39 @@ export function ShiftSchedule({
           <span className="ml-auto shrink-0 text-lg font-bold text-gray-700">
             シフト
           </span>
-          {/* モード表示。確定=予定を表す標準のブルー、調整中=イエロー系 */}
-          <span
-            className={`shrink-0 rounded-lg px-2.5 py-1 text-base font-bold ${
-              mode === "draft"
-                ? "bg-yellow-200 text-yellow-900"
-                : "bg-blue-100 text-blue-800"
-            }`}
-          >
-            {shiftModeLabel(mode)}
-          </span>
-        </div>
-
-        {/* モード切替(管理者のみ)。調整中は従業員が自分の希望を入力でき、確定にすると
-            従業員は変更できなくなる(表示はどちらのモードでも常に全員分)。 */}
-        {canSwitchMode && setMode && (
-          <div className="flex justify-end">
+          {/* モード表示。確定=予定を表す標準のブルー、調整中=イエロー系。
+              管理者はここをタップすると確認ダイアログを経て切り替えられる。 */}
+          {canSwitchMode && setMode ? (
             <button
               type="button"
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  setResult(
-                    await setMode(
-                      period.key,
-                      mode === "draft" ? "confirmed" : "draft"
-                    )
-                  );
-                  router.refresh();
-                })
-              }
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              onClick={() => setConfirmMode(true)}
+              className={`shrink-0 rounded-lg px-2.5 py-1 text-base font-bold transition active:opacity-70 ${
+                mode === "draft"
+                  ? "bg-yellow-200 text-yellow-900 hover:bg-yellow-300"
+                  : "bg-blue-100 text-blue-800 hover:bg-blue-200"
+              }`}
             >
-              {mode === "draft" ? "確定にする" : "調整中に戻す"}
+              {shiftModeLabel(mode)}
             </button>
-          </div>
+          ) : (
+            <span
+              className={`shrink-0 rounded-lg px-2.5 py-1 text-base font-bold ${
+                mode === "draft"
+                  ? "bg-yellow-200 text-yellow-900"
+                  : "bg-blue-100 text-blue-800"
+              }`}
+            >
+              {shiftModeLabel(mode)}
+            </span>
+          )}
+        </div>
+
+        {canSwitchMode && setMode && (
+          <p className="text-xs text-gray-500">
+            {mode === "draft"
+              ? "調整中をタップして確定にできます。"
+              : "確定を押して調整中に戻せます"}
+          </p>
         )}
 
         {result && (
@@ -443,6 +443,58 @@ export function ShiftSchedule({
           </div>
         )}
       </div>
+
+      {/* モード切替の確認ダイアログ(管理者のみ)。誤タップで従業員の編集可否が
+          変わってしまうのを防ぐため、必ず確認を挟む。 */}
+      {confirmMode && setMode && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setConfirmMode(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-center text-base font-bold text-gray-900">
+              {mode === "draft" ? "確定しますか？" : "調整中に戻しますか？"}
+            </p>
+            <p className="mt-2 text-center text-sm text-gray-500">
+              {mode === "draft"
+                ? "従業員はシフトを変更できなくなります。"
+                : "従業員が自分の希望を入力できるようになります。"}
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    setResult(
+                      await setMode(
+                        period.key,
+                        mode === "draft" ? "confirmed" : "draft"
+                      )
+                    );
+                    setConfirmMode(false);
+                    router.refresh();
+                  })
+                }
+                className="rounded-xl bg-blue-600 py-3 text-center text-base font-bold text-white active:opacity-80 disabled:opacity-50"
+              >
+                {pending ? "切り替え中..." : "はい"}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setConfirmMode(false)}
+                className="rounded-xl border border-gray-300 py-2.5 text-center text-base font-medium text-gray-600 active:opacity-70 disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
