@@ -1,7 +1,7 @@
 -- シフトの「確定 / 調整中」モード（月ごと）
 --
--- 調整中: 各従業員が自分の希望シフトを自分で入力する期間。従業員は自分の行だけを
---         参照・編集でき、他人の希望は見えない（管理者は全員分を参照・編集できる）。
+-- 調整中: 各従業員が自分の希望シフトを自分で入力する期間。編集できるのは自分の行だけ
+--         （管理者は全員分を編集できる）。**表示は確定モードと同じく全員分**。
 -- 確定  : 従来どおり。管理者だけが編集でき、全員が全員のシフトを閲覧できる。
 --
 -- 希望と確定は同じ `shift_assignments` に持つ（希望をそのまま調整して確定させる運用）。
@@ -61,15 +61,9 @@ revoke all on function public.is_shift_draft(date) from public;
 grant execute on function public.shift_period_key(date) to authenticated;
 grant execute on function public.is_shift_draft(date) to authenticated;
 
--- 参照: 確定月は全員が全員分を見られる（従来どおり）。調整中の月は自分の行だけ
--- （管理者は常に全件）。他人の希望が見えないようにするための中心的な制御。
-drop policy if exists shift_assignments_select on public.shift_assignments;
-create policy shift_assignments_select on public.shift_assignments
-  for select using (
-    is_admin()
-    or employee_id = current_employee_id()
-    or not is_shift_draft(work_date)
-  );
+-- 参照は従来どおり全ログインユーザーが全員分を見られる。調整中でも他の人の希望を
+-- 見せるのは意図的で、希望がぶつかっていることを当人同士で調整できるようにするため。
+-- （制限するのは編集操作だけ。ポリシー自体は既存のまま変更しない）
 
 -- 追加・変更・削除: 調整中の月に限り、本人が自分の行を操作できる。
 -- （管理者は既存の shift_assignments_admin (ALL/is_admin) で常に操作できる）
@@ -87,7 +81,3 @@ create policy shift_assignments_self_draft_delete on public.shift_assignments
   for delete using (
     employee_id = current_employee_id() and is_shift_draft(work_date)
   );
-
--- 予実状態も同じ条件で絞る。これが無いと、割当そのものは RLS で隠れていても
--- get_shift_status() 経由で「誰がどの日に希望を出しているか」が分かってしまう。
--- (関数本体は既存定義に where 句を足したもの。全文は 20260727_shift_status_draft_filter.sql 参照)

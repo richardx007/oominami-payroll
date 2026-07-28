@@ -23,18 +23,16 @@ export default async function EmployeeShiftsPage({
   );
   const holidays = await fetchJapaneseHolidays(years);
 
-  // 調整中の月は自分の希望だけを入力する画面にする。名簿も自分だけに絞り、
-  // 他の人の名前が並ばないようにする(他人の希望はRLSでそもそも取得されない)。
+  // 調整中の月は自分の希望だけを入力できるようにする。
+  // ※カレンダー・日別パネルの表示は確定モードと同じく全員分。他の人と希望が
+  //   ぶつかっていることが分かれば当人同士で調整できるため、隠すのは編集操作だけ。
   const draft = shiftData.mode === "draft";
-  const roster = draft
-    ? shiftData.roster.filter((m) => m.id === me.id)
-    : shiftData.roster;
 
   return (
     <ShiftSchedule
       period={period}
       slots={shiftData.slots}
-      roster={roster}
+      roster={shiftData.roster}
       assignments={shiftData.assignments}
       statusMap={shiftData.statusMap}
       holidays={holidays}
@@ -42,7 +40,7 @@ export default async function EmployeeShiftsPage({
       basePath="/shifts"
       mode={shiftData.mode}
       editable={draft}
-      selfOnly={draft}
+      editableEmployeeId={draft ? me.id : null}
       assign={draft ? assignShift : undefined}
       clear={draft ? clearShift : undefined}
     />
