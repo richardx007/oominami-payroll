@@ -171,19 +171,19 @@ export function TimesheetCalendar({
           <button
             onClick={() => router.push(periodHref(-1))}
             aria-label="前月"
-            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
           >
             ＜
           </button>
           <div className="shrink-0 text-center leading-tight">
-            <div className="text-xl font-extrabold tracking-tight text-blue-800">
+            <div className="text-lg font-extrabold tracking-tight text-blue-800">
               {period.label}
             </div>
           </div>
           <button
             onClick={() => router.push(periodHref(1))}
             aria-label="翌月"
-            className="shrink-0 rounded-lg px-2 py-1 text-2xl font-bold text-gray-600 hover:bg-gray-100"
+            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
           >
             ＞
           </button>
@@ -564,7 +564,7 @@ function WorkList({
                   {/* 予定行 / 実績行。見出し・枠バッジは表示せず、時刻の開始位置を両行で揃える。 */}
                   <div className="min-w-0 flex-1 space-y-1">
                     {/* 予定(上段) */}
-                    <div className="rounded bg-blue-50 px-2 py-1 text-sm">
+                    <div className="rounded bg-plan-100 px-2 py-1 text-sm">
                       {shift ? (
                         <span className="tabular-nums text-gray-800">
                           {shift.startInput ?? shift.start}〜
