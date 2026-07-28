@@ -1,0 +1,82 @@
+# Supabase の毎日バックアップ
+#
+# Supabase の無料プランには自動バックアップが無い（Pro以上のみ）。公式ドキュメントでも
+# 「無料プランは db dump で自分でエクスポートし、オフサイト保管すること」が推奨されている。
+# そこで GitHub Actions で毎日ダンプを取得し、**別のプライベートリポジトリ**へコミットする。
+#
+# 保管先を別リポジトリにしているのは、Supabase と Cloudflare のどちらが失われても
+# バックアップが無事に残るようにするため（第三の場所に置く）。
+# 世代管理は Git の履歴そのもの。「3日前の状態」は `git show HEAD~3:data.sql` で取り出せる。
+#
+# 必要な Secrets（このリポジトリの Settings > Secrets and variables > Actions）:
+#   SUPABASE_DB_URL   … Supabase の「Session pooler」接続文字列（ポート 5432）
+#   BACKUP_REPO_TOKEN … バックアップ先リポジトリへ push できる Personal Access Token
+name: Daily backup
+
+on:
+  schedule:
+    # 毎日 JST 03:00（UTC 18:00）。GitHub のスケジュールは混雑時にずれることがある
+    - cron: "0 18 * * *"
+  workflow_dispatch: # 手動実行（動作確認用）
+
+# バックアップ先リポジトリ。変更する場合はここだけ直す
+env:
+  BACKUP_REPO: richardx007/oominami-payroll-backups
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: バックアップ先リポジトリを取得
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.BACKUP_REPO }}
+          token: ${{ secrets.BACKUP_REPO_TOKEN }}
+          path: backup
+
+      - name: Supabase CLI を用意
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: ダンプを取得
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          cd backup
+          # スキーマ（テーブル・RLS・関数・トリガ）: これが再構築の土台になる
+          supabase db dump --db-url "$DB_URL" -f schema.sql
+          # ロール（権限まわり）
+          supabase db dump --db-url "$DB_URL" -f roles.sql --role-only
+          # 業務データ（public スキーマ）
+          supabase db dump --db-url "$DB_URL" -f data.sql --data-only
+          # 認証ユーザー（auth スキーマ）。これが無いとログインを復元できない
+          supabase db dump --db-url "$DB_URL" -f auth_data.sql --data-only --schema auth
+
+      - name: 変更があればコミット
+        run: |
+          set -euo pipefail
+          cd backup
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "内容に変更がないためコミットしません" >> "$GITHUB_STEP_SUMMARY"
+          else
+            git commit -m "backup: $(date -u +%Y-%m-%d)"
+            git push
+            echo "バックアップをコミットしました" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo ""
+            echo "| ファイル | サイズ |"
+            echo "|---|---|"
+            for f in schema.sql roles.sql data.sql auth_data.sql; do
+              echo "| $f | $(du -h "$f" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
