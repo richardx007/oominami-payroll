@@ -1,13 +1,14 @@
 /**
  * 給与計算期間: 前月26日 〜 当月25日(25日締め・月末払い)
- * 期間キーは締め月の "YYYY-MM" で表す(例: 2026-07 → 6/26〜7/25、7月分)
+ * 期間キーは締め月の "YYYY-MM" で表す(例: 2026-07 → 6/26〜7/25、7月度)
+ * 25日締めをベースにした月の表現は「月度」に統一する(暦月は「○年○月」)。
  */
 
 import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "./breaks";
 
 export type Period = {
   key: string; // "YYYY-MM"(締め月)
-  label: string; // "2026年7月分"
+  label: string; // "2026年7月度"(25日締めの給与期間。暦月と区別するため「月度」)
   start: string; // "YYYY-MM-DD"(前月26日)
   end: string; // "YYYY-MM-DD"(当月25日)
   paymentDate: string; // 当月末日
@@ -28,7 +29,7 @@ export function periodOf(year: number, month: number): Period {
   const lastDay = new Date(year, month, 0).getDate();
   return {
     key: `${year}-${pad(month)}`,
-    label: `${year}年${month}月分`,
+    label: `${year}年${month}月度`,
     start: ymd(prevYear, prevMonth, 26),
     end: ymd(year, month, 25),
     paymentDate: ymd(year, month, lastDay),

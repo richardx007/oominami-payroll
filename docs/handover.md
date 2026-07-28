@@ -1280,6 +1280,12 @@ npm test           # Vitest（給与計算ロジック）
   Edge→Chrome→Safari の順に見る(EdgeのUAは"Chrome"を、ChromeのUAは"Safari"を含むため)。
   **iPadOS 13以降は Macintosh を名乗る**ので `navigator.maxTouchPoints > 1` で iPad と判定している。
   記録失敗はログインを妨げない(try/catchで無視)。詳細は設計書§6.3。
+- **用語「月度」(2026-07-27統一)**: 25日締めの給与期間(前月26日〜当月25日)を指す月の表現は
+  **「○年○月度」**に統一した(以前は「○月分」)。実装は `lib/period.ts` の `periodOf()` の `label` 1箇所で、
+  勤務表・給与明細・日当のカレンダー月選択、`pay_periods.period_label`、給与明細メール・税理士メールの
+  件名まで全て波及する。**暦月**(シフトの「1日始まり」設定で使う `monthPeriodOf()`)は月度ではないので
+  **「○年○月」のまま**。既存の `pay_periods.period_label` はSQLで一括置換済み
+  (`update pay_periods set period_label = replace(period_label,'月分','月度')`)。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
 ---

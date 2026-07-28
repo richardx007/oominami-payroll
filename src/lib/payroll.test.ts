@@ -21,10 +21,10 @@ describe("period", () => {
     expect(p.start).toBe("2026-06-26");
     expect(p.end).toBe("2026-07-25");
     expect(p.paymentDate).toBe("2026-07-31");
-    expect(p.label).toBe("2026年7月分");
+    expect(p.label).toBe("2026年7月度");
   });
 
-  it("1月分は前年12月26日開始", () => {
+  it("1月度は前年12月26日開始", () => {
     const p = periodOf(2026, 1);
     expect(p.start).toBe("2025-12-26");
     expect(p.end).toBe("2026-01-25");
@@ -34,7 +34,7 @@ describe("period", () => {
     expect(periodOf(2028, 2).paymentDate).toBe("2028-02-29");
   });
 
-  it("26日以降は翌月分の期間になる(JST)", () => {
+  it("26日以降は翌月度の期間になる(JST)", () => {
     // JST 2026-07-26 00:00 = UTC 2026-07-25 15:00
     const p = currentPeriod(new Date("2026-07-25T15:00:00Z"));
     expect(p.key).toBe("2026-08");

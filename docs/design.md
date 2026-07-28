@@ -49,6 +49,19 @@
 
 ---
 
+
+### 用語: 「月度」（2026-07-27統一）
+
+25日締めの給与期間（前月26日〜当月25日）を指す月の表現は **「○年○月度」** に統一する
+（例: 2026年8月度 = 2026/07/26〜2026/08/25、支払日 2026/08/31）。暦月と紛らわしいため。
+
+- 対象: 勤務表・給与明細（締め処理）・日当設定のカレンダー月選択、`pay_periods.period_label`、
+  給与明細メール・税理士メールの件名など、`periodOf()` が返す `label` を使う箇所すべて。
+- **暦月**（シフト予定表の「1日始まり」設定時に使う `monthPeriodOf()`）は月度ではないため
+  **「○年○月」のまま**にする。
+- 実装は `lib/period.ts` の `periodOf()` の `label` 1箇所。ここを直すと全画面・メールに波及する。
+- 既存の `pay_periods.period_label`（"○月分"で保存済み）は 2026-07-27 にSQLで一括置換済み。
+
 ## 3. データベース設計
 
 Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリティ）有効。
@@ -62,7 +75,7 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 | `wage_rates` | 時給履歴（値上げ対応） | employee_id, hourly_wage, effective_from |
 | `tax_settings` | 税区分履歴 | employee_id, tax_category(kou/otsu), dependents, effective_from |
 | `allowance_settings` | 昼食補助設定 | lunch_allowance_per_day, effective_from |
-| `pay_periods` | 給与計算期間 | period_label, start_date, end_date, payment_date, status(open/closed/paid) |
+| `pay_periods` | 給与計算期間（`period_label` は「2026年8月度」形式。§用語参照） | period_label, start_date, end_date, payment_date, status(open/closed/paid) |
 | `work_entries` | 勤務表 | employee_id, work_date, start_time, end_time, break_minutes, transport_cost, transport_mode(手段), station_from(駅1), station_to(駅2), round_trip(往復), note ／ ※深夜勤務(退勤翌日, 例18:00→2:00)を許容するため `end_time > start_time` のCHECK制約は撤去済み。end≤start は翌日とみなし `workMinutes` が24時間加算 |
 | `payslips` | 給与明細（締め時に確定保存） | employee_id, pay_period_id, work_days, total_minutes, night_minutes(深夜帯勤務分), overtime_minutes(1日8h超過分), hourly_wage, base_pay, night_pay(深夜勤務手当=時給25%割増分), overtime_pay(残業手当=時給25%割増分), transport_total, lunch_total, gross_pay, income_tax, advance_deduction(前払金控除。既定0), net_pay, tax_category, finalized_at, emailed_at |
 | `advance_payments` | 前払金（日当として先に現金で支払った分。§11） | employee_id, work_date, amount, note, created_at, unique(employee_id,work_date)。RLS=従業員は自分の行を参照のみ・登録/変更/削除は管理者(`is_admin()`) |
@@ -211,7 +224,7 @@ app/
                          (レスポンシブ)を開く。詳細トップにパスワード再設定 / 招待・再招待ボタン。
                          招待状態=未招待→招待済→登録済。詳細下部に時給・税区分の履歴編集（下記参照）
     daily/               日当設定（page/ui/actions）。給与期間ごとの「従業員×日ごと」の勤務時間・支給額一覧。
-                         期間指定は給与明細画面と同じ月度単位（＜ 年月分 ＞ で前月/翌月移動・`?p=YYYY-MM`）。
+                         期間指定は給与明細画面と同じ月度単位（＜ 年月度 ＞ で前月/翌月移動・`?p=YYYY-MM`）。
                          合計枠(対象期間)は開閉式で既定は閉。CSV/印刷ボタンはその枠の中に収める。
                          従業員の見出しはニックネーム優先(未設定なら氏名)。CSVは氏名。
                          列は 日付(固定列) / 支給額 / 前払金 / 出勤 / 退勤 / 休憩 / 実働 / 深夜 / 残業 / 時給 /
@@ -988,7 +1001,7 @@ middleware.ts            未認証は /login へ
 ### 11.3 日当設定（`/admin/daily`）
 
 給与期間（前月26日〜当月25日）ごとに、従業員ごとの日別の勤務時間・支給額を一覧表示する恒久機能。
-**期間指定は給与明細画面（`/admin/close`）と同じ月度単位**（＜ 2026年8月分 ＞ で前月/翌月移動・`?p=YYYY-MM`）。
+**期間指定は給与明細画面（`/admin/close`）と同じ月度単位**（＜ 2026年8月度 ＞ で前月/翌月移動・`?p=YYYY-MM`）。
 前払金の記録単位が「勤務日」で給与期間から控除される以上、確認単位も給与期間に揃えるのが自然なため
 （当初は任意の日付範囲だったが2026-07-27に変更）。
 **金額の計算方法（標準休憩の導出・深夜25%増・8時間超の残業25%増・昼食補助・日単位の切り捨て）は
