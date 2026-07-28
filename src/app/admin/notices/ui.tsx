@@ -10,7 +10,7 @@ const inputClass =
 
 const REMINDER_TEMPLATE = {
   subject: "勤務表入力のお願い",
-  body: "今月分の勤務表が未入力です。締め日(25日)までに入力をお願いします。",
+  body: "今月度の勤務表が未入力です。締め日(25日)までに入力をお願いします。",
 };
 
 export function NoticeForm({
