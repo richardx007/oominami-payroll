@@ -64,10 +64,46 @@ jobs:
           sudo apt-get install -y -qq postgresql-client-17
           pg_dump --version
 
+      # 接続文字列はここで組み立てる。手で組み立てるとユーザー名の付け忘れ
+      # (Session pooler は postgres.<project-ref> が必須)やパスワードの記号の
+      # エンコード漏れで失敗しやすいため、機械的に作る。
+      - name: 接続文字列を組み立て
+        env:
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          DB_URL_OVERRIDE: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DB_PASSWORD:-}" ]; then
+            # Secrets に貼るとき末尾に改行や空白が入ることがあるため取り除く。
+            # 残っていると URL エンコードで %0A などになり、必ず認証に失敗する。
+            DB_PASSWORD=$(printf %s "$DB_PASSWORD" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            export DB_PASSWORD
+            # パスワードに記号（@ # / : ? など）が含まれていても壊れないよう URL エンコードする
+            ENC=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""))')
+            URL="postgresql://${DB_USER}:${ENC}@${DB_HOST}:${DB_PORT}/postgres"
+            # 切り分け用（パスワードそのものは出さない）
+            echo "接続先: ${DB_USER}@${DB_HOST}:${DB_PORT} / パスワード長: ${#DB_PASSWORD}"
+          elif [ -n "${DB_URL_OVERRIDE:-}" ]; then
+            URL="$DB_URL_OVERRIDE"
+          else
+            echo "SUPABASE_DB_PASSWORD も SUPABASE_DB_URL も設定されていません" >&2
+            exit 1
+          fi
+          # 組み立てた文字列がログに出ないようマスクする
+          echo "::add-mask::$URL"
+          echo "DB_URL=$URL" >> "$GITHUB_ENV"
+
       # 認証が通るかどうかを最初に確かめる。ここで失敗するなら資格情報の問題、
       # 通るのにダンプで失敗するならダンプ側の問題、と切り分けられる。
       - name: 接続テスト
-        run: psql "$DB_URL" -Atc "select current_user, version()"
+        run: |
+          set -euo pipefail
+          # 空だと psql がローカルソケットに接続しに行き、紛らわしいエラーになるため先に弾く
+          if [ -z "${DB_URL:-}" ]; then
+            echo "DB_URL が空です（接続文字列の組み立てに失敗しています）" >&2
+            exit 1
+          fi
+          psql "$DB_URL" -Atc "select current_user, version()"
 
       - name: ダンプを取得
         run: |
