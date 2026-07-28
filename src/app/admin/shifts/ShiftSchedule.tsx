@@ -70,7 +70,7 @@ export function ShiftSchedule({
   mode,
   canSwitchMode = false,
   setMode,
-  selfOnly = false,
+  editableEmployeeId = null,
 }: {
   period: Period;
   slots: Record<SlotKey, SlotDef>;
@@ -96,8 +96,13 @@ export function ShiftSchedule({
   /** モードの切り替えボタンを出すか(管理者のみ) */
   canSwitchMode?: boolean;
   setMode?: (periodKey: string, status: ShiftMode) => Promise<ActionResult>;
-  /** 調整中に従業員が自分の希望だけを編集する画面か(案内文の出し分けに使う) */
-  selfOnly?: boolean;
+  /**
+   * 編集を1人に限定する場合の従業員ID(調整中の従業員画面)。
+   * null なら editable の範囲すべてを編集できる(管理者)。
+   * ※カレンダー・日別パネルの**表示は常に全員分**。他の人と希望がぶつかっていることを
+   *   当人同士で調整できるようにするため、隠すのは編集操作だけにする。
+   */
+  editableEmployeeId?: string | null;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -222,24 +227,25 @@ export function ShiftSchedule({
           >
             ＞
           </button>
+          <span className="ml-auto shrink-0 text-lg font-bold text-gray-700">
+            シフト
+          </span>
+          {/* モード表示。確定=予定を表す標準のブルー、調整中=イエロー系 */}
           <span
-            className={`ml-auto shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+            className={`shrink-0 rounded-lg px-2.5 py-1 text-base font-bold ${
               mode === "draft"
-                ? "bg-amber-100 text-amber-800"
-                : "bg-gray-200 text-gray-700"
+                ? "bg-yellow-200 text-yellow-900"
+                : "bg-blue-100 text-blue-800"
             }`}
           >
             {shiftModeLabel(mode)}
           </span>
-          <span className="shrink-0 text-lg font-bold text-gray-700">
-            シフト予定
-          </span>
         </div>
 
         {/* モード切替(管理者のみ)。調整中は従業員が自分の希望を入力でき、確定にすると
-            従業員は変更できなくなる(かわりに全員が全員のシフトを見られる)。 */}
+            従業員は変更できなくなる(表示はどちらのモードでも常に全員分)。 */}
         {canSwitchMode && setMode && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex justify-end">
             <button
               type="button"
               disabled={pending}
@@ -258,25 +264,7 @@ export function ShiftSchedule({
             >
               {mode === "draft" ? "確定にする" : "調整中に戻す"}
             </button>
-            <span className="text-xs text-gray-500">
-              {mode === "draft"
-                ? "従業員が自分の希望を入力できる状態です"
-                : "従業員は変更できません(閲覧のみ)"}
-            </span>
           </div>
-        )}
-
-        {editable && (
-          <p className="text-xs font-medium text-gray-800">
-            {selfOnly
-              ? "日をタップして自分の希望シフトを入力してください(他の人の希望は表示されません)"
-              : "日をタップしてシフトを指定してください"}
-          </p>
-        )}
-        {!editable && mode === "draft" && (
-          <p className="text-xs font-medium text-amber-800">
-            この月は調整中です(確定後に全員のシフトが表示されます)
-          </p>
         )}
 
         {result && (
@@ -399,6 +387,7 @@ export function ShiftSchedule({
             customByKey={customByKey}
             statusMap={statusMap}
             editable={editable}
+            editableEmployeeId={editableEmployeeId}
             pending={pending}
             onAssign={runAssign}
           />
@@ -423,6 +412,7 @@ function EditRow({
   customEnd,
   style,
   pending,
+  readOnly = false,
   onAssign,
 }: {
   member: RosterMember;
@@ -433,6 +423,8 @@ function EditRow({
   customEnd: string | null;
   style: NicknameStyle;
   pending: boolean;
+  /** 他の人の行(調整中の従業員画面)。表示はするが操作はできない */
+  readOnly?: boolean;
   onAssign: (
     employeeId: string,
     workDate: string,
@@ -465,14 +457,18 @@ function EditRow({
           {SLOT_KEYS.map((k) => (
             <button
               key={k}
-              disabled={pending}
+              disabled={pending || readOnly}
               onClick={() =>
                 onAssign(m.id, date, cur === k ? null : k, cs, ce)
               }
-              className={`h-7 rounded-lg border px-2 text-xs font-bold transition disabled:opacity-50 ${
-                cur === k
-                  ? "border-blue-600 bg-blue-600 text-white"
-                  : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+              className={`h-7 rounded-lg border px-2 text-xs font-bold transition ${
+                readOnly
+                  ? cur === k
+                    ? "border-blue-300 bg-blue-300 text-white"
+                    : "border-gray-200 bg-white text-gray-300"
+                  : cur === k
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
               }`}
             >
               {slots[k].label}
@@ -493,7 +489,7 @@ function EditRow({
             onBlur={() => {
               if (cs !== csSaved) onAssign(m.id, date, cur, cs, ce);
             }}
-            disabled={pending}
+            disabled={pending || readOnly}
             aria-label="変則出勤予定"
             className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
               cs ? "" : "text-gray-400"
@@ -507,7 +503,7 @@ function EditRow({
             onBlur={() => {
               if (ce !== ceSaved) onAssign(m.id, date, cur, cs, ce);
             }}
-            disabled={pending}
+            disabled={pending || readOnly}
             aria-label="変則退勤予定"
             className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
               ce ? "" : "text-gray-400"
@@ -532,6 +528,7 @@ function DayPanel({
   customByKey,
   statusMap,
   editable,
+  editableEmployeeId,
   pending,
   onAssign,
 }: {
@@ -542,6 +539,8 @@ function DayPanel({
   customByKey: Map<string, { start: string | null; end: string | null }>;
   statusMap: Record<string, ShiftStatus>;
   editable: boolean;
+  /** 編集を1人に限定する場合の従業員ID(null なら全員を編集できる) */
+  editableEmployeeId?: string | null;
   pending: boolean;
   onAssign: (
     employeeId: string,
@@ -603,6 +602,9 @@ function DayPanel({
           )}
           {roster.map((m) => {
             const c = customByKey.get(`${m.id}|${date}`);
+            // 調整中の従業員画面では自分の行だけ編集できる。他の人の行も
+            // 「誰がどの枠を希望しているか」が分かるよう読み取り専用で表示する。
+            const canEdit = !editableEmployeeId || editableEmployeeId === m.id;
             return (
               <EditRow
                 key={m.id}
@@ -614,6 +616,7 @@ function DayPanel({
                 customEnd={c?.end ?? null}
                 style={nicknameStyle(statusMap[`${m.id}|${date}`])}
                 pending={pending}
+                readOnly={!canEdit}
                 onAssign={onAssign}
               />
             );

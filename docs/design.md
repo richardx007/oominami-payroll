@@ -1094,8 +1094,12 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
 
 | モード | 従業員 | 管理者 |
 |---|---|---|
-| **確定**(`confirmed`) | 閲覧のみ。**全員のシフトが見える**（従来どおり） | 全員分を編集できる |
-| **調整中**(`draft`) | **自分の希望だけ**を入力・変更できる。**他人の希望は見えない** | 全員分を参照・編集できる |
+| **確定**(`confirmed`) | 閲覧のみ | 全員分を編集できる |
+| **調整中**(`draft`) | **自分の希望だけ**を入力・変更できる | 全員分を編集できる |
+
+**表示はどちらのモードでも常に全員分**（2026-07-27の方針変更）。調整中に他の人の希望が
+見えることは意図的で、希望がぶつかっていることが分かれば当人同士で調整できるため。
+**モードで変わるのは編集できる範囲だけ。**
 
 - **希望と確定は同じ `shift_assignments` に持つ**（希望をそのまま調整して確定させる運用）。
   モードを切り替えてもデータの移し替えは起きず、**RLS の判定だけが変わる**。
@@ -1114,31 +1118,32 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
 - 期間キーは `shift_period_key(date)`（SQL）が算出する。設定「シフト表を1日始まり」に応じて
   暦月 / 給与期間（26日始まり）を切り替えるため、**シフト表の期間の決め方と必ず一致させる**。
 
-### 13.3 他人の希望を見せないための多層防御
+### 13.3 編集範囲の制御
 
-「調整中は自分の希望しか見えない」は**2箇所**で担保している。**どちらか一方だけでは漏れる。**
+- **参照**: `shift_assignments` の SELECT ポリシーは `using (true)`（全ログインユーザーが全員分）。
+  調整中でも変えない。
+- **書き込み**: `shift_assignments_self_draft_{insert,update,delete}` ポリシー（**本人 かつ 調整中の月**）。
+  管理者は既存の `shift_assignments_admin`（ALL/`is_admin()`）で常に操作できる。
+- サーバーアクションの `canEditShift()` は**画面に分かりやすい理由を返すためのもの**で、
+  最終的な担保は RLS。
+- 画面側は `editableEmployeeId` prop で制御する。調整中の従業員画面では自分以外の行を
+  読み取り専用（枠ボタンを淡色・操作不可）にして表示する。**行自体は隠さない**
+  （誰がどの枠を希望しているかが見えることが調整の助けになるため）。
 
-1. `shift_assignments` の SELECT ポリシー
-   （`is_admin() or employee_id = current_employee_id() or not is_shift_draft(work_date)`）
-2. **`get_shift_status()` にも同じ条件の `where` を付ける**。この関数は SECURITY DEFINER で
-   全員分の予実状態を返すため、これが無いと**割当自体は隠れていても「誰がどの日に希望を出しているか」が
-   この関数経由で分かってしまう**。
-3. 画面側でも、調整中は従業員の名簿を自分1人に絞る（`(employee)/shifts/page.tsx`）。
-   これは UX のため（他人の名前が並んで押せてしまうのを防ぐ）で、防御の主体は上記1・2。
-
-書き込みは `shift_assignments_self_draft_{insert,update,delete}` ポリシー
-（本人 かつ 調整中の月）で制御する。サーバーアクション側の `canEditShift()` は
-**画面に分かりやすい理由を返すためのもの**で、最終的な担保は RLS。
+> ※初版（2026-07-27）では調整中に他人の希望を隠す実装にしていたが、同日中に
+> 「ぶつかりが見えたほうが当人同士で調整できる」との判断で**表示は全員分**に変更した。
+> このとき `get_shift_status()` に入れていた絞り込みも外している。
 
 ### 13.4 実装ファイル
 
 - DB: `supabase/migrations/20260727_shift_modes.sql`（`shift_modes`・`shift_period_key()`・
-  `is_shift_draft()`・`shift_assignments` のRLS）、`20260727_shift_status_draft_filter.sql`
-  （`get_shift_status()` の絞り込み）。
+  `is_shift_draft()`・`shift_assignments` の書き込みポリシー）、
+  `20260727_shift_draft_show_all.sql`（表示を全員分に戻す）。
 - 共通: `lib/shifts.ts`（`ShiftMode`/`defaultShiftMode()`/`shiftModeLabel()`）、
   `lib/shift-data.ts`（`loadShiftData` が `mode` を返す）。
-- 画面: `admin/shifts/ShiftSchedule.tsx`（モードバッジ・切替ボタン・案内文。`mode`/`canSwitchMode`/
-  `setMode`/`selfOnly` prop）、`admin/page.tsx`（管理者）、`(employee)/shifts/page.tsx`（従業員）。
+- 画面: `admin/shifts/ShiftSchedule.tsx`（見出し「シフト」＋モードバッジ〈確定=ブルー/調整中=イエロー〉、
+  右寄せの切替ボタン。`mode`/`canSwitchMode`/`setMode`/`editableEmployeeId` prop）、
+  `admin/page.tsx`（管理者）、`(employee)/shifts/page.tsx`（従業員）。
 - アクション: `admin/shifts/actions.ts`（`canEditShift()`/`setShiftMode()`。`assignShift`/`clearShift` は
   管理者専用から「管理者 or 調整中の本人」に緩和）。
 - テスト: `lib/shifts.test.ts`（既定モードの判定）。
