@@ -39,7 +39,13 @@
 
 取得には **`pg_dump` を直接**使う（Supabase CLI は使わない）。CLI は `pg_dump` を
 コンテナ内で実行する際に接続URLを解析し直すため、**Session pooler 用のユーザー名
-`postgres.<project-ref>` が `postgres` に落ちて認証に失敗する**（2026-07-28に判明）。
+`postgres.<project-ref>` が `postgres` に落ちて認証に失敗する**（2026-07-28に判明。
+CLIをやめて `pg_dump` を直接叩いたところ同じ資格情報で認証が通った）。
+
+> ⚠️ **`pg_dump` はサーバーと同じメジャーバージョンが必要**（古いと
+> `aborting because of server version mismatch` で失敗する）。GitHub の ubuntu ランナーには
+> 16 系が入っているため、PGDG から 17 を入れたうえで **`/usr/lib/postgresql/17/bin` を
+> PATH の先頭に入れる**こと。入れ忘れると `/usr/bin/pg_dump`（16系）が使われる。
 
 - **世代管理は Git の履歴そのもの。** 「3日前の状態」は `git show HEAD~3:data.sql` で取り出せる。
   保存期間の上限が無いため、**賃金台帳の5年（当分の間3年）保存義務**にも対応できる。
