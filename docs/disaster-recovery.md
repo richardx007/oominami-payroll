@@ -52,6 +52,44 @@ CLIをやめて `pg_dump` を直接叩いたところ同じ資格情報で認証
 - 内容に変更が無い日はコミットされない。実行の記録は GitHub の Actions のログに残る。
 - **失敗すると GitHub からオーナー宛にメールが届く。** 届いたら放置しないこと。
 
+### 実行結果の確認（管理画面の「操作ログ」）
+
+GitHub を見に行かなくても、**管理画面の「操作ログ」に毎日の結果が残る**。
+
+| 種別 | 意味 |
+|---|---|
+| `バックアップ`（グレー） | 正常終了。詳細に「コミット済み / 変更なし」とファイルサイズ |
+| `バックアップ警告`（オレンジ） | 正常終了したが、**トークンの期限が30日以内**。§2.2 の再発行が必要 |
+| `エラー`（赤） | 失敗。詳細にある Actions のURLでログを確認する |
+
+記録はワークフローから `activity_logs` に直接 INSERT している（アプリ経由ではないため
+`actor_name` は「自動バックアップ」固定）。**記録に失敗してもバックアップ自体は止めない**
+（`continue-on-error`）。
+
+## 2.2 バックアップ用トークンの再発行（有効期限が来たら）
+
+`BACKUP_REPO_TOKEN` には有効期限がある（既定1年）。**切れるとバックアップが静かに止まる**ため、
+以下のいずれかで気づけるようにしてある。
+
+1. **管理画面の操作ログに `バックアップ警告`** が出る（残り30日から毎日）
+2. GitHub の Actions 実行結果の Summary に警告が出る
+3. GitHub 自身からも期限切れ予告のメールが届く
+
+### 再発行の手順
+
+1. https://github.com/settings/personal-access-tokens で古い `payroll-backup` を開く
+   - **「Regenerate token」**があればそれが最短（権限設定を引き継げる）
+   - 無ければ「Generate new token」で新規作成し、下記と同じ設定にする
+2. 設定内容（新規作成の場合）
+   - Token name: `payroll-backup`
+   - Expiration: 1年
+   - Repository access: **Only select repositories** → `oominami-payroll-backups` のみ
+   - Permissions → Repository permissions → **Contents: Read and write**
+3. 表示されたトークンをコピー（**この画面を閉じると二度と見られない**）
+4. https://github.com/richardx007/oominami-payroll/settings/secrets/actions で
+   `BACKUP_REPO_TOKEN` を鉛筆アイコンから更新
+5. Actions から「Daily backup」を手動実行し、成功すること・操作ログの警告が消えることを確認
+
 ### 必要な Secrets（このリポジトリの Settings > Secrets and variables > Actions）
 
 | 名前 | 値 |
@@ -143,7 +181,8 @@ psql "<新プロジェクトの接続文字列>" -f auth_data.sql
 
 - [ ] **年1回**、バックアップから実際に復元できるか試す（無料プロジェクトをもう1つ作って流し込む）。
       **試していないバックアップは、あると思い込んでいるだけで存在しないのと同じ。**
-- [ ] バックアップの Actions が失敗していないか（失敗時はメールが届く）
+- [ ] バックアップの Actions が失敗していないか（失敗時はメールが届き、操作ログにも `エラー` が残る）
+- [ ] 操作ログに `バックアップ警告` が出ていないか（トークンの期限が近い。§2.2 で再発行）
 - [ ] Supabase の無料プロジェクトは **7日間アクセスが無いと一時停止**する。
       日常的に使っていれば問題ないが、長期休業時は注意
 

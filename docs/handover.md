@@ -1328,7 +1328,12 @@ npm test           # Vitest（給与計算ロジック）
   GitHub Actions(`.github/workflows/backup.yml`)で毎日ダンプを取り、**別のプライベートリポジトリ**
   `oominami-payroll-backups` にコミットする(Supabase/Cloudflareのどちらが失われても残るよう第三の場所に置く)。
   接続は**Session pooler(5432)**を使うこと(GitHub ActionsはIPv4で直結は有料アドオンが必要。
-  Transaction pooler 6543 では pg_dump が動かない)。
+  Transaction pooler 6543 では pg_dump が動かない)。**Supabase CLI は使わない**(接続URLを解析し直して
+  pooler用のユーザー名が落ち、認証に失敗する)。pg_dump はサーバーと同じメジャー版が必要で、
+  ランナーには16系が入っているため `/usr/lib/postgresql/17/bin` をPATHの先頭に入れること。
+  **実行結果は管理画面の操作ログにも残る**(`バックアップ`/`バックアップ警告`/`エラー`。
+  ワークフローから activity_logs に直接INSERT)。**トークンの有効期限は自動で監視**しており、
+  残り30日を切ると操作ログに `バックアップ警告` が出る(再発行手順は手順書§2.2)。
 - **⚠️ `supabase/migrations/` は完全な履歴ではない**: DBには32件適用済みだが、初期にダッシュボードから
   直接適用したぶんが記録に残らず、リポジトリには15件しかない(`initial_schema`=全テーブルのDDL、
   `rls_policies`、`qr_clock_schema` 等が欠落)。逆にリポジトリにあってDB履歴に無いものも3件ある。
