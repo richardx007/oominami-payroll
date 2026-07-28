@@ -1323,6 +1323,17 @@ npm test           # Vitest（給与計算ロジック）
   (行は隠さない)。**モードの切り替えUIはモードバッジ自体がボタン**で、タップすると確認ダイアログ
   (「確定しますか？」/「調整中に戻しますか？」＋はい・キャンセル)を経て切り替わる(2026-07-27)。
   誤タップで従業員の編集可否が変わる影響が大きいため確認を必須にしている。詳細は設計書§13。
+- **バックアップ / 障害復旧(2026-07-28)**: 手順は `docs/disaster-recovery.md`。
+  Supabaseの**無料プランには自動バックアップが無い**(公式も db dump でのオフサイト保管を推奨)ため、
+  GitHub Actions(`.github/workflows/backup.yml`)で毎日ダンプを取り、**別のプライベートリポジトリ**
+  `oominami-payroll-backups` にコミットする(Supabase/Cloudflareのどちらが失われても残るよう第三の場所に置く)。
+  接続は**Session pooler(5432)**を使うこと(GitHub ActionsはIPv4で直結は有料アドオンが必要。
+  Transaction pooler 6543 では pg_dump が動かない)。
+- **⚠️ `supabase/migrations/` は完全な履歴ではない**: DBには32件適用済みだが、初期にダッシュボードから
+  直接適用したぶんが記録に残らず、リポジトリには15件しかない(`initial_schema`=全テーブルのDDL、
+  `rls_policies`、`qr_clock_schema` 等が欠落)。逆にリポジトリにあってDB履歴に無いものも3件ある。
+  **マイグレーションを順に流しても現在のスキーマは再現できない。**再構築には必ずバックアップの
+  `schema.sql`(またはリポジトリの `supabase/schema.sql`)を使うこと。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
 ---
