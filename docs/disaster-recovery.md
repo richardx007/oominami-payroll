@@ -33,10 +33,13 @@
 
 | ファイル | 内容 |
 |---|---|
-| `schema.sql` | テーブル・RLSポリシー・関数・トリガ（**再構築の土台**） |
-| `roles.sql` | ロール（権限） |
+| `schema.sql` | テーブル・RLSポリシー・関数・トリガ・権限（**再構築の土台**） |
 | `data.sql` | 業務データ（public スキーマ） |
-| `auth_data.sql` | 認証ユーザー（auth スキーマ） |
+| `auth_data.sql` | 認証ユーザー（`auth.users` / `auth.identities`） |
+
+取得には **`pg_dump` を直接**使う（Supabase CLI は使わない）。CLI は `pg_dump` を
+コンテナ内で実行する際に接続URLを解析し直すため、**Session pooler 用のユーザー名
+`postgres.<project-ref>` が `postgres` に落ちて認証に失敗する**（2026-07-28に判明）。
 
 - **世代管理は Git の履歴そのもの。** 「3日前の状態」は `git show HEAD~3:data.sql` で取り出せる。
   保存期間の上限が無いため、**賃金台帳の5年（当分の間3年）保存義務**にも対応できる。
@@ -54,8 +57,12 @@
 パスワードから組み立てる。手で組み立てると失敗しやすいため機械的に作る。
 
 > ⚠️ **Session pooler のユーザー名は `postgres.<project-ref>`。**
-> `postgres` だけだと `password authentication failed for user "postgres"` で失敗する
-> （2026-07-28 に実際にこれで躓いた）。
+> ただし **`password authentication failed for user "postgres"` というエラーからは原因を判別できない。**
+> Session pooler はプロジェクトを識別したあと内部では `postgres` として認証するため、
+> ユーザー名を正しく送っていても文言は常に `user "postgres"` になる。
+> このエラーが出たら、パスワード・ユーザー名・**接続URLを解析し直すツール（Supabase CLI）**の
+> いずれかを疑うこと。ワークフローには接続テストのステップを入れてあるので、
+> そこで通るかどうかで資格情報の問題かダンプ側の問題かを切り分けられる。
 > また **直結（`db.<ref>.supabase.co`）は使えない**（GitHub Actions は IPv4 で、Supabase の
 > 直結は IPv4 だと有料アドオンが必要）。**Transaction pooler（6543）では `pg_dump` が動かない**ため、
 > 必ず **5432 の Session pooler** を使う。
@@ -71,7 +78,6 @@ cd oominami-payroll-backups
 # 特定の日付に戻したい場合は git log で探して checkout する
 
 # 新しい Supabase プロジェクトの接続文字列に対して流し込む
-psql "<新プロジェクトの接続文字列>" -f roles.sql
 psql "<新プロジェクトの接続文字列>" -f schema.sql
 psql "<新プロジェクトの接続文字列>" -f data.sql
 psql "<新プロジェクトの接続文字列>" -f auth_data.sql
