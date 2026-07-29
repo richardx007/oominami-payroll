@@ -12,13 +12,12 @@
     "NEXT_PUBLIC_SUPABASE_URL": "https://zvrwkmriosaldjqpxdwi.supabase.co",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_57jbknnlco87_n8QxQHjxA_X-RvOUp1",
     "NEXT_PUBLIC_SITE_URL": "https://oominami-payroll.shinsekai.workers.dev"
-  },
-  // 給与明細の全員一斉配信は従業員ごとにSMTP(TLS)接続を張り直すため、CPU時間が
-  // 積み上がりデフォルトの30秒(Paidプランの既定値)を超えて Error 1102 になりうる
-  // (2026-07-29に発生・確認)。Paidプランで設定可能な上限(5分)まで引き上げておく。
-  "limits": {
-    "cpu_ms": 300000
   }
+  // ⚠️ 2026-07-29: ここに limits.cpu_ms を追加したところ、本アカウントは Cloudflare Workers
+  // Free プランのため "CPU limits are not supported for the Free plan" でデプロイ自体が失敗した。
+  // Free プランでは cpu_ms を設定できない(そもそも既定10msという非常に厳しい制限)。
+  // Error 1102(全員一斉配信でのCPU時間超過)への対応は Paid プランへのアップグレードが前提になる。
+  // 詳細は docs/handover.md 参照。
   // 送信元Gmail・税理士アドレス・会社名は管理画面の「設定」から変更する(DB: app_settings に保存)。
   // GMAIL_APP_PASSWORD(アプリパスワード)のみ秘密情報のため、
   // Cloudflareダッシュボードで「Secret(暗号化)」として登録すること。
