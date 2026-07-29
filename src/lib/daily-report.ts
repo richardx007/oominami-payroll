@@ -101,9 +101,36 @@ function emptyTotals(): DailyEmployeeReport["totals"] {
  */
 export async function loadDailyReport(
   from: string,
-  to: string
+  to: string,
+  employeeId?: string
 ): Promise<DailyReport> {
   const supabase = await createClient();
+
+  let employeesQuery = supabase
+    .from("employees")
+    .select("id, employee_no, name, nickname")
+    .eq("is_admin", false)
+    .order("employee_no");
+  let entriesQuery = supabase
+    .from("work_entries")
+    .select(
+      "employee_id, work_date, start_time, end_time, break_minutes, transport_cost"
+    )
+    .gte("work_date", from)
+    .lte("work_date", to)
+    .order("work_date");
+  let advancesQuery = supabase
+    .from("advance_payments")
+    .select("employee_id, work_date, amount")
+    .gte("work_date", from)
+    .lte("work_date", to);
+
+  // 従業員自身の画面では自分の実績のみに絞る
+  if (employeeId) {
+    employeesQuery = employeesQuery.eq("id", employeeId);
+    entriesQuery = entriesQuery.eq("employee_id", employeeId);
+    advancesQuery = advancesQuery.eq("employee_id", employeeId);
+  }
 
   const [
     { data: employees },
@@ -113,29 +140,14 @@ export async function loadDailyReport(
     { data: breakSettings },
     { data: advances },
   ] = await Promise.all([
-    supabase
-      .from("employees")
-      .select("id, employee_no, name, nickname")
-      .eq("is_admin", false)
-      .order("employee_no"),
-    supabase
-      .from("work_entries")
-      .select(
-        "employee_id, work_date, start_time, end_time, break_minutes, transport_cost"
-      )
-      .gte("work_date", from)
-      .lte("work_date", to)
-      .order("work_date"),
+    employeesQuery,
+    entriesQuery,
     supabase.from("wage_rates").select("employee_id, hourly_wage, effective_from"),
     supabase
       .from("allowance_settings")
       .select("lunch_allowance_per_day, effective_from"),
     supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
-    supabase
-      .from("advance_payments")
-      .select("employee_id, work_date, amount")
-      .gte("work_date", from)
-      .lte("work_date", to),
+    advancesQuery,
   ]);
 
   // 前払金は (従業員, 勤務日) で一意。行ごとの記録状況の表示に使う

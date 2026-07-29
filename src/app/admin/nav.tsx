@@ -10,11 +10,11 @@ import { signOut } from "./actions";
 const primaryLinks = [
   { href: "/admin", label: "シフト", icon: HomeIcon },
   { href: "/admin/timesheet", label: "勤務表", icon: CalendarIcon },
+  { href: "/admin/daily", label: "日別", icon: CashIcon },
   { href: "/admin/close", label: "給与明細", icon: YenIcon },
-  { href: "/admin/daily", label: "日当", icon: CashIcon },
 ];
 // スマホでは下部の余白がないため、ハンバーガー(その他)に収める。
-// 「従業員」は PC サイドバーでは日当の直後に並ぶ(primaryLinks の後 = moreLinks 先頭)。
+// 「従業員」は PC サイドバーでは給与明細の直後に並ぶ(primaryLinks の後 = moreLinks 先頭)。
 const moreLinks = [
   { href: "/admin/employees", label: "従業員", icon: PeopleIcon },
   { href: "/admin/notices", label: "配信", icon: SendIcon },

@@ -8,6 +8,7 @@ import { signOut } from "./actions";
 const mainItems = [
   { href: "/shifts", label: "シフト", icon: GridIcon },
   { href: "/timesheet", label: "勤務表", icon: CalendarIcon },
+  { href: "/daily", label: "日別", icon: CashIcon },
   { href: "/payslips", label: "給与明細", icon: YenIcon },
 ];
 
@@ -85,7 +86,7 @@ export function EmployeeNav({
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white">
-      <div className="mx-auto grid max-w-lg grid-cols-4 lg:max-w-3xl lg:grid-cols-9">
+      <div className="mx-auto grid max-w-lg grid-cols-5 lg:max-w-3xl lg:grid-cols-10">
         {mainItems.map((item) => {
           const active = pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -362,6 +363,26 @@ function CalendarIcon({ className }: { className?: string }) {
     >
       <rect x="3" y="4.5" width="18" height="16" rx="2" />
       <path d="M3 9h18M8 3v3M16 3v3" />
+    </svg>
+  );
+}
+
+/** 日別実績(現金手渡しの日払い)へのリンク用アイコン */
+function CashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M6 9.5h.01M18 14.5h.01" />
     </svg>
   );
 }

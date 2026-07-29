@@ -32,14 +32,13 @@ export async function sendNotice(formData: FormData): Promise<ActionResult> {
   let emailInfo = "";
   let emailed = false;
   if (d.send_email === "on") {
-    const mailBody = d.body + "\n\n(給与管理システムからのお知らせです)";
     const adminEmails = await getAdminEmails();
 
     if (d.recipient_id) {
       // 個別連絡: 対象従業員へ送信し、管理者を CC に列挙する
       const { data: target } = await supabase
         .from("employees")
-        .select("email")
+        .select("email, name, nickname")
         .eq("status", "active")
         .eq("id", d.recipient_id)
         .maybeSingle();
@@ -48,6 +47,12 @@ export async function sendNotice(formData: FormData): Promise<ActionResult> {
       if (!to) {
         emailInfo = " / メール対象の従業員がいません";
       } else {
+        const greeting = `${target.nickname || target.name} さん`;
+        const mailBody =
+          greeting +
+          "\n\n" +
+          d.body +
+          "\n\n(給与管理システムからのお知らせです)";
         const res = await sendMail({
           to,
           cc: adminEmails.filter((a) => a !== to),
@@ -74,6 +79,11 @@ export async function sendNotice(formData: FormData): Promise<ActionResult> {
       if (emails.length === 0) {
         emailInfo = " / メール対象の従業員がいません";
       } else {
+        const mailBody =
+          "従業員のみなさまへ" +
+          "\n\n" +
+          d.body +
+          "\n\n(給与管理システムからのお知らせです)";
         const { sent, failed } = await sendMailToMany(
           emails,
           d.subject,
