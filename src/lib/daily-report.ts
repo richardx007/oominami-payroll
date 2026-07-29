@@ -49,6 +49,8 @@ export type DailyRow = {
   advance: number | null;
   /** 計算できない場合の理由(退勤未入力・時給未設定など)。null なら正常 */
   error: string | null;
+  /** 勤務表の入力欄に記録されたメモ(任意) */
+  note: string | null;
 };
 
 export type DailyEmployeeReport = {
@@ -114,7 +116,7 @@ export async function loadDailyReport(
   let entriesQuery = supabase
     .from("work_entries")
     .select(
-      "employee_id, work_date, start_time, end_time, break_minutes, transport_cost"
+      "employee_id, work_date, start_time, end_time, break_minutes, transport_cost, note"
     )
     .gte("work_date", from)
     .lte("work_date", to)
@@ -208,6 +210,7 @@ export async function loadDailyReport(
           total: 0,
           advance,
           error: !end ? "退勤未入力" : "時給未設定",
+          note: e.note,
         });
         continue;
       }
@@ -239,6 +242,7 @@ export async function loadDailyReport(
         total,
         advance,
         error: null,
+        note: e.note,
       });
 
       totals.days += 1;

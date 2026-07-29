@@ -116,22 +116,6 @@ export function TimesheetCalendar({
     return result;
   }, [dates]);
 
-  const summary = useMemo(() => {
-    let minutes = 0;
-    let transport = 0;
-    for (const e of entries) {
-      // 退勤未入力の日は勤務時間に含めない(交通費・日数はカウント)
-      if (e.end_time)
-        minutes += workMinutes(
-          e.start_time,
-          e.end_time,
-          standardBreakMinutes(e.start_time, e.end_time, breakWindows)
-        );
-      transport += e.transport_cost;
-    }
-    return { days: entries.length, minutes, transport };
-  }, [entries, breakWindows]);
-
   const selectedEntry = selected ? entryMap.get(selected) : undefined;
   // 新規日(未入力日)の既定値: 最後に表示/入力した勤務記録を引き継ぐ。
   // これにより別の日の勤務情報をそのまま新規入力に流用できる。無ければ EntryForm の既定値。
@@ -220,33 +204,6 @@ export function TimesheetCalendar({
           </p>
         )}
 
-        {/* サマリ(枠内)。タップするとカレンダー下の表示を「勤務一覧」に切り替える */}
-        <button
-          type="button"
-          onClick={() => {
-            setResult(null);
-            setSelected(null);
-          }}
-          title="タップで勤務一覧を表示"
-          className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-left transition hover:bg-gray-50"
-        >
-          {/* iPhone でも1行に収まるよう「計」+ h:mm、キャプションはsm以上のみ表示 */}
-          <div className="flex flex-nowrap items-baseline gap-x-3 whitespace-nowrap text-base text-gray-600">
-            <span className="font-semibold text-gray-700">計</span>
-            <span className="font-bold text-gray-900">{summary.days}日</span>
-            <span className="font-bold text-gray-900 tabular-nums">
-              {hhmm(summary.minutes)}
-            </span>
-            <span>
-              交通費{" "}
-              <span className="font-bold text-gray-900 tabular-nums">
-                ¥{summary.transport.toLocaleString()}
-              </span>
-            </span>
-            <span className="ml-auto text-xs text-blue-600">一覧</span>
-          </div>
-        </button>
-
         {result && !result.ok && (
           <p className="text-sm text-red-600">{result.message}</p>
         )}
@@ -257,7 +214,7 @@ export function TimesheetCalendar({
           ref={swipeAttach}
           className="rounded-xl border-2 border-gray-400 bg-white p-2"
         >
-          <div className="mb-1 grid grid-cols-7 rounded-lg bg-result-100 text-center text-xs font-semibold text-gray-700">
+          <div className="mb-1 grid grid-cols-7 rounded-lg bg-result-100 text-center text-sm font-semibold text-gray-600">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
@@ -331,7 +288,9 @@ export function TimesheetCalendar({
                             : "hover:bg-gray-50"
                     } ${isToday && !isSelected ? "ring-2 ring-gray-400" : ""}`}
                   >
-                    <span className={textColor}>{day}</span>
+                    <span className={`text-base font-bold sm:text-lg ${textColor}`}>
+                      {day}
+                    </span>
                     {entry && (
                       <span
                         className={`mt-0.5 text-[10px] leading-tight ${isSelected ? "text-blue-100" : "text-blue-700"}`}
@@ -395,6 +354,10 @@ export function TimesheetCalendar({
             stations={stations}
             onSave={handleSave}
             onDelete={remove}
+            onClose={() => {
+              setResult(null);
+              setSelected(null);
+            }}
             timeLocked={timeLocked}
           />
         )}
@@ -660,6 +623,7 @@ function EntryForm({
   stations,
   onSave,
   onDelete,
+  onClose,
   timeLocked = false,
 }: {
   date: string;
@@ -670,6 +634,8 @@ function EntryForm({
   stations: string[];
   onSave: (fd: FormData) => void;
   onDelete: (date: string) => void;
+  /** ×ボタン押下時: 詳細表示枠を閉じて予実一覧の表示に戻す */
+  onClose: () => void;
   /** 管理者が設定でロックした場合、出勤/退勤時刻・休憩時間を編集できない */
   timeLocked?: boolean;
 }) {
@@ -697,7 +663,18 @@ function EntryForm({
   if (timeLocked && !entry) {
     return (
       <div className="rounded-xl border border-blue-200 bg-white p-4">
-        <h3 className="text-lg font-bold text-blue-800">{formatDateJa(date)}</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-lg font-bold text-blue-800">{formatDateJa(date)}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            title="閉じる"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          >
+            ✕
+          </button>
+        </div>
         <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
           出退勤時刻・休憩時間の編集は管理者によりロックされています。QR打刻をご利用いただくか、
           管理者にご連絡ください。
@@ -711,18 +688,6 @@ function EntryForm({
     fromRef.current?.setCustomValidity("");
     toRef.current?.setCustomValidity("");
     costRef.current?.setCustomValidity("");
-  }
-
-  // × ボタン: 交通費フィールドを全てクリア
-  function clearTransport() {
-    resetValidity();
-    if (modeRef.current) modeRef.current.value = "";
-    if (costRef.current) costRef.current.value = "";
-    if (fromRef.current) fromRef.current.value = "";
-    if (toRef.current) toRef.current.value = "";
-    formRef.current
-      ?.querySelectorAll<HTMLInputElement>('input[name="round_trip"]')
-      .forEach((r) => (r.checked = false));
   }
 
   // 交通費は「区間1・区間2・金額(>0)」を全てセットで入力する(金額0=空欄扱い)。
@@ -765,20 +730,19 @@ function EntryForm({
     <div className="rounded-xl border border-blue-200 bg-white p-4">
       <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
         <input type="hidden" name="work_date" value={date} />
-        {/* 日付タイトルと同じ行の右側に 登録/更新 ボタンを配置 */}
+        {/* 日付タイトルの右に閉じる(×)。予実一覧の表示へ戻す */}
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-lg font-bold text-blue-800">
             {formatDateJa(date)}
-            <span className="ml-2 text-sm font-medium text-gray-500">
-              勤務記録
-            </span>
           </h3>
           <button
-            type="submit"
-            disabled={pending}
-            className="shrink-0 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            title="閉じる"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           >
-            {pending ? "保存中..." : entry ? "更新" : "登録"}
+            ✕
           </button>
         </div>
 
@@ -829,10 +793,6 @@ function EntryForm({
             />
           </div>
         </div>
-        <p className="-mt-1 rounded-lg bg-gray-50 px-2 py-1 text-xs text-gray-500">
-          ※ 休憩は原則 12:00-13:00 / 19:00-20:00 / 4:00-5:00 で、勤務時間に重なるぶんを
-          自動で差し引きます(申告不要)。
-        </p>
         {/* disabled にした時刻入力欄は FormData に含まれないため、実際の値を hidden で補う
             (サーバー側でもロック中は既存値に固定して二重に防御している)。休憩は保存時に
             サーバーが標準ルールから再計算するため hidden 不要。 */}
@@ -842,31 +802,18 @@ function EntryForm({
             <input type="hidden" name="end_time" value={entry.end_time ?? ""} />
           </>
         )}
-        {timeLocked ? (
-          <p className="-mt-2 rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-800">
-            出退勤時刻・休憩時間の編集は管理者によりロックされています。修正が必要な場合は管理者にご連絡ください。
-          </p>
-        ) : (
+        {!timeLocked && (
           <p className="-mt-2 text-xs text-gray-500">
             ※ 深夜勤務で退勤が翌日になる場合は、退勤にその時刻(例: 2:00)をそのまま入力してください。翌日ぶんとして計算します。
           </p>
         )}
 
-        {/* 交通費(1つの枠にまとめる。塗りを少し濃く + 右上に×クリア) */}
+        {/* 交通費(1つの枠にまとめる) */}
         <fieldset className="rounded-xl border border-gray-200 bg-gray-100 p-3 pt-2">
           <div className="mb-2 flex items-center justify-between">
             <span className="px-1 text-base font-semibold text-gray-700">
               交通費
             </span>
-            <button
-              type="button"
-              onClick={clearTransport}
-              aria-label="交通費をクリア"
-              title="交通費をクリア"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 active:opacity-70"
-            >
-              ✕
-            </button>
           </div>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 [&>div]:min-w-0">
@@ -981,8 +928,9 @@ function EntryForm({
           />
         </div>
 
-        {entry && !timeLocked && (
-          <div className="flex justify-end">
+        {/* 更新/登録ボタンを枠の右下に配置。削除がある場合は左に並べる */}
+        <div className="flex items-center justify-end gap-2">
+          {entry && !timeLocked && (
             <button
               type="button"
               disabled={pending}
@@ -995,8 +943,15 @@ function EntryForm({
             >
               削除
             </button>
-          </div>
-        )}
+          )}
+          <button
+            type="submit"
+            disabled={pending}
+            className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {pending ? "保存中..." : entry ? "更新" : "登録"}
+          </button>
+        </div>
       </form>
     </div>
   );

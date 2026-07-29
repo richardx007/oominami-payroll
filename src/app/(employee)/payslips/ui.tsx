@@ -58,19 +58,20 @@ export function PayslipView({
           </p>
         ) : (
           <div className="rounded-xl border border-gray-200 bg-white">
-            {/* 見出し行: 「〜月度」は上のヘッダと重複するため出さず、差引支給額をここに表示する */}
-            <div className="rounded-t-xl bg-green-600 px-4 py-3 text-white">
+            {/* 見出し行: 「〜月度」は上のヘッダと重複するため出さず、差引支給額をここに表示する。
+                日別実績の一覧見出しと同じ色(bg-result-100)に揃える */}
+            <div className="rounded-t-xl border-b border-result-200 bg-result-100 px-4 py-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-green-50">
+                <span className="text-sm font-semibold text-gray-700">
                   差引支給額
                 </span>
                 {slip.status === "paid" && (
-                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-xs font-medium">
+                  <span className="rounded bg-green-700/10 px-1.5 py-0.5 text-xs font-medium text-green-800">
                     支払済み
                   </span>
                 )}
               </div>
-              <div className="mt-1 text-2xl font-bold tabular-nums">
+              <div className="mt-1 text-2xl font-bold tabular-nums text-gray-900">
                 ¥{slip.net_pay.toLocaleString()}
               </div>
             </div>
