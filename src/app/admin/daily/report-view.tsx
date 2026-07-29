@@ -242,10 +242,10 @@ export function DailyReportView({
                     </tr>
                   );
                 })}
-                <tr className="whitespace-nowrap bg-gray-50 font-bold tabular-nums">
+                <tr className="whitespace-nowrap bg-gray-200 font-bold tabular-nums">
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 bg-gray-50 px-3 py-2 text-left shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]"
+                    className="sticky left-0 z-10 bg-gray-200 px-3 py-2 text-left shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]"
                   >
                     小計
                   </th>

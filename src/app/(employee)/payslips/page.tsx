@@ -1,173 +1,73 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
-import { formatMinutes } from "@/lib/period";
+import { adjacentPeriodKey, currentPeriod, periodFromKey } from "@/lib/period";
+import { PayslipView, type Slip } from "./ui";
 
-export default async function PayslipsPage() {
+/**
+ * 給与明細(従業員)。勤務表・日別実績と同様に、ヘッダの ＜ 月度 ＞ で月度単位に切り替える方式
+ * (以前は確定済み明細を全件アコーディオン表示していたが、月度ナビ方式に統一した)。
+ */
+export default async function PayslipsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ p?: string }>;
+}) {
   const employee = await requireEmployee();
+  const { p } = await searchParams;
+  const period = (p && periodFromKey(p)) || currentPeriod();
+
   const supabase = await createClient();
+  const { data: payPeriod } = await supabase
+    .from("pay_periods")
+    .select("id, payment_date, status")
+    .eq("start_date", period.start)
+    .eq("end_date", period.end)
+    .maybeSingle();
 
-  const { data: payslips } = await supabase
-    .from("payslips")
-    .select(
-      `work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay, night_pay,
-       overtime_pay, transport_total, lunch_total, gross_pay, income_tax, advance_deduction,
-       net_pay, tax_category,
-       finalized_at, pay_periods ( period_label, payment_date, status )`
-    )
-    .eq("employee_id", employee.id)
-    .order("finalized_at", { ascending: false });
-
-  type Slip = NonNullable<typeof payslips>[number] & {
-    pay_periods: {
-      period_label: string;
-      payment_date: string;
-      status: string;
-    } | null;
-  };
-
-  const rows = (payslips ?? []) as Slip[];
+  let slip: Slip | null = null;
+  if (payPeriod) {
+    const { data } = await supabase
+      .from("payslips")
+      .select(
+        `work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay, night_pay,
+         overtime_pay, transport_total, lunch_total, gross_pay, income_tax, advance_deduction,
+         net_pay, tax_category`
+      )
+      .eq("employee_id", employee.id)
+      .eq("pay_period_id", payPeriod.id)
+      .maybeSingle();
+    if (data) {
+      slip = { ...data, status: payPeriod.status };
+    }
+  }
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold">給与明細</h1>
-        <span className="text-sm font-medium text-gray-700">
-          {employee.name} 様
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <Link
+            href={`/payslips?p=${adjacentPeriodKey(period.key, -1)}`}
+            aria-label="前月"
+            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
+          >
+            ＜
+          </Link>
+          <span className="text-lg font-extrabold tracking-tight text-blue-800">
+            {period.label}
+          </span>
+          <Link
+            href={`/payslips?p=${adjacentPeriodKey(period.key, 1)}`}
+            aria-label="翌月"
+            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
+          >
+            ＞
+          </Link>
+        </div>
+        <h1 className="text-xl font-bold">給与明細</h1>
       </div>
-      {rows.length === 0 && (
-        <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
-          給与明細はまだありません
-        </p>
-      )}
-      {rows.map((slip, i) => (
-        <details
-          key={i}
-          className="group rounded-xl border border-gray-200 bg-white"
-          open={i === 0}
-        >
-          <summary className="flex cursor-pointer items-center justify-between p-4">
-            <div>
-              <div className="font-semibold">
-                {slip.pay_periods?.period_label}
-              </div>
-              <div className="text-xs text-gray-500">
-                支払日 {slip.pay_periods?.payment_date.replaceAll("-", "/")}
-                {slip.pay_periods?.status === "paid" && (
-                  <span className="ml-1 rounded bg-green-50 px-1.5 py-0.5 text-green-700">
-                    支払済み
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-gray-500">差引支給額</div>
-              <div className="text-lg font-bold">
-                ¥{slip.net_pay.toLocaleString()}
-              </div>
-            </div>
-          </summary>
-          <div className="border-t border-gray-100 p-4">
-            <dl className="space-y-2 text-sm">
-              <Row label="勤務日数" value={`${slip.work_days}日`} />
-              <Row
-                label="勤務時間"
-                value={formatMinutes(slip.total_minutes) || "0時間"}
-              />
-              <Row
-                label={`基本給(時給 ¥${slip.hourly_wage.toLocaleString()})`}
-                value={`¥${slip.base_pay.toLocaleString()}`}
-              />
-              {slip.night_minutes > 0 && (
-                <>
-                  <Row
-                    label="深夜勤務時間(時給25%増)"
-                    value={formatMinutes(slip.night_minutes) || "0時間"}
-                  />
-                  <Row
-                    label={`深夜勤務手当(時給加算 ¥${Math.round(
-                      slip.hourly_wage * 0.25
-                    ).toLocaleString()})`}
-                    value={`¥${slip.night_pay.toLocaleString()}`}
-                  />
-                </>
-              )}
-              {slip.overtime_minutes > 0 && (
-                <>
-                  <Row
-                    label="残業時間(時給25%増)"
-                    value={formatMinutes(slip.overtime_minutes) || "0時間"}
-                  />
-                  <Row
-                    label={`残業手当(時給加算 ¥${Math.round(
-                      slip.hourly_wage * 0.25
-                    ).toLocaleString()})`}
-                    value={`¥${slip.overtime_pay.toLocaleString()}`}
-                  />
-                </>
-              )}
-              <Row
-                label="交通費"
-                value={`¥${slip.transport_total.toLocaleString()}`}
-              />
-              <Row
-                label="昼食補助"
-                value={`¥${slip.lunch_total.toLocaleString()}`}
-              />
-              <div className="border-t border-gray-100 pt-2">
-                <Row
-                  label="総支給額"
-                  value={`¥${slip.gross_pay.toLocaleString()}`}
-                  bold
-                />
-              </div>
-              <Row
-                label={`源泉所得税(${slip.tax_category === "kou" ? "甲欄" : "乙欄"})`}
-                value={`−¥${slip.income_tax.toLocaleString()}`}
-                negative
-              />
-              {/* 日当として先に受け取った分。ある場合のみ控除として表示する */}
-              {slip.advance_deduction > 0 && (
-                <Row
-                  label="前払金(日当としてお支払い済み)"
-                  value={`−¥${slip.advance_deduction.toLocaleString()}`}
-                  negative
-                />
-              )}
-              <div className="border-t border-gray-100 pt-2">
-                <Row
-                  label="差引支給額"
-                  value={`¥${slip.net_pay.toLocaleString()}`}
-                  bold
-                />
-              </div>
-            </dl>
-          </div>
-        </details>
-      ))}
-    </div>
-  );
-}
 
-function Row({
-  label,
-  value,
-  bold,
-  negative,
-}: {
-  label: string;
-  value: string;
-  bold?: boolean;
-  negative?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="text-gray-500">{label}</dt>
-      <dd
-        className={`${bold ? "font-bold" : ""} ${negative ? "text-red-600" : ""}`}
-      >
-        {value}
-      </dd>
+      <PayslipView period={period} slip={slip} />
     </div>
   );
 }

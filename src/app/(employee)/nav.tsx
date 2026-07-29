@@ -85,7 +85,10 @@ export function EmployeeNav({
   }
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white">
+    <nav
+      className="fixed inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white [transform:translateZ(0)]"
+      style={{ willChange: "transform" }}
+    >
       <div className="mx-auto grid max-w-lg grid-cols-5 lg:max-w-3xl lg:grid-cols-10">
         {mainItems.map((item) => {
           const active = pathname.startsWith(item.href);
