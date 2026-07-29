@@ -176,7 +176,10 @@ export function AdminBottomNav() {
         </div>
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white md:hidden print:hidden">
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white [transform:translateZ(0)] md:hidden print:hidden"
+        style={{ willChange: "transform" }}
+      >
         <div className="mx-auto grid max-w-lg grid-cols-5">
           {primaryLinks.map((l) => {
             const Icon = l.icon;
