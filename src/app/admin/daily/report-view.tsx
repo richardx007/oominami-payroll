@@ -138,6 +138,7 @@ export function DailyReportView({
                   <th className="px-3 py-2 text-right">残業手当</th>
                   <th className="px-3 py-2 text-right">昼食補助</th>
                   <th className="px-3 py-2 text-right">交通費</th>
+                  <th className="px-3 py-2 text-left">メモ</th>
                 </tr>
               </thead>
               <tbody>
@@ -186,6 +187,9 @@ export function DailyReportView({
                           >
                             {r.startTime}
                             {r.endTime ? `〜${r.endTime}` : "〜"} — {r.error}
+                          </td>
+                          <td className="whitespace-normal break-words px-3 py-2 text-left text-red-600">
+                            {r.note}
                           </td>
                         </>
                       ) : (
@@ -237,6 +241,9 @@ export function DailyReportView({
                           <td className="px-3 py-2 text-right">
                             {yen(r.transport)}
                           </td>
+                          <td className="whitespace-normal break-words px-3 py-2 text-left text-red-600">
+                            {r.note}
+                          </td>
                         </>
                       )}
                     </tr>
@@ -282,6 +289,7 @@ export function DailyReportView({
                   <td className="px-3 py-2 text-right">
                     {yen(emp.totals.transport)}
                   </td>
+                  <td className="px-3 py-2" />
                 </tr>
               </tbody>
             </table>
