@@ -169,12 +169,15 @@ psql "<新プロジェクトの接続文字列>" -f data.sql
 
 ## 5. Cloudflare を作り直す場合の設定（Git に無い）
 
-1. Workers & Pages > Create > **Import a repository** で `richardx007/oominami-payroll` を接続
+1. Workers & Pages > Create > **Continue with GitHub**（画面表記が変わっており、以前の
+   「Import a repository」に相当）で `richardx007/oominami-payroll` を接続
    - ビルド: `npx opennextjs-cloudflare build`
    - デプロイ: `npx opennextjs-cloudflare deploy`
-2. **Secret（暗号化）** を登録: `GMAIL_APP_PASSWORD`
-3. 環境変数は `wrangler.jsonc` の `vars` に入っているので自動で入る
-4. デプロイ後、**Supabase の Site URL / Redirect URLs を新しいURLに合わせる**（§4-1）
+2. デプロイ後、**Worker の Domains タブで Production の `*.workers.dev` トグルをオン**
+   にしないと URL が有効にならない（既定はオフ）
+3. **Secret（暗号化）** を登録: `GMAIL_APP_PASSWORD`
+4. 環境変数は `wrangler.jsonc` の `vars` に入っているので自動で入る
+5. デプロイ後、**Supabase の Site URL / Redirect URLs を新しいURLに合わせる**（§4-1）
 
 ---
 
@@ -195,10 +198,27 @@ psql "<新プロジェクトの接続文字列>" -f data.sql
 - [ ] **年1回**、バックアップから実際に復元できるか試す（無料プロジェクトをもう1つ作って流し込む）。
       **試していないバックアップは、あると思い込んでいるだけで存在しないのと同じ。**
       最終確認: 2026-07-29（`kqyziaynvueunqpwfrsx` に復元・全項目確認済み。§3の順序ミスをこの回で発見・修正）
+- [ ] **年1回**、Cloudflare 側も別アカウントで実際にデプロイできるか試す。
+      最終確認: 2026-07-29（別アカウント `oominami2026@gmail.com` で GitHub 連携 → デプロイ →
+      ログイン画面表示まで確認済み。§5-2 の「workers.dev トグルは既定オフ」をこの回で発見・追記。
+      メール送信機能は `GMAIL_APP_PASSWORD` を設定しなかったため未検証）
 - [ ] バックアップの Actions が失敗していないか（失敗時はメールが届き、操作ログにも `エラー` が残る）
 - [ ] 操作ログに `バックアップ警告` が出ていないか（トークンの期限が近い。§2.2 で再発行）
 - [ ] Supabase の無料プロジェクトは **7日間アクセスが無いと一時停止**する。
       日常的に使っていれば問題ないが、長期休業時は注意
+
+---
+
+## 7.5 復元テスト用に残している環境（2026-07-29〜）
+
+将来また使う可能性があるため、削除せずそのまま残してある。
+
+| 用途 | 環境 |
+|---|---|
+| Supabase 復元先 | プロジェクト `kqyziaynvueunqpwfrsx`（DBパスワードはテスト後にリセット済み。使う際は要再発行） |
+| Cloudflare デプロイ先 | 別アカウント `oominami2026@gmail.com`、Worker `oominami-payroll`（`oominami-payroll.oominami2026.workers.dev`） |
+
+いずれも本番とは別の環境で、本番の Site URL / Redirect URLs 等は変更していない。
 
 ---
 
