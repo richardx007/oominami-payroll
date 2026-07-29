@@ -447,6 +447,10 @@ middleware.ts            未認証は /login へ
   - 連絡は宛先が空＝全員（一斉報知）、宛先を選べば個別。両方とも有効（種別は連絡/催促）。
     **個別連絡は管理者に CC、一斉報知は管理者にも配信**（`getAdminEmails()` を利用）。
   - 併送失敗時は失敗理由（例: アプリパスワード未設定）を画面に表示。
+  - **配信メールの冒頭1行（2026-07-29追加）**: `admin/notices/actions.ts` の `sendNotice` が本文の先頭に
+    宛先に応じた挨拶行を追加してから送信する。**個別**は対象従業員の`{ニックネーム（未設定なら氏名）} さん`、
+    **全員**は`従業員のみなさまへ`。アプリ内お知らせ（`notifications`テーブル）にはこの挨拶行を含めない
+    （メール本文のみに付与、`d.body`自体は変更しない）。
 - `email.ts` は `cc?` に対応。`getTaxName()`（税理士氏名）・`getAdminEmails()`
   （is_admin=true の在籍者メール）も提供。
 - 送信は一時的失敗に備え **最大2回リトライ**、SMTP応答に **15秒タイムアウト**（ハング防止）。
@@ -1018,7 +1022,23 @@ middleware.ts            未認証は /login へ
   引いて拒否。確定済み明細と画面の金額がずれるのを防ぐ）。変更するには先に締め解除する。
 - 金額が確定できない日（退勤未入力・時給未設定）は記録できない（ボタンを無効化）。
 
-### 11.3 日当設定（`/admin/daily`）
+### 11.3 日別実績（`/admin/daily`、従業員向けは `/daily`。旧称「日当設定」。2026-07-29に画面名・メニュー名を変更）
+
+- メニュー表記は管理者・従業員とも「**日別**」（旧「日当」）、画面タイトルは「**日別実績**」（旧「日当設定」）。
+  管理画面ではメニュー順を給与明細の**前**（左）に変更（`admin/nav.tsx` の `primaryLinks`）。
+- 画面本体は `admin/daily/report-view.tsx` の `DailyReportView` に共通化し、管理者用
+  （`admin/daily/page.tsx`）と従業員用（`(employee)/daily/page.tsx`）の両方から呼び出す。
+  `lib/daily-report.ts` の `loadDailyReport(from, to, employeeId?)` に第3引数を追加し、
+  従業員セッションでは自分の `employee.id` を渡して**自分の実績のみ**に絞り込む（従業員一覧・勤務実績・
+  前払金のクエリすべてに適用）。
+  - `editable` propで前払金欄の見た目を切替: 管理者側=`AdvanceToggle`（記録/取消ボタン）、
+    従業員側=`AdvanceAmount`（記録済み金額の表示のみ・記録操作不可）。
+  - 従業員側の説明文2行目は「日当の前払いが行われた場合もここで確認できます。」（管理者側は前払済ボタンの案内のまま）。
+- 従業員ナビ（`(employee)/nav.tsx`）の `mainItems` に「日別」を勤務表と給与明細の間に追加
+  （下部タブは4主要項目＋ハンバーガーで`grid-cols-5`、PC/iPadの横並びは項目が1つ増えたため
+  `lg:grid-cols-9`→`lg:grid-cols-10`に変更）。
+
+### 11.3.1 日当設定（旧タイトル。以下は元の仕様メモ）
 
 給与期間（前月26日〜当月25日）ごとに、従業員ごとの日別の勤務時間・支給額を一覧表示する恒久機能。
 **期間指定は給与明細画面（`/admin/close`）と同じ月度単位**（＜ 2026年8月度 ＞ で前月/翌月移動・`?p=YYYY-MM`）。
@@ -1028,7 +1048,7 @@ middleware.ts            未認証は /login へ
 月次の給与計算と完全に同一**（`lib/daily-report.ts`。時給・昼食補助はその勤務日時点で有効な設定を使う）。
 
 - 源泉所得税は月単位の計算のためこの画面には含めない（画面上部の説明文で案内）。
-- 画面上部は 月度セレクタ＋「日当設定」見出し、その下に説明文2行（日別支給額の確認／前払済ボタンの案内）。
+- 画面上部は 月度セレクタ＋「日別実績」見出し、その下に説明文2行（日別支給額の確認／前払済ボタンの案内。従業員側は2行目のみ異なる。§11.3）。
 - 全体合計（対象期間・のべ勤務日数・合計勤務時間・支給額合計・前払金記録済み）は**開閉式の枠**にまとめ、
   **既定は閉じる**（日ごとの明細をすぐ見たいことが多いため）。**CSVダウンロード・印刷ボタンはこの枠の中**に置く。
 - 従業員ごとの小計を各表の末尾に表示。
@@ -1068,7 +1088,8 @@ middleware.ts            未認証は /login へ
 - DB: `supabase/migrations/20260726_advance_payments.sql`（`advance_payments` 新設＋`payslips.advance_deduction` 追加）。
 - 計算: `lib/payroll.ts`（`computePayslip` の `advanceTotal` / `advance_deduction`）、
   `lib/payroll-data.ts`（当期の前払金を従業員ごとに集計して渡す）、`lib/daily-report.ts`（日当レポートの集計）。
-- 画面: `admin/daily/{page,ui,actions}.tsx`（一覧・`AdvanceToggle`・`setAdvancePayment`・`buildDailyReportCsv`）。
+- 画面: `admin/daily/{page,ui,actions,report-view}.tsx`（一覧・`AdvanceToggle`・`setAdvancePayment`・
+  `buildDailyReportCsv`・共通ビュー`DailyReportView`）、`(employee)/daily/page.tsx`（従業員自身の閲覧、§11.3）。
 - 反映先: `admin/close/{page,actions}.ts(x)`、`admin/report/actions.ts`、`lib/email.ts`、`(employee)/payslips/page.tsx`。
 - テスト: `lib/payroll.test.ts` に2件追加（前払金が総支給額・課税対象額・源泉所得税を変えず差引支給額のみ減らすこと）。
 
