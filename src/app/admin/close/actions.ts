@@ -154,14 +154,36 @@ export async function reopenPeriod(periodKey: string): Promise<ActionResult> {
   };
 }
 
-/** 給与明細をメール配信する(全員 or 未配信のみ) */
+export type EmailBatchResult = ActionResult & {
+  /** この呼び出しで実際に送信できた件数 */
+  sent: number;
+  /** 配信対象の総数(このバッチ呼び出し時点) */
+  total: number;
+  /** まだ送信していない対象が残っているか(true ならオフセットを進めて再呼び出しする) */
+  hasMore: boolean;
+};
+
+/**
+ * 給与明細をメール配信する(全員 or 未配信のみ)。
+ *
+ * Cloudflare Workers Free プランはCPU時間の上限が非常に低く、対象人数が多いと
+ * 1リクエストでの逐次SMTP送信(TLSハンドシェイクの暗号処理がCPU時間を消費する)が
+ * 上限を超えて Error 1102 になることがある(2026-07-29に全員配信で発生・確認)。
+ * Paidプランへのアップグレードをしない前提のため、`offset`/`limit` で少人数ずつに
+ * 分割して呼び出せるようにし、呼び出し側(`admin/close/ui.tsx`)がループで全件を
+ * 配信しきる方式にしている。1回のリクエストが処理する人数を絞ることで
+ * CPU時間を上限内に収める狙い。
+ */
 export async function emailPayslips(
   periodKey: string,
-  onlyUnsent: boolean
-): Promise<ActionResult> {
+  onlyUnsent: boolean,
+  offset = 0,
+  limit = 5
+): Promise<EmailBatchResult> {
   await requireAdmin();
   const period = periodFromKey(periodKey);
-  if (!period) return { ok: false, message: "期間の指定が不正です" };
+  if (!period)
+    return { ok: false, message: "期間の指定が不正です", sent: 0, total: 0, hasMore: false };
 
   const supabase = await createClient();
   const { data: payPeriod } = await supabase
@@ -173,7 +195,13 @@ export async function emailPayslips(
     .maybeSingle();
 
   if (!payPeriod) {
-    return { ok: false, message: "先に締め処理を実行してください" };
+    return {
+      ok: false,
+      message: "先に締め処理を実行してください",
+      sent: 0,
+      total: 0,
+      hasMore: false,
+    };
   }
 
   const { data: payslips } = await supabase
@@ -229,7 +257,7 @@ export async function emailPayslips(
   // 登録されていると 0 円明細などが自分宛に届いてしまうため除外する。
   const senderEmail = (await getSenderEmail())?.trim().toLowerCase();
 
-  const targets = (payslips ?? []).filter((p) => {
+  const allTargets = (payslips ?? []).filter((p) => {
     if (onlyUnsent && p.emailed_at) return false;
     const emp = p.employees as unknown as { name: string; email: string };
     const email = emp.email?.trim().toLowerCase();
@@ -237,9 +265,18 @@ export async function emailPayslips(
     if (senderEmail && email === senderEmail) return false;
     return true;
   });
-  if (targets.length === 0) {
-    return { ok: false, message: "配信対象がありません" };
+  if (allTargets.length === 0) {
+    return {
+      ok: false,
+      message: "配信対象がありません",
+      sent: 0,
+      total: 0,
+      hasMore: false,
+    };
   }
+  // CPU時間の上限対策で少人数ずつ処理する(呼び出し側がoffsetを進めてループする)
+  const targets = allTargets.slice(offset, offset + limit);
+  const hasMore = offset + limit < allTargets.length;
 
   let sent = 0;
   const failed: string[] = [];
@@ -286,9 +323,18 @@ export async function emailPayslips(
     return {
       ok: sent > 0,
       message: `${sent}件送信 / 失敗: ${failed.join("、")}`,
+      sent,
+      total: allTargets.length,
+      hasMore,
     };
   }
-  return { ok: true, message: `${sent}名に給与明細をメール配信しました` };
+  return {
+    ok: true,
+    message: `${sent}名に給与明細をメール配信しました`,
+    sent,
+    total: allTargets.length,
+    hasMore,
+  };
 }
 
 /** 支払済みにする */
