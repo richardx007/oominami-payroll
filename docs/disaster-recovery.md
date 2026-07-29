@@ -127,10 +127,18 @@ cd oominami-payroll-backups
 # 特定の日付に戻したい場合は git log で探して checkout する
 
 # 新しい Supabase プロジェクトの接続文字列に対して流し込む
+# 順序は必ず schema → auth_data → data。data.sql が auth.users を参照する外部キーを
+# 持つため、auth_data.sql より先に data.sql を流すと外部キー制約違反で失敗する
+# (2026-07-29 の復元テストで実際に発生・確認済み)。
 psql "<新プロジェクトの接続文字列>" -f schema.sql
-psql "<新プロジェクトの接続文字列>" -f data.sql
 psql "<新プロジェクトの接続文字列>" -f auth_data.sql
+psql "<新プロジェクトの接続文字列>" -f data.sql
 ```
+
+`schema.sql` 実行時に出る以下のエラーは想定内(空のプロジェクトでも発生する)なので無視してよい。
+
+- `schema "public" already exists`(新規プロジェクトには最初から `public` スキーマがあるため)
+- `permission denied to change default privileges`(pooler接続ユーザーはスーパーユーザーではないため。Supabase側の既定権限で運用上は問題ない)
 
 **復元後に必ず確認すること**
 
@@ -186,6 +194,7 @@ psql "<新プロジェクトの接続文字列>" -f auth_data.sql
 
 - [ ] **年1回**、バックアップから実際に復元できるか試す（無料プロジェクトをもう1つ作って流し込む）。
       **試していないバックアップは、あると思い込んでいるだけで存在しないのと同じ。**
+      最終確認: 2026-07-29（`kqyziaynvueunqpwfrsx` に復元・全項目確認済み。§3の順序ミスをこの回で発見・修正）
 - [ ] バックアップの Actions が失敗していないか（失敗時はメールが届き、操作ログにも `エラー` が残る）
 - [ ] 操作ログに `バックアップ警告` が出ていないか（トークンの期限が近い。§2.2 で再発行）
 - [ ] Supabase の無料プロジェクトは **7日間アクセスが無いと一時停止**する。
