@@ -1,6 +1,6 @@
 # 引き継ぎ書（次セッション向け）
 
-最終更新: 2026-07-19
+最終更新: 2026-07-29
 
 このドキュメントは、別セッション（別の開発者・AIエージェント）が本プロジェクトを
 継続開発するための引き継ぎ資料です。あわせて `docs/design.md`（設計書）と
@@ -1362,6 +1362,44 @@ npm test           # Vitest（給与計算ロジック）
   本番デプロイが毎日走るため)。
 - 用語: UIは「従業員」で統一。**DBのカラム名は `employee_*` のまま**（変更していない）。
 
+### 本セッションで実施した変更（2026-07-29・年次DR復元テスト／給与明細の仕様確認／Error 1102対応）
+
+- **Supabase・Cloudflareの復元テストを実施**（`docs/disaster-recovery.md`§7の年1回チェックリスト）。
+  オーナーが新規に用意した別環境（Supabaseプロジェクト`kqyziaynvueunqpwfrsx`、Cloudflareアカウント
+  `oominami2026@gmail.com`）に対し、手順書どおりの復元・デプロイで実際に動くことを確認した。
+  **どちらも将来また使うため削除せず残置**（詳細は`disaster-recovery.md`§7.5）。
+  - **手順書のバグを発見・修正**: `data.sql`が`auth.users`への外部キーを持つため、
+    従来の記載順（schema→data→auth_data）で流すと外部キー制約違反になる。
+    正しくは**schema→auth_data→data**の順（§3を修正済み）。
+  - Cloudflareダッシュボードの表記が「Import a repository」→「Continue with GitHub」に変更されていた点、
+    デプロイ後に**Production の `*.workers.dev` トグルが既定オフ**でURLが無効なままになる点も追記した。
+  - この環境（Claude Code on the web のセッション）からは、`add_repo`でバックアップ用プライベートリポジトリを
+    クローンし内容を読むことはできるが、**Supabaseのpoolerホストへの直接`psql`接続はネットワークポリシーで
+    ブロックされる**（別のリモート隔離エージェントでの実行も自動モードのクラシファイアに拒否された）。
+    実際の復元コマンドは**オーナーのローカルMacターミナルで実行**してもらう形になった。
+- **Supabase MCPツールは本プロジェクト用のアカウントに紐づいており、オーナーが別途作成した
+  DR復元テスト用プロジェクト（`kqyziaynvueunqpwfrsx`）は見えない**（`list_projects`で確認）。
+  一方 **Cloudflare MCPツールは同一アカウント内なら別Workerでも操作可能**（`workers_list`/
+  `workers_get_worker`で別アプリのWorkerも確認できた）。
+- **給与明細（`payslips`）は「締め処理」時点のスナップショットであり、リアルタイム計算ではない**という
+  仕様に起因する問い合わせに対応。締め処理後に実績（`work_entries`）を削除・修正しても、既に確定済みの
+  `payslips`行は自動更新されない。**締め解除→再度「締め処理」で再計算**する必要がある（`markPaid`後、
+  つまり支払済みの場合は先に支払済みを取り消す必要がある。この取消操作の画面導線は要確認）。
+  実例: テスト入力した7月度実績を締めた後に実績を削除したが明細に反映されず、オーナーが「実績が無いのに
+  金額が出ている」と気づいた。締め解除→再締めで解消。**設計として正しい挙動だが、FAQ的に再発しうるので
+  ここに明記しておく**。
+- **Error 1102「Worker exceeded resource limits」の原因究明・対応**: 給与明細の全員一斉配信
+  （`admin/close/actions.ts`の`emailPayslips`）実行後にこのエラー画面が表示された。原因は、
+  従業員ごとにGmailへ新規SMTP(TLS)接続を張り直す実装のため、**TLSハンドシェイクの暗号計算（CPU時間）が
+  順に積み上がり、Workersのデフォルト上限（Paidプランで30秒）を超えた**ため。CPU時間はネットワーク待ち
+  時間を含まないため、SMTP接続それ自体の待ち時間ではなく暗号計算の合計が原因という点に注意
+  （メールは各送信ごとに完了しているため、エラー画面が出た時点までの分は正常に届いている）。
+  - **対応**: `wrangler.jsonc`に`limits.cpu_ms: 300000`（Paidプランで設定可能な上限=5分）を追加。
+    `claude/payroll-system-plan-8wvobq`でコミット→mainへマージ・push済み（自動デプロイ反映は要確認）。
+  - **今後の教訓**: 対象人数がさらに増えた場合、CPU時間の上限緩和だけでは足りなくなる可能性がある。
+    根本対応として、SMTP接続をキープアライブして使い回す・送信をチャンク分割して複数リクエストに分ける・
+    Cloudflare Queuesで非同期化する、等が候補（未着手）。
+
 ---
 
 ## 6. 未実装・改善候補（バックログ）
@@ -1418,4 +1456,9 @@ git checkout claude/payroll-system-plan-8wvobq
 
 - Supabase 操作は MCP ツール（project_id: `zvrwkmriosaldjqpxdwi`）。
 - GitHub 操作は GitHub MCP ツール（`richardx007/oominami-payroll`）。
-- この環境からは Cloudflare API へ直接接続不可（デプロイは main push による自動ビルド）。
+- デプロイは main push による自動ビルド。**Cloudflare MCP ツールで同一アカウント内の Worker 情報
+  （`workers_list`/`workers_get_worker`等）は参照可能**（2026-07-29確認）。ただしデプロイ状況の
+  詳細確認はダッシュボード（Deployments タブ）の方が確実。
+- Supabase の Session pooler（`*.pooler.supabase.com:5432`）へは、この環境（Claude Code on the web）の
+  ネットワークポリシー上 `psql` 等での直接接続はできない。DB復元テスト等で実際に `psql` を叩く必要が
+  あるときは、オーナーのローカル端末で実行してもらう（2026-07-29のDR復元テストで判明）。
