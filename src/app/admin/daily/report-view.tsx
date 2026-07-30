@@ -107,13 +107,7 @@ export function DailyReportView({
               {emp.nickname?.trim() || emp.name}
             </h2>
             <p className="text-sm font-semibold tabular-nums text-gray-900">
-              {emp.totals.days}日 / {hhmm(emp.totals.workMinutes)} /{" "}
-              {yen(emp.totals.total)}
-              {emp.totals.advance > 0 && (
-                <span className="ml-2 font-medium text-amber-700">
-                  (前払 {yen(emp.totals.advance)})
-                </span>
-              )}
+              {emp.totals.days}日
             </p>
           </div>
           <div className="overflow-x-auto print-report">
@@ -126,6 +120,7 @@ export function DailyReportView({
                   {/* 支給額・前払金は横スクロールせずに支払状況を確認できるよう日付の直後に置く */}
                   <th className="px-3 py-2 text-right">支給額</th>
                   <th className="px-3 py-2 text-right">前払金</th>
+                  <th className="px-3 py-2 text-left">メモ</th>
                   <th className="px-3 py-2 text-right">出勤</th>
                   <th className="px-3 py-2 text-right">退勤</th>
                   <th className="px-3 py-2 text-right">休憩</th>
@@ -138,7 +133,6 @@ export function DailyReportView({
                   <th className="px-3 py-2 text-right">残業手当</th>
                   <th className="px-3 py-2 text-right">昼食補助</th>
                   <th className="px-3 py-2 text-right">交通費</th>
-                  <th className="px-3 py-2 text-left">メモ</th>
                 </tr>
               </thead>
               <tbody>
@@ -181,15 +175,15 @@ export function DailyReportView({
                               <AdvanceAmount recorded={r.advance} />
                             )}
                           </td>
+                          <td className="whitespace-normal break-words px-3 py-2 text-left text-red-600">
+                            {r.note}
+                          </td>
                           <td
                             colSpan={12}
                             className="px-3 py-2 text-left text-red-600"
                           >
                             {r.startTime}
                             {r.endTime ? `〜${r.endTime}` : "〜"} — {r.error}
-                          </td>
-                          <td className="whitespace-normal break-words px-3 py-2 text-left text-red-600">
-                            {r.note}
                           </td>
                         </>
                       ) : (
@@ -209,6 +203,9 @@ export function DailyReportView({
                               <AdvanceAmount recorded={r.advance} />
                             )}
                           </td>
+                          <td className="whitespace-normal break-words px-3 py-2 text-left text-red-600">
+                            {r.note}
+                          </td>
                           <td className="px-3 py-2 text-right">{r.startTime}</td>
                           <td className="px-3 py-2 text-right">{r.endTime}</td>
                           <td className="px-3 py-2 text-right text-gray-500">
@@ -220,7 +217,13 @@ export function DailyReportView({
                           <td className="px-3 py-2 text-right text-gray-500">
                             {hhmm(r.nightMinutes)}
                           </td>
-                          <td className="px-3 py-2 text-right text-gray-500">
+                          <td
+                            className={`px-3 py-2 text-right ${
+                              r.overtimeMinutes > 0
+                                ? "font-bold text-blue-700"
+                                : "text-gray-500"
+                            }`}
+                          >
                             {hhmm(r.overtimeMinutes)}
                           </td>
                           <td className="px-3 py-2 text-right text-gray-500">
@@ -232,7 +235,11 @@ export function DailyReportView({
                           <td className="px-3 py-2 text-right">
                             {yen(r.nightPay)}
                           </td>
-                          <td className="px-3 py-2 text-right">
+                          <td
+                            className={`px-3 py-2 text-right ${
+                              r.overtimePay > 0 ? "font-bold text-blue-700" : ""
+                            }`}
+                          >
                             {yen(r.overtimePay)}
                           </td>
                           <td className="px-3 py-2 text-right">
@@ -240,9 +247,6 @@ export function DailyReportView({
                           </td>
                           <td className="px-3 py-2 text-right">
                             {yen(r.transport)}
-                          </td>
-                          <td className="whitespace-normal break-words px-3 py-2 text-left text-red-600">
-                            {r.note}
                           </td>
                         </>
                       )}
@@ -262,6 +266,7 @@ export function DailyReportView({
                   <td className="px-3 py-2 text-right text-amber-700">
                     {yen(emp.totals.advance)}
                   </td>
+                  <td className="px-3 py-2" />
                   {/* 出勤・退勤・休憩は合計しない */}
                   <td className="px-3 py-2" colSpan={3} />
                   <td className="px-3 py-2 text-right">
@@ -270,7 +275,11 @@ export function DailyReportView({
                   <td className="px-3 py-2 text-right">
                     {hhmm(emp.totals.nightMinutes)}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td
+                    className={`px-3 py-2 text-right ${
+                      emp.totals.overtimeMinutes > 0 ? "text-blue-700" : ""
+                    }`}
+                  >
                     {hhmm(emp.totals.overtimeMinutes)}
                   </td>
                   <td className="px-3 py-2" />
@@ -280,7 +289,11 @@ export function DailyReportView({
                   <td className="px-3 py-2 text-right">
                     {yen(emp.totals.nightPay)}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td
+                    className={`px-3 py-2 text-right ${
+                      emp.totals.overtimePay > 0 ? "text-blue-700" : ""
+                    }`}
+                  >
                     {yen(emp.totals.overtimePay)}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -289,7 +302,6 @@ export function DailyReportView({
                   <td className="px-3 py-2 text-right">
                     {yen(emp.totals.transport)}
                   </td>
-                  <td className="px-3 py-2" />
                 </tr>
               </tbody>
             </table>
