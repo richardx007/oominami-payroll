@@ -136,15 +136,26 @@ body.qr-capture-mode .qr-print-sheet {
  * ※ md 以上(サイドバー表示)と印刷時は通常のページスクロールに戻す(下記)。
  */
 .app-shell {
+  /* ビューポートの四辺に直接固定する。`height:100dvh` だと、PDF生成などで
+     ビューポート高さが再計算されたり body 直下に一時要素が残ったりしたときに
+     シェルの高さがずれ、**下部ナビの下に隙間ができて少しずつせり上がる**
+     (2026-07-31にオーナーの実機で発生。PDFダウンロードの往復ごとに累積した)。
+     inset:0 なら常にビューポートと一致するのでずれようがない。
+     ※ シェル自体は画面全体で動かないため、fixed でも「取り残される」不具合は起きない
+     (問題になるのはスクロールする本文の上に浮かせる場合)。 */
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
   overflow: hidden;
 }
 .app-scroll {
   min-height: 0;
   flex: 1 1 auto;
   overflow-y: auto;
+  /* 横方向には動かさない(縦だけ綺麗にスクロールさせる)。
+     表など横スクロールが要る部品は、それぞれの overflow-x:auto の枠内で個別にスクロールする。 */
+  overflow-x: hidden;
   /* 端までスクロールしたときに背後のページが引っぱられないようにする */
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -157,12 +168,13 @@ body.qr-capture-mode .qr-print-sheet {
  */
 @media (min-width: 768px) {
   .app-shell--sidebar {
+    position: static;
     flex-direction: row;
-    height: auto;
     min-height: 100vh;
     overflow: visible;
   }
   .app-shell--sidebar .app-scroll {
+    overflow-x: visible;
     overflow-y: visible;
   }
 }
@@ -173,9 +185,11 @@ body.qr-capture-mode .qr-print-sheet {
     /* 画面用に 17px と大きめだが、印刷は縮小して1ページ幅に収める */
     font-size: 11px;
   }
-  /* シェルの高さ固定・内部スクロールを解除する。これが無いと印刷が
-     1画面ぶんで切れてしまう(表の続きが出力されない)。 */
+  /* シェルのビューポート固定・内部スクロールを解除する。これが無いと印刷が
+     1画面ぶんで切れてしまう(表の続きが出力されない)。position:static に
+     戻すのを忘れないこと(fixed のままだと同様に1画面で切れる)。 */
   .app-shell {
+    position: static;
     display: block;
     height: auto;
     overflow: visible;
