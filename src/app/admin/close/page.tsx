@@ -38,6 +38,17 @@ export default async function ClosePage({
   ]);
 
   const status = payPeriod?.status ?? "open";
+  // 未締め(=金額が未確定)は表をイエロー系にする。
+  // 配色の意味づけは「確定=グリーン系 / 未確定=イエロー系 / それ以外=ブルー系」で統一しており、
+  // イエローはシフト表の「調整中」モード(bg-yellow-200)と同じ色に揃えている。
+  const draft = status === "open";
+  const bandClass = draft
+    ? "border-yellow-300 bg-yellow-50"
+    : "border-result-200 bg-result-50";
+  const headRowClass = draft
+    ? "border-yellow-300 bg-yellow-200"
+    : "border-result-200 bg-result-100";
+  const headCellClass = draft ? "bg-yellow-200" : "bg-result-100";
   const totals = payrolls.reduce(
     (acc, p) => {
       if (p.result) {
@@ -96,7 +107,7 @@ export default async function ClosePage({
         id="payslip-report"
         className="rounded-xl border border-gray-200 bg-white"
       >
-        <div className="rounded-t-xl border-b border-result-200 bg-result-50 p-4">
+        <div className={`rounded-t-xl border-b p-4 ${bandClass}`}>
           <div>
             <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
               {status === "open" ? "給与計算プレビュー" : "確定明細"}
@@ -131,8 +142,12 @@ export default async function ClosePage({
         <div className="overflow-x-auto print-report">
           <table className="w-full text-sm">
             <thead>
-              <tr className="whitespace-nowrap border-b border-result-200 bg-result-100 text-left text-xs font-semibold text-gray-700">
-                <th className="sticky left-0 z-10 bg-result-100 px-4 py-2 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
+              <tr
+                className={`whitespace-nowrap border-b text-left text-xs font-semibold text-gray-700 ${headRowClass}`}
+              >
+                <th
+                  className={`sticky left-0 z-10 px-4 py-2 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)] ${headCellClass}`}
+                >
                   氏名
                 </th>
                 <th className="px-4 py-2 text-right">日数</th>
