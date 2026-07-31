@@ -3,14 +3,21 @@ import { WEEKDAYS, adjacentPeriodKey, weekdayOf, type Period } from "@/lib/perio
 import type { DailyReport } from "@/lib/daily-report";
 import { AdvanceToggle, DailySummary } from "./ui";
 
-/** 分を「H:MM」表記にする */
+/**
+ * 分を「H:MM」表記にする。**0 は空白**にして、値のある行だけが目に入るようにする。
+ * ※ 出勤・退勤の「時刻」には使わないこと(深夜0時ちょうどの "0:00" が消えてしまうため。
+ *    時刻は DB の値をそのまま出す)。ここで空白にするのは休憩・実働・深夜・残業の「時間数」。
+ */
 function hhmm(minutes: number) {
+  if (!minutes) return "";
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
+/** 金額。**0 は空白**にする(上記と同じ理由) */
 function yen(n: number) {
+  if (!n) return "";
   return `¥${n.toLocaleString()}`;
 }
 
