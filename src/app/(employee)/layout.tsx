@@ -36,8 +36,8 @@ export default async function EmployeeLayout({
   const companyName = contact.get("company_name") ?? "";
 
   return (
-    <div className="min-h-screen pb-20">
-      <header className="sticky top-0 z-30 bg-[#152449] text-white shadow-md">
+    <div className="app-shell">
+      <header className="z-30 shrink-0 bg-[#152449] text-white shadow-md">
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <LogoButton />
@@ -55,8 +55,11 @@ export default async function EmployeeLayout({
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-lg px-3 py-4 lg:max-w-5xl">
-        {children}
+      {/* 本文だけを内部スクロールさせる(下部ナビは fixed ではなく通常フローで最下部に置く) */}
+      <main className="app-scroll">
+        <div className="mx-auto w-full max-w-lg px-3 py-4 lg:max-w-5xl">
+          {children}
+        </div>
       </main>
       <EmployeeNav
         latestNoticeAt={latestNoticeAt}

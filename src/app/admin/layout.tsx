@@ -10,7 +10,7 @@ export default async function AdminLayout({
   const admin = await requireAdmin();
 
   return (
-    <div className="min-h-screen md:flex">
+    <div className="app-shell app-shell--sidebar">
       {/* サイドバー(タブレット・PC) */}
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-[#152449] text-white shadow-md md:flex print:hidden">
         <div className="flex items-center gap-2 px-4 py-4">
@@ -36,7 +36,7 @@ export default async function AdminLayout({
       </aside>
 
       {/* モバイル用ヘッダー(下部タブナビは AdminBottomNav) */}
-      <header className="sticky top-0 z-30 bg-[#152449] text-white shadow-md md:hidden print:hidden">
+      <header className="z-30 shrink-0 bg-[#152449] text-white shadow-md md:hidden print:hidden">
         <div className="flex items-center justify-between gap-2 px-4 py-2.5">
           <div className="flex items-center gap-2">
             <LogoButton />
@@ -48,8 +48,12 @@ export default async function AdminLayout({
         </div>
       </header>
 
-      <main className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-4 py-6 pb-24 md:pb-6">
-        {children}
+      {/* 本文だけを内部スクロールさせる(下部ナビは fixed ではなく通常フローで最下部に置く)。
+          md 以上ではサイドバー横の通常スクロールに戻る(globals.css の .app-shell--sidebar) */}
+      <main className="app-scroll min-w-0">
+        <div className="mx-auto w-full min-w-0 max-w-5xl px-4 py-6">
+          {children}
+        </div>
       </main>
 
       {/* モバイル用の下部タブナビ */}
