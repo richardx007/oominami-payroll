@@ -1135,6 +1135,14 @@ middleware.ts            未認証は /login へ
   canvas を切り出して**複数ページに分割**する。
 - 日本語はブラウザ側で描画された画像なので、**PDFにフォントを埋め込む必要がない**。
 - 例外時も必ず `finally` でキャプチャ用クラスを外すこと（外し忘れると画面から帳票が消える）。
+- 🔴 **ライブラリは `html2canvas` 本家ではなく `html2canvas-pro` を使うこと。**
+  本プロジェクトは **Tailwind CSS v4** で、標準カラー（`gray-*`/`red-*` など）が **`oklch()`** で
+  出力される。本家 html2canvas(1.4.1) は `oklch()` を解釈できず
+  `Attempting to parse an unsupported color function` で必ず失敗する
+  （2026-07-31に給与明細のPDFで発生）。`html2canvas-pro` は API 互換のフォークで oklch に対応する。
+  - QRコードのPDFが本家でも動いていたのは、QRシートが Tailwind ではなく
+    `globals.css` に16進数で書いた独自クラスだけで作られていたため。**紛らわしいので注意。**
+  - 本家 `html2canvas` は依存から削除済み。**再導入しないこと。**
 
 ### 11.5 実装で踏んだ落とし穴（再発注意）
 

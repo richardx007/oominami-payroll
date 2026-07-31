@@ -376,8 +376,10 @@ function QrCodes({ companyName }: { companyName: string }) {
     }
     setPdfBusy(true);
     try {
+      // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと(Tailwind v4 の oklch 対応)。
+      // 詳細は admin/report/ui.tsx の DownloadPdfButton のコメント参照。
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas"),
+        import("html2canvas-pro"),
         import("jspdf"),
       ]);
 

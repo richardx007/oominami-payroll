@@ -55,8 +55,11 @@ export function DownloadPdfButton({
     setBusy(true);
     setError(null);
     try {
+      // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと。
+      // Tailwind v4 の標準カラーは oklch() で出力されるが、本家は oklch を解釈できず
+      // 「Attempting to parse an unsupported color function」で失敗する(2026-07-31に発生)。
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas"),
+        import("html2canvas-pro"),
         import("jspdf"),
       ]);
 
@@ -120,8 +123,10 @@ export function DownloadPdfButton({
         document.body.classList.remove("pdf-capture-mode");
         el.classList.remove("pdf-capture-target");
       }
-    } catch {
-      setError("PDFの作成に失敗しました");
+    } catch (e) {
+      // 原因を追えるよう、握りつぶさずエラー内容も出す
+      const detail = e instanceof Error ? e.message : String(e);
+      setError(`PDFの作成に失敗しました(${detail})`);
     } finally {
       setBusy(false);
     }
