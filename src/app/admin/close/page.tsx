@@ -90,7 +90,12 @@ export default async function ClosePage({
         <CloseActions periodKey={period.key} status={status} />
       </div>
 
-      <section className="rounded-xl border border-gray-200 bg-white">
+      {/* id は PDFダウンロード(DownloadPdfButton)のキャプチャ対象。変更する場合は
+          admin/close/ui.tsx の targetId も合わせること */}
+      <section
+        id="payslip-report"
+        className="rounded-xl border border-gray-200 bg-white"
+      >
         <div className="rounded-t-xl border-b border-result-200 bg-result-50 p-4">
           <div>
             <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">

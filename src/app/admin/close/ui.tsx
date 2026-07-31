@@ -6,7 +6,7 @@ import { closePeriod, emailPayslips, markPaid, reopenPeriod } from "./actions";
 import type { ActionResult } from "../employees/actions";
 import {
   SendReportButton,
-  PrintButton,
+  DownloadPdfButton,
   DownloadCsvButton,
 } from "../report/ui";
 
@@ -175,7 +175,7 @@ export function CloseActions({
         </div>
       )}
 
-      {/* 2行目: 明細をメール配信・税理士へ・印刷・CSV(締め済み以降) */}
+      {/* 2行目: 明細をメール配信・税理士へ・PDF・CSV(締め済み以降) */}
       {status !== "open" && (
         <div className="flex flex-wrap items-center justify-end gap-2">
           <button
@@ -191,7 +191,12 @@ export function CloseActions({
               : "従業員へ"}
           </button>
           <SendReportButton periodKey={periodKey} />
-          <PrintButton />
+          {/* スマホ(iOSのPWA)では window.print() が動かないため、印刷ではなくPDFダウンロード。
+              対象は明細一覧の枠(close/page.tsx の id="payslip-report") */}
+          <DownloadPdfButton
+            targetId="payslip-report"
+            filename={`給与明細_${periodKey}.pdf`}
+          />
           <DownloadCsvButton periodKey={periodKey} />
         </div>
       )}
