@@ -1135,14 +1135,23 @@ middleware.ts            未認証は /login へ
   canvas を切り出して**複数ページに分割**する。
 - 日本語はブラウザ側で描画された画像なので、**PDFにフォントを埋め込む必要がない**。
 - 例外時も必ず `finally` でキャプチャ用クラスを外すこと（外し忘れると画面から帳票が消える）。
-- 🔴 **ライブラリは `html2canvas` 本家ではなく `html2canvas-pro` を使うこと。**
-  本プロジェクトは **Tailwind CSS v4** で、標準カラー（`gray-*`/`red-*` など）が **`oklch()`** で
-  出力される。本家 html2canvas(1.4.1) は `oklch()` を解釈できず
-  `Attempting to parse an unsupported color function` で必ず失敗する
-  （2026-07-31に給与明細のPDFで発生）。`html2canvas-pro` は API 互換のフォークで oklch に対応する。
-  - QRコードのPDFが本家でも動いていたのは、QRシートが Tailwind ではなく
-    `globals.css` に16進数で書いた独自クラスだけで作られていたため。**紛らわしいので注意。**
-  - 本家 `html2canvas` は依存から削除済み。**再導入しないこと。**
+- 🔴 **キャプチャ用ライブラリは用途ごとに使い分けている（統一しないこと）。**
+
+  | 用途 | 使うライブラリ | 理由 |
+  |---|---|---|
+  | 給与明細一覧（`admin/report/ui.tsx`） | **`html2canvas-pro`** | Tailwind のクラスを使うため `oklch()` 対応が必須 |
+  | 出退勤QRシート（`admin/settings/clock.tsx`） | **`html2canvas`（本家）** | pro に変えるとレイアウトが崩れる |
+
+  - 本プロジェクトは **Tailwind CSS v4** で、標準カラー（`gray-*`/`red-*` など）が **`oklch()`** で
+    出力される。本家 html2canvas(1.4.1) は `oklch()` を解釈できず
+    `Attempting to parse an unsupported color function` で必ず失敗する
+    （2026-07-31に給与明細のPDFで発生）。`html2canvas-pro` は API 互換のフォークで oklch に対応する。
+  - 一方、**QRシートを `html2canvas-pro` にすると表示が崩れる**（`.qr-print-codes` の flex や
+    `img { width: 55mm }` が効かず、QRが縦積みで巨大化。2026-07-31に実機で確認）。
+    QRシートは `globals.css` に16進数で書いた独自クラスだけで作っており oklch を含まないため、
+    本家のままで問題ない。
+  - **どちらか一方に寄せようとしないこと。** 両方とも動的 import（コード分割）なので、
+    それぞれの画面を開いたときにしか読み込まれない。
 
 ### 11.5 実装で踏んだ落とし穴（再発注意）
 

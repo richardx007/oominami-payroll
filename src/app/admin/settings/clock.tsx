@@ -376,10 +376,15 @@ function QrCodes({ companyName }: { companyName: string }) {
     }
     setPdfBusy(true);
     try {
-      // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと(Tailwind v4 の oklch 対応)。
-      // 詳細は admin/report/ui.tsx の DownloadPdfButton のコメント参照。
+      // ⚠️ ここは「本家 html2canvas」を使うこと(html2canvas-pro に変えないこと)。
+      // pro(v2) に差し替えたところ、このQRシートのレイアウトが崩れた
+      // (.qr-print-codes の flex や img の 55mm 指定が効かず、QRが縦積みで巨大化。2026-07-31)。
+      // QRシートは globals.css に16進数で書いた独自クラスだけで作っており Tailwind の
+      // oklch を含まないため、本家でも問題なく描画できる。
+      // ※ 逆に給与明細(admin/report/ui.tsx)は Tailwind の oklch を含むため pro が必須。
+      //    用途ごとに使い分けている。
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas-pro"),
+        import("html2canvas"),
         import("jspdf"),
       ]);
 
