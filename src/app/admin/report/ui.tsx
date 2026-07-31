@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { buildTaxReportCsv, sendTaxReport } from "./actions";
 
-const iconBtn =
-  "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-blue-300 bg-white text-blue-700 hover:bg-blue-50 disabled:opacity-50";
+// アイコンではなく文字(PDF / CSV)で見せるボタン。「税理士へ」ボタンと高さ・配色を揃える
+const textBtn =
+  "inline-flex h-10 items-center justify-center rounded-lg border border-blue-300 bg-white px-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50";
 
 function MailIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -24,55 +25,122 @@ function MailIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-function PrinterIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6 9V3h12v6" />
-      <rect x="4" y="9" width="16" height="8" rx="2" />
-      <path d="M7 17h10v4H7z" />
-      <path d="M17 12.5h.01" />
-    </svg>
-  );
-}
+/**
+ * 給与明細の一覧をPDFでダウンロードする。
+ *
+ * スマホ(特に iOS の PWA)では window.print() が動作しないため、印刷ではなく
+ * PDFダウンロードで内容を確認できるようにしている(QRコードのPDFと同じ方式)。
+ * 画面の表をそのまま html2canvas で画像化し、jsPDF で A4横向きに貼り付ける。
+ * 日本語はブラウザ側で描画されるため、PDFにフォントを埋め込む必要がない。
+ * 縦に長い場合はページを分割する。
+ *
+ * @param targetId キャプチャ対象(表を含む枠)の要素id
+ */
+export function DownloadPdfButton({
+  targetId,
+  filename,
+}: {
+  targetId: string;
+  filename: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-function DownloadIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 3v12" />
-      <path d="M7 10l5 5 5-5" />
-      <path d="M4 20h16" />
-    </svg>
-  );
-}
+  async function run() {
+    const el = document.getElementById(targetId);
+    if (!el) {
+      setError("出力対象が見つかりません");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
 
-export function PrintButton() {
+      // キャプチャ中だけ画面外で全幅描画にする(globals.css の pdf-capture-mode)
+      el.classList.add("pdf-capture-target");
+      document.body.classList.add("pdf-capture-mode");
+      try {
+        // レイアウト反映を待ってから撮る
+        await new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve))
+        );
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          useCORS: true,
+        });
+
+        const pdf = new jsPDF({
+          unit: "mm",
+          format: "a4",
+          orientation: "landscape",
+        });
+        const margin = 8;
+        const pageW = 297;
+        const pageH = 210;
+        const imgW = pageW - margin * 2;
+        // 画像の実寸(mm)。1mmあたりのピクセル数を出して、ページ高さで切り分ける
+        const pxPerMm = canvas.width / imgW;
+        const usableH = pageH - margin * 2;
+        const sliceHpx = Math.floor(usableH * pxPerMm);
+
+        let y = 0;
+        let firstPage = true;
+        while (y < canvas.height) {
+          const h = Math.min(sliceHpx, canvas.height - y);
+          const slice = document.createElement("canvas");
+          slice.width = canvas.width;
+          slice.height = h;
+          const ctx = slice.getContext("2d");
+          if (!ctx) throw new Error("canvas context を取得できませんでした");
+          // 余白が透明にならないよう白で塗ってから貼る
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, slice.width, slice.height);
+          ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+
+          if (!firstPage) pdf.addPage();
+          pdf.addImage(
+            slice.toDataURL("image/png"),
+            "PNG",
+            margin,
+            margin,
+            imgW,
+            h / pxPerMm
+          );
+          firstPage = false;
+          y += h;
+        }
+        pdf.save(filename);
+      } finally {
+        // 例外時も必ず画面表示を元に戻す
+        document.body.classList.remove("pdf-capture-mode");
+        el.classList.remove("pdf-capture-target");
+      }
+    } catch {
+      setError("PDFの作成に失敗しました");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <button
-      onClick={() => window.print()}
-      aria-label="印刷 / PDF保存"
-      title="印刷 / PDF保存"
-      className={iconBtn}
-    >
-      <PrinterIcon />
-    </button>
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={run}
+        aria-label="PDFダウンロード"
+        title="PDFダウンロード"
+        className={textBtn}
+      >
+        {busy ? "作成中..." : "PDF"}
+      </button>
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </span>
   );
 }
 
@@ -108,9 +176,9 @@ export function DownloadCsvButton({ periodKey }: { periodKey: string }) {
             URL.revokeObjectURL(url);
           });
         }}
-        className={iconBtn}
+        className={textBtn}
       >
-        <DownloadIcon />
+        {pending ? "作成中..." : "CSV"}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>

@@ -179,6 +179,36 @@ body.qr-capture-mode .qr-print-sheet {
   }
 }
 
+/**
+ * 帳票(給与明細の一覧など)を html2canvas でキャプチャして PDF 化するときだけ効くスタイル。
+ *
+ * スマホ(特に iOS の PWA)では window.print() が使えずブラウザ印刷に頼れないため、
+ * 「印刷」ではなく「PDFダウンロード」で内容を確認できるようにしている。
+ * 画面では表を overflow-x:auto の枠に収めているが、そのままキャプチャすると
+ * 見えている範囲しか写らないので、キャプチャ中だけ枠を外して全幅で描画する。
+ * QRシート(.qr-print-sheet)と同じく画面外(left:-10000px)に置いてから撮る。
+ */
+body.pdf-capture-mode .pdf-capture-target {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+  /* 表の全列が収まる作業幅。A4横向きに縮小して貼り付ける */
+  width: 1400px;
+  max-width: none;
+  background: #fff;
+}
+/* 横スクロールの枠を解除して表の全列を出す */
+body.pdf-capture-mode .pdf-capture-target .print-report {
+  overflow: visible !important;
+}
+/* 画面用の固定列(氏名など)の影は、PDFでは不要なので消す */
+body.pdf-capture-mode .pdf-capture-target .print-report th,
+body.pdf-capture-mode .pdf-capture-target .print-report td {
+  position: static !important;
+  box-shadow: none !important;
+}
+
 /* 印刷 / PDF 出力の調整(給与明細の表が横にはみ出て切れるのを防ぐ) */
 @media print {
   html {
