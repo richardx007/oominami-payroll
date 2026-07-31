@@ -176,10 +176,10 @@ export function AdminBottomNav() {
         </div>
       )}
 
-      <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white [transform:translateZ(0)] md:hidden print:hidden"
-        style={{ willChange: "transform" }}
-      >
+      {/* シェル(app-shell)の最下段に通常フローで置く。position:fixed は使わない
+          (iOS でスクロール中に画面途中へ取り残される不具合があるため。globals.css の
+          .app-shell のコメント参照) */}
+      <nav className="z-40 shrink-0 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white md:hidden print:hidden">
         <div className="mx-auto grid max-w-lg grid-cols-5">
           {primaryLinks.map((l) => {
             const Icon = l.icon;

@@ -743,6 +743,11 @@ function TaxHistory({
             人
           </label>
         </div>
+        {/* 甲欄は「扶養控除等(異動)申告書」の提出が税法上の要件のため、選択欄の直下で注意喚起する */}
+        <p className="text-xs leading-snug text-gray-500">
+          ※
+          甲欄を適用するには従業員から「扶養控除等（異動）申告書」の提出を受けていることが税法上の要件です。
+        </p>
         <div className="flex justify-end">
           <button
             disabled={pending}

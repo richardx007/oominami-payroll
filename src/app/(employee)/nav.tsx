@@ -84,11 +84,11 @@ export function EmployeeNav({
     setClockOpen(true);
   }
 
+  // シェル(app-shell)の最下段に通常フローで置く。position:fixed は使わない
+  // (iOS でスクロール中に画面途中へ取り残される不具合があるため。
+  //  詳細は globals.css の .app-shell のコメント参照)
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-10 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white [transform:translateZ(0)]"
-      style={{ willChange: "transform" }}
-    >
+    <nav className="z-10 shrink-0 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white print:hidden">
       <div className="mx-auto grid max-w-lg grid-cols-5 lg:max-w-3xl lg:grid-cols-10">
         {mainItems.map((item) => {
           const active = pathname.startsWith(item.href);

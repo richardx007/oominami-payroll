@@ -124,11 +124,64 @@ body.qr-capture-mode .qr-print-sheet {
   height: 28mm;
 }
 
+/**
+ * アプリシェル(スマホ)
+ *
+ * 下部ナビを position:fixed で浮かせず、「画面の高さいっぱいの縦フレックス +
+ * 本文だけを内部スクロール」で最下部に置くための土台。
+ * iOS Safari は position:fixed の要素がスクロール中に再配置されず画面途中に
+ * 取り残されることがあり(2026-07-29にオーナーの実機で発生)、GPUレイヤー化
+ * (translateZ/will-change)による回避はむしろ症状を悪化させたため、
+ * 「そもそも fixed を使わない」構造に変更した。
+ * ※ md 以上(サイドバー表示)と印刷時は通常のページスクロールに戻す(下記)。
+ */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+.app-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* 端までスクロールしたときに背後のページが引っぱられないようにする */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/**
+ * 管理画面は md 以上で「左サイドバー + 本文」の横並びに戻す。
+ * この幅では下部タブナビ自体を出さないため、シェルの高さ固定も内部スクロールも不要
+ * (通常のページスクロールに戻す)。
+ */
+@media (min-width: 768px) {
+  .app-shell--sidebar {
+    flex-direction: row;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .app-shell--sidebar .app-scroll {
+    overflow-y: visible;
+  }
+}
+
 /* 印刷 / PDF 出力の調整(給与明細の表が横にはみ出て切れるのを防ぐ) */
 @media print {
   html {
     /* 画面用に 17px と大きめだが、印刷は縮小して1ページ幅に収める */
     font-size: 11px;
+  }
+  /* シェルの高さ固定・内部スクロールを解除する。これが無いと印刷が
+     1画面ぶんで切れてしまう(表の続きが出力されない)。 */
+  .app-shell {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+  .app-scroll {
+    overflow: visible;
   }
   @page {
     size: A4 portrait;
