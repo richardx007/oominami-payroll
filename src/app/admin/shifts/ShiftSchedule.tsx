@@ -540,6 +540,20 @@ function EditRow({
   const csSaved = toInputTime(customStart) ?? "";
   const ceSaved = toInputTime(customEnd) ?? "";
 
+  /**
+   * 変則時間を空に戻す(=枠の既定時刻で勤務する)。
+   * iOS のネイティブ時刻ピッカーにも「クリア」はあるが、入力欄を確実に空へ戻せる手段として
+   * 明示的なボタンを置く。onMouseDown で既定動作を止めているのは、クリックで入力欄が
+   * blur して onBlur の保存が先に走り、二重保存になるのを避けるため。
+   */
+  function clearCustom() {
+    setCs("");
+    setCe("");
+    if (cur && (csSaved !== "" || ceSaved !== "")) {
+      onAssign(m.id, date, cur, "", "");
+    }
+  }
+
   return (
     <div className="border-b border-gray-50 py-1">
       <div className="flex items-center justify-between gap-2">
@@ -578,37 +592,56 @@ function EditRow({
       </div>
       {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ保存。
           時刻はネイティブのダイアル選択(<input type="time">)で入力する。
-          iOSではtimeウィジェットが指定幅より広がるため、固定幅+shrink-0で確保し行は折り返す。 */}
+          iOSではtimeウィジェットが指定幅より広がるため、固定幅+shrink-0で確保し行は折り返す。
+
+          ⚠️ value に「空なら枠の既定時刻」というフォールバックを入れないこと。
+          入力欄が常に値を持つことになり、**クリアしても既定時刻が即座に再表示されて
+          空にできなくなる**(iOSのピッカーの「クリア」が効かない、という形で表面化した。
+          2026-08-01に修正)。既定時刻は入力欄ではなく見出しの脇に参考表示する。 */}
       {cur && (
         <div className="mt-1 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
-          <span className="text-xs font-semibold text-gray-500">変則勤務</span>
+          <span className="text-xs font-semibold text-gray-500">
+            変則勤務
+            <span className="ml-1 font-normal text-gray-400">
+              (既定 {slots[cur].start}〜{slots[cur].end})
+            </span>
+          </span>
           <input
             type="time"
-            value={cs || (toInputTime(slots[cur].start) ?? "")}
+            value={cs}
             onChange={(e) => setCs(e.target.value)}
             onBlur={() => {
               if (cs !== csSaved) onAssign(m.id, date, cur, cs, ce);
             }}
             disabled={readOnly}
             aria-label="変則出勤予定"
-            className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-              cs ? "" : "text-gray-400"
-            }`}
+            className="w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
           <span className="text-xs text-gray-400">〜</span>
           <input
             type="time"
-            value={ce || (toInputTime(slots[cur].end) ?? "")}
+            value={ce}
             onChange={(e) => setCe(e.target.value)}
             onBlur={() => {
               if (ce !== ceSaved) onAssign(m.id, date, cur, cs, ce);
             }}
             disabled={readOnly}
             aria-label="変則退勤予定"
-            className={`w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-              ce ? "" : "text-gray-400"
-            }`}
+            className="w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
+          {/* 入力済みのときだけ出す。押すと変則なし(=既定時刻で勤務)に戻る */}
+          {!readOnly && (cs || ce) && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={clearCustom}
+              aria-label="変則勤務時間をクリア"
+              title="変則勤務時間をクリア(既定の時刻に戻す)"
+              className="shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+            >
+              クリア
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -705,7 +738,10 @@ function DayPanel({
             const canEdit = !editableEmployeeId || editableEmployeeId === m.id;
             return (
               <EditRow
-                key={m.id}
+                // ⚠️ key に date を含めること。m.id だけだと日付を切り替えても React が
+                // 同じインスタンスを再利用し、useState の初期値が再評価されないため
+                // **前の日に入力した変則時間が残ったまま**になる(2026-08-01に発覚)。
+                key={`${m.id}|${date}`}
                 member={m}
                 date={date}
                 slots={slots}
