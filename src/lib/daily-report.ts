@@ -75,10 +75,30 @@ export type DailyEmployeeReport = {
   };
 };
 
+/**
+ * 勤務実績と紐付いていない前払金。
+ *
+ * 前払金は (従業員, 勤務日) で勤務実績と結びつけているが、**実体としては別テーブル**で、
+ * 勤務実績を削除したり打刻の修正で勤務日がずれたりすると、前払金だけが取り残される。
+ * この孤立レコードは日別実績の表(勤務実績の行を並べたもの)には現れないのに
+ * **給与計算では差引支給額から控除され続ける**ため、放置すると「理由の分からない控除」になる。
+ * 画面に警告として出して気付けるようにするための型(2026-08-01に実際に発生して発覚)。
+ */
+export type OrphanAdvance = {
+  employeeId: string;
+  name: string;
+  nickname: string | null;
+  workDate: string;
+  amount: number;
+  note: string | null;
+};
+
 export type DailyReport = {
   from: string;
   to: string;
   employees: DailyEmployeeReport[];
+  /** 勤務実績が無いのに記録されている前払金(あれば画面に警告を出す) */
+  orphanAdvances: OrphanAdvance[];
 };
 
 function emptyTotals(): DailyEmployeeReport["totals"] {
@@ -123,7 +143,7 @@ export async function loadDailyReport(
     .order("work_date");
   let advancesQuery = supabase
     .from("advance_payments")
-    .select("employee_id, work_date, amount")
+    .select("employee_id, work_date, amount, note")
     .gte("work_date", from)
     .lte("work_date", to);
 
@@ -268,5 +288,28 @@ export async function loadDailyReport(
     });
   }
 
-  return { from, to, employees: result };
+  // 勤務実績と紐付かない前払金を拾う。表には出ないのに給与計算では控除され続けるため、
+  // 画面で警告できるよう別枠で返す(型 OrphanAdvance のコメント参照)。
+  const employeeById = new Map((employees ?? []).map((e) => [e.id, e]));
+  const entryKeys = new Set(
+    (entries ?? []).map((e) => `${e.employee_id}_${e.work_date}`)
+  );
+  const orphanAdvances: OrphanAdvance[] = [];
+  for (const a of advances ?? []) {
+    if (entryKeys.has(`${a.employee_id}_${a.work_date}`)) continue;
+    const emp = employeeById.get(a.employee_id);
+    // 従業員一覧の絞り込み(従業員自身の画面)から外れている分は対象外
+    if (!emp) continue;
+    orphanAdvances.push({
+      employeeId: a.employee_id,
+      name: emp.name,
+      nickname: emp.nickname,
+      workDate: a.work_date,
+      amount: a.amount,
+      note: a.note ?? null,
+    });
+  }
+  orphanAdvances.sort((x, y) => x.workDate.localeCompare(y.workDate));
+
+  return { from, to, employees: result, orphanAdvances };
 }

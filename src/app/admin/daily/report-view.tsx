@@ -85,6 +85,36 @@ export function DailyReportView({
         <li>・{descriptionLines[1]}</li>
       </ul>
 
+      {/* 勤務実績と紐付かない前払金。表には出ないのに給与計算では控除され続けるため、
+          気付けるよう警告として出す(打刻の修正で勤務日がずれた場合などに発生する)。
+          対処できるのは管理者だけなので従業員の画面(editable=false)には出さない */}
+      {editable && report.orphanAdvances.length > 0 && (
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm">
+          <p className="font-bold text-red-800">
+            勤務実績と結びついていない前払金があります
+          </p>
+          <p className="mt-1 text-red-700">
+            下記は勤務実績が無い日に記録されている前払金です。表には出ませんが
+            <span className="font-semibold">給与計算では差引支給額から控除されます</span>。
+            勤務日の記録漏れ・打刻修正で日付がずれた場合などに発生します。内容を確認し、
+            正しい勤務日で記録し直すか、記録を取り消してください。
+          </p>
+          <ul className="mt-2 space-y-1">
+            {report.orphanAdvances.map((a) => (
+              <li
+                key={`${a.employeeId}_${a.workDate}`}
+                className="tabular-nums text-red-900"
+              >
+                ・{a.workDate.replaceAll("-", "/")}
+                {a.nickname?.trim() || a.name}　¥
+                {a.amount.toLocaleString()}
+                {a.note ? `（${a.note}）` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {report.employees.length === 0 && (
         <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
           対象期間に勤務データがありません
