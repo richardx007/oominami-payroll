@@ -1070,6 +1070,14 @@ ALTER TABLE ONLY public.advance_payments
 
 
 --
+-- Name: advance_payments advance_payments_work_entry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.advance_payments
+    ADD CONSTRAINT advance_payments_work_entry_fkey FOREIGN KEY (employee_id, work_date) REFERENCES public.work_entries(employee_id, work_date) ON UPDATE CASCADE;
+
+
+--
 -- Name: clock_events clock_events_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
