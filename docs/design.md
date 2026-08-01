@@ -108,7 +108,7 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 | `pay_periods` | 給与計算期間（`period_label` は「2026年8月度」形式。§用語参照） | period_label, start_date, end_date, payment_date, status(open/closed/paid) |
 | `work_entries` | 勤務表 | employee_id, work_date, start_time, end_time, break_minutes, transport_cost, transport_mode(手段), station_from(駅1), station_to(駅2), round_trip(往復), note ／ ※深夜勤務(退勤翌日, 例18:00→2:00)を許容するため `end_time > start_time` のCHECK制約は撤去済み。end≤start は翌日とみなし `workMinutes` が24時間加算 |
 | `payslips` | 給与明細（締め時に確定保存） | employee_id, pay_period_id, work_days, total_minutes, night_minutes(深夜帯勤務分), overtime_minutes(1日8h超過分), hourly_wage, base_pay, night_pay(深夜勤務手当=時給25%割増分), overtime_pay(残業手当=時給25%割増分), transport_total, lunch_total, gross_pay, income_tax, advance_deduction(前払金控除。既定0), net_pay, tax_category, finalized_at, emailed_at |
-| `advance_payments` | 前払金（日当として先に現金で支払った分。§11） | employee_id, work_date, amount, note, created_at, unique(employee_id,work_date)。RLS=従業員は自分の行を参照のみ・登録/変更/削除は管理者(`is_admin()`) |
+| `advance_payments` | 前払金（日当として先に現金で支払った分。§11） | employee_id, work_date, amount, note, created_at, unique(employee_id,work_date)。**(employee_id, work_date) が `work_entries` への複合FK**（`ON UPDATE CASCADE`／`ON DELETE NO ACTION`。§11.3.3）。RLS=従業員は自分の行を参照のみ・登録/変更/削除は管理者(`is_admin()`) |
 | `notifications` | 連絡・催促・一斉報知 | sender_id, recipient_id(null=全員), type(individual/broadcast/reminder), subject, body, emailed, sent_at |
 | `tax_reports` | 税理士送付記録（※現在は書き込みなし・将来用に残置） | pay_period_id, emailed_to, emailed_at |
 | `withholding_tax_table` | 源泉徴収税額表（月額表。国税庁公開の甲欄0〜7人＋乙欄を保持） | year, min_amount, max_amount, tax_kou_0..7, tax_otsu, created_at(取り込み日時) |
@@ -1177,7 +1177,8 @@ middleware.ts            未認証は /login へ
 ### 11.3.3 前払金と勤務実績の紐付け（複合外部キー。2026-08-01に制約を追加）
 
 前払金は `(employee_id, work_date)` で勤務実績と結びつく。**2026-08-01 に複合外部キーを張り、
-DBレベルで紐付きが保証されるようにした**（`supabase/migrations/20260801_advance_payments_fk.sql`）。
+DBレベルで紐付きが保証されるようにした**
+（`supabase/migrations/20260801044710_advance_payments_work_entry_fk.sql`）。
 
 ```sql
 foreign key (employee_id, work_date)
