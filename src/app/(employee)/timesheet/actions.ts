@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
 import { standardBreakMinutes } from "@/lib/period";
 import { parseBreakWindows } from "@/lib/breaks";
-import { entrySchema } from "./schema";
+import { entrySchema, deleteEntryErrorMessage } from "./schema";
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -105,7 +105,7 @@ export async function deleteWorkEntry(workDate: string): Promise<ActionResult> {
     .eq("employee_id", employee.id)
     .eq("work_date", workDate);
 
-  if (error) return { ok: false, message: "削除に失敗しました" };
+  if (error) return { ok: false, message: deleteEntryErrorMessage(error) };
 
   revalidatePath("/timesheet");
   return { ok: true, message: "削除しました" };

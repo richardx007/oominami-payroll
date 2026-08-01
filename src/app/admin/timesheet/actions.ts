@@ -5,7 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { standardBreakMinutes } from "@/lib/period";
 import { BREAK_SETTING_KEYS, parseBreakWindows } from "@/lib/breaks";
-import { entrySchema } from "@/app/(employee)/timesheet/schema";
+import {
+  entrySchema,
+  deleteEntryErrorMessage,
+} from "@/app/(employee)/timesheet/schema";
 import type { ActionResult } from "@/app/(employee)/timesheet/actions";
 
 /**
@@ -71,8 +74,9 @@ export async function adminDeleteWorkEntry(
     .eq("employee_id", employeeId)
     .eq("work_date", workDate);
 
-  if (error) return { ok: false, message: "削除に失敗しました" };
+  if (error) return { ok: false, message: deleteEntryErrorMessage(error) };
 
   revalidatePath("/admin/timesheet");
+  revalidatePath("/admin/daily");
   return { ok: true, message: "削除しました" };
 }
