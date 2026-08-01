@@ -592,59 +592,101 @@ function EditRow({
       </div>
       {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ保存。
           時刻はネイティブのダイアル選択(<input type="time">)で入力する。
-          iOSではtimeウィジェットが指定幅より広がるため、固定幅+shrink-0で確保し行は折り返す。
-
-          ⚠️ value に「空なら枠の既定時刻」というフォールバックを入れないこと。
-          入力欄が常に値を持つことになり、**クリアしても既定時刻が即座に再表示されて
-          空にできなくなる**(iOSのピッカーの「クリア」が効かない、という形で表面化した。
-          2026-08-01に修正)。既定時刻は入力欄ではなく見出しの脇に参考表示する。 */}
+          「変則勤務 [出勤] 〜 [退勤] [×]」が iPhone で1行に収まるよう、
+          既定時刻は外に出さず入力欄に重ねて表示し、クリアは×アイコンにしている。 */}
       {cur && (
-        <div className="mt-1 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1">
-          <span className="text-xs font-semibold text-gray-500">
-            変則勤務
-            <span className="ml-1 font-normal text-gray-400">
-              (既定 {slots[cur].start}〜{slots[cur].end})
-            </span>
-          </span>
-          <input
-            type="time"
+        <div className="mt-1 flex flex-wrap items-center justify-end gap-x-1 gap-y-1">
+          <span className="text-xs font-semibold text-gray-500">変則勤務</span>
+          <TimeWithDefault
             value={cs}
-            onChange={(e) => setCs(e.target.value)}
+            defaultTime={slots[cur].start}
+            onChange={setCs}
             onBlur={() => {
               if (cs !== csSaved) onAssign(m.id, date, cur, cs, ce);
             }}
             disabled={readOnly}
-            aria-label="変則出勤予定"
-            className="w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            label="変則出勤予定"
           />
           <span className="text-xs text-gray-400">〜</span>
-          <input
-            type="time"
+          <TimeWithDefault
             value={ce}
-            onChange={(e) => setCe(e.target.value)}
+            defaultTime={slots[cur].end}
+            onChange={setCe}
             onBlur={() => {
               if (ce !== ceSaved) onAssign(m.id, date, cur, cs, ce);
             }}
             disabled={readOnly}
-            aria-label="変則退勤予定"
-            className="w-24 shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            label="変則退勤予定"
           />
-          {/* 入力済みのときだけ出す。押すと変則なし(=既定時刻で勤務)に戻る */}
-          {!readOnly && (cs || ce) && (
+          {/* iOSのピッカーの「リセット」は効かない端末があるため、確実に空へ戻せる×を必ず置く。
+              レイアウトが動かないよう、未入力でも領域は確保して薄く出す。 */}
+          {!readOnly && (
             <button
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={clearCustom}
+              disabled={!cs && !ce}
               aria-label="変則勤務時間をクリア"
               title="変則勤務時間をクリア(既定の時刻に戻す)"
-              className="shrink-0 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gray-300 text-sm text-gray-500 hover:bg-gray-50 disabled:opacity-30"
             >
-              クリア
+              ✕
             </button>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * 変則勤務時間の入力欄。未入力のときは**枠の既定時刻を薄いグレーで重ねて表示**する。
+ *
+ * 🔴 既定時刻を `value` に入れてはいけない。入力欄が常に値を持つことになり、
+ * **クリアしても既定時刻が即座に再表示されて空に戻せなくなる**
+ * (iOSのピッカーの「リセット」が効かない、という形で表面化。2026-08-01)。
+ * かといって既定時刻を欄の外に出すと横幅を食って行が折り返し、見た目が崩れる。
+ * そこで **value は空のまま**にして、既定時刻は `pointer-events-none` の
+ * オーバーレイで上に重ねる。タップは下の input に素通りするのでダイアルは従来どおり開き、
+ * 値が入ればオーバーレイは消える。
+ * ※ `<input type="time">` に placeholder は使えない(効かない)ため、この方式にしている。
+ */
+function TimeWithDefault({
+  value,
+  defaultTime,
+  onChange,
+  onBlur,
+  disabled,
+  label,
+}: {
+  value: string;
+  /** 枠の既定時刻("8:00"など)。未入力時に薄く表示する */
+  defaultTime: string;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  return (
+    <span className="relative inline-flex w-[5.5rem] shrink-0 items-center rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+      <input
+        type="time"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        disabled={disabled}
+        aria-label={label}
+        className="w-full min-w-0 bg-transparent px-1 py-1 text-center text-sm focus:outline-none"
+      />
+      {!value && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-white text-sm text-gray-400"
+        >
+          {toInputTime(defaultTime) ?? defaultTime}
+        </span>
+      )}
+    </span>
   );
 }
 
