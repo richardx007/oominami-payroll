@@ -667,21 +667,31 @@ function TimeWithDefault({
   disabled?: boolean;
   label: string;
 }) {
-  // 変則が入っている欄は、既定のままの欄と一目で区別できるよう濃いグレー地＋白文字にする
+  // 変則が入っている欄は、既定のままの欄と一目で区別できるようグレー地＋白文字にする
   // (入力に気付かず変則のまま放置する事故を防ぐため。2026-08-01にオーナー依頼で追加)
   const filled = !!value;
   return (
     <span
       className={`relative inline-flex w-[5.5rem] shrink-0 items-center rounded-lg border focus-within:ring-1 focus-within:ring-blue-500 ${
         filled
-          ? "border-gray-700 bg-gray-700 focus-within:border-blue-400"
+          ? "border-gray-500 bg-gray-500 focus-within:border-blue-300"
           : "border-gray-300 focus-within:border-blue-500"
       }`}
     >
       <input
         type="time"
+        // 30分刻み。iOSのネイティブ時刻ダイアルの「分」が 00 / 30 だけになる
+        // (シフトは30分単位で足りるため。勤務表の実績入力は step=900=15分刻み)
+        step={1800}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        // 未入力の欄を開いたときの初期値。指定しないとブラウザが現在時刻を出すため、
+        // 「開いただけで中途半端な時刻(例 23:06)が入ってしまう」事故が起きていた。
+        // 00:00 から始めれば、深夜勤務の 0:00 はそのまま確定でき、他の時刻もダイアルで選びやすい。
+        // 誤って開いた場合は隣の ✕ で消せる(✕は blur を止めるので保存されない)。
+        onFocus={() => {
+          if (!value) onChange("00:00");
+        }}
         onBlur={onBlur}
         disabled={disabled}
         aria-label={label}
