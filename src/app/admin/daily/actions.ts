@@ -130,11 +130,18 @@ export type AdvanceResult = { ok: boolean; message: string };
  * amount に金額を渡すとその勤務日の前払金を登録(既存があれば上書き)、null を渡すと
  * 記録を取り消す。記録した前払金は、その勤務日を含む給与期間の給与計算で
  * 差引支給額から控除される(総支給額・課税対象額・源泉所得税は変わらない)。
+ *
+ * **amount はその日の支給額と一致しなくてよい**(画面から任意の金額を入力できる)。
+ * 実際に現金で渡した額をそのまま記録するのが正で、支給額と違っていても
+ * 「渡した額」を控除する。差額はその月の他の勤務日の支給額で自動的に精算される
+ * (例: 支給額13,360円の日に13,390円渡した → 30円多く控除され、月末の手取りが30円少なくなる)。
+ * 打刻の修正で支給額が後から変わる場合があるため、この乖離は実務上ふつうに起きる。
  */
 export async function setAdvancePayment(
   employeeId: string,
   workDate: string,
-  amount: number | null
+  amount: number | null,
+  note?: string | null
 ): Promise<AdvanceResult> {
   await requireAdmin();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
@@ -171,10 +178,19 @@ export async function setAdvancePayment(
     if (!Number.isInteger(amount) || amount < 0) {
       return { ok: false, message: "金額の指定が不正です" };
     }
+    // 桁の打ち間違い(0を1つ多く打つ等)を水際で止める。日当としてありえない額は弾く
+    if (amount > 1_000_000) {
+      return { ok: false, message: "金額が大きすぎます(100万円以下で入力してください)" };
+    }
     const { error } = await supabase
       .from("advance_payments")
       .upsert(
-        { employee_id: employeeId, work_date: workDate, amount },
+        {
+          employee_id: employeeId,
+          work_date: workDate,
+          amount,
+          note: note?.trim() ? note.trim() : null,
+        },
         { onConflict: "employee_id,work_date" }
       );
     if (error) return { ok: false, message: "登録に失敗しました" };

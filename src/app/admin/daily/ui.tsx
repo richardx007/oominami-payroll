@@ -204,6 +204,13 @@ export function DailySummary({
  * 記録すると、その勤務日を含む給与期間の給与計算で差引支給額から控除される
  * (総支給額・課税対象額・源泉所得税は変わらない)。
  *
+ * **記録する金額はその日の支給額と一致しなくてよい。** 「前払済」ボタンはその日の支給額を
+ * ワンタップで記録する近道にすぎず、金額をタップすれば実際に渡した額に修正できる。
+ * 打刻を後から修正して支給額が変わった場合など、渡した額と支給額がずれるのは実務上ふつうに
+ * 起きるため(2026-08-01に実際に発生)、**渡した額をそのまま残す**のを正とする。
+ * 差額はその月の他の勤務日の支給額で自動的に精算される。
+ * 支給額と違う額が記録されているときは、気付けるよう差額を併記する。
+ *
  * 保存中フラグは useTransition ではなく自前の state で持つ。useTransition の
  * pending は revalidatePath による再レンダーが適用されるまで解除されず、複数行を
  * 続けて押すと後から押した行の遷移が先の行の再レンダーに巻き取られて「記録中...」の
@@ -218,7 +225,7 @@ export function AdvanceToggle({
 }: {
   employeeId: string;
   workDate: string;
-  /** その日の支給額(記録するときの金額) */
+  /** その日の支給額(「前払済」ワンタップで記録する既定の金額) */
   amount: number;
   /** 記録済みの金額。null なら未記録 */
   recorded: number | null;
@@ -230,6 +237,9 @@ export function AdvanceToggle({
   const [serverValue, setServerValue] = useState(recorded);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 金額の手入力(実際に渡した額が支給額と違うとき)
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
 
   // サーバー側の値が変わったら追従する(期間の切り替え・再読み込み時)
   if (serverValue !== recorded) {
@@ -256,13 +266,77 @@ export function AdvanceToggle({
     }
   }
 
+  function startEdit() {
+    setError(null);
+    setDraft(String(value ?? amount));
+    setEditing(true);
+  }
+
+  async function commitEdit() {
+    const n = Number(draft);
+    if (!Number.isInteger(n) || n < 0) {
+      setError("金額は0以上の整数で入力してください");
+      return;
+    }
+    setEditing(false);
+    await run(n);
+  }
+
+  if (editing) {
+    return (
+      <span className="inline-flex flex-col items-end gap-0.5 print:hidden">
+        <span className="inline-flex items-center gap-1">
+          <span className="text-xs text-gray-500">¥</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={10}
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitEdit();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            className="w-24 rounded border border-amber-400 px-1.5 py-0.5 text-right text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-amber-400"
+          />
+          <button
+            type="button"
+            disabled={saving}
+            onClick={commitEdit}
+            className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+          >
+            保存
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-50"
+          >
+            中止
+          </button>
+        </span>
+        {error && <span className="text-xs text-red-600">{error}</span>}
+      </span>
+    );
+  }
+
   if (value !== null) {
+    // 実際に渡した額と、その日の支給額の差(0 なら一致)
+    const diff = value - amount;
     return (
       <span className="inline-flex flex-col items-end gap-0.5">
         <span className="inline-flex items-center gap-1.5">
-          <span className="font-medium text-amber-700 tabular-nums">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={startEdit}
+            title="実際に渡した金額に修正する"
+            className="font-medium text-amber-700 underline decoration-dotted underline-offset-2 tabular-nums disabled:opacity-50 print:no-underline"
+          >
             ¥{value.toLocaleString()}
-          </span>
+          </button>
           <button
             type="button"
             disabled={saving}
@@ -273,6 +347,15 @@ export function AdvanceToggle({
             {saving ? "..." : "取消"}
           </button>
         </span>
+        {/* 支給額と違う額を渡している場合は差額を出す(誤記録に気付けるようにするため) */}
+        {diff !== 0 && (
+          <span
+            title={`この日の支給額 ¥${amount.toLocaleString()} との差額`}
+            className="whitespace-nowrap text-xs font-medium text-red-600"
+          >
+            支給額と{diff > 0 ? "+" : "−"}¥{Math.abs(diff).toLocaleString()}
+          </span>
+        )}
         {error && <span className="text-xs text-red-600">{error}</span>}
       </span>
     );
@@ -280,15 +363,27 @@ export function AdvanceToggle({
 
   return (
     <span className="inline-flex flex-col items-end gap-0.5">
-      <button
-        type="button"
-        disabled={saving || disabled}
-        onClick={() => run(amount)}
-        title="この日の支給額を前払金として記録する"
-        className="rounded border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-40 print:hidden"
-      >
-        {saving ? "記録中..." : "前払済"}
-      </button>
+      <span className="inline-flex items-center gap-1 print:hidden">
+        <button
+          type="button"
+          disabled={saving || disabled}
+          onClick={() => run(amount)}
+          title="この日の支給額を前払金として記録する"
+          className="rounded border border-amber-300 bg-white px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+        >
+          {saving ? "記録中..." : "前払済"}
+        </button>
+        {/* 支給額と違う額を渡したときはこちらから入力する */}
+        <button
+          type="button"
+          disabled={saving || disabled}
+          onClick={startEdit}
+          title="支給額と違う金額を前払金として記録する"
+          className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-gray-500 hover:bg-gray-50 disabled:opacity-40"
+        >
+          金額指定
+        </button>
+      </span>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
   );
