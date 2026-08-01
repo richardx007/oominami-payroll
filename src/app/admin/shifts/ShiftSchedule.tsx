@@ -667,8 +667,17 @@ function TimeWithDefault({
   disabled?: boolean;
   label: string;
 }) {
+  // 変則が入っている欄は、既定のままの欄と一目で区別できるよう濃いグレー地＋白文字にする
+  // (入力に気付かず変則のまま放置する事故を防ぐため。2026-08-01にオーナー依頼で追加)
+  const filled = !!value;
   return (
-    <span className="relative inline-flex w-[5.5rem] shrink-0 items-center rounded-lg border border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+    <span
+      className={`relative inline-flex w-[5.5rem] shrink-0 items-center rounded-lg border focus-within:ring-1 focus-within:ring-blue-500 ${
+        filled
+          ? "border-gray-700 bg-gray-700 focus-within:border-blue-400"
+          : "border-gray-300 focus-within:border-blue-500"
+      }`}
+    >
       <input
         type="time"
         value={value}
@@ -676,7 +685,9 @@ function TimeWithDefault({
         onBlur={onBlur}
         disabled={disabled}
         aria-label={label}
-        className="w-full min-w-0 bg-transparent px-1 py-1 text-center text-sm focus:outline-none"
+        className={`w-full min-w-0 bg-transparent px-1 py-1 text-center text-sm focus:outline-none ${
+          filled ? "font-semibold text-white" : ""
+        }`}
       />
       {!value && (
         <span
