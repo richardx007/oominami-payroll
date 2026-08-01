@@ -79,21 +79,39 @@ function isRlsViolation(error: { code?: string } | null): boolean {
   return error?.code === "42501";
 }
 
-/** "HH:MM" を単位(分)で丸める。up=切り上げ(出勤) / down=切り捨て(退勤)。unit<=0 は丸めなし */
-function roundTime(hhmm: string, unit: number, dir: "up" | "down"): string {
-  if (!Number.isFinite(unit) || unit <= 1) return hhmm;
+/**
+ * "HH:MM" を単位(分)で丸める。up=切り上げ(出勤) / down=切り捨て(退勤)。unit<=0 は丸めなし。
+ *
+ * 23:5x台に出勤打刻すると切り上げで1440分(=24:00)以上になりうる。**日をまたいで
+ * 翌日0時として扱う必要がある**(2026-08-01: 23:50出勤・丸め30分の打刻が「23:59」に
+ * なってしまう不具合が発生。以前は1439分にクランプして当日内に押し込めていたのが原因)。
+ * `dayOffset`(0 or 1)を呼び出し側に返し、`work_date` をその分だけ進めてもらう。
+ */
+function roundTime(
+  hhmm: string,
+  unit: number,
+  dir: "up" | "down"
+): { time: string; dayOffset: number } {
+  if (!Number.isFinite(unit) || unit <= 1) return { time: hhmm, dayOffset: 0 };
   const [h, m] = hhmm.split(":").map(Number);
   const total = h * 60 + m;
   let rounded =
     dir === "up"
       ? Math.ceil(total / unit) * unit
       : Math.floor(total / unit) * unit;
-  // 24:00 以上は当日内(23:59)に丸める。負値は0に。
-  if (rounded > 1439) rounded = 1439;
+  // 切り上げが 24:00 以上になった場合は翌日の 0 時として扱う(当日23:59に押し込めない)
+  let dayOffset = 0;
+  if (rounded >= 1440) {
+    dayOffset = 1;
+    rounded -= 1440;
+  }
   if (rounded < 0) rounded = 0;
   const rh = Math.floor(rounded / 60);
   const rm = rounded % 60;
-  return `${String(rh).padStart(2, "0")}:${String(rm).padStart(2, "0")}`;
+  return {
+    time: `${String(rh).padStart(2, "0")}:${String(rm).padStart(2, "0")}`,
+    dayOffset,
+  };
 }
 
 /**
@@ -167,7 +185,18 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     };
   }
 
-  const date = todayJST();
+  // 丸め: 出勤は単位で切り上げ、退勤は切り捨て(単位0/未設定なら丸めなし)。
+  // 出勤の切り上げが24:00をまたいだ場合(例: 23:50を30分単位で切り上げ→翌日0:00)は
+  // dayOffset=1 が返るので、対象日(work_date)も1日進める必要がある(§roundTime参照)。
+  const now = new Date();
+  const { time, dayOffset } = roundTime(
+    nowTimeJST(now),
+    roundMin,
+    type === "in" ? "up" : "down"
+  );
+  const date = todayJST(
+    dayOffset ? new Date(now.getTime() + dayOffset * 86400000) : now
+  );
 
   // 対象日の給与期間が締め済み(受付中でない)なら、DBのRLSで弾かれる前に分かりやすいメッセージを返す
   // (締め処理が月末より早く行われた場合など、原因不明の「登録に失敗」表示を避けるため)
@@ -181,8 +210,6 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     };
   }
 
-  // 丸め: 出勤は単位で切り上げ、退勤は切り捨て(単位0/未設定なら丸めなし)
-  const time = roundTime(nowTimeJST(), roundMin, type === "in" ? "up" : "down");
   const transport = transportFields(input);
   let workEntryId: string | null = null;
 

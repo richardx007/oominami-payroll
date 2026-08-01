@@ -16,7 +16,12 @@ export type TransportDefault = {
 
 const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
 
-/** "HH:MM" を単位(分)で丸める(サーバーの roundTime と同じ挙動・表示用) */
+/**
+ * "HH:MM" を単位(分)で丸める(サーバーの roundTime と同じ挙動・表示用)。
+ * 23:5x台からの切り上げは24:00をまたぎ翌日0時になりうるため、23:59に押し込めず
+ * そのまま繰り上げる(表示用なので日付までは扱わないが、時刻自体は正しい「翌日0:00」に
+ * 近い値を見せる。2026-08-01: 23:59に丸め込むバグがサーバー側にもあり同時に修正)。
+ */
 function roundHHMM(hhmm: string, unit: number, dir: "up" | "down"): string {
   if (!hhmm || !Number.isFinite(unit) || unit <= 1) return hhmm;
   const [h, m] = hhmm.split(":").map(Number);
@@ -25,7 +30,7 @@ function roundHHMM(hhmm: string, unit: number, dir: "up" | "down"): string {
     dir === "up"
       ? Math.ceil(total / unit) * unit
       : Math.floor(total / unit) * unit;
-  if (r > 1439) r = 1439;
+  if (r >= 1440) r -= 1440;
   if (r < 0) r = 0;
   return `${String(Math.floor(r / 60)).padStart(2, "0")}:${String(r % 60).padStart(2, "0")}`;
 }
