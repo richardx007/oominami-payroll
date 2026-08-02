@@ -58,6 +58,12 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+  // 更新バナーが「このバージョンは通知済み」を端末に記録するためにバージョンを問い合わせる。
+  // ページを離れても記録が残るので、1デプロイにつきバナーは1回だけになる。
+  if (event.data && event.data.type === "GET_VERSION") {
+    const port = event.ports && event.ports[0];
+    if (port) port.postMessage({ version: SW_VERSION });
+  }
 });
 `;
 
