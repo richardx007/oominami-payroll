@@ -118,6 +118,35 @@ export function nowTimeJST(now: Date = new Date()): string {
   return jst.toISOString().slice(11, 16);
 }
 
+/**
+ * 業務日の切り替わり時刻(時)。**この時刻より前に始まる勤務は前日の勤務として扱う。**
+ *
+ * 当社では日をまたぐ深夜勤務を「その前日の業務」として管理している(業務日付)。
+ * シフトの「深夜」枠は 0:00〜9:00 のため、実日付で記録すると予定と実績が必ず1日ずれる。
+ * そこで打刻・勤務表・日別・給与計算のすべてを業務日付で統一している。
+ *
+ * ⚠️ **この値は設定画面に出していない。** 変えると過去データとの整合が崩れるため、
+ * 変更する場合は既存の `work_entries.work_date` の移行とセットで行うこと。
+ * 深夜枠の開始(0:00)より後、早番の開始(8:00)より前である必要がある(既定5時は深夜割増の
+ * 終わり=5:00と一致させたもの)。
+ */
+export const BUSINESS_DAY_START_HOUR = 5;
+
+/**
+ * 実日付＋時刻から業務日付を求める。
+ * 切り替わり時刻(既定5時)より前の時刻なら前日を返す。
+ *
+ * 例) 実日付 2026-08-01 の 00:00 開始 → 業務日付 2026-07-31
+ *     実日付 2026-08-01 の 08:00 開始 → 業務日付 2026-08-01
+ */
+export function businessDateOf(date: string, time: string): string {
+  const hour = Number(time.slice(0, 2));
+  if (!Number.isFinite(hour) || hour >= BUSINESS_DAY_START_HOUR) return date;
+  const d = new Date(date + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /** 前後の期間キー */
 export function adjacentPeriodKey(key: string, diff: 1 | -1): string {
   const m = /^(\d{4})-(\d{2})$/.exec(key)!;
