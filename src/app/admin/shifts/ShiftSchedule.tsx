@@ -101,6 +101,7 @@ export function ShiftSchedule({
   assign,
   clear,
   setLock,
+  meId = null,
   mode,
   canSwitchMode = false,
   setMode,
@@ -129,6 +130,12 @@ export function ShiftSchedule({
   clear?: (employeeId: string, workDate: string) => Promise<ActionResult>;
   /** 本人が自分の予定をロック/解除する(従業員画面のみ渡す。管理者は解除できない) */
   setLock?: (workDate: string, locked: boolean) => Promise<ActionResult>;
+  /**
+   * 画面を見ている本人の従業員ID。ロックの色分け(自分=オレンジ / 他人=黒)と、
+   * カレンダーに自分のロック印を出すために使う。編集可否とは別概念なので
+   * editableEmployeeId とは分けている(管理者は全員を編集できるが「自分」は1人)。
+   */
+  meId?: string | null;
   /** その月のモード。"draft"(調整中)=従業員が自分の希望を入力できる / "confirmed"(確定) */
   mode: ShiftMode;
   /** モードの切り替えボタンを出すか(管理者のみ) */
@@ -194,6 +201,16 @@ export function ShiftSchedule({
   const lockedKeys = useMemo(
     () => new Set(localLocks.map((l) => `${l.employee_id}|${l.work_date}`)),
     [localLocks]
+  );
+  // 自分がロックしている日。カレンダーに印を出して一目で分かるようにする
+  const myLockedDates = useMemo(
+    () =>
+      new Set(
+        localLocks
+          .filter((l) => !!meId && l.employee_id === meId)
+          .map((l) => l.work_date)
+      ),
+    [localLocks, meId]
   );
 
   // 日付 -> 枠 -> {メンバー, 変則時刻}配列
@@ -435,10 +452,16 @@ export function ShiftSchedule({
                       isSelected ? "z-10 ring-2 ring-blue-500" : "hover:bg-gray-50"
                     } ${isToday ? "bg-gray-100" : ""}`}
                   >
-                    <div className="flex justify-center">
+                    <div className="flex items-center justify-center gap-0.5">
                       <span className={`text-base font-bold sm:text-lg ${textColor}`}>
                         {day}
                       </span>
+                      {/* 自分がロックした日は日付の右にオレンジの鍵を出し、
+                          どこをロックしているか一目で分かるようにする。
+                          スワイプ中は前月の印が残らないよう出さない。 */}
+                      {!swipeBlank && myLockedDates.has(date) && (
+                        <LockIcon className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+                      )}
                     </div>
                     {/* 縦位置で枠を表現(上段=早番/中段=遅番/下段=深夜)。各人を横幅いっぱいの色帯で表示。
                         名前が5文字程度まで収まるよう余白を最小限にする(隣のセルと接触してもよい)。 */}
@@ -512,6 +535,7 @@ export function ShiftSchedule({
             canAssign={!!assign && !!clear}
             editableEmployeeId={editableEmployeeId}
             lockedKeys={lockedKeys}
+            meId={meId}
             onAssign={runAssign}
             onLock={setLock ? runLock : undefined}
           />
@@ -589,6 +613,7 @@ function EditRow({
   style,
   readOnly = false,
   locked = false,
+  lockIsMine = false,
   onLock,
   onAssign,
 }: {
@@ -603,6 +628,8 @@ function EditRow({
   readOnly?: boolean;
   /** 本人が「変更不可」に設定している日か */
   locked?: boolean;
+  /** そのロックが画面を見ている本人のものか(自分=オレンジ / 他人=黒) */
+  lockIsMine?: boolean;
   /** ロックの切替(本人の行のみ渡る。管理者には渡さない=解除できない) */
   onLock?: (workDate: string, locked: boolean) => void;
   onAssign: (
@@ -682,7 +709,9 @@ function EditRow({
             locked && (
               <span
                 title="本人が変更不可に設定しています"
-                className="shrink-0 text-orange-500"
+                className={`shrink-0 ${
+                  lockIsMine ? "text-orange-500" : "text-gray-900"
+                }`}
               >
                 <LockIcon />
               </span>
@@ -849,6 +878,7 @@ function DayPanel({
   canAssign,
   editableEmployeeId,
   lockedKeys,
+  meId = null,
   onAssign,
   onLock,
 }: {
@@ -865,6 +895,8 @@ function DayPanel({
   editableEmployeeId?: string | null;
   /** `${employee_id}|${work_date}` のロック集合 */
   lockedKeys: Set<string>;
+  /** 画面を見ている本人の従業員ID(ロックの色分けに使う: 自分=オレンジ / 他人=黒) */
+  meId?: string | null;
   onAssign: (
     employeeId: string,
     workDate: string,
@@ -909,7 +941,11 @@ function DayPanel({
                     {lockedKeys.has(`${m.id}|${date}`) && (
                       <span
                         title="本人が変更不可に設定しています"
-                        className="shrink-0 text-orange-500"
+                        className={`shrink-0 ${
+                          meId && m.id === meId
+                            ? "text-orange-500"
+                            : "text-gray-900"
+                        }`}
                       >
                         <LockIcon />
                       </span>
@@ -944,7 +980,13 @@ function DayPanel({
                 </span>
                 <span className="flex min-w-0 items-center gap-1 text-base text-gray-500 sm:text-lg">
                   <span className="truncate">{displayName(m)}</span>
-                  <span className="shrink-0 text-orange-500">
+                  <span
+                    className={`shrink-0 ${
+                      meId && m.id === meId
+                        ? "text-orange-500"
+                        : "text-gray-900"
+                    }`}
+                  >
                     <LockIcon />
                   </span>
                 </span>
@@ -980,6 +1022,8 @@ function DayPanel({
                 // ロックされた日(本人以外=管理者。本人は自分の意思表示なので動かせてよい)
                 readOnly={!canEdit || !canAssign || (locked && !onLock)}
                 locked={locked}
+                // 自分のロックはオレンジ、他人のロックは黒で区別する
+                lockIsMine={!!meId && m.id === meId}
                 // ロックを切り替えられるのは本人だけ(管理者には onLock を渡さない)
                 onLock={onLock && canEdit ? onLock : undefined}
                 onAssign={onAssign}

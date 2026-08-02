@@ -48,6 +48,7 @@ export default async function EmployeeShiftsPage({
       // 管理者はロックを外せない仕様のため、本人がいつでも外せないと解除手段が無くなる。
       editable
       editableEmployeeId={me.id}
+      meId={me.id}
       assign={draft ? assignShift : undefined}
       clear={draft ? clearShift : undefined}
       setLock={setShiftLock}
