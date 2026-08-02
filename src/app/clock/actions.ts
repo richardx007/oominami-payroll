@@ -4,7 +4,12 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
-import { todayJST, nowTimeJST, standardBreakMinutes } from "@/lib/period";
+import {
+  todayJST,
+  nowTimeJST,
+  businessDateOf,
+  standardBreakMinutes,
+} from "@/lib/period";
 import { parseBreakWindows } from "@/lib/breaks";
 import { logActivity } from "@/lib/log";
 
@@ -187,16 +192,21 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
 
   // 丸め: 出勤は単位で切り上げ、退勤は切り捨て(単位0/未設定なら丸めなし)。
   // 出勤の切り上げが24:00をまたいだ場合(例: 23:50を30分単位で切り上げ→翌日0:00)は
-  // dayOffset=1 が返るので、対象日(work_date)も1日進める必要がある(§roundTime参照)。
+  // dayOffset=1 が返るので、実日付を1日進めてから業務日付に変換する(§roundTime参照)。
   const now = new Date();
   const { time, dayOffset } = roundTime(
     nowTimeJST(now),
     roundMin,
     type === "in" ? "up" : "down"
   );
-  const date = todayJST(
+  const realDate = todayJST(
     dayOffset ? new Date(now.getTime() + dayOffset * 86400000) : now
   );
+  // 日をまたぐ深夜勤務は前日の業務として扱う(業務日付)。5時より前に始まる勤務は前日扱い。
+  // 例) 23:50打刻→丸めて翌0:00→実日付は翌日だが業務日付は当日に戻る。
+  //     深夜勤務(0:00〜9:00)の退勤9:00は5時以降なので実日付のまま業務日付になるが、
+  //     退勤は「業務日付以前の未退勤レコード」を探すため正しく前日のシフトに紐付く。
+  const date = businessDateOf(realDate, time);
 
   // 対象日の給与期間が締め済み(受付中でない)なら、DBのRLSで弾かれる前に分かりやすいメッセージを返す
   // (締め処理が月末より早く行われた場合など、原因不明の「登録に失敗」表示を避けるため)

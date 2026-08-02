@@ -7,6 +7,8 @@ import {
   type TaxTableRow,
 } from "./payroll";
 import {
+  BUSINESS_DAY_START_HOUR,
+  businessDateOf,
   currentPeriod,
   datesInPeriod,
   nightMinutes,
@@ -83,6 +85,41 @@ describe("period", () => {
     expect(standardBreakMinutes("21:00", "06:00")).toBe(60);
     // 昼・夜またぎで2つの休憩帯に掛かると120分
     expect(standardBreakMinutes("10:00", "22:00")).toBe(120);
+  });
+});
+
+describe("businessDateOf(業務日付)", () => {
+  it("切替時刻(5時)より前に始まる勤務は前日扱いにする", () => {
+    // 深夜勤務(0:00〜9:00)。実日付は8/1だが業務としては7/31の夜勤
+    expect(businessDateOf("2026-08-01", "00:00")).toBe("2026-07-31");
+    expect(businessDateOf("2026-08-01", "04:59")).toBe("2026-07-31");
+  });
+
+  it("切替時刻以降に始まる勤務は実日付のまま", () => {
+    expect(businessDateOf("2026-08-01", "05:00")).toBe("2026-08-01");
+    expect(businessDateOf("2026-08-01", "08:00")).toBe("2026-08-01"); // 早番
+    expect(businessDateOf("2026-08-01", "15:00")).toBe("2026-08-01"); // 遅番
+    expect(businessDateOf("2026-08-01", "23:50")).toBe("2026-08-01");
+  });
+
+  it("月initial・年initialをまたいでも正しく前日に戻る", () => {
+    expect(businessDateOf("2026-08-01", "01:00")).toBe("2026-07-31");
+    expect(businessDateOf("2026-01-01", "01:00")).toBe("2025-12-31");
+    // うるう年の3/1 → 2/29
+    expect(businessDateOf("2024-03-01", "01:00")).toBe("2024-02-29");
+  });
+
+  it("給与期間(25日締め)の境界で、25日夜の深夜勤務が当月に含まれる", () => {
+    // 8/25の夜勤は実際には8/26未明だが、業務日付は8/25＝2026年8月度(7/26〜8/25)に入る
+    const biz = businessDateOf("2026-08-26", "00:00");
+    expect(biz).toBe("2026-08-25");
+    const p = periodOf(2026, 8);
+    expect(biz >= p.start && biz <= p.end).toBe(true);
+  });
+
+  it("切替時刻は深夜枠の開始(0時)より後・早番の開始(8時)より前", () => {
+    expect(BUSINESS_DAY_START_HOUR).toBeGreaterThan(0);
+    expect(BUSINESS_DAY_START_HOUR).toBeLessThan(8);
   });
 });
 
