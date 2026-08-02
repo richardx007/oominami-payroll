@@ -18,6 +18,48 @@ export interface ReloadPromptProps {
   position?: "top" | "bottom";
 }
 
+// 「このバージョンについては通知済み」を端末に残すキー。ページを離れても効くので、
+// 1デプロイにつきバナーを1回に限定できる(ref だけだとリロードでリセットされる)。
+const NOTIFIED_KEY = "sw-notified-version";
+
+// 待機中の新 SW に自分のバージョン(SW_VERSION)を尋ねる。
+// 取得できない場合(古い SW・非対応・タイムアウト)は null を返し、呼び出し側は
+// 従来どおりの「同一インスタンス1回」判定にフォールバックする。
+function askVersion(sw: ServiceWorker, timeoutMs = 1500): Promise<string | null> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v: string | null) => {
+      if (done) return;
+      done = true;
+      resolve(v);
+    };
+    try {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = (e) => finish(e.data?.version ?? null);
+      sw.postMessage({ type: "GET_VERSION" }, [ch.port2]);
+      window.setTimeout(() => finish(null), timeoutMs);
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+function readNotified(): string | null {
+  try {
+    return window.localStorage.getItem(NOTIFIED_KEY);
+  } catch {
+    return null; // プライベートモード等で localStorage が使えない場合
+  }
+}
+
+function writeNotified(version: string) {
+  try {
+    window.localStorage.setItem(NOTIFIED_KEY, version);
+  } catch {
+    /* 記録できなくてもバナーの動作自体は継続する */
+  }
+}
+
 export function ReloadPrompt({
   message = "新しいバージョンがあります",
   buttonLabel = "更新",
@@ -30,7 +72,10 @@ export function ReloadPrompt({
   const waitingRef = useRef<ServiceWorker | null>(null);
   // 同じ待機 SW を何度も通知しないための記録。ポーリング/タブ復帰/updatefound など
   // 複数経路から同一バージョンで showBanner が呼ばれてもバナーは1回だけにする。
+  // ※これはページを開いている間だけの防御。リロードを跨ぐ防御は localStorage 側。
   const notifiedRef = useRef<ServiceWorker | null>(null);
+  // 表示中バナーが対象としている SW のバージョン(取得できた場合)。
+  const versionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -39,6 +84,7 @@ export function ReloadPrompt({
     const hadController = !!navigator.serviceWorker.controller;
     let timer: number | undefined;
     let reloaded = false;
+    let cancelled = false;
     let visibilityCleanup: (() => void) | undefined;
 
     const showBanner = (sw: ServiceWorker) => {
@@ -47,7 +93,19 @@ export function ReloadPrompt({
       if (notifiedRef.current === sw) return;
       notifiedRef.current = sw;
       waitingRef.current = sw;
-      setNeedRefresh(true);
+      // バージョンを尋ね、この端末で既に通知済みのデプロイなら出さない。
+      // 更新ボタンを押した直後は新 SW が waiting のまま残ることがあり(有効化は
+      // 全クライアントが離れるまで遅れうる)、リロード後に同じ更新でもう一度
+      // バナーが出てしまうのを防ぐ。SW は fetch を横取りしないため、一度
+      // リロードした時点でアプリの中身は最新になっており、再通知は不要。
+      void askVersion(sw).then((version) => {
+        if (cancelled) return;
+        if (version) {
+          if (readNotified() === version) return;
+          versionRef.current = version;
+        }
+        setNeedRefresh(true);
+      });
     };
 
     navigator.serviceWorker
@@ -104,6 +162,7 @@ export function ReloadPrompt({
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
     return () => {
+      cancelled = true;
       if (timer) window.clearInterval(timer);
       visibilityCleanup?.();
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
@@ -152,20 +211,32 @@ export function ReloadPrompt({
             if (updating) return;
             // クリックが効いたことを伝えるため、まず「更新中...」に切り替える。
             setUpdating(true);
-            // iOS Safari(standalone)では controllerchange や非同期処理が確実に動かない
-            // ことがあるため、最小限かつ確実に処理する:
-            //   1) 待機中の新 SW に SKIP_WAITING を投げる(ベストエフォート)。有効化されると
-            //      controllerchange でリロードされる。
-            //   2) 発火しない環境向けに、少し待ってからフォールバックでリロードする。
-            //      この SW はキャッシュしないので、リロード＝最新版取得。
+            // このデプロイは対応済みとして記録する。リロード後に新 SW がまだ
+            // waiting でも、同じ更新でバナーが再表示されない。
+            if (versionRef.current) writeNotified(versionRef.current);
+
+            const sw = waitingRef.current;
+            let done = false;
+            const reloadOnce = () => {
+              if (done) return;
+              done = true;
+              window.location.reload();
+            };
+            // 新 SW が実際に有効化されてからリロードする。以前は 0.8 秒固定で
+            // リロードしていたが、iOS standalone では有効化が間に合わず
+            // 「新版が waiting のまま残る → リロード後にもう一度バナー」に
+            // なっていた。activated / controllerchange のどちらかを待つ。
             try {
-              waitingRef.current?.postMessage({ type: "SKIP_WAITING" });
+              sw?.addEventListener("statechange", () => {
+                if (sw.state === "activated") reloadOnce();
+              });
+              sw?.postMessage({ type: "SKIP_WAITING" });
             } catch {
-              /* 失敗してもリロードする */
+              /* 失敗してもフォールバックでリロードする */
             }
-            // 「更新中...」を一瞬見せてからリロード(controllerchange が先に来れば
-            // そちらでリロードされ、このタイマーは実行前に遷移する)。
-            window.setTimeout(() => window.location.reload(), 800);
+            // 上記が発火しない端末向けの保険。この SW はキャッシュしないので
+            // リロード＝最新版取得であり、待ちすぎない範囲で余裕を持たせる。
+            window.setTimeout(reloadOnce, 2500);
           }}
           style={{
             display: "inline-flex",
@@ -190,7 +261,14 @@ export function ReloadPrompt({
         {!updating && (
           <button
             type="button"
-            onClick={() => setNeedRefresh(false)}
+            onClick={() => {
+              // ✕ で閉じた場合もこのデプロイは通知済みとして記録する
+              // (以前はリロードのたびに同じ更新で再表示されていた)。
+              // 未更新のままにはならない: この SW はキャッシュしないため、
+              // 次にアプリを開き直した時点で中身は最新になる。
+              if (versionRef.current) writeNotified(versionRef.current);
+              setNeedRefresh(false);
+            }}
             aria-label="閉じる"
             style={{
               border: "none",
