@@ -53,7 +53,7 @@ function displayName(m: RosterMember): string {
  * 「変更不可」ロックの鍵アイコン(単色フラット)。色は currentColor で親から与える。
  * ニックネームラベルの右端に置くため、小さくても形が分かる塗りつぶしにしている。
  */
-function LockIcon({ className = "h-4 w-4" }: { className?: string }) {
+function LockIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -672,7 +672,8 @@ function EditRow({
               className={`shrink-0 transition ${
                 locked
                   ? "text-orange-500 hover:text-orange-600"
-                  : "text-gray-400 hover:text-gray-500"
+                  : // オフはひと目で「効いていない」と分かるよう、かなり薄いグレーにする
+                    "text-gray-300 hover:text-gray-400"
               }`}
             >
               <LockIcon />
