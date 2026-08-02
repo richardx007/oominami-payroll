@@ -49,6 +49,32 @@ function displayName(m: RosterMember): string {
   return m.nickname?.trim() || m.name;
 }
 
+/**
+ * 「変更不可」ロックの鍵アイコン(単色フラット)。色は currentColor で親から与える。
+ * ニックネームラベルの右端に置くため、小さくても形が分かる塗りつぶしにしている。
+ */
+function LockIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      {/* つる(shackle): 開いた口の形を線で描く */}
+      <path
+        d="M8 10V7a4 4 0 0 1 8 0v3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      {/* 本体 */}
+      <rect x="5" y="10" width="14" height="10" rx="2" />
+    </svg>
+  );
+}
+
 /** ニックネームの表示区分(nicknameStyle)から className/文字色を組み立てる */
 function nicknameClass(style: NicknameStyle): string {
   if (style === "match") return "font-bold";
@@ -611,23 +637,55 @@ function EditRow({
   return (
     <div className="border-b border-gray-50 py-1">
       <div className="flex items-center justify-between gap-2">
+        {/* ニックネームラベル。鍵は名前の直後ではなく**ラベルの右端**に固定して、
+            行が変わっても鍵の位置が揃うようにする(2026-08-02にオーナー依頼) */}
         <span
-          className={`min-w-0 flex-1 truncate rounded px-2 py-0.5 text-sm ${nicknameClass(style)}`}
+          className="flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-0.5 text-sm"
           style={{
             backgroundColor: m.color ?? "#eef2f7",
             color: nicknameColor(style),
           }}
-          title={m.name}
         >
-          {displayName(m)}
-          {/* ロック中は誰の画面でも鍵を出す(管理者が理由を把握できるように) */}
-          {locked && (
-            <span
-              title="本人が変更不可に設定しています"
-              className="ml-1 align-middle"
+          <span
+            className={`min-w-0 flex-1 truncate ${nicknameClass(style)}`}
+            title={m.name}
+          >
+            {displayName(m)}
+          </span>
+          {/* 本人の行は押せるトグル(オフ=薄いグレー / オン=オレンジ)。
+              他の人の行は、ロック中のときだけ状態表示として出す(管理者は解除できないため) */}
+          {onLock ? (
+            <button
+              type="button"
+              onClick={() => onLock(date, !locked)}
+              aria-pressed={locked}
+              aria-label={
+                locked ? "変更不可を解除する" : "この日を変更不可にする"
+              }
+              title={
+                locked
+                  ? "変更不可を解除する"
+                  : cur
+                    ? "このシフト希望を変更不可にする"
+                    : "この日は勤務不可(シフトを入れさせない)にする"
+              }
+              className={`shrink-0 transition ${
+                locked
+                  ? "text-orange-500 hover:text-orange-600"
+                  : "text-gray-400 hover:text-gray-500"
+              }`}
             >
-              🔒
-            </span>
+              <LockIcon />
+            </button>
+          ) : (
+            locked && (
+              <span
+                title="本人が変更不可に設定しています"
+                className="shrink-0 text-orange-500"
+              >
+                <LockIcon />
+              </span>
+            )
           )}
         </span>
         <div className="flex shrink-0 gap-1">
@@ -651,29 +709,6 @@ function EditRow({
               {slots[k].label}
             </button>
           ))}
-          {/* 本人だけが出せる「変更不可」トグル。管理者には onLock を渡していないので出ない。
-              枠が無い日にロックすれば「勤務不可」、枠がある日なら「この希望は変更不可」の意味になる。 */}
-          {onLock && (
-            <button
-              type="button"
-              onClick={() => onLock(date, !locked)}
-              title={
-                locked
-                  ? "変更不可を解除する"
-                  : cur
-                    ? "このシフト希望を変更不可にする"
-                    : "この日は勤務不可(シフトを入れさせない)にする"
-              }
-              aria-pressed={locked}
-              className={`h-7 rounded-lg border px-2 text-xs font-bold transition ${
-                locked
-                  ? "border-amber-500 bg-amber-500 text-white"
-                  : "border-gray-300 bg-white text-gray-400 hover:bg-gray-50"
-              }`}
-            >
-              🔒
-            </button>
-          )}
         </div>
       </div>
       {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ保存。
@@ -864,16 +899,18 @@ function DayPanel({
                     {slots[k].label}
                   </span>
                   <span
-                    className={`truncate text-base sm:text-lg ${nicknameClass(style)}`}
+                    className={`flex min-w-0 items-center gap-1 text-base sm:text-lg`}
                     style={{ color: nicknameColor(style) }}
                   >
-                    {displayName(m)}
+                    <span className={`truncate ${nicknameClass(style)}`}>
+                      {displayName(m)}
+                    </span>
                     {lockedKeys.has(`${m.id}|${date}`) && (
                       <span
                         title="本人が変更不可に設定しています"
-                        className="ml-1"
+                        className="shrink-0 text-orange-500"
                       >
-                        🔒
+                        <LockIcon />
                       </span>
                     )}
                   </span>
@@ -904,8 +941,11 @@ function DayPanel({
                 <span className="text-sm font-bold text-amber-700 sm:text-base">
                   勤務不可
                 </span>
-                <span className="truncate text-base text-gray-500 sm:text-lg">
-                  {displayName(m)} 🔒
+                <span className="flex min-w-0 items-center gap-1 text-base text-gray-500 sm:text-lg">
+                  <span className="truncate">{displayName(m)}</span>
+                  <span className="shrink-0 text-orange-500">
+                    <LockIcon />
+                  </span>
                 </span>
                 <span />
               </Fragment>
