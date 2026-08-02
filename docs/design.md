@@ -1384,11 +1384,40 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
 > 「ぶつかりが見えたほうが当人同士で調整できる」との判断で**表示は全員分**に変更した。
 > このとき `get_shift_status()` に入れていた絞り込みも外している。
 
+### 13.3.1 🔒 従業員によるロック（変更不可。2026-08-02追加）
+
+**従業員本人が自分の予定に「変更不可」のロックをかけられる。ロックされた日は
+管理者であってもシフトを追加・変更・削除できない**（本人が外すまで。**確定モードになった後も有効**）。
+
+- **2つの意味を1つの仕組みで表す**（どちらもロックの有無だけで表現できる）:
+  - ロックのみ（枠なし）＝「**この日は勤務不可**」→ 管理者がシフトを入れられない
+  - ロック＋枠あり＝「**このシフト希望は変更不可**」→ 管理者が枠を動かせない
+- **専用テーブル `shift_locks(employee_id, work_date)`**。`shift_assignments` に
+  フラグを持たせなかったのは、`slot` が NOT NULL のため**「勤務不可（シフトなし）」を
+  表現できない**から。別テーブルなら枠の有無に関わらずロックを保持できる。
+- **解除できるのは本人だけ。管理者は解除できない**（2026-08-02にオーナー判断）。
+  管理者が外せると「独断で変更させない」という趣旨が成立しないため。
+  RLS の `shift_locks_self_insert` / `_self_delete`（`employee_id = current_employee_id()`）で担保。
+- **強制は RLS で行う**。`shift_assignments_admin` を
+  `is_admin() and not is_shift_locked(employee_id, work_date)` に変更した。
+  - 🔴 **USING と WITH CHECK の両方に条件を入れること。** USING だけだと「ロック日への新規追加」を、
+    WITH CHECK だけだと「ロック日の既存行の削除」を防げない。
+  - `is_shift_locked(uuid, date)` は SECURITY DEFINER（他人のロック行の可読性に依存させないため）。
+- **確定モードでも本人はロックを付け外しできる**（`(employee)/shifts/page.tsx` は
+  `editable` を常に true・`setLock` を常に渡す）。管理者が外せない以上、本人がいつでも
+  外せないと**解除手段が無くなる**ため。枠ボタン側は `canAssign`（＝`assign`/`clear` の有無）で
+  別途制御し、確定モードでは押せないままにしている。
+- 表示: ロック中は**行に 🔒**（管理者・他の従業員の画面でも見える。理由を把握できるように）。
+  本人の行には**🔒トグルボタン**が出る。閲覧専用パネルでは、枠が無くロックだけある人を
+  「**勤務不可**」の行として別途表示する（枠一覧には現れないため気付けない）。
+
 ### 13.4 実装ファイル
 
 - DB: `supabase/migrations/20260727_shift_modes.sql`（`shift_modes`・`shift_period_key()`・
   `is_shift_draft()`・`shift_assignments` の書き込みポリシー）、
-  `20260727_shift_draft_show_all.sql`（表示を全員分に戻す）。
+  `20260727_shift_draft_show_all.sql`（表示を全員分に戻す）、
+  `20260802051500_shift_locks.sql`（`shift_locks`・`is_shift_locked()`・
+  `shift_assignments_admin` にロック条件を追加。§13.3.1）。
 - 共通: `lib/shifts.ts`（`ShiftMode`/`defaultShiftMode()`/`shiftModeLabel()`）、
   `lib/shift-data.ts`（`loadShiftData` が `mode` を返す）。
 - 画面: `admin/shifts/ShiftSchedule.tsx`（見出し「シフト」＋モードバッジ〈確定=ブルー/調整中=イエロー〉。

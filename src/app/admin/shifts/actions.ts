@@ -27,12 +27,29 @@ async function canEditShift(
   workDate: string
 ): Promise<ActionResult> {
   const me = await requireEmployee();
+  const supabase = await createClient();
+
+  // 本人がロックした日は、管理者であっても変更できない(最終的な担保は RLS の
+  // shift_assignments_admin。ここは画面に分かりやすい理由を返すためのチェック)。
+  // 本人は自分のロックを外せばよいので、本人の操作はここでは止めない。
+  if (me.is_admin && employeeId !== me.id) {
+    const { data: locked } = await supabase.rpc("is_shift_locked", {
+      p_employee_id: employeeId,
+      d: workDate,
+    });
+    if (locked) {
+      return {
+        ok: false,
+        message:
+          "本人が変更不可に設定している日のため変更できません。本人に解除を依頼してください。",
+      };
+    }
+  }
   if (me.is_admin) return { ok: true, message: "" };
 
   if (employeeId !== me.id) {
     return { ok: false, message: "他の人のシフトは変更できません" };
   }
-  const supabase = await createClient();
   const { data: draft } = await supabase.rpc("is_shift_draft", { d: workDate });
   if (!draft) {
     return {
@@ -41,6 +58,48 @@ async function canEditShift(
     };
   }
   return { ok: true, message: "" };
+}
+
+/**
+ * シフト予定のロックを設定/解除する（本人のみ）。
+ *
+ * ロックした日は「勤務不可」または「このシフト希望は変更不可」の意思表示として、
+ * **管理者であってもシフトの追加・変更・削除ができなくなる**（確定モードになった後も有効）。
+ * 外せるのは本人だけ（RLS の shift_locks_self_insert / _self_delete で担保）。
+ */
+export async function setShiftLock(
+  workDate: string,
+  locked: boolean
+): Promise<ActionResult> {
+  const me = await requireEmployee();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    return { ok: false, message: "日付の指定が不正です" };
+  }
+  const supabase = await createClient();
+
+  if (locked) {
+    const { error } = await supabase
+      .from("shift_locks")
+      .upsert(
+        { employee_id: me.id, work_date: workDate },
+        { onConflict: "employee_id,work_date" }
+      );
+    if (error) return { ok: false, message: "設定に失敗しました" };
+  } else {
+    const { error } = await supabase
+      .from("shift_locks")
+      .delete()
+      .eq("employee_id", me.id)
+      .eq("work_date", workDate);
+    if (error) return { ok: false, message: "解除に失敗しました" };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/shifts");
+  return {
+    ok: true,
+    message: locked ? "変更不可に設定しました" : "変更不可を解除しました",
+  };
 }
 
 /** 従業員のその日のシフト枠(＋任意の変則出勤/退勤予定)を設定(1従業員1日1枠。再設定で上書き)。 */

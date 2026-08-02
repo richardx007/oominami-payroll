@@ -37,6 +37,12 @@ export type Assignment = {
   custom_start: string | null;
   custom_end: string | null;
 };
+/**
+ * 従業員本人がかけた「変更不可」ロック。
+ * ロックされた日は管理者でもシフトを追加・変更・削除できない(確定モード後も有効)。
+ * シフトの有無に関わらず持てるので、「勤務不可(シフトなし+ロック)」も表現できる。
+ */
+export type ShiftLock = { employee_id: string; work_date: string };
 
 /** 表示名: ニックネーム優先、無ければ氏名 */
 function displayName(m: RosterMember): string {
@@ -60,6 +66,7 @@ export function ShiftSchedule({
   slots,
   roster,
   assignments,
+  locks = [],
   statusMap,
   holidays,
   today,
@@ -67,6 +74,7 @@ export function ShiftSchedule({
   editable = false,
   assign,
   clear,
+  setLock,
   mode,
   canSwitchMode = false,
   setMode,
@@ -76,6 +84,8 @@ export function ShiftSchedule({
   slots: Record<SlotKey, SlotDef>;
   roster: RosterMember[];
   assignments: Assignment[];
+  /** 本人がかけた「変更不可」ロック */
+  locks?: ShiftLock[];
   /** `${employee_id}|${work_date}` -> status。ニックネームのフォント表示に使う(nicknameStyle参照) */
   statusMap: Record<string, ShiftStatus>;
   holidays: Record<string, string>;
@@ -91,6 +101,8 @@ export function ShiftSchedule({
     custom_end?: string;
   }) => Promise<ActionResult>;
   clear?: (employeeId: string, workDate: string) => Promise<ActionResult>;
+  /** 本人が自分の予定をロック/解除する(従業員画面のみ渡す。管理者は解除できない) */
+  setLock?: (workDate: string, locked: boolean) => Promise<ActionResult>;
   /** その月のモード。"draft"(調整中)=従業員が自分の希望を入力できる / "confirmed"(確定) */
   mode: ShiftMode;
   /** モードの切り替えボタンを出すか(管理者のみ) */
@@ -145,6 +157,18 @@ export function ShiftSchedule({
       });
     return m;
   }, [local]);
+
+  // ロックも楽観的更新にする(枠ボタンと同じく、押した瞬間に反映したいため)
+  const [localLocks, setLocalLocks] = useState(locks);
+  const [lockRef, setLockRef] = useState(locks);
+  if (lockRef !== locks) {
+    setLockRef(locks);
+    setLocalLocks(locks);
+  }
+  const lockedKeys = useMemo(
+    () => new Set(localLocks.map((l) => `${l.employee_id}|${l.work_date}`)),
+    [localLocks]
+  );
 
   // 日付 -> 枠 -> {メンバー, 変則時刻}配列
   const byDate = useMemo(() => {
@@ -249,6 +273,26 @@ export function ShiftSchedule({
     } finally {
       setSavingCount((n) => n - 1);
       // 予実状態など派生表示をサーバーの内容に合わせる(失敗時はここで巻き戻る)
+      router.refresh();
+    }
+  }
+
+  /** 自分の予定のロック/解除(本人のみ)。枠ボタンと同じく楽観的更新にする。 */
+  async function runLock(workDate: string, locked: boolean) {
+    if (!setLock || !editableEmployeeId) return;
+    const key = `${editableEmployeeId}|${workDate}`;
+    setLocalLocks((prev) =>
+      locked
+        ? [...prev, { employee_id: editableEmployeeId, work_date: workDate }]
+        : prev.filter((l) => `${l.employee_id}|${l.work_date}` !== key)
+    );
+    setResult(null);
+    try {
+      const res = await setLock(workDate, locked);
+      if (!res.ok) setResult(res);
+    } catch {
+      setResult({ ok: false, message: "保存に失敗しました" });
+    } finally {
       router.refresh();
     }
   }
@@ -438,8 +482,12 @@ export function ShiftSchedule({
             customByKey={customByKey}
             statusMap={statusMap}
             editable={editable}
+            // 枠の割当ができるか(確定モードの従業員画面では false。行は出すが枠は押せない)
+            canAssign={!!assign && !!clear}
             editableEmployeeId={editableEmployeeId}
+            lockedKeys={lockedKeys}
             onAssign={runAssign}
+            onLock={setLock ? runLock : undefined}
           />
         ) : (
           <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
@@ -514,6 +562,8 @@ function EditRow({
   customEnd,
   style,
   readOnly = false,
+  locked = false,
+  onLock,
   onAssign,
 }: {
   member: RosterMember;
@@ -523,8 +573,12 @@ function EditRow({
   customStart: string | null;
   customEnd: string | null;
   style: NicknameStyle;
-  /** 他の人の行(調整中の従業員画面)。表示はするが操作はできない */
+  /** 他の人の行(調整中の従業員画面)・ロックされた日の管理者操作。表示はするが操作はできない */
   readOnly?: boolean;
+  /** 本人が「変更不可」に設定している日か */
+  locked?: boolean;
+  /** ロックの切替(本人の行のみ渡る。管理者には渡さない=解除できない) */
+  onLock?: (workDate: string, locked: boolean) => void;
   onAssign: (
     employeeId: string,
     workDate: string,
@@ -566,6 +620,15 @@ function EditRow({
           title={m.name}
         >
           {displayName(m)}
+          {/* ロック中は誰の画面でも鍵を出す(管理者が理由を把握できるように) */}
+          {locked && (
+            <span
+              title="本人が変更不可に設定しています"
+              className="ml-1 align-middle"
+            >
+              🔒
+            </span>
+          )}
         </span>
         <div className="flex shrink-0 gap-1">
           {SLOT_KEYS.map((k) => (
@@ -588,6 +651,29 @@ function EditRow({
               {slots[k].label}
             </button>
           ))}
+          {/* 本人だけが出せる「変更不可」トグル。管理者には onLock を渡していないので出ない。
+              枠が無い日にロックすれば「勤務不可」、枠がある日なら「この希望は変更不可」の意味になる。 */}
+          {onLock && (
+            <button
+              type="button"
+              onClick={() => onLock(date, !locked)}
+              title={
+                locked
+                  ? "変更不可を解除する"
+                  : cur
+                    ? "このシフト希望を変更不可にする"
+                    : "この日は勤務不可(シフトを入れさせない)にする"
+              }
+              aria-pressed={locked}
+              className={`h-7 rounded-lg border px-2 text-xs font-bold transition ${
+                locked
+                  ? "border-amber-500 bg-amber-500 text-white"
+                  : "border-gray-300 bg-white text-gray-400 hover:bg-gray-50"
+              }`}
+            >
+              🔒
+            </button>
+          )}
         </div>
       </div>
       {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ保存。
@@ -724,8 +810,11 @@ function DayPanel({
   customByKey,
   statusMap,
   editable,
+  canAssign,
   editableEmployeeId,
+  lockedKeys,
   onAssign,
+  onLock,
 }: {
   date: string;
   slots: Record<SlotKey, SlotDef>;
@@ -734,8 +823,12 @@ function DayPanel({
   customByKey: Map<string, { start: string | null; end: string | null }>;
   statusMap: Record<string, ShiftStatus>;
   editable: boolean;
+  /** 枠の割当ができるか。false なら行は出すが枠ボタンは押せない(確定モードの従業員画面) */
+  canAssign: boolean;
   /** 編集を1人に限定する場合の従業員ID(null なら全員を編集できる) */
   editableEmployeeId?: string | null;
+  /** `${employee_id}|${work_date}` のロック集合 */
+  lockedKeys: Set<string>;
   onAssign: (
     employeeId: string,
     workDate: string,
@@ -743,13 +836,15 @@ function DayPanel({
     customStart?: string,
     customEnd?: string
   ) => void;
+  /** 本人のロック切替(従業員画面のみ) */
+  onLock?: (workDate: string, locked: boolean) => void;
 }) {
   return (
     <div className="rounded-xl border border-blue-200 bg-white p-4">
       <h3 className="text-lg font-bold text-blue-800">
         {formatDateJa(date)}
         <span className="ml-2 text-sm font-medium text-gray-500">
-          シフト{editable ? "編集" : "予定"}
+          シフト{canAssign ? "編集" : "予定"}
         </span>
       </h3>
 
@@ -773,6 +868,14 @@ function DayPanel({
                     style={{ color: nicknameColor(style) }}
                   >
                     {displayName(m)}
+                    {lockedKeys.has(`${m.id}|${date}`) && (
+                      <span
+                        title="本人が変更不可に設定しています"
+                        className="ml-1"
+                      >
+                        🔒
+                      </span>
+                    )}
                   </span>
                   <span className="text-sm text-gray-500 sm:text-base">
                     {paren}
@@ -788,6 +891,25 @@ function DayPanel({
               この日のシフト予定はありません
             </span>
           )}
+          {/* 枠が無いのにロックだけある人＝「この日は勤務不可」。
+              枠一覧には出てこないので、別行で明示しないと存在に気付けない。 */}
+          {roster
+            .filter(
+              (m) =>
+                lockedKeys.has(`${m.id}|${date}`) &&
+                !slotByKey.get(`${m.id}|${date}`)
+            )
+            .map((m) => (
+              <Fragment key={`off-${m.id}`}>
+                <span className="text-sm font-bold text-amber-700 sm:text-base">
+                  勤務不可
+                </span>
+                <span className="truncate text-base text-gray-500 sm:text-lg">
+                  {displayName(m)} 🔒
+                </span>
+                <span />
+              </Fragment>
+            ))}
         </div>
       ) : (
         <div className="mt-3 space-y-1">
@@ -799,6 +921,7 @@ function DayPanel({
             // 調整中の従業員画面では自分の行だけ編集できる。他の人の行も
             // 「誰がどの枠を希望しているか」が分かるよう読み取り専用で表示する。
             const canEdit = !editableEmployeeId || editableEmployeeId === m.id;
+            const locked = lockedKeys.has(`${m.id}|${date}`);
             return (
               <EditRow
                 // ⚠️ key に date を含めること。m.id だけだと日付を切り替えても React が
@@ -812,7 +935,12 @@ function DayPanel({
                 customStart={c?.start ?? null}
                 customEnd={c?.end ?? null}
                 style={nicknameStyle(statusMap[`${m.id}|${date}`])}
-                readOnly={!canEdit}
+                // 枠を押せない条件: 他人の行 / 割当不可(確定モード) /
+                // ロックされた日(本人以外=管理者。本人は自分の意思表示なので動かせてよい)
+                readOnly={!canEdit || !canAssign || (locked && !onLock)}
+                locked={locked}
+                // ロックを切り替えられるのは本人だけ(管理者には onLock を渡さない)
+                onLock={onLock && canEdit ? onLock : undefined}
                 onAssign={onAssign}
               />
             );

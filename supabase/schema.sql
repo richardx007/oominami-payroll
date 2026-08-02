@@ -289,6 +289,21 @@ $$;
 
 
 --
+-- Name: is_shift_locked(uuid, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.is_shift_locked(p_employee_id uuid, d date) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists (
+    select 1 from shift_locks l
+    where l.employee_id = p_employee_id and l.work_date = d
+  );
+$$;
+
+
+--
 -- Name: is_shift_draft(date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -658,6 +673,24 @@ COMMENT ON COLUMN public.shift_assignments.custom_end IS '変則退勤予定(HH:
 
 
 --
+-- Name: shift_locks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.shift_locks (
+    employee_id uuid NOT NULL,
+    work_date date NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE shift_locks; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.shift_locks IS '従業員本人がかけた「変更不可」ロック。ロック日は管理者でもシフトを追加/変更/削除できない(確定モード後も有効)。外せるのは本人のみ';
+
+
+--
 -- Name: shift_modes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -925,6 +958,14 @@ ALTER TABLE ONLY public.shift_assignments
 
 
 --
+-- Name: shift_locks shift_locks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shift_locks
+    ADD CONSTRAINT shift_locks_pkey PRIMARY KEY (employee_id, work_date);
+
+
+--
 -- Name: shift_modes shift_modes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1139,6 +1180,14 @@ ALTER TABLE ONLY public.payslips
 
 ALTER TABLE ONLY public.shift_assignments
     ADD CONSTRAINT shift_assignments_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+
+
+--
+-- Name: shift_locks shift_locks_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.shift_locks
+    ADD CONSTRAINT shift_locks_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
 
 
 --
@@ -1363,7 +1412,7 @@ ALTER TABLE public.shift_assignments ENABLE ROW LEVEL SECURITY;
 -- Name: shift_assignments shift_assignments_admin; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY shift_assignments_admin ON public.shift_assignments TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY shift_assignments_admin ON public.shift_assignments TO authenticated USING ((public.is_admin() AND (NOT public.is_shift_locked(employee_id, work_date)))) WITH CHECK ((public.is_admin() AND (NOT public.is_shift_locked(employee_id, work_date))));
 
 
 --
@@ -1371,6 +1420,34 @@ CREATE POLICY shift_assignments_admin ON public.shift_assignments TO authenticat
 --
 
 CREATE POLICY shift_assignments_select ON public.shift_assignments FOR SELECT USING (true);
+
+
+--
+-- Name: shift_locks; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.shift_locks ENABLE ROW LEVEL SECURITY;
+
+
+--
+-- Name: shift_locks shift_locks_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY shift_locks_select ON public.shift_locks FOR SELECT USING ((auth.uid() IS NOT NULL));
+
+
+--
+-- Name: shift_locks shift_locks_self_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY shift_locks_self_insert ON public.shift_locks FOR INSERT WITH CHECK ((employee_id = public.current_employee_id()));
+
+
+--
+-- Name: shift_locks shift_locks_self_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY shift_locks_self_delete ON public.shift_locks FOR DELETE USING ((employee_id = public.current_employee_id()));
 
 
 --
@@ -1680,6 +1757,15 @@ GRANT ALL ON FUNCTION public.is_shift_draft(d date) TO service_role;
 
 
 --
+-- Name: FUNCTION is_shift_locked(p_employee_id uuid, d date); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.is_shift_locked(p_employee_id uuid, d date) TO anon;
+GRANT ALL ON FUNCTION public.is_shift_locked(p_employee_id uuid, d date) TO authenticated;
+GRANT ALL ON FUNCTION public.is_shift_locked(p_employee_id uuid, d date) TO service_role;
+
+
+--
 -- Name: FUNCTION link_employee_account(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -1814,6 +1900,15 @@ GRANT ALL ON TABLE public.payslips TO service_role;
 GRANT ALL ON TABLE public.shift_assignments TO anon;
 GRANT ALL ON TABLE public.shift_assignments TO authenticated;
 GRANT ALL ON TABLE public.shift_assignments TO service_role;
+
+
+--
+-- Name: TABLE shift_locks; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.shift_locks TO anon;
+GRANT ALL ON TABLE public.shift_locks TO authenticated;
+GRANT ALL ON TABLE public.shift_locks TO service_role;
 
 
 --
