@@ -11,7 +11,8 @@ export default async function AdminHomePage({
 }: {
   searchParams: Promise<{ p?: string }>;
 }) {
-  await requireAdmin();
+  // 管理者も1人の従業員。自分のロックだけオレンジで区別するため id を使う
+  const me = await requireAdmin();
   const { p } = await searchParams;
 
   const supabase = await createClient();
@@ -37,6 +38,7 @@ export default async function AdminHomePage({
         today={todayJST()}
         basePath="/admin"
         editable
+        meId={me.id}
         assign={assignShift}
         clear={clearShift}
         // setLock は渡さない。ロックを外せるのは本人だけ(管理者は解除できない)。
