@@ -10,6 +10,7 @@ import {
 import type {
   Assignment,
   RosterMember,
+  ShiftLock,
 } from "@/app/admin/shifts/ShiftSchedule";
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
@@ -42,6 +43,7 @@ export async function loadShiftData(
   const [
     { data: rosterRows },
     { data: assignRows },
+    { data: lockRows },
     { data: statusRows },
     { data: modeRow },
   ] = await Promise.all([
@@ -49,6 +51,12 @@ export async function loadShiftData(
       supabase
         .from("shift_assignments")
         .select("employee_id, work_date, slot, custom_start, custom_end")
+        .gte("work_date", period.start)
+        .lte("work_date", period.end),
+      // 本人がかけた「変更不可」ロック(シフトの有無に関わらず存在しうる)
+      supabase
+        .from("shift_locks")
+        .select("employee_id, work_date")
         .gte("work_date", period.start)
         .lte("work_date", period.end),
       supabase.rpc("get_shift_status", {
@@ -72,6 +80,7 @@ export async function loadShiftData(
   const slots = parseSlots(settingRows as { key: string; value: string }[]);
   const roster = (rosterRows ?? []) as RosterMember[];
   const assignments = (assignRows ?? []) as Assignment[];
+  const locks = (lockRows ?? []) as ShiftLock[];
 
   const statusMap: Record<string, ShiftStatus> = {};
   for (const r of (statusRows ?? []) as {
@@ -82,7 +91,16 @@ export async function loadShiftData(
     statusMap[`${r.employee_id}|${r.work_date}`] = r.status;
   }
 
-  return { period, slots, roster, assignments, statusMap, monthStart, mode };
+  return {
+    period,
+    slots,
+    roster,
+    assignments,
+    locks,
+    statusMap,
+    monthStart,
+    mode,
+  };
 }
 
 /** 従業員の指定枠の割当を SlotKey で引くマップを作る(勤務表の予定時刻デフォルト用) */

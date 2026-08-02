@@ -31,6 +31,7 @@ export default async function AdminHomePage({
         slots={shiftData.slots}
         roster={shiftData.roster}
         assignments={shiftData.assignments}
+        locks={shiftData.locks}
         statusMap={shiftData.statusMap}
         holidays={holidays}
         today={todayJST()}
@@ -38,6 +39,8 @@ export default async function AdminHomePage({
         editable
         assign={assignShift}
         clear={clearShift}
+        // setLock は渡さない。ロックを外せるのは本人だけ(管理者は解除できない)。
+
         mode={shiftData.mode}
         canSwitchMode
         setMode={setShiftMode}

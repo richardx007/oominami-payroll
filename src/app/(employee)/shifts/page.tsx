@@ -4,7 +4,11 @@ import { todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
 import { loadShiftData } from "@/lib/shift-data";
 import { ShiftSchedule } from "@/app/admin/shifts/ShiftSchedule";
-import { assignShift, clearShift } from "@/app/admin/shifts/actions";
+import {
+  assignShift,
+  clearShift,
+  setShiftLock,
+} from "@/app/admin/shifts/actions";
 
 export default async function EmployeeShiftsPage({
   searchParams,
@@ -34,15 +38,19 @@ export default async function EmployeeShiftsPage({
       slots={shiftData.slots}
       roster={shiftData.roster}
       assignments={shiftData.assignments}
+      locks={shiftData.locks}
       statusMap={shiftData.statusMap}
       holidays={holidays}
       today={todayJST()}
       basePath="/shifts"
       mode={shiftData.mode}
-      editable={draft}
-      editableEmployeeId={draft ? me.id : null}
+      // 確定モードでも自分の行は出す(枠は押せないが「変更不可」の設定/解除はできる)。
+      // 管理者はロックを外せない仕様のため、本人がいつでも外せないと解除手段が無くなる。
+      editable
+      editableEmployeeId={me.id}
       assign={draft ? assignShift : undefined}
       clear={draft ? clearShift : undefined}
+      setLock={setShiftLock}
     />
   );
 }
