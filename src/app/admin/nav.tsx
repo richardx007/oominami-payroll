@@ -221,7 +221,10 @@ function WorkRulesModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      // Leaflet の地図コントロール等は z-index 最大1000を使うため、z-50 だと
+      // 設定画面の地図（勤務ルールと同じページから開ける）の下に隠れてしまう。
+      // 1000 を超える値にして確実に最前面に出す。
+      className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
     >
       <div
