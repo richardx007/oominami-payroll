@@ -14,6 +14,8 @@ const mainItems = [
 
 // オオミナミ営業カレンダー(別サービス。参照のみ・別タブで開く)のポスター表示URL
 const CALENDAR_URL = "https://oominami-calendar.shinsekai.workers.dev/?poster";
+// 会社ホームページ(別タブで開く)
+const HOMEPAGE_URL = "https://www.oominami.com";
 
 const SEEN_KEY = "notices_seen_at";
 const SEEN_EVENT = "notices-seen-changed";
@@ -243,6 +245,16 @@ export function EmployeeNav({
             >
               <PosterIcon className="h-5 w-5 shrink-0" />
               営業カレンダー
+            </a>
+            <a
+              href={HOMEPAGE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <GlobeIcon className="h-5 w-5 shrink-0" />
+              ホームページ
             </a>
             {/* 区切り線の下にログアウト */}
             <form action={signOut} className="border-t-4 border-white/15">
@@ -481,6 +493,26 @@ function LogoutIcon({ className }: { className?: string }) {
 }
 
 /** 営業カレンダー(ポスター表示)へのリンク用アイコン */
+/** 会社ホームページへのリンク用アイコン */
+function GlobeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z" />
+    </svg>
+  );
+}
+
 function PosterIcon({ className }: { className?: string }) {
   return (
     <svg
