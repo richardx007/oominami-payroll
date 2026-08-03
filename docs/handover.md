@@ -1919,6 +1919,29 @@ DBレベルで構造的に解決した。
 
 ---
 
+
+---
+
+### 管理メニューの階層化／ホームページリンク追加（2026-08-03）
+オーナー依頼のメニュー修正。`npm run build && npm test`(46件)通過。
+
+- **PCサイドバー（`admin/nav.tsx` の `AdminSidebarNav`）をグループ化**。上部は従来どおり
+  シフト/勤務表/日別/給与明細をフラットに並べ、その下に開閉トグルの2グループを追加:
+  - **「管理」**＝従業員・配信・設定・操作ログ（`moreLinks`）。**現在いる画面がこのグループ内なら
+    既定で開く**。開閉状態は `manageOverride: boolean | null` で保持し、`null`（未操作）のときだけ
+    現在地から導出する。⚠️ `useEffect` で `setState` すると eslint の
+    `react-hooks/set-state-in-effect` に引っかかるため、レンダー中に導出する形にしている。
+  - **「関連情報」**＝勤務ルール・営業カレンダー・**ホームページ（https://www.oominami.com・別タブ）**。
+- **勤務ルールだけモーダル表示に変更**（PCサイドバーのみ）。設定画面で指定する1画像を見るだけなので
+  別タブに飛ばす必要がないため。`src/app/work-rules/actions.ts` に **`getWorkRulesUrl()`**（サーバー
+  アクション）を新設し、`/work-rules` ページと同じ手順（`get_work_rules_meta()` → 非公開バケット
+  `work-rules` の署名付きURL、有効期限300秒）でURLだけを返す。クライアント側 `WorkRulesModal` が
+  `<img>` で表示。**`/work-rules` ページはモバイル用に従来どおり残置**。
+- **階層化で縦に長くなるため行間を詰めた**: サイドバー各行を `gap-1`/`py-2.5` →
+  `gap-0.5`/`py-1.5`（共通クラス `sidebarItemClass`）。グループ内の項目は `pl-6` でインデント。
+- **モバイルの「その他」サブメニュー末尾に「ホームページ」を追加**（管理者
+  `admin/nav.tsx` と従業員 `(employee)/nav.tsx` の両方）。アイコンは新設の `GlobeIcon`。
+
 ## 7. すぐ使えるコマンド集
 
 ```bash

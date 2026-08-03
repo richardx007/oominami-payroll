@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { reloadApp } from "@/app/pwa/reloadApp";
+import { getWorkRulesUrl } from "@/app/work-rules/actions";
 import { signOut } from "./actions";
 
 // スマホの下部タブに常時出す主要メニュー
@@ -21,10 +22,11 @@ const moreLinks = [
   { href: "/admin/settings", label: "設定", icon: GearIcon },
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },
 ];
-const links = [...primaryLinks, ...moreLinks];
 
 // オオミナミ営業カレンダー(別サービス。参照のみ・別タブで開く)のポスター表示URL
 const CALENDAR_URL = "https://oominami-calendar.shinsekai.workers.dev/?poster";
+// 会社ホームページ(別タブで開く)
+const HOMEPAGE_URL = "https://www.oominami.com";
 
 function isActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
@@ -34,8 +36,8 @@ function isActive(pathname: string, href: string) {
 /** アプリのロゴ(public/logo.svg を表示。差し替えは public/ のファイルを置換) */
 export function Logo({ className = "" }: { className?: string }) {
   // Next の Image ではなく素の img。円形ロゴ(白背景)がネイビーのバー上でも映える。
-  // eslint-disable-next-line @next/next/no-img-element
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src="/logo.svg"
       alt="新世界オオミナミ"
@@ -62,47 +64,197 @@ export function LogoButton({ className = "" }: { className?: string }) {
   );
 }
 
-/** サイドバー(タブレット・PC)用の縦並びナビ。末尾(フッターの区切り線の上)に「勤務ルール」を追加。 */
+// サイドバーの各行に共通のクラス(グループ化で縦に長くなるため間隔は控えめ)
+const sidebarItemClass =
+  "flex w-full touch-manipulation items-center gap-3 rounded-lg px-3 py-1.5 text-lg font-medium transition-colors active:opacity-70";
+
+/** サイドバー(タブレット・PC)用の縦並びナビ。
+ *  主要メニューの下に「管理」「関連情報」の2グループをトグルで開閉表示する。 */
 export function AdminSidebarNav() {
   const pathname = usePathname();
+  const manageActive = moreLinks.some((l) => isActive(pathname, l.href));
+  // 現在いる画面が含まれるグループは既定で開く。ユーザーが操作したらその指定を優先する
+  // (null = 未操作。レンダー中に導出するので effect での setState は不要)
+  const [manageOverride, setManageOverride] = useState<boolean | null>(null);
+  const manageOpen = manageOverride ?? manageActive;
+  const [relatedOpen, setRelatedOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+
   return (
-    <nav className="flex flex-col gap-1">
-      {links.map((l) => {
-        const Icon = l.icon;
-        return (
-          <Link
-            key={l.href}
-            href={l.href}
-            className={`flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-lg font-medium transition-colors active:opacity-70 ${
-              isActive(pathname, l.href)
-                ? "bg-white text-[#152449]"
-                : "text-blue-50 hover:bg-white/10 hover:text-white"
-            }`}
+    <>
+      <nav className="flex flex-col gap-0.5">
+        {primaryLinks.map((l) => {
+          const Icon = l.icon;
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={`${sidebarItemClass} ${
+                isActive(pathname, l.href)
+                  ? "bg-white text-[#152449]"
+                  : "text-blue-50 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <Icon className="h-6 w-6 shrink-0" />
+              {l.label}
+            </Link>
+          );
+        })}
+
+        {/* 管理グループ(従業員・配信・設定・操作ログ) */}
+        <GroupToggle
+          label="管理"
+          open={manageOpen}
+          onToggle={() => setManageOverride(!manageOpen)}
+        />
+        {manageOpen &&
+          moreLinks.map((l) => {
+            const Icon = l.icon;
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={`${sidebarItemClass} pl-6 ${
+                  isActive(pathname, l.href)
+                    ? "bg-white text-[#152449]"
+                    : "text-blue-50 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <Icon className="h-6 w-6 shrink-0" />
+                {l.label}
+              </Link>
+            );
+          })}
+
+        {/* 関連情報グループ(勤務ルール・営業カレンダー・ホームページ) */}
+        <GroupToggle
+          label="関連情報"
+          open={relatedOpen}
+          onToggle={() => setRelatedOpen((v) => !v)}
+        />
+        {relatedOpen && (
+          <>
+            {/* 勤務ルールは設定画面で指定した1画像のみなので、別タブではなく
+                同ページ上のモーダルで表示する */}
+            <button
+              type="button"
+              onClick={() => setRulesOpen(true)}
+              className={`${sidebarItemClass} pl-6 text-blue-50 hover:bg-white/10 hover:text-white`}
+            >
+              <DocumentIcon className="h-6 w-6 shrink-0" />
+              勤務ルール
+            </button>
+            <a
+              href={CALENDAR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${sidebarItemClass} pl-6 text-blue-50 hover:bg-white/10 hover:text-white`}
+            >
+              <PosterIcon className="h-6 w-6 shrink-0" />
+              営業カレンダー
+            </a>
+            <a
+              href={HOMEPAGE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${sidebarItemClass} pl-6 text-blue-50 hover:bg-white/10 hover:text-white`}
+            >
+              <GlobeIcon className="h-6 w-6 shrink-0" />
+              ホームページ
+            </a>
+          </>
+        )}
+      </nav>
+
+      {rulesOpen && <WorkRulesModal onClose={() => setRulesOpen(false)} />}
+    </>
+  );
+}
+
+/** サイドバーのグループ見出し(タップで開閉)。 */
+function GroupToggle({
+  label,
+  open,
+  onToggle,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className={`${sidebarItemClass} mt-1 justify-between text-blue-100 hover:bg-white/10 hover:text-white`}
+    >
+      <span>{label}</span>
+      <ChevronIcon
+        className={`h-5 w-5 shrink-0 transition-transform ${
+          open ? "rotate-180" : ""
+        }`}
+      />
+    </button>
+  );
+}
+
+/** 勤務ルール画像を同ページ上に重ねて表示するモーダル。 */
+function WorkRulesModal({ onClose }: { onClose: () => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getWorkRulesUrl()
+      .then((r) => {
+        if (!alive) return;
+        if ("url" in r) setUrl(r.url);
+        else setError(r.error);
+      })
+      .catch(() => {
+        if (alive) setError("文書の表示に失敗しました。");
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+          <p className="text-lg font-bold text-gray-800">勤務ルール</p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="rounded-lg px-2 py-1 text-xl text-gray-500 hover:bg-gray-100"
           >
-            <Icon className="h-6 w-6 shrink-0" />
-            {l.label}
-          </Link>
-        );
-      })}
-      <a
-        href="/work-rules"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-lg font-medium text-blue-50 transition-colors hover:bg-white/10 hover:text-white active:opacity-70"
-      >
-        <DocumentIcon className="h-6 w-6 shrink-0" />
-        勤務ルール
-      </a>
-      <a
-        href={CALENDAR_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-lg font-medium text-blue-50 transition-colors hover:bg-white/10 hover:text-white active:opacity-70"
-      >
-        <PosterIcon className="h-6 w-6 shrink-0" />
-        営業カレンダー
-      </a>
-    </nav>
+            ×
+          </button>
+        </div>
+        <div className="overflow-auto p-4 text-center">
+          {error ? (
+            <p className="py-8 text-sm text-gray-500">{error}</p>
+          ) : url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={url}
+              alt="勤務ルール"
+              className="mx-auto h-auto max-w-full"
+            />
+          ) : (
+            <p className="py-8 text-sm text-gray-500">読み込み中...</p>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -161,6 +313,16 @@ export function AdminBottomNav() {
             >
               <PosterIcon className="h-5 w-5 shrink-0" />
               営業カレンダー
+            </a>
+            <a
+              href={HOMEPAGE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              className="flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <GlobeIcon className="h-5 w-5 shrink-0" />
+              ホームページ
             </a>
             {/* 区切り線の下にログアウト(ヘッダーから移設) */}
             <form action={signOut} className="border-t-4 border-white/15">
@@ -415,6 +577,44 @@ function DocumentIcon({ className }: { className?: string }) {
     >
       <path d="M6 3h9l3 3v15H6z" />
       <path d="M15 3v3h3M9 12h6M9 16h6M9 8h2" />
+    </svg>
+  );
+}
+
+/** サイドバーのグループ開閉を示す下向き矢印 */
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+/** 会社ホームページへのリンク用アイコン */
+function GlobeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z" />
     </svg>
   );
 }
