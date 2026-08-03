@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { reloadApp } from "@/app/pwa/reloadApp";
@@ -219,11 +220,12 @@ function WorkRulesModal({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  return (
+  // このモーダルはサイドバー(AdminSidebarNav)の中でレンダーされる。サイドバーが
+  // 独自の重ね合わせコンテキストを作っていると、z-index をいくら上げても
+  // サイドバーの外(設定画面の地図など)より前面には出せない。document.body 直下に
+  // ポータルすることで、祖先の重ね合わせコンテキストの影響を受けずに確実に最前面へ出す。
+  return createPortal(
     <div
-      // Leaflet の地図コントロール等は z-index 最大1000を使うため、z-50 だと
-      // 設定画面の地図（勤務ルールと同じページから開ける）の下に隠れてしまう。
-      // 1000 を超える値にして確実に最前面に出す。
       className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
     >
@@ -257,7 +259,8 @@ function WorkRulesModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
