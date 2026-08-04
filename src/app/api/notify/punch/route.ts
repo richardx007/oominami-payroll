@@ -40,20 +40,23 @@ function buildMessage(alerts: Alert[]): { title: string; body: string } {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const secret = process.env.NOTIFY_SECRET;
+  // 🔴 Cloudflareのシークレットはコピペで前後に改行/空白が混入しやすい。
+  // NOTIFY_SECRETの比較は完全一致なので、混入したまま気付かないと
+  // 「値は合っているはずなのに401」という分かりにくい失敗になる。
+  const secret = process.env.NOTIFY_SECRET?.trim();
   if (!secret) {
     return Response.json(
       { ok: false, error: "NOTIFY_SECRET が未設定です" },
       { status: 503 }
     );
   }
-  if (request.headers.get("x-notify-secret") !== secret) {
+  if (request.headers.get("x-notify-secret")?.trim() !== secret) {
     return Response.json({ ok: false }, { status: 401 });
   }
 
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const subject = (process.env.VAPID_SUBJECT || "mailto:admin@example.com").trim();
   if (!publicKey || !privateKey) {
     return Response.json(
       { ok: false, error: "VAPID鍵が未設定です" },
