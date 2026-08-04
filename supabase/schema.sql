@@ -339,9 +339,11 @@ declare
   v_alerts jsonb;
   v_subs jsonb;
 begin
+  -- 既定はオン(未設定時にfalseへ倒さない)。app_settingsの行がまだ無い新規環境でも
+  -- 通知が効いた状態から始まるようにするため。明示的に'false'にした場合のみオフ。
   select coalesce(
-    (select value = 'true' from app_settings where key = 'notify_missing_punch'),
-    false
+    (select value <> 'false' from app_settings where key = 'notify_missing_punch'),
+    true
   ) into v_enabled;
 
   if not v_enabled then

@@ -239,40 +239,24 @@ export function ShiftSchedule({
   // 「勤務不可」等ロックのみ(枠なし)の行は対象外(重なる時間そのものが無いため)。
   // 深夜番(0:00〜9:00)のように終了が開始以下の枠は日をまたぐとみなし、
   // 終了側に24時間分足してから比較する(すべて同じ業務日付を基準にしているため)。
+  // 「同じ日・同じ枠に異なる人が複数入っている」ことを衝突とみなす。
+  // 🔴 枠の時刻同士(例:早番8-17と遅番15-24)は引き継ぎのため意図的に重なるのが
+  // 3交代制では普通なので、時刻の数値的な重なりで判定してはいけない
+  // (以前そうしていたところ、早番・遅番・深夜がバラけている日まで衝突と誤判定していた)。
+  // あくまで「同じ枠を取り合っている」ことだけを見る。
   const collisionDates = useMemo(() => {
-    const toMinutes = (t: string): number => {
-      const m = /^(\d{1,2}):(\d{1,2})$/.exec(t.trim());
-      if (!m) return 0;
-      return Number(m[1]) * 60 + Number(m[2]);
-    };
-    const byDateRanges = new Map<
-      string,
-      { employeeId: string; start: number; end: number }[]
-    >();
+    const bySlotKey = new Map<string, Set<string>>();
     for (const a of local) {
-      const slot = slots[a.slot];
-      if (!slot) continue;
-      const start = toMinutes(a.custom_start?.trim() || slot.start);
-      let end = toMinutes(a.custom_end?.trim() || slot.end);
-      if (end <= start) end += 24 * 60;
-      if (!byDateRanges.has(a.work_date)) byDateRanges.set(a.work_date, []);
-      byDateRanges.get(a.work_date)!.push({ employeeId: a.employee_id, start, end });
+      const key = `${a.work_date}|${a.slot}`;
+      if (!bySlotKey.has(key)) bySlotKey.set(key, new Set());
+      bySlotKey.get(key)!.add(a.employee_id);
     }
     const out = new Set<string>();
-    for (const [date, ranges] of byDateRanges) {
-      for (let i = 0; i < ranges.length; i++) {
-        for (let j = i + 1; j < ranges.length; j++) {
-          const r1 = ranges[i];
-          const r2 = ranges[j];
-          if (r1.employeeId === r2.employeeId) continue;
-          if (r1.start < r2.end && r2.start < r1.end) {
-            out.add(date);
-          }
-        }
-      }
+    for (const [key, employeeIds] of bySlotKey) {
+      if (employeeIds.size >= 2) out.add(key.split("|")[0]);
     }
     return out;
-  }, [local, slots]);
+  }, [local]);
 
   const dates = useMemo(() => datesInPeriod(period), [period]);
   const weeks = useMemo(() => {

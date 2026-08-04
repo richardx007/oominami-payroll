@@ -849,37 +849,10 @@ export function NotifySettingsForm({
         同じ人・同じ日・同じ種別につき通知は1回だけです。
       </p>
 
-      <form
-        action={(fd) =>
-          startTransition(async () => setResult(await updateNotifySettings(fd)))
-        }
-        className="mt-4 border-b border-gray-100 pb-4"
-      >
-        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-          <input
-            type="checkbox"
-            name="notify_missing_punch"
-            defaultChecked={enabled}
-            className="h-4 w-4 rounded border-gray-300"
-          />
-          未打刻の通知を有効にする
-        </label>
-        {result && (
-          <p
-            className={`mt-2 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
-          >
-            {result.message}
-          </p>
-        )}
-        <button
-          disabled={pending}
-          className="mt-3 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {pending ? "保存中..." : "保存する"}
-        </button>
-      </form>
-
-      <div className="mt-4">
+      {/* 🔴 「この端末で通知を受け取る」が親、「未打刻の通知を有効にする」が子。
+          端末の登録があってこそ通知が届くので、まず親(端末登録)を先に案内する。
+          子(全体スイッチ)は端末が複数あってもアプリ全体で1つ。 */}
+      <div className="mt-4 border-b border-gray-100 pb-4">
         <p className="text-sm font-medium text-gray-700">この端末で通知を受け取る</p>
         <p className="mt-1 text-sm text-gray-500">
           通知は端末ごとに許可が必要です。受け取りたい端末それぞれで登録してください。
@@ -970,6 +943,36 @@ export function NotifySettingsForm({
           </p>
         )}
       </div>
+
+      <form
+        action={(fd) =>
+          startTransition(async () => setResult(await updateNotifySettings(fd)))
+        }
+        className="mt-4"
+      >
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            name="notify_missing_punch"
+            defaultChecked={enabled}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          未打刻の通知を有効にする
+        </label>
+        {result && (
+          <p
+            className={`mt-2 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
+          >
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="mt-3 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
     </section>
   );
 }

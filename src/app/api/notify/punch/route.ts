@@ -26,15 +26,17 @@ type Alert = {
 
 /** 通知の本文を組み立てる。件数が多い場合は先頭数件＋「ほかN件」に丸める。 */
 function buildMessage(alerts: Alert[]): { title: string; body: string } {
+  const kindLabel = (kind: Alert["kind"]) =>
+    kind === "in" ? "出勤が遅れているようです" : "退勤が遅れているようです";
   const lines = alerts
     .slice(0, 5)
-    .map(
-      (a) =>
-        `${a.name}さん: ${a.kind === "in" ? "出勤" : "退勤"}未打刻（予定 ${a.due_at}）`
-    );
+    .map((a) => `${a.name}さん: ${kindLabel(a.kind)}（予定 ${a.due_at}）`);
   if (alerts.length > 5) lines.push(`ほか${alerts.length - 5}件`);
   return {
-    title: alerts.length === 1 ? "未打刻があります" : `未打刻が${alerts.length}件あります`,
+    title:
+      alerts.length === 1
+        ? kindLabel(alerts[0].kind)
+        : `未打刻が${alerts.length}件あります`,
     body: lines.join("\n"),
   };
 }
