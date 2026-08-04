@@ -100,6 +100,12 @@ export async function POST(request: Request): Promise<Response> {
       failed: results.filter((r) => !r.ok).length,
       // 404/410 は購読切れ。端末側が再購読すれば解消するので、ここでは記録のみ。
       expired: results.filter((r) => r.expired).map((r) => r.endpoint),
+      // 失敗した送信先ごとの HTTP ステータス(診断用)。403/401 は VAPID 鍵の不一致、
+      // 404/410 は購読切れを示す。このAPIは共有シークレット越しにしか叩けないため、
+      // 詳細を返しても外部には漏れない。
+      failures: results
+        .filter((r) => !r.ok)
+        .map((r) => ({ status: r.status, endpoint: r.endpoint.slice(0, 60) })),
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
