@@ -738,6 +738,10 @@ export function NotifySettingsForm({
   const [unsupported, setUnsupported] = useState<string | null>(null);
   const [deviceBusy, setDeviceBusy] = useState(false);
   const [deviceMsg, setDeviceMsg] = useState<ActionResult | null>(null);
+  // OS/ブラウザ側の通知許可の状態。"denied" だとブラウザは二度と許可ダイアログを
+  // 出さないため、ボタンを押しても何も起きない。利用者が自力で気付くのは難しいので
+  // 状態を画面に出し、どこを操作すればよいかまで案内する。
+  const [permission, setPermission] = useState<NotificationPermission | null>(null);
 
   useEffect(() => {
     const support = checkPushSupport();
@@ -746,6 +750,7 @@ export function NotifySettingsForm({
       setDeviceOn(false);
       return;
     }
+    setPermission(Notification.permission);
     getSubscription()
       .then((s) => setDeviceOn(!!s))
       .catch(() => setDeviceOn(false));
@@ -782,11 +787,19 @@ export function NotifySettingsForm({
         setDeviceOn(saved.ok);
       }
     } catch (e) {
+      const raw = e instanceof Error ? e.message : "処理に失敗しました";
+      // デプロイ直後、古いページを開いたままだと Next.js の Server Action ID が
+      // 変わっていて「was not found on the server」になる。原因が分かりにくいので
+      // 利用者向けの文言に置き換える(不具合ではなく再読み込みで直る)。
+      const stale = /Server Action|failed-to-find-server-action/i.test(raw);
       setDeviceMsg({
         ok: false,
-        message: e instanceof Error ? e.message : "処理に失敗しました",
+        message: stale
+          ? "アプリが更新されています。ページを再読み込みしてから、もう一度お試しください。"
+          : raw,
       });
     } finally {
+      if (typeof Notification !== "undefined") setPermission(Notification.permission);
       setDeviceBusy(false);
     }
   }
@@ -834,6 +847,48 @@ export function NotifySettingsForm({
         <p className="mt-1 text-sm text-gray-500">
           通知は端末ごとに許可が必要です。受け取りたい端末それぞれで登録してください。
         </p>
+
+        {/* 🔴 OS/ブラウザ側で通知がブロックされている場合の案内。
+            "denied" のままだとブラウザは許可ダイアログを二度と出さないため、
+            ボタンを押しても無反応に見え、利用者は原因に気付けない。 */}
+        {permission === "denied" && (
+          <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">
+            <p className="font-medium">
+              この端末では通知が「拒否」に設定されているため、登録できません。
+            </p>
+            <p className="mt-2">
+              下記の設定で通知を許可したあと、
+              <span className="font-medium">このページを再読み込み</span>してから
+              もう一度お試しください。
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>
+                <span className="font-medium">Mac</span>: システム設定 → 通知 →
+                （ブラウザ名／このアプリ）→「通知を許可」をオン
+              </li>
+              <li>
+                <span className="font-medium">Safari</span>: 設定 → Webサイト → 通知 →
+                このサイトを「許可」
+              </li>
+              <li>
+                <span className="font-medium">Chrome</span>: アドレスバー左の鍵アイコン →
+                通知 → 「許可」
+              </li>
+              <li>
+                <span className="font-medium">iPhone / iPad</span>: 設定 → 通知 →
+                ホーム画面に追加したこのアプリ →「通知を許可」をオン
+              </li>
+            </ul>
+          </div>
+        )}
+
+        {permission === "default" && (
+          <p className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
+            ボタンを押すと通知の許可を求めるダイアログが出ます。「許可」を選んでください。
+            Mac では、先に「システム設定 → 通知」でブラウザ（またはこのアプリ）の
+            通知がオンになっている必要があります。
+          </p>
+        )}
 
         {unsupported ? (
           <p className="mt-3 rounded-lg bg-yellow-50 p-3 text-sm text-yellow-800">
