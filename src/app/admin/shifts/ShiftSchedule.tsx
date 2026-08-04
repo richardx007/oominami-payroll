@@ -235,6 +235,45 @@ export function ShiftSchedule({
     return m;
   }, [local, memberById]);
 
+  // 調整中: 同じ日に異なる従業員の希望時間帯が重なっている日を検出する。
+  // 「勤務不可」等ロックのみ(枠なし)の行は対象外(重なる時間そのものが無いため)。
+  // 深夜番(0:00〜9:00)のように終了が開始以下の枠は日をまたぐとみなし、
+  // 終了側に24時間分足してから比較する(すべて同じ業務日付を基準にしているため)。
+  const collisionDates = useMemo(() => {
+    const toMinutes = (t: string): number => {
+      const m = /^(\d{1,2}):(\d{1,2})$/.exec(t.trim());
+      if (!m) return 0;
+      return Number(m[1]) * 60 + Number(m[2]);
+    };
+    const byDateRanges = new Map<
+      string,
+      { employeeId: string; start: number; end: number }[]
+    >();
+    for (const a of local) {
+      const slot = slots[a.slot];
+      if (!slot) continue;
+      const start = toMinutes(a.custom_start?.trim() || slot.start);
+      let end = toMinutes(a.custom_end?.trim() || slot.end);
+      if (end <= start) end += 24 * 60;
+      if (!byDateRanges.has(a.work_date)) byDateRanges.set(a.work_date, []);
+      byDateRanges.get(a.work_date)!.push({ employeeId: a.employee_id, start, end });
+    }
+    const out = new Set<string>();
+    for (const [date, ranges] of byDateRanges) {
+      for (let i = 0; i < ranges.length; i++) {
+        for (let j = i + 1; j < ranges.length; j++) {
+          const r1 = ranges[i];
+          const r2 = ranges[j];
+          if (r1.employeeId === r2.employeeId) continue;
+          if (r1.start < r2.end && r2.start < r1.end) {
+            out.add(date);
+          }
+        }
+      }
+    }
+    return out;
+  }, [local, slots]);
+
   const dates = useMemo(() => datesInPeriod(period), [period]);
   const weeks = useMemo(() => {
     const result: (string | null)[][] = [];
@@ -452,6 +491,17 @@ export function ShiftSchedule({
                       isSelected ? "z-10 ring-2 ring-blue-500" : "hover:bg-gray-50"
                     } ${isToday ? "bg-gray-100" : ""}`}
                   >
+                    {/* 調整中に希望が同時間帯でぶつかっている日の目印。当人同士で
+                        気付いて調整できるよう、日付の左側に目立つ赤字で出す。 */}
+                    {!swipeBlank && mode === "draft" && collisionDates.has(date) && (
+                      <span
+                        className="absolute left-0.5 top-0.5 text-sm font-bold leading-none text-red-600 sm:text-base"
+                        title="希望の時間帯が他の人と重なっています"
+                        aria-label="希望の時間帯が重複"
+                      >
+                        ×
+                      </span>
+                    )}
                     <div className="flex items-center justify-center gap-0.5">
                       <span className={`text-base font-bold sm:text-lg ${textColor}`}>
                         {day}
