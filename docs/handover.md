@@ -1881,7 +1881,20 @@ Supabase pg_cron(5分ごと)
 2. Supabase で pg_cron のジョブを登録（`cron.schedule` で5分ごと。手順は下記）。
 3. 設定画面で「未打刻の通知を有効にする」をオン＋**端末ごとに「この端末で通知を受け取る」**。
    通知は端末ごとの許可が要る。iPhone は**ホーム画面PWAからのみ**（Safariのタブ不可）。
-- `pg_cron` / `pg_net` は本番で有効化済み（2026-08-04）。
+
+#### 本番の設定状況（2026-08-04時点）
+- `pg_cron` / `pg_net` 有効化済み。cron ジョブ `punch-alerts`（5分ごと）登録済み。
+- 🔴 **シークレットは Supabase Vault に保管**（`notify_secret` / `notify_url`）。
+  関数本体に直書きしなかったのは、**`pg_proc.prosrc` は一般ユーザーからも読めてしまう**ため。
+  `authenticated` / `anon` から `vault.decrypted_secrets` を読めないことは確認済み。
+- **Vault の中身はダンプに含まれない。** DR復旧・新環境構築のときは
+  `supabase/migrations/20260804070000_punch_alert_cron.sql` の末尾にある復元手順
+  （Vault への再登録＋`cron.schedule`）を必ず実行すること。忘れると
+  **エラーも出ないまま通知だけが動かない**（`run_punch_alert_job` は warning を出して return する）。
+- `run_punch_alert_job()` は**通知がある時だけ POST する**。毎回叩くと Worker を無駄に
+  起こし、無料プランの実行回数・CPU を消費するため。
+- 通しで検証済み（ROLLBACK 付き・実データ不変）: 未打刻を仕込む→ジョブ実行→
+  `net.http_request_queue` に正しいURL・`x-notify-secret` ヘッダー・通知1件で積まれることを確認。
 
 ### 勤務ルールモーダルが設定画面の地図の下に隠れる問題を修正（2026-08-04）
 オーナー報告「設定画面で勤務ルールのモーダルを開いていると地図がその上にかぶさる」。
