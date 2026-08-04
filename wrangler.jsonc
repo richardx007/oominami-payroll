@@ -11,8 +11,18 @@
   "vars": {
     "NEXT_PUBLIC_SUPABASE_URL": "https://zvrwkmriosaldjqpxdwi.supabase.co",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_57jbknnlco87_n8QxQHjxA_X-RvOUp1",
-    "NEXT_PUBLIC_SITE_URL": "https://oominami-payroll.shinsekai.workers.dev"
+    "NEXT_PUBLIC_SITE_URL": "https://oominami-payroll.shinsekai.workers.dev",
+    // 未打刻通知(Web Push)の VAPID 公開鍵。秘密情報ではない(ブラウザにも渡る)。
+    // 対になる VAPID_PRIVATE_KEY と NOTIFY_SECRET は Secret として登録すること。
+    // ⚠️ この鍵を作り直すと既存の端末登録がすべて無効になる(各端末で再登録が必要)。
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BB0IApoDvCTJIu5CBdw5uUrDUjlu2hmZh5StAou41iPCn20ocAHIe9fjqdOF0sre7s_MlIXTZgc5ZIpo3rnY4xY",
+    // 配信サービス側が運営者に連絡するための窓口(RFC 8292)。通知の動作には影響しない。
+    "VAPID_SUBJECT": "mailto:oominami2026@gmail.com"
   }
+  // ⚠️ 2026-08-04: ダッシュボードで設定した「平文の Variable」は、この vars ブロックが
+  // ある限り**デプロイのたびに上書き削除される**(Cloudflare公式の仕様。Secret は消えない)。
+  // そのため NEXT_PUBLIC_VAPID_PUBLIC_KEY と VAPID_SUBJECT はここに書いている。
+  // 平文の環境変数を足すときは、ダッシュボードではなく必ずこのファイルに書くこと。
   // ⚠️ 2026-07-29: ここに limits.cpu_ms を追加したところ、本アカウントは Cloudflare Workers
   // Free プランのため "CPU limits are not supported for the Free plan" でデプロイ自体が失敗した。
   // Free プランでは cpu_ms を設定できない(そもそも既定10msという非常に厳しい制限)。

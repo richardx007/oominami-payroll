@@ -1874,12 +1874,27 @@ Supabase pg_cron(5分ごと)
 - 使い捨て鍵と salt だけを注入可能にした（`encryptPayloadWith`）。テストのためだけの seam。
 
 #### 運用に必要な設定（オーナー作業）
-1. `node scripts/generate-vapid-keys.mjs` で鍵を生成し、Cloudflare に登録:
-   `NEXT_PUBLIC_VAPID_PUBLIC_KEY`(Variable) / `VAPID_PRIVATE_KEY`(**Secret**) / `VAPID_SUBJECT`
-   / `NOTIFY_SECRET`(**Secret**)。
-   🔴 **VAPID鍵を作り直すと既存の購読が全て無効になる**（各端末で登録し直し）。
-2. Supabase で pg_cron のジョブを登録（`cron.schedule` で5分ごと。手順は下記）。
-3. 設定画面で「未打刻の通知を有効にする」をオン＋**端末ごとに「この端末で通知を受け取る」**。
+1. 鍵を生成する。リポジトリが手元に無くても macOS の `openssl` だけで作れる:
+   ```bash
+   openssl ecparam -name prime256v1 -genkey -noout -out vapid.pem
+   # 公開鍵(87文字)
+   openssl ec -in vapid.pem -pubout -outform DER | tail -c 65 | base64 | tr -d '=\n' | tr '/+' '_-'
+   # 秘密鍵(43文字)
+   openssl ec -in vapid.pem -outform DER | tail -c +8 | head -c 32 | base64 | tr -d '=\n' | tr '/+' '_-'
+   ```
+   （`scripts/generate-vapid-keys.mjs` でも同じものが作れる。Node が要る）
+   - 🔴 **VAPID鍵を作り直すと既存の購読が全て無効になる**（各端末で登録し直し）。
+   - 秘密鍵(43文字・`-_`)と `NOTIFY_SECRET`(`openssl rand -base64 32`＝44文字・`+/=`)は
+     見た目が似ているので取り違えに注意。
+2. 🔴 **平文の環境変数は `wrangler.jsonc` の `vars` に書く。ダッシュボードで設定しないこと。**
+   Cloudflare の仕様で、`vars` ブロックがあると**ダッシュボードの平文 Variable は
+   デプロイのたびに上書き削除される**（Secret は消えない）。
+   - `wrangler.jsonc` に書く: `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_SUBJECT`
+   - ダッシュボードに **Secret** で登録: `VAPID_PRIVATE_KEY` / `NOTIFY_SECRET`
+   - この罠に一度かかりかけた（ダッシュボードに4つとも登録 → 次のデプロイで公開鍵が
+     消えて**エラーも出ないまま通知だけ動かない**状態になるところだった）。
+3. Supabase で pg_cron のジョブを登録（設定済み。復元手順はマイグレーション末尾）。
+4. 設定画面で「未打刻の通知を有効にする」をオン＋**端末ごとに「この端末で通知を受け取る」**。
    通知は端末ごとの許可が要る。iPhone は**ホーム画面PWAからのみ**（Safariのタブ不可）。
 
 #### 本番の設定状況（2026-08-04時点）
