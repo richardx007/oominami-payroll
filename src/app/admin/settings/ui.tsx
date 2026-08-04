@@ -726,9 +726,12 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
 export function NotifySettingsForm({
   enabled,
   vapidPublicKey,
+  registeredEndpoints,
 }: {
   enabled: boolean;
   vapidPublicKey: string | null;
+  /** サーバー側に登録済みの購読エンドポイント(この管理者の分) */
+  registeredEndpoints: string[];
 }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -751,9 +754,43 @@ export function NotifySettingsForm({
       return;
     }
     setPermission(Notification.permission);
+    // 🔴 「登録済み」はブラウザ側の購読だけでは判定できない。購読の作成に成功した後で
+    //    サーバー保存が失敗すると、ブラウザには購読があるのにサーバーには無い状態になり、
+    //    画面だけ「登録済み」に見えて実際には通知が届かない(実際に起きた)。
+    //    両方を突き合わせ、食い違っていればサーバー側へ登録し直して自動修復する。
     getSubscription()
-      .then((s) => setDeviceOn(!!s))
+      .then(async (sub) => {
+        if (!sub) {
+          setDeviceOn(false);
+          return;
+        }
+        if (registeredEndpoints.includes(sub.endpoint)) {
+          setDeviceOn(true);
+          return;
+        }
+        const json = sub.toJSON();
+        if (!json.keys?.p256dh || !json.keys?.auth) {
+          setDeviceOn(false);
+          return;
+        }
+        const res = await savePushSubscription({
+          endpoint: sub.endpoint,
+          p256dh: json.keys.p256dh,
+          auth: json.keys.auth,
+          userAgent: navigator.userAgent,
+        });
+        setDeviceOn(res.ok);
+        if (!res.ok) {
+          setDeviceMsg({
+            ok: false,
+            message:
+              "この端末の登録がサーバーに残っていません。「この端末で通知を受け取る」を押し直してください。",
+          });
+        }
+      })
       .catch(() => setDeviceOn(false));
+    // registeredEndpoints は初回描画時の値で足りる(以後はこの画面の操作で更新される)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function toggleDevice() {
