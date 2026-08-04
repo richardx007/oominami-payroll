@@ -94,8 +94,10 @@ as $$
 declare
   v_now timestamp;
   v_enabled boolean;
-  -- 予定時刻から何分過ぎたら通知するか
-  v_delay interval := interval '15 minutes';
+  -- 予定時刻から何分過ぎたら通知するか。出勤は遅刻に早く気付きたいので短く、
+  -- 退勤は残業で延びるのが普通なので長めに取る(オーナー指定)。
+  v_delay_in interval := interval '5 minutes';
+  v_delay_out interval := interval '30 minutes';
   -- 遡って通知する上限。機能を有効にした瞬間に過去の未打刻が一斉に飛ぶのを防ぐ。
   v_window interval := interval '12 hours';
   v_alerts jsonb;
@@ -156,7 +158,7 @@ begin
     left join work_entries w
       on w.employee_id = s.employee_id and w.work_date = s.work_date
     where w.id is null
-      and v_now >= s.start_at + v_delay
+      and v_now >= s.start_at + v_delay_in
       and s.start_at >= v_now - v_window
     union all
     -- 出勤はしているが、退勤予定を過ぎても退勤時刻が入っていない
@@ -165,7 +167,7 @@ begin
     join work_entries w
       on w.employee_id = s.employee_id and w.work_date = s.work_date
     where w.end_time is null
-      and v_now >= s.end_at + v_delay
+      and v_now >= s.end_at + v_delay_out
       and s.end_at >= v_now - v_window
   ),
   -- 未通知のものだけを記録して取り出す(主キー衝突=通知済みなので何もしない)

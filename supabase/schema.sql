@@ -333,7 +333,8 @@ CREATE FUNCTION public.collect_punch_alerts() RETURNS jsonb
 declare
   v_now timestamp;
   v_enabled boolean;
-  v_delay interval := interval '15 minutes';
+  v_delay_in interval := interval '5 minutes';
+  v_delay_out interval := interval '30 minutes';
   v_window interval := interval '12 hours';
   v_alerts jsonb;
   v_subs jsonb;
@@ -387,7 +388,7 @@ begin
     left join work_entries w
       on w.employee_id = s.employee_id and w.work_date = s.work_date
     where w.id is null
-      and v_now >= s.start_at + v_delay
+      and v_now >= s.start_at + v_delay_in
       and s.start_at >= v_now - v_window
     union all
     select s.employee_id, s.work_date, 'out', s.end_at
@@ -395,7 +396,7 @@ begin
     join work_entries w
       on w.employee_id = s.employee_id and w.work_date = s.work_date
     where w.end_time is null
-      and v_now >= s.end_at + v_delay
+      and v_now >= s.end_at + v_delay_out
       and s.end_at >= v_now - v_window
   ),
   inserted as (
