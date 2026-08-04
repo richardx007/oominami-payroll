@@ -603,6 +603,37 @@ middleware.ts            未認証は /login へ
 - Supabase 無料 / Cloudflare Workers 無料 / Gmail SMTP（無料枠）で運用。
 - Supabase 無料プロジェクトは長期未アクセスで一時停止する点に注意（現状 cron ping は未設定 → 未実装事項参照）。
 
+### 🔔 未打刻通知（Web Push・2026-08-04追加）
+シフトの**出勤／退勤の予定時刻を15分過ぎても打刻が無い**とき、管理者の端末へ
+**OS通知**（アプリを閉じていても届く）を送る。
+
+- **経路**: `pg_cron`(5分ごと) → `collect_punch_alerts()` → `pg_net` で
+  `POST /api/notify/punch` → Web Push 送信。
+- **役割分担**: 検出・重複判定・送信先の解決は**すべてDB内のSQL**。API ルートは
+  暗号化と送信だけで、**DBを一切読まない**。
+  - 理由(1) Cloudflare 無料プランの CPU 10ms 制限（Error 1102 の実績あり）を避ける。
+  - 理由(2) このアプリは **service_role キーを持たない**ため、サーバー側から RLS を
+    越えて `push_subscriptions` を読めない。cron が購読情報ごと POST する。
+- **認証**: 共有シークレット `NOTIFY_SECRET` を `x-notify-secret` ヘッダーで照合。
+  🔴 **middleware の公開パスに `/api` を含めること**。含めないと cron の POST が
+  `/login` にリダイレクトされ、**エラーも出ないまま通知だけが動かない**。
+- **重複防止**: `punch_alerts(employee_id, work_date, kind)` が主キー。
+  `insert … on conflict do nothing returning` で「今回初めて検出した分」だけを取り出す。
+- **遡り上限12時間**: 機能を有効にした瞬間に過去の未打刻が一斉送信されるのを防ぐ。
+- 🔴 **終了時刻は「開始＋経過時間」で求める**（終了≦開始なら+24h）。`work_date` は
+  業務日付なので、深夜番(0:00〜9:00)は開始が翌日。単純に `work_date + 終了時刻` に
+  すると深夜番の終了が同日9:00になり検出が壊れる。
+- **鍵**: VAPID。`NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`(Secret) /
+  `VAPID_SUBJECT`。生成は `scripts/generate-vapid-keys.mjs`。
+  🔴 **鍵を作り直すと既存の購読が全て無効**になる（各端末で再登録が必要）。
+- **暗号化**: `src/lib/web-push.ts`。npm の `web-push` は Node 依存で Workers での動作が
+  保証されないため **Web Crypto API のみで自前実装**（RFC 8292 VAPID / RFC 8291 aes128gcm）。
+  **RFC 8291 の公式テストベクタで固定テスト済み**（`web-push.test.ts`）。
+- **端末登録**: 通知は端末ごとに許可が要る。設定画面の「この端末で通知を受け取る」で購読。
+  iPhone/iPad は**ホーム画面に追加した PWA からのみ**（Safari のタブでは Push 不可）。
+- **Service Worker**: `push` / `notificationclick` を追加。**`fetch` は依然として横取りしない**
+  ので、ナビゲーションへの影響は無い（下記の重要な教訓を参照）。
+
 ### PWA / 自動更新（Service Worker）
 ホーム画面追加した PWA で、エンドユーザーが**ロゴ1タップで最新化**でき、新版デプロイ時に
 **「新しいバージョンがあります」バナー**で更新を促す仕組み。

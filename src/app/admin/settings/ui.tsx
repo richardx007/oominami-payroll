@@ -1,15 +1,24 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
+  deletePushSubscription,
   importTaxTable,
+  savePushSubscription,
   updateBreakWindows,
   updateEmailSettings,
   updateLunchAllowance,
+  updateNotifySettings,
   updateShiftSlots,
   updateTimesheetLock,
   uploadWorkRules,
 } from "./actions";
+import {
+  checkPushSupport,
+  getSubscription,
+  subscribeThisDevice,
+  unsubscribeThisDevice,
+} from "@/app/pwa/push";
 import type { SlotDef, SlotKey } from "@/lib/shifts";
 import { minutesToHHMM, type BreakWindow } from "@/lib/breaks";
 import type { ActionResult } from "../employees/actions";
@@ -702,6 +711,165 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * 未打刻通知の設定。
+ *
+ * 2段構えになっている点に注意:
+ *  1. 全体スイッチ(app_settings) … 機能そのもののオン/オフ。管理者共通。
+ *  2. この端末で受け取る(push_subscriptions) … 端末ごとの購読。OSの通知許可が要る。
+ * 片方だけでは通知は届かないので、UI 上でも並べて状態が分かるようにしている。
+ */
+export function NotifySettingsForm({
+  enabled,
+  vapidPublicKey,
+}: {
+  enabled: boolean;
+  vapidPublicKey: string | null;
+}) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  // 端末側の状態(購読済みか / そもそも使えるか)。判定はブラウザAPIなので初回描画後に行う。
+  const [deviceOn, setDeviceOn] = useState<boolean | null>(null);
+  const [unsupported, setUnsupported] = useState<string | null>(null);
+  const [deviceBusy, setDeviceBusy] = useState(false);
+  const [deviceMsg, setDeviceMsg] = useState<ActionResult | null>(null);
+
+  useEffect(() => {
+    const support = checkPushSupport();
+    if (!support.supported) {
+      setUnsupported(support.reason);
+      setDeviceOn(false);
+      return;
+    }
+    getSubscription()
+      .then((s) => setDeviceOn(!!s))
+      .catch(() => setDeviceOn(false));
+  }, []);
+
+  async function toggleDevice() {
+    if (!vapidPublicKey) {
+      setDeviceMsg({
+        ok: false,
+        message: "VAPID公開鍵が未設定のため登録できません（下の注記を参照）。",
+      });
+      return;
+    }
+    setDeviceBusy(true);
+    setDeviceMsg(null);
+    try {
+      if (deviceOn) {
+        const endpoint = await unsubscribeThisDevice();
+        if (endpoint) setDeviceMsg(await deletePushSubscription(endpoint));
+        setDeviceOn(false);
+      } else {
+        const sub = await subscribeThisDevice(vapidPublicKey);
+        setDeviceMsg(
+          await savePushSubscription({ ...sub, userAgent: navigator.userAgent })
+        );
+        setDeviceOn(true);
+      }
+    } catch (e) {
+      setDeviceMsg({
+        ok: false,
+        message: e instanceof Error ? e.message : "処理に失敗しました",
+      });
+    } finally {
+      setDeviceBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">通知</h2>
+      <p className="mt-1 text-sm text-gray-500">
+        シフトの出勤・退勤予定時刻を15分過ぎても打刻が無い場合に、管理者へ通知します。
+        同じ人・同じ日・同じ種別につき通知は1回だけです。
+      </p>
+
+      <form
+        action={(fd) =>
+          startTransition(async () => setResult(await updateNotifySettings(fd)))
+        }
+        className="mt-4 border-b border-gray-100 pb-4"
+      >
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            name="notify_missing_punch"
+            defaultChecked={enabled}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          未打刻の通知を有効にする
+        </label>
+        {result && (
+          <p
+            className={`mt-2 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
+          >
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="mt-3 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
+
+      <div className="mt-4">
+        <p className="text-sm font-medium text-gray-700">この端末で通知を受け取る</p>
+        <p className="mt-1 text-sm text-gray-500">
+          通知は端末ごとに許可が必要です。受け取りたい端末それぞれで登録してください。
+        </p>
+
+        {unsupported ? (
+          <p className="mt-3 rounded-lg bg-yellow-50 p-3 text-sm text-yellow-800">
+            {unsupported}
+          </p>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleDevice}
+              disabled={deviceBusy || deviceOn === null}
+              className={`rounded-lg px-6 py-2 text-sm font-medium text-white disabled:opacity-50 ${
+                deviceOn ? "bg-gray-500 hover:bg-gray-600" : "bg-green-600 hover:bg-green-700"
+              }`}
+            >
+              {deviceBusy
+                ? "処理中..."
+                : deviceOn === null
+                  ? "確認中..."
+                  : deviceOn
+                    ? "この端末への通知を解除する"
+                    : "この端末で通知を受け取る"}
+            </button>
+            <span className="text-sm text-gray-500">
+              {deviceOn === null ? "" : deviceOn ? "登録済み" : "未登録"}
+            </span>
+          </div>
+        )}
+
+        {deviceMsg && (
+          <p
+            className={`mt-2 text-sm ${deviceMsg.ok ? "text-green-700" : "text-red-600"}`}
+          >
+            {deviceMsg.message}
+          </p>
+        )}
+
+        {!vapidPublicKey && (
+          <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            通知用の鍵（VAPID）が未設定のため、通知は動作しません。
+            Cloudflare の環境変数に設定してください（手順は引継書を参照）。
+          </p>
+        )}
+      </div>
     </section>
   );
 }

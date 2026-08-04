@@ -53,6 +53,55 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// --- Web Push(未打刻通知) -------------------------------------------------
+// fetch は依然として横取りしない。push/notificationclick はリクエストとは無関係の
+// イベントなので、ナビゲーションへの影響は無い。
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    /* 本文が壊れていても通知自体は出す */
+  }
+  const title = data.title || "オオミナミ 給与管理";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      // 同じ tag の通知は上書きされる。未打刻通知が何件も積み上がらないようにする。
+      tag: data.tag || "punch-alert",
+      // 積み上げずに最新だけ見せたいので renotify はしない
+      data: { url: data.url || "/admin/timesheet" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    (async () => {
+      // 既に開いているウィンドウがあればそれを前面に出す(新規タブを増やさない)
+      const all = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      for (const c of all) {
+        if ("focus" in c) {
+          try {
+            await c.navigate(url);
+          } catch (e) {
+            /* navigate 不可でも focus はする */
+          }
+          return c.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })()
+  );
+});
+
 self.addEventListener("message", (event) => {
   // 更新バナー/ロゴタップからの要求で待機中の新版を有効化する。
   if (event.data && event.data.type === "SKIP_WAITING") {

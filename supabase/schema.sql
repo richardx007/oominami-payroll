@@ -304,6 +304,144 @@ $$;
 
 
 --
+-- Name: parse_slot_time(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.parse_slot_time(t text) RETURNS interval
+    LANGUAGE sql IMMUTABLE
+    AS $_$
+  select case
+    when t is null or trim(t) !~ '^\d{1,2}:\d{1,2}$' then null
+    else make_interval(
+      hours => (split_part(trim(t), ':', 1))::int % 24,
+      mins  => (split_part(trim(t), ':', 2))::int
+    )
+  end;
+$_$;
+
+
+--
+-- Name: collect_punch_alerts(); Type: FUNCTION; Schema: public; Owner: -
+--
+-- 未打刻を検出し、通知済みとして記録したうえで Web Push 送信用のペイロードを返す。
+-- pg_cron から呼ぶ。※復元後は pg_cron のジョブ登録も別途必要(docs/handover.md 参照)。
+
+CREATE FUNCTION public.collect_punch_alerts() RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_now timestamp;
+  v_enabled boolean;
+  v_delay interval := interval '15 minutes';
+  v_window interval := interval '12 hours';
+  v_alerts jsonb;
+  v_subs jsonb;
+begin
+  select coalesce(
+    (select value = 'true' from app_settings where key = 'notify_missing_punch'),
+    false
+  ) into v_enabled;
+
+  if not v_enabled then
+    return jsonb_build_object('alerts', '[]'::jsonb, 'subscriptions', '[]'::jsonb);
+  end if;
+
+  v_now := (now() at time zone 'Asia/Tokyo');
+
+  with slot_def as (
+    select 'A'::text as slot,
+           coalesce(parse_slot_time((select value from app_settings where key = 'shift_slot_a_start')), interval '8 hours') as s,
+           coalesce(parse_slot_time((select value from app_settings where key = 'shift_slot_a_end')), interval '17 hours') as e
+    union all
+    select 'B',
+           coalesce(parse_slot_time((select value from app_settings where key = 'shift_slot_b_start')), interval '15 hours'),
+           coalesce(parse_slot_time((select value from app_settings where key = 'shift_slot_b_end')), interval '0 hours')
+    union all
+    select 'C',
+           coalesce(parse_slot_time((select value from app_settings where key = 'shift_slot_c_start')), interval '0 hours'),
+           coalesce(parse_slot_time((select value from app_settings where key = 'shift_slot_c_end')), interval '9 hours')
+  ),
+  raw as (
+    select
+      sa.employee_id,
+      sa.work_date,
+      coalesce(parse_slot_time(nullif(trim(sa.custom_start), '')), sd.s) as s,
+      coalesce(parse_slot_time(nullif(trim(sa.custom_end), '')), sd.e) as e
+    from shift_assignments sa
+    join slot_def sd on sd.slot = sa.slot
+    where sa.work_date between (v_now::date - 2) and (v_now::date + 1)
+  ),
+  sched as (
+    select
+      r.employee_id,
+      r.work_date,
+      (r.work_date + r.s + case when r.s < interval '5 hours' then interval '1 day' else interval '0' end) as start_at,
+      (r.work_date + r.s + case when r.s < interval '5 hours' then interval '1 day' else interval '0' end)
+        + (case when r.e > r.s then r.e - r.s else r.e - r.s + interval '24 hours' end) as end_at
+    from raw r
+  ),
+  found as (
+    select s.employee_id, s.work_date, 'in'::text as kind, s.start_at as due_at
+    from sched s
+    left join work_entries w
+      on w.employee_id = s.employee_id and w.work_date = s.work_date
+    where w.id is null
+      and v_now >= s.start_at + v_delay
+      and s.start_at >= v_now - v_window
+    union all
+    select s.employee_id, s.work_date, 'out', s.end_at
+    from sched s
+    join work_entries w
+      on w.employee_id = s.employee_id and w.work_date = s.work_date
+    where w.end_time is null
+      and v_now >= s.end_at + v_delay
+      and s.end_at >= v_now - v_window
+  ),
+  inserted as (
+    insert into punch_alerts (employee_id, work_date, kind)
+    select employee_id, work_date, kind from found
+    on conflict (employee_id, work_date, kind) do nothing
+    returning employee_id, work_date, kind
+  )
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'name', coalesce(nullif(trim(e.nickname), ''), e.name),
+        'work_date', to_char(i.work_date, 'YYYY-MM-DD'),
+        'kind', i.kind,
+        'due_at', to_char(f.due_at, 'HH24:MI')
+      )
+    ),
+    '[]'::jsonb
+  )
+  into v_alerts
+  from inserted i
+  join employees e on e.id = i.employee_id
+  join found f
+    on f.employee_id = i.employee_id and f.work_date = i.work_date and f.kind = i.kind;
+
+  if v_alerts = '[]'::jsonb then
+    return jsonb_build_object('alerts', '[]'::jsonb, 'subscriptions', '[]'::jsonb);
+  end if;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object('endpoint', ps.endpoint, 'p256dh', ps.p256dh, 'auth', ps.auth)
+    ),
+    '[]'::jsonb
+  )
+  into v_subs
+  from push_subscriptions ps
+  join employees e on e.id = ps.employee_id
+  where e.is_admin and e.status = 'active';
+
+  return jsonb_build_object('alerts', v_alerts, 'subscriptions', v_subs);
+end;
+$$;
+
+
+--
 -- Name: is_shift_draft(date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -691,6 +829,48 @@ COMMENT ON TABLE public.shift_locks IS '従業員本人がかけた「変更不�
 
 
 --
+-- Name: push_subscriptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.push_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    employee_id uuid NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    user_agent text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE push_subscriptions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.push_subscriptions IS 'Web Push の購読情報(端末ごと)。通知を許可した端末だけがここに登録される。';
+
+
+--
+-- Name: punch_alerts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.punch_alerts (
+    employee_id uuid NOT NULL,
+    work_date date NOT NULL,
+    kind text NOT NULL,
+    notified_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT punch_alerts_kind_check CHECK ((kind = ANY (ARRAY['in'::text, 'out'::text])))
+);
+
+
+--
+-- Name: TABLE punch_alerts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.punch_alerts IS '未打刻通知の送信済み記録。(従業員, 業務日, 種別)で重複送信を防ぐ。';
+
+
+--
 -- Name: shift_modes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -966,6 +1146,30 @@ ALTER TABLE ONLY public.shift_locks
 
 
 --
+-- Name: push_subscriptions push_subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_subscriptions
+    ADD CONSTRAINT push_subscriptions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: push_subscriptions push_subscriptions_endpoint_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_subscriptions
+    ADD CONSTRAINT push_subscriptions_endpoint_key UNIQUE (endpoint);
+
+
+--
+-- Name: punch_alerts punch_alerts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.punch_alerts
+    ADD CONSTRAINT punch_alerts_pkey PRIMARY KEY (employee_id, work_date, kind);
+
+
+--
 -- Name: shift_modes shift_modes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1188,6 +1392,22 @@ ALTER TABLE ONLY public.shift_assignments
 
 ALTER TABLE ONLY public.shift_locks
     ADD CONSTRAINT shift_locks_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+
+
+--
+-- Name: push_subscriptions push_subscriptions_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_subscriptions
+    ADD CONSTRAINT push_subscriptions_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+
+
+--
+-- Name: punch_alerts punch_alerts_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.punch_alerts
+    ADD CONSTRAINT punch_alerts_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
 
 
 --
@@ -1428,6 +1648,18 @@ CREATE POLICY shift_assignments_select ON public.shift_assignments FOR SELECT US
 
 ALTER TABLE public.shift_locks ENABLE ROW LEVEL SECURITY;
 
+--
+-- Name: push_subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: punch_alerts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.punch_alerts ENABLE ROW LEVEL SECURITY;
+
 
 --
 -- Name: shift_locks shift_locks_select; Type: POLICY; Schema: public; Owner: -
@@ -1448,6 +1680,20 @@ CREATE POLICY shift_locks_self_insert ON public.shift_locks FOR INSERT WITH CHEC
 --
 
 CREATE POLICY shift_locks_self_delete ON public.shift_locks FOR DELETE USING ((employee_id = public.current_employee_id()));
+
+
+--
+-- Name: push_subscriptions push_subscriptions_self; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY push_subscriptions_self ON public.push_subscriptions USING ((employee_id = public.current_employee_id())) WITH CHECK ((employee_id = public.current_employee_id()));
+
+
+--
+-- Name: punch_alerts punch_alerts_admin_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY punch_alerts_admin_read ON public.punch_alerts FOR SELECT USING (public.is_admin());
 
 
 --
@@ -1909,6 +2155,20 @@ GRANT ALL ON TABLE public.shift_assignments TO service_role;
 GRANT ALL ON TABLE public.shift_locks TO anon;
 GRANT ALL ON TABLE public.shift_locks TO authenticated;
 GRANT ALL ON TABLE public.shift_locks TO service_role;
+
+
+--
+-- Name: TABLE push_subscriptions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE ON TABLE public.push_subscriptions TO authenticated;
+
+
+--
+-- Name: TABLE punch_alerts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.punch_alerts TO authenticated;
 
 
 --
