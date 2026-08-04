@@ -105,7 +105,11 @@ export async function POST(request: Request): Promise<Response> {
       // 詳細を返しても外部には漏れない。
       failures: results
         .filter((r) => !r.ok)
-        .map((r) => ({ status: r.status, endpoint: r.endpoint.slice(0, 60) })),
+        .map((r) => ({
+          status: r.status,
+          endpoint: r.endpoint.slice(0, 60),
+          error: r.error,
+        })),
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

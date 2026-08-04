@@ -101,7 +101,18 @@ async function hkdf(
 async function importVapidPrivateKey(keys: VapidKeys): Promise<CryptoKey> {
   const pub = b64urlToBytes(keys.publicKey);
   if (pub.length !== 65 || pub[0] !== 0x04) {
-    throw new Error("VAPID公開鍵の形式が不正です(65バイトの非圧縮P-256点が必要)");
+    throw new Error(
+      `VAPID公開鍵の形式が不正です(65バイトの非圧縮P-256点が必要。実際は${pub.length}バイト)`
+    );
+  }
+  const privBytes = b64urlToBytes(keys.privateKey);
+  if (privBytes.length !== 32) {
+    // 環境変数の取り違え・貼り付けミス(改行混入・別の値)で最も起きやすい失敗。
+    // crypto.subtle の生エラーは分かりにくいため、ここで先に分かる形にする。
+    throw new Error(
+      `VAPID秘密鍵の形式が不正です(32バイトが必要。実際は${privBytes.length}バイト)。` +
+        `VAPID_PRIVATE_KEY の値が正しいか、余分な空白/改行が無いか確認してください。`
+    );
   }
   // Web Crypto に秘密鍵を渡すには JWK が必要。x/y は公開鍵から切り出す。
   const jwk: JsonWebKey = {
@@ -251,6 +262,8 @@ export type SendResult = {
   status: number;
   /** 購読が失効している(404/410)。呼び出し側で削除してよい合図。 */
   expired: boolean;
+  /** status:0(=fetchに到達する前の例外。鍵の形式不正など)のときだけ入る診断用メッセージ */
+  error?: string;
 };
 
 /**
@@ -283,7 +296,13 @@ export async function sendPush(
       status: res.status,
       expired: res.status === 404 || res.status === 410,
     };
-  } catch {
-    return { endpoint: sub.endpoint, ok: false, status: 0, expired: false };
+  } catch (e) {
+    return {
+      endpoint: sub.endpoint,
+      ok: false,
+      status: 0,
+      expired: false,
+      error: e instanceof Error ? e.message : String(e),
+    };
   }
 }
