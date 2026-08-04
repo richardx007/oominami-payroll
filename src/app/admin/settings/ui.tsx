@@ -768,10 +768,18 @@ export function NotifySettingsForm({
         setDeviceOn(false);
       } else {
         const sub = await subscribeThisDevice(vapidPublicKey);
-        setDeviceMsg(
-          await savePushSubscription({ ...sub, userAgent: navigator.userAgent })
-        );
-        setDeviceOn(true);
+        // サーバー保存側もハングし得るので必ず打ち切る(ボタンが固まらないように)
+        const saved = await Promise.race([
+          savePushSubscription({ ...sub, userAgent: navigator.userAgent }),
+          new Promise<ActionResult>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("サーバーへの登録が完了しませんでした（20秒待機）")),
+              20_000
+            )
+          ),
+        ]);
+        setDeviceMsg(saved);
+        setDeviceOn(saved.ok);
       }
     } catch (e) {
       setDeviceMsg({

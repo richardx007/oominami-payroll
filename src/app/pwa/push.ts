@@ -33,10 +33,73 @@ export function checkPushSupport(): PushSupport {
   return { supported: true };
 }
 
+/**
+ * 各段階にタイムアウトを付ける。
+ * 🔴 `navigator.serviceWorker.ready` や `pushManager.subscribe()` は、うまくいかないとき
+ *    **拒否されずに永久に保留される**ことがある(ボタンが「処理中...」のまま固まる)。
+ *    どこで止まったかを利用者に伝えられるよう、段階名付きで必ず打ち切る。
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, step: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`「${step}」で応答がありませんでした（${ms / 1000}秒待機）`)),
+        ms
+      )
+    ),
+  ]);
+}
+
+/**
+ * Service Worker の登録を取り、有効化されるまで待つ。
+ * `navigator.serviceWorker.ready` を使わないのは、登録が無い/失敗している場合に
+ * **永久に解決しない**ため。ここでは自分で取得・登録し、状態を明示的に待つ。
+ */
+async function getActiveRegistration(): Promise<ServiceWorkerRegistration> {
+  let reg = await withTimeout(
+    navigator.serviceWorker.getRegistration(),
+    10_000,
+    "Service Workerの確認"
+  );
+  if (!reg) {
+    reg = await withTimeout(
+      navigator.serviceWorker.register("/sw.js"),
+      15_000,
+      "Service Workerの登録"
+    );
+  }
+  if (reg.active) return reg;
+
+  // まだ有効化されていない場合だけ待つ
+  const worker = reg.installing ?? reg.waiting;
+  if (!worker) {
+    throw new Error(
+      "Service Worker が有効になっていません。ページを再読み込みしてから、もう一度お試しください。"
+    );
+  }
+  await withTimeout(
+    new Promise<void>((resolve) => {
+      const onChange = () => {
+        if (worker.state === "activated" || reg!.active) {
+          worker.removeEventListener("statechange", onChange);
+          resolve();
+        }
+      };
+      worker.addEventListener("statechange", onChange);
+      onChange();
+    }),
+    15_000,
+    "Service Workerの有効化"
+  );
+  return reg;
+}
+
 /** 現在この端末が購読済みかどうか */
 export async function getSubscription(): Promise<PushSubscription | null> {
   if (!checkPushSupport().supported) return null;
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return null;
   return reg.pushManager.getSubscription();
 }
 
@@ -51,23 +114,39 @@ export async function subscribeThisDevice(
   const support = checkPushSupport();
   if (!support.supported) throw new Error(support.reason);
 
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") {
+  // 既に許可済みなら聞き直さない。古い Safari は Promise ではなくコールバック形式
+  // (戻り値 undefined)のことがあるため、戻り値ではなく Notification.permission を見る。
+  if (Notification.permission !== "granted") {
+    await withTimeout(
+      Promise.resolve(Notification.requestPermission()),
+      60_000,
+      "通知の許可"
+    );
+  }
+  if (Notification.permission !== "granted") {
     throw new Error(
       "通知が許可されませんでした。端末の設定からこのアプリの通知を許可してください。"
     );
   }
 
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await getActiveRegistration();
   // 既に購読済みならそれを使う(再登録すると endpoint が変わり、古い購読が残る)
-  const existing = await reg.pushManager.getSubscription();
+  const existing = await withTimeout(
+    reg.pushManager.getSubscription(),
+    10_000,
+    "既存の購読の確認"
+  );
   const sub =
     existing ??
-    (await reg.pushManager.subscribe({
-      // Chrome は必須。通知を出さない「サイレントプッシュ」を禁じる設定。
-      userVisibleOnly: true,
-      applicationServerKey: b64urlToBytes(vapidPublicKey) as BufferSource,
-    }));
+    (await withTimeout(
+      reg.pushManager.subscribe({
+        // Chrome は必須。通知を出さない「サイレントプッシュ」を禁じる設定。
+        userVisibleOnly: true,
+        applicationServerKey: b64urlToBytes(vapidPublicKey) as BufferSource,
+      }),
+      20_000,
+      "購読の作成"
+    ));
 
   const json = sub.toJSON();
   if (!json.keys?.p256dh || !json.keys?.auth) {
@@ -82,9 +161,9 @@ export async function subscribeThisDevice(
 
 /** この端末の購読を解除する。解除した endpoint を返す(サーバー側の削除に使う) */
 export async function unsubscribeThisDevice(): Promise<string | null> {
-  const sub = await getSubscription();
+  const sub = await withTimeout(getSubscription(), 10_000, "購読の確認");
   if (!sub) return null;
   const endpoint = sub.endpoint;
-  await sub.unsubscribe();
+  await withTimeout(sub.unsubscribe(), 10_000, "購読の解除");
   return endpoint;
 }
