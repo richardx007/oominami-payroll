@@ -787,7 +787,7 @@ export function NotifySettingsForm({
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">通知</h2>
       <p className="mt-1 text-sm text-gray-500">
-        シフトの出勤・退勤予定時刻を15分過ぎても打刻が無い場合に、管理者へ通知します。
+        シフトの出勤予定時刻を5分、退勤予定時刻を30分過ぎても打刻が無い場合に、管理者へ通知します。
         同じ人・同じ日・同じ種別につき通知は1回だけです。
       </p>
 
