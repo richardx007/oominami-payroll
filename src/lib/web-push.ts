@@ -34,7 +34,10 @@ export type VapidKeys = {
 // ---------------------------------------------------------------------------
 
 export function b64urlToBytes(s: string): Uint8Array {
-  const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+  // 🔴 環境変数(Cloudflareのシークレット)はコピペで前後に改行/空白が混入しやすく、
+  // 混入すると atob() が "invalid base64-encoded data" で例外を投げる
+  // (実際に本番で発生。値自体は正しくても気付きにくい)。防御的に取り除く。
+  const b64 = s.trim().replace(/-/g, "+").replace(/_/g, "/");
   // padding は base64url では省略されるので補う
   const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
   const bin = atob(padded);
