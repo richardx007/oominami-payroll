@@ -4,6 +4,7 @@ import {
   BreakWindowsForm,
   EmailSettingsForm,
   LunchAllowanceForm,
+  NotifySettingsForm,
   ShiftSlotsForm,
   TaxTableForm,
   TimesheetLockForm,
@@ -73,6 +74,10 @@ export default async function SettingsPage() {
       <BreakWindowsForm windows={breakWindows} />
       <TimesheetLockForm
         locked={settingsMap.get("lock_employee_time_edit") === "true"}
+      />
+      <NotifySettingsForm
+        enabled={settingsMap.get("notify_missing_punch") === "true"}
+        vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null}
       />
       <LunchAllowanceForm history={allowances ?? []} />
       <ClockSettingsForm

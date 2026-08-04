@@ -30,7 +30,10 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // /install: QRコードからログイン前でも開けるよう公開(ホーム画面追加の案内のみで機密情報なし)
-  const publicPaths = ["/login", "/register", "/auth", "/install"];
+  // /api: 外部(Supabase の pg_cron)から呼ばれる。ログインセッションを持たないため、
+  //       ここで /login へリダイレクトすると通知が一切動かなくなる。
+  //       各 API ルートは共有シークレットのヘッダーで自前に認証すること。
+  const publicPaths = ["/login", "/register", "/auth", "/install", "/api"];
   const isPublic = publicPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
   );

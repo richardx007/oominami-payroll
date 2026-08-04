@@ -1833,6 +1833,84 @@ DBレベルで構造的に解決した。
 
 ---
 
+### 🔔 未打刻通知（Web Push）を追加（2026-08-04）
+オーナー依頼「出勤/退勤の予定時刻を過ぎても打刻が無いとき管理者に通知」「設定画面にオンオフのトグル」。
+届け方は**「アプリを閉じていてもOS通知として届くこと」**が要件（オーナー明示）＝ Web Push。
+`npm run build && npm test`(50件)通過。
+
+#### 構成（なぜこうしたか）
+```
+Supabase pg_cron(5分ごと)
+  → collect_punch_alerts() で検出＋通知済み記録＋ペイロード組み立て（全部SQL内）
+  → pg_net で POST /api/notify/punch
+  → API は Web Push の暗号化と送信だけ
+```
+- 🔴 **スケジューラを Cloudflare 側に置かなかった理由**: 無料プランは CPU 10ms 制限が厳しく、
+  以前 Error 1102 を起こしている（`wrangler.jsonc` のコメント参照）。検出のSQLをDB内で完結させる。
+- 🔴 **API ルートは DB を一切読まない**。このアプリは **service_role キーを持たない方針**のため、
+  サーバー側から RLS を越えて購読情報を読む手段が無い。代わりに、DB内で動く cron が
+  「検出結果」と「送信先の購読情報」の両方をまとめて POST する。
+- 🔴 **middleware の公開パスに `/api` を追加した**。これを忘れると cron からの POST が
+  `/login` へリダイレクトされ、**通知が一切動かないのに画面上は何のエラーも出ない**。
+  API ルートは共有シークレット（`x-notify-secret`）で自前に認証している。
+
+#### 検出ロジック（`collect_punch_alerts()`）
+- 予定時刻＋**15分**で通知。同じ(従業員, 業務日, 種別)は `punch_alerts` の主キーで**1回だけ**。
+- 🔴 **遡りは12時間まで**。これが無いと、機能を有効にした瞬間に過去の未打刻が一斉に飛ぶ。
+- 🔴 **終了時刻は「開始からの経過時間」で出す**（終了≦開始なら+24時間）。
+  `work_date` は業務日付なので、深夜番(0:00〜9:00)は開始が翌日にずれる。単純に
+  `work_date + 終了時刻` とすると深夜番の終了が同日9:00になり**検出が壊れる**。
+  本番データで3枠すべて検算済み: 早番 8/4 08:00→17:00 / 遅番 8/4 15:00→**8/5 00:00** /
+  深夜 **8/5 00:00→8/5 09:00**。
+- **本番DBで ROLLBACK 付き検証済み**（実データ不変を確認）: ①今日の未打刻→1件検出 ✓
+  ②2回目・3回目の呼び出し→0件（重複しない）✓ ③3日前の未打刻→無視（12時間上限）✓
+
+#### Web Push の暗号化（`src/lib/web-push.ts`）
+- npm の `web-push` は Node の crypto/https 依存で Workers 上の動作が保証されないため、
+  **Web Crypto API だけで自前実装**（VAPID=RFC 8292 / 本文暗号化=RFC 8291 aes128gcm）。
+- 🔴 **RFC 8291 の公式テストベクタで検証している**（`web-push.test.ts`）。この手の暗号は
+  間違えても「通知が届かない」だけで原因が掴めないため、既知入力→既知出力を固定してある。
+  暗号処理を触ったらこのテストが通ることを必ず確認すること。
+- 使い捨て鍵と salt だけを注入可能にした（`encryptPayloadWith`）。テストのためだけの seam。
+
+#### 運用に必要な設定（オーナー作業）
+1. 鍵を生成する。リポジトリが手元に無くても macOS の `openssl` だけで作れる:
+   ```bash
+   openssl ecparam -name prime256v1 -genkey -noout -out vapid.pem
+   # 公開鍵(87文字)
+   openssl ec -in vapid.pem -pubout -outform DER | tail -c 65 | base64 | tr -d '=\n' | tr '/+' '_-'
+   # 秘密鍵(43文字)
+   openssl ec -in vapid.pem -outform DER | tail -c +8 | head -c 32 | base64 | tr -d '=\n' | tr '/+' '_-'
+   ```
+   （`scripts/generate-vapid-keys.mjs` でも同じものが作れる。Node が要る）
+   - 🔴 **VAPID鍵を作り直すと既存の購読が全て無効になる**（各端末で登録し直し）。
+   - 秘密鍵(43文字・`-_`)と `NOTIFY_SECRET`(`openssl rand -base64 32`＝44文字・`+/=`)は
+     見た目が似ているので取り違えに注意。
+2. 🔴 **平文の環境変数は `wrangler.jsonc` の `vars` に書く。ダッシュボードで設定しないこと。**
+   Cloudflare の仕様で、`vars` ブロックがあると**ダッシュボードの平文 Variable は
+   デプロイのたびに上書き削除される**（Secret は消えない）。
+   - `wrangler.jsonc` に書く: `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_SUBJECT`
+   - ダッシュボードに **Secret** で登録: `VAPID_PRIVATE_KEY` / `NOTIFY_SECRET`
+   - この罠に一度かかりかけた（ダッシュボードに4つとも登録 → 次のデプロイで公開鍵が
+     消えて**エラーも出ないまま通知だけ動かない**状態になるところだった）。
+3. Supabase で pg_cron のジョブを登録（設定済み。復元手順はマイグレーション末尾）。
+4. 設定画面で「未打刻の通知を有効にする」をオン＋**端末ごとに「この端末で通知を受け取る」**。
+   通知は端末ごとの許可が要る。iPhone は**ホーム画面PWAからのみ**（Safariのタブ不可）。
+
+#### 本番の設定状況（2026-08-04時点）
+- `pg_cron` / `pg_net` 有効化済み。cron ジョブ `punch-alerts`（5分ごと）登録済み。
+- 🔴 **シークレットは Supabase Vault に保管**（`notify_secret` / `notify_url`）。
+  関数本体に直書きしなかったのは、**`pg_proc.prosrc` は一般ユーザーからも読めてしまう**ため。
+  `authenticated` / `anon` から `vault.decrypted_secrets` を読めないことは確認済み。
+- **Vault の中身はダンプに含まれない。** DR復旧・新環境構築のときは
+  `supabase/migrations/20260804070000_punch_alert_cron.sql` の末尾にある復元手順
+  （Vault への再登録＋`cron.schedule`）を必ず実行すること。忘れると
+  **エラーも出ないまま通知だけが動かない**（`run_punch_alert_job` は warning を出して return する）。
+- `run_punch_alert_job()` は**通知がある時だけ POST する**。毎回叩くと Worker を無駄に
+  起こし、無料プランの実行回数・CPU を消費するため。
+- 通しで検証済み（ROLLBACK 付き・実データ不変）: 未打刻を仕込む→ジョブ実行→
+  `net.http_request_queue` に正しいURL・`x-notify-secret` ヘッダー・通知1件で積まれることを確認。
+
 ### 勤務ルールモーダルが設定画面の地図の下に隠れる問題を修正（2026-08-04）
 オーナー報告「設定画面で勤務ルールのモーダルを開いていると地図がその上にかぶさる」。
 `npm run build && npm test`(46件)通過。

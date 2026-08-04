@@ -480,3 +480,99 @@ export async function uploadWorkRules(formData: FormData): Promise<ActionResult>
   revalidatePath("/admin/settings");
   return { ok: true, message: `勤務ルール(${file.name})を保存しました` };
 }
+
+// ============================================================
+// 未打刻通知(Web Push)
+// ============================================================
+
+/** 未打刻通知そのもののオン/オフ(全体スイッチ)。既定はオフ。 */
+export async function updateNotifySettings(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const enabled = formData.get("notify_missing_punch") === "on";
+
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(
+      { key: "notify_missing_punch", value: enabled ? "true" : "false" },
+      { onConflict: "key" }
+    );
+
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  await logActivity(
+    "notify_settings_update",
+    enabled ? "未打刻通知を有効にしました" : "未打刻通知を無効にしました"
+  );
+
+  revalidatePath("/admin/settings");
+  return {
+    ok: true,
+    message: enabled
+      ? "未打刻通知を有効にしました"
+      : "未打刻通知を無効にしました",
+  };
+}
+
+const pushSubscriptionSchema = z.object({
+  endpoint: z.url().max(1000),
+  p256dh: z.string().min(1).max(200),
+  auth: z.string().min(1).max(200),
+});
+
+/**
+ * この端末を通知先として登録する。
+ * ブラウザから受け取った購読情報をそのまま保存するだけ。RLS により自分の行しか作れない。
+ */
+export async function savePushSubscription(input: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent?: string;
+}): Promise<ActionResult> {
+  const me = await requireAdmin();
+
+  const parsed = pushSubscriptionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: "購読情報の形式が正しくありません" };
+  }
+
+  const supabase = await createClient();
+  // endpoint は端末+ブラウザごとに一意。再登録時は上書きする(古い行を残さない)。
+  const { error } = await supabase.from("push_subscriptions").upsert(
+    {
+      employee_id: me.id,
+      endpoint: parsed.data.endpoint,
+      p256dh: parsed.data.p256dh,
+      auth: parsed.data.auth,
+      user_agent: input.userAgent?.slice(0, 300) ?? null,
+    },
+    { onConflict: "endpoint" }
+  );
+
+  if (error) return { ok: false, message: "端末の登録に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "この端末で通知を受け取れるようになりました" };
+}
+
+/** この端末の購読を解除する */
+export async function deletePushSubscription(
+  endpoint: string
+): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", endpoint);
+
+  if (error) return { ok: false, message: "解除に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "この端末への通知を解除しました" };
+}
