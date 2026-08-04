@@ -84,7 +84,9 @@ export default async function SettingsPage() {
         locked={settingsMap.get("lock_employee_time_edit") === "true"}
       />
       <NotifySettingsForm
-        enabled={settingsMap.get("notify_missing_punch") === "true"}
+        // 既定はオン。app_settings に行が無い(未設定)場合もオンにしたいので、
+        // "true"との一致ではなく "false" でないことを見る。
+        enabled={settingsMap.get("notify_missing_punch") !== "false"}
         vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null}
         registeredEndpoints={(pushSubs ?? []).map((r) => r.endpoint)}
       />
