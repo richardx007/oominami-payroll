@@ -12,7 +12,10 @@
 
 import { sendPush, type PushSubscriptionInfo } from "@/lib/web-push";
 
-export const runtime = "edge";
+// 🔴 `export const runtime = "edge"` を指定しない。このアプリは @opennextjs/cloudflare で
+// デプロイしており、Next.js の Edge Runtime バンドルは想定外の実行環境になる。
+// 実際にこれが原因と見られる 500 Internal Server Error が発生したため削除した。
+// 他のルート(auth/callback など)も指定していない。
 
 type Alert = {
   name: string;
@@ -81,17 +84,26 @@ export async function POST(request: Request): Promise<Response> {
     url: "/admin/timesheet",
   });
 
-  const results = await Promise.all(
-    subscriptions.map((s) =>
-      sendPush(s, message, { publicKey, privateKey, subject })
-    )
-  );
+  // 🔴 想定外の例外で素の 500(本文無し)を返さない。原因が分からないまま
+  // 通知だけ届かない状態を避けるため、失敗理由をレスポンスに含める。
+  // (このAPIは共有シークレット越しにしか叩けないので、詳細を返しても外部には漏れない)
+  try {
+    const results = await Promise.all(
+      subscriptions.map((s) =>
+        sendPush(s, message, { publicKey, privateKey, subject })
+      )
+    );
 
-  return Response.json({
-    ok: true,
-    sent: results.filter((r) => r.ok).length,
-    failed: results.filter((r) => !r.ok).length,
-    // 404/410 は購読切れ。端末側が再購読すれば解消するので、ここでは記録のみ。
-    expired: results.filter((r) => r.expired).map((r) => r.endpoint),
-  });
+    return Response.json({
+      ok: true,
+      sent: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+      // 404/410 は購読切れ。端末側が再購読すれば解消するので、ここでは記録のみ。
+      expired: results.filter((r) => r.expired).map((r) => r.endpoint),
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("[notify/punch] 送信中に例外:", message);
+    return Response.json({ ok: false, error: message }, { status: 500 });
+  }
 }
