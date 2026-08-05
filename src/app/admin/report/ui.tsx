@@ -35,13 +35,22 @@ function MailIcon({ className = "h-5 w-5" }: { className?: string }) {
  * 縦に長い場合はページを分割する。
  *
  * @param targetId キャプチャ対象(表を含む枠)の要素id
+ * @param sectionSelector 指定すると、ページ分割時にこのセレクタに一致する要素の
+ *   「内部」では改ページしないようにする(targetId の子孫に対する querySelectorAll)。
+ *   例: 従業員ごとの `<section>` にクラスを振っておくと、行の途中でページが割れず、
+ *   必ず区切りの良い位置(セクションの先頭)で改ページされる。未指定なら従来どおり
+ *   固定ピクセル高さで機械的に切る(2026-08-05追加。日別実績で行が割れる不具合の修正)。
+ *   1つのセクションが1ページに収まらないほど長い場合は、そのセクション内でも
+ *   やむを得ず機械的に切る(無限ループや空白ページを避けるため)。
  */
 export function DownloadPdfButton({
   targetId,
   filename,
+  sectionSelector,
 }: {
   targetId: string;
   filename: string;
+  sectionSelector?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,8 +80,28 @@ export function DownloadPdfButton({
         await new Promise((resolve) =>
           requestAnimationFrame(() => requestAnimationFrame(resolve))
         );
+
+        const scale = 2;
+
+        // 改ページ禁止セクションの境界位置を、実際にキャプチャする直前(画面外・全幅レイアウト
+        // が確定した状態)のDOM座標から求め、canvas座標(scale倍)に変換しておく。
+        // html2canvas を呼んだ後では要素の位置は分からない(すでに画像になっている)ため、
+        // 必ずここで測っておく必要がある。
+        let sectionBoundaries: number[] = [];
+        if (sectionSelector) {
+          const elRect = el.getBoundingClientRect();
+          sectionBoundaries = Array.from(
+            el.querySelectorAll(sectionSelector)
+          )
+            .map((s) =>
+              Math.round((s.getBoundingClientRect().top - elRect.top) * scale)
+            )
+            .filter((v) => v > 0); // 先頭(0)はもともと切る必要がない
+
+        }
+
         const canvas = await html2canvas(el, {
-          scale: 2,
+          scale,
           backgroundColor: "#ffffff",
           useCORS: true,
         });
@@ -94,7 +123,17 @@ export function DownloadPdfButton({
         let y = 0;
         let firstPage = true;
         while (y < canvas.height) {
-          const h = Math.min(sliceHpx, canvas.height - y);
+          const desiredEnd = Math.min(y + sliceHpx, canvas.height);
+          // このページに収まる範囲(y, desiredEnd]の中にある最後の区切り位置で切る。
+          // 無ければ(1セクションがページより長い等)従来どおり機械的に切る。
+          let end = desiredEnd;
+          if (desiredEnd < canvas.height) {
+            const candidates = sectionBoundaries.filter(
+              (b) => b > y && b <= desiredEnd
+            );
+            if (candidates.length > 0) end = candidates[candidates.length - 1];
+          }
+          const h = end - y;
           const slice = document.createElement("canvas");
           slice.width = canvas.width;
           slice.height = h;
@@ -115,7 +154,7 @@ export function DownloadPdfButton({
             h / pxPerMm
           );
           firstPage = false;
-          y += h;
+          y = end;
         }
         pdf.save(filename);
       } finally {

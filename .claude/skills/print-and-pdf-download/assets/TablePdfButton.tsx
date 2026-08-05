@@ -23,10 +23,20 @@ export function TablePdfButton({
   targetId,
   filename,
   label = "PDF",
+  /**
+   * CSS selector (relative to the captured element) for group containers that must not
+   * be split across a page break — e.g. one `<section>` per person/order/day in a report
+   * with repeated blocks. When a mechanical page-height cut would land inside a group,
+   * the cut is pulled back to that group's start instead. Omit for the plain fixed-offset
+   * behavior (a row can then be split across pages — fine for a flat table with no groups).
+   * See SKILL.md "Keeping groups together across page breaks".
+   */
+  sectionSelector,
 }: {
   targetId: string;
   filename: string;
   label?: string;
+  sectionSelector?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +69,24 @@ export function TablePdfButton({
           requestAnimationFrame(() => requestAnimationFrame(resolve))
         );
 
+        const scale = 2;
+
+        // Measure group boundaries in DOM space *before* html2canvas runs — once it's a
+        // flat canvas there is no group information left to use. Must be measured here,
+        // after the off-screen full-width layout has settled (the RAF wait above), so the
+        // coordinates match what the capture actually sees.
+        let sectionBoundaries: number[] = [];
+        if (sectionSelector) {
+          const elRect = el.getBoundingClientRect();
+          sectionBoundaries = Array.from(el.querySelectorAll(sectionSelector))
+            .map((s) =>
+              Math.round((s.getBoundingClientRect().top - elRect.top) * scale)
+            )
+            .filter((v) => v > 0); // the first group needs no cut before it
+        }
+
         const canvas = await html2canvas(el, {
-          scale: 2,
+          scale,
           backgroundColor: "#ffffff",
           useCORS: true,
         });
@@ -75,10 +101,21 @@ export function TablePdfButton({
         const sliceHpx = Math.floor((pageH - margin * 2) * pxPerMm);
 
         // addImage() never paginates on its own — slice the canvas into page-height strips.
+        // Prefer cutting at a group boundary within reach of the mechanical cut point;
+        // fall back to the mechanical cut when no boundary fits (a single group taller
+        // than one page) so this can never infinite-loop or skip content.
         let y = 0;
         let firstPage = true;
         while (y < canvas.height) {
-          const h = Math.min(sliceHpx, canvas.height - y);
+          const desiredEnd = Math.min(y + sliceHpx, canvas.height);
+          let end = desiredEnd;
+          if (desiredEnd < canvas.height) {
+            const candidates = sectionBoundaries.filter(
+              (b) => b > y && b <= desiredEnd
+            );
+            if (candidates.length > 0) end = candidates[candidates.length - 1];
+          }
+          const h = end - y;
           const slice = document.createElement("canvas");
           slice.width = canvas.width;
           slice.height = h;
@@ -99,7 +136,7 @@ export function TablePdfButton({
             h / pxPerMm
           );
           firstPage = false;
-          y += h;
+          y = end;
         }
         pdf.save(filename);
       } finally {
