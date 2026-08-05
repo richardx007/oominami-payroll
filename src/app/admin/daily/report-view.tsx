@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { WEEKDAYS, adjacentPeriodKey, weekdayOf, type Period } from "@/lib/period";
 import type { DailyReport } from "@/lib/daily-report";
-import { AdvanceToggle, DailySummary } from "./ui";
+import { AdvanceToggle, DailySummary, DownloadDailyCsvButton } from "./ui";
+import { DownloadPdfButton } from "@/app/admin/report/ui";
 
 /**
  * 分を「H:MM」表記にする。**0 は空白**にして、値のある行だけが目に入るようにする。
@@ -77,7 +78,20 @@ export function DailyReportView({
             ＞
           </Link>
         </div>
-        <h1 className="text-xl font-bold">{title}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-bold">{title}</h1>
+          {/* PDF/CSVは管理者のみ(従業員の閲覧専用画面では出さない)。
+              スマホ(特にiOSのPWA)では window.print() が動かないため、印刷ではなくPDFダウンロード */}
+          {editable && (
+            <>
+              <DownloadPdfButton
+                targetId="daily-report"
+                filename={`日別実績_${period.key}.pdf`}
+              />
+              <DownloadDailyCsvButton from={from} to={to} />
+            </>
+          )}
+        </div>
       </div>
 
       <ul className="space-y-1 text-sm text-gray-500">
@@ -85,6 +99,9 @@ export function DailyReportView({
         <li>・{descriptionLines[1]}</li>
       </ul>
 
+      {/* id は PDFダウンロード(DownloadPdfButton)のキャプチャ対象。変更する場合は
+          admin/daily/page.tsx の targetId も合わせること */}
+      <div id="daily-report" className="space-y-6">
       {/* 勤務実績と紐付かない前払金。表には出ないのに給与計算では控除され続けるため、
           気付けるよう警告として出す(打刻の修正で勤務日がずれた場合などに発生する)。
           対処できるのは管理者だけなので従業員の画面(editable=false)には出さない */}
@@ -345,6 +362,7 @@ export function DailyReportView({
           </div>
         </section>
       ))}
+      </div>
     </div>
   );
 }

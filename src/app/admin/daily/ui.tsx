@@ -3,69 +3,17 @@
 import { useState, useTransition } from "react";
 import { buildDailyReportCsv, setAdvancePayment } from "./actions";
 
-const iconBtn =
-  "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-blue-300 bg-white text-blue-700 hover:bg-blue-50 disabled:opacity-50";
+// アイコンではなく文字(PDF / CSV)で見せるボタン。給与明細画面(admin/report/ui.tsx)の
+// textBtn とスタイルを揃えている。
+const textBtn =
+  "inline-flex h-10 items-center justify-center rounded-lg border border-blue-300 bg-white px-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50";
 
-function PrinterIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6 9V3h12v6" />
-      <rect x="4" y="9" width="16" height="8" rx="2" />
-      <path d="M7 17h10v4H7z" />
-      <path d="M17 12.5h.01" />
-    </svg>
-  );
-}
-
-function DownloadIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 3v12" />
-      <path d="M7 10l5 5 5-5" />
-      <path d="M4 20h16" />
-    </svg>
-  );
-}
-
-function PrintButton() {
-  return (
-    <button
-      type="button"
-      onClick={() => window.print()}
-      aria-label="印刷 / PDF保存"
-      title="印刷 / PDF保存"
-      className={iconBtn}
-    >
-      <PrinterIcon />
-    </button>
-  );
-}
-
-function DownloadDailyCsvButton({
-  from,
-  to,
-}: {
-  from: string;
-  to: string;
-}) {
+/**
+ * 日別実績のCSVダウンロード(文字ボタン)。
+ * 以前はページ内の折りたたみ枠に隠れたアイコンボタンだったため、
+ * ページ見出し横の目立つ位置に文字ボタンとして出すよう変更した(2026-08-05)。
+ */
+export function DownloadDailyCsvButton({ from, to }: { from: string; to: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -97,9 +45,9 @@ function DownloadDailyCsvButton({
             URL.revokeObjectURL(url);
           });
         }}
-        className={iconBtn}
+        className={textBtn}
       >
-        <DownloadIcon />
+        {pending ? "作成中..." : "CSV"}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
@@ -189,10 +137,6 @@ export function DailySummary({
               <dd className="tabular-nums">{yen(advance)}</dd>
             </div>
           </dl>
-          <div className="mt-3 flex items-center gap-2 print:hidden">
-            <DownloadDailyCsvButton from={from} to={to} />
-            <PrintButton />
-          </div>
         </div>
       )}
     </div>
