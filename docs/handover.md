@@ -1901,6 +1901,70 @@ Supabase pg_cron(5分ごと)
 4. 設定画面で「未打刻の通知を有効にする」をオン＋**端末ごとに「この端末で通知を受け取る」**。
    通知は端末ごとの許可が要る。iPhone は**ホーム画面PWAからのみ**（Safariのタブ不可）。
 
+### 退職者ログイン拒否・アカウント設定画面・従業員一覧の在職/退職フィルタ（2026-08-06）
+オーナー依頼「退職済の社員はログインエラーにする」「ユーザ別アカウント設定画面を追加(通知設定を
+移動)」「従業員一覧に在職/退職の表示切替」。`npm run build`(型チェック込み)・`npm test`(54件)通過。
+`npx tsc --noEmit` もプロジェクト全体でエラー無し。
+
+#### 1. 退職者のログイン拒否
+- 🔴 **Supabase Auth 自体は `status` を知らないため、退職後もパスワードでの認証自体は成功する。**
+  `employees.status` を確認するのはアプリ側の責務。
+- **ログイン画面**(`login/page.tsx`): `signInWithPassword` 成功後に `employees.status` を確認し、
+  `active` でなければ `supabase.auth.signOut()` してから**通常の認証エラーと同じ文言**
+  （「メールアドレスまたはパスワードが正しくありません」）を表示する。「退職済みのため」とは
+  案内しない(在職状況を外部から推測されないようにするため)。
+- **`requireEmployee()`にも同じチェックを追加**(保険)。ログイン後に退職処理された場合、
+  既存セッションが残っていると素通りしてしまうため。こちらも同じ文言でログイン画面へ戻す。
+- 本番DBで検証済み: 退職済みの太郎ちゃん(employee_no=2)で、ログイン画面が実行するのと
+  同じクエリ(`select status from employees where auth_user_id=...`)を本人セッションを
+  模して実行し、`status='retired'` を正しく読み取れることを確認。
+
+#### 2. アカウント設定画面(新設)
+- ルートは2つ: `/admin/account`(管理者)・`/account`(従業員)。中身は共通コンポーネント
+  `src/app/account/AccountSettingsView.tsx` を薄いページで呼び出す構成
+  (`DailyReportView` と同じ「共通コンポーネント＋役割ごとの薄いpage.tsx」パターン)。
+- **プロフィール編集**(ニックネーム・氏名・ふりがな): 新しい SECURITY DEFINER 関数
+  `update_own_profile(p_nickname, p_name, p_furigana)` 経由で更新する。
+  🔴 **なぜRLSの自己UPDATEポリシーではなく関数にしたか**: 列単位のGRANTで絞り込む案も
+  検討したが、管理者用の `employees_admin_all` ポリシーと本人の自己更新は**同じ
+  `authenticated` ロール**で動くため、列単位GRANTは管理者が他の列(email/is_admin/status等)を
+  更新する権限まで一緒に制限してしまう。関数側で「自分の行の、この3列だけ」に固定する方が
+  安全（本番の payroll データを扱っているため、GRANT変更のような影響範囲の広い手段は避けた）。
+  本番DBでROLLBACK付き検証済み(is_admin/statusは触れないことも確認)。
+- **この端末で通知を受け取るボタン**: 旧 `admin/settings` の `NotifySettingsForm` をそのまま
+  移設し、**管理者・従業員の両方**に見せるようにした(今は従業員向けの通知は無いが、将来の
+  ための準備。オーナー明示)。ロジック(タイムアウト・denied案内・自己修復)は変更なし。
+  サーバーアクションは `admin` 前提だった `savePushSubscription`/`deletePushSubscription` を
+  `requireEmployee()` ベースの `saveMyPushSubscription`/`deleteMyPushSubscription`
+  (`account/actions.ts`)に置き換えた(`push_subscriptions` のRLSは元々
+  `employee_id = current_employee_id()` で役割非依存だったので、DB側の変更は不要)。
+- **通知種類別スイッチ(管理者のみ)**: 「未打刻の通知を有効にする」という単一スイッチを、
+  **出勤/退勤で別々にオン/オフできる**よう分離(`notify_missing_punch_in` /
+  `notify_missing_punch_out`)。オーナー依頼「通知種類別（出退勤の通知設定）の有効化ボタン」。
+  - `collect_punch_alerts()` を出勤検出・退勤検出それぞれ独立したスイッチで見るよう変更。
+  - 移行: 旧キー `notify_missing_punch` の値(既存は `'true'`)を両方の新キーへコピー
+    (未設定なら両方オンのまま)。旧キーは削除していない(害はないが、もう読まれない)。
+  - **admin/settings画面から完全に削除**し、この画面(`/admin/account`)へ移動
+    (オーナー明示の指示どおり)。
+- `admin/settings/actions.ts`・`admin/settings/ui.tsx` から通知関連のコード
+  (`updateNotifySettings`/`savePushSubscription`/`deletePushSubscription`/
+  `NotifySettingsForm`とその依存importすべて)を削除。オーファン参照が残っていないか
+  `grep` で確認済み。
+
+#### 3. ヘッダーのアカウント設定への導線
+- 共通の人物アイコン `PersonIcon` を `admin/nav.tsx` に追加(既に `LogoButton` を
+  従業員レイアウトから相互importしている慣習に合わせた)。
+- 名前(またはアイコン)をタップすると `/admin/account` または `/account` へ遷移。
+- 🔴 **配置はメニュー位置に合わせて左右を変える**(オーナー指定):
+  - 管理者PC/タブレット(左サイドバー): アイコンは名前の**左**
+  - 管理者スマホ(上部ヘッダー・右寄せ): アイコンは名前の**右**
+  - 従業員(常に上部ヘッダー・右寄せ、PC専用レイアウトが無いため常時): アイコンは名前の**右**
+
+#### 4. 従業員一覧の在職/退職フィルタ
+- `admin/employees/ui.tsx` の `EmployeeList` にローカルstateのトグル(「在職者のみ」/
+  「退職者のみ」、既定は在職者のみ)を追加。サーバーからは元々全員分を取得済みだったため、
+  クライアント側でフィルタするだけで済んだ(サーバークエリの変更は不要)。
+
 ### 日別PDFで従業員の途中で改ページする不具合を修正（2026-08-05）
 オーナー報告「PDF出力で行の途中でページ跨りが発生している。従業員ごとに改ページしたい」。
 `npm run build && npm test`(54件)通過。

@@ -332,21 +332,25 @@ CREATE FUNCTION public.collect_punch_alerts() RETURNS jsonb
     AS $$
 declare
   v_now timestamp;
-  v_enabled boolean;
+  v_enabled_in boolean;
+  v_enabled_out boolean;
   v_delay_in interval := interval '5 minutes';
   v_delay_out interval := interval '30 minutes';
   v_window interval := interval '12 hours';
   v_alerts jsonb;
   v_subs jsonb;
 begin
-  -- 既定はオン(未設定時にfalseへ倒さない)。app_settingsの行がまだ無い新規環境でも
-  -- 通知が効いた状態から始まるようにするため。明示的に'false'にした場合のみオフ。
+  -- 出勤/退勤で別々のスイッチ(2026-08-06分離)。既定はオン(未設定時にfalseへ倒さない)。
   select coalesce(
-    (select value <> 'false' from app_settings where key = 'notify_missing_punch'),
+    (select value <> 'false' from app_settings where key = 'notify_missing_punch_in'),
     true
-  ) into v_enabled;
+  ) into v_enabled_in;
+  select coalesce(
+    (select value <> 'false' from app_settings where key = 'notify_missing_punch_out'),
+    true
+  ) into v_enabled_out;
 
-  if not v_enabled then
+  if not v_enabled_in and not v_enabled_out then
     return jsonb_build_object('alerts', '[]'::jsonb, 'subscriptions', '[]'::jsonb);
   end if;
 
@@ -389,7 +393,8 @@ begin
     from sched s
     left join work_entries w
       on w.employee_id = s.employee_id and w.work_date = s.work_date
-    where w.id is null
+    where v_enabled_in
+      and w.id is null
       and v_now >= s.start_at + v_delay_in
       and s.start_at >= v_now - v_window
     union all
@@ -397,7 +402,8 @@ begin
     from sched s
     join work_entries w
       on w.employee_id = s.employee_id and w.work_date = s.work_date
-    where w.end_time is null
+    where v_enabled_out
+      and w.end_time is null
       and v_now >= s.end_at + v_delay_out
       and s.end_at >= v_now - v_window
   ),
@@ -458,6 +464,41 @@ CREATE FUNCTION public.is_shift_draft(d date) RETURNS boolean
     shift_period_key(d) > shift_period_key(((now() at time zone 'Asia/Tokyo')::date))
   );
 $$;
+
+
+--
+-- Name: update_own_profile(text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_own_profile(p_nickname text, p_name text, p_furigana text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  v_id := current_employee_id();
+  if v_id is null then
+    raise exception '従業員が見つかりません';
+  end if;
+  if p_name is null or length(trim(p_name)) = 0 then
+    raise exception '氏名を入力してください';
+  end if;
+  if length(trim(p_name)) > 100 or length(coalesce(p_nickname, '')) > 50
+     or length(coalesce(p_furigana, '')) > 50 then
+    raise exception '入力が長すぎます';
+  end if;
+
+  update employees
+  set nickname = nullif(trim(p_nickname), ''),
+      name = trim(p_name),
+      furigana = nullif(trim(p_furigana), '')
+  where id = v_id;
+end;
+$$;
+
+COMMENT ON FUNCTION public.update_own_profile(p_nickname text, p_name text, p_furigana text) IS
+  '本人がニックネーム・氏名・ふりがなを変更する。自分の行のこの3列のみ更新可能。';
 
 
 --
@@ -2012,6 +2053,14 @@ GRANT ALL ON FUNCTION public.is_shift_draft(d date) TO service_role;
 GRANT ALL ON FUNCTION public.is_shift_locked(p_employee_id uuid, d date) TO anon;
 GRANT ALL ON FUNCTION public.is_shift_locked(p_employee_id uuid, d date) TO authenticated;
 GRANT ALL ON FUNCTION public.is_shift_locked(p_employee_id uuid, d date) TO service_role;
+
+
+--
+-- Name: FUNCTION update_own_profile(p_nickname text, p_name text, p_furigana text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.update_own_profile(p_nickname text, p_name text, p_furigana text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.update_own_profile(p_nickname text, p_name text, p_furigana text) TO authenticated;
 
 
 --

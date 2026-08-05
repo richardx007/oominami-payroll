@@ -4,7 +4,6 @@ import {
   BreakWindowsForm,
   EmailSettingsForm,
   LunchAllowanceForm,
-  NotifySettingsForm,
   ShiftSlotsForm,
   TaxTableForm,
   TimesheetLockForm,
@@ -16,7 +15,7 @@ import { parseSlots } from "@/lib/shifts";
 import { parseBreakWindows } from "@/lib/breaks";
 
 export default async function SettingsPage() {
-  const me = await requireAdmin();
+  await requireAdmin();
   const supabase = await createClient();
 
   const [{ data: allowances }, { data: taxYears }, { data: settings }] =
@@ -35,14 +34,6 @@ export default async function SettingsPage() {
         .order("min_amount", { ascending: true }),
       supabase.from("app_settings").select("key, value"),
     ]);
-
-  // この管理者がサーバー側に登録済みの購読。ブラウザ側の購読状態と突き合わせて
-  // 「登録済み」を判定する。片方だけ存在する食い違いが起こりうるため
-  // (購読作成は成功したがサーバー保存が失敗した場合など)、両方を見る必要がある。
-  const { data: pushSubs } = await supabase
-    .from("push_subscriptions")
-    .select("endpoint")
-    .eq("employee_id", me.id);
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
   const slots = parseSlots(settings ?? []);
@@ -82,13 +73,6 @@ export default async function SettingsPage() {
       <BreakWindowsForm windows={breakWindows} />
       <TimesheetLockForm
         locked={settingsMap.get("lock_employee_time_edit") === "true"}
-      />
-      <NotifySettingsForm
-        // 既定はオン。app_settings に行が無い(未設定)場合もオンにしたいので、
-        // "true"との一致ではなく "false" でないことを見る。
-        enabled={settingsMap.get("notify_missing_punch") !== "false"}
-        vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null}
-        registeredEndpoints={(pushSubs ?? []).map((r) => r.endpoint)}
       />
       <LunchAllowanceForm history={allowances ?? []} />
       <ClockSettingsForm

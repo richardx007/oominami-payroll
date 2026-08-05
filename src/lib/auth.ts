@@ -39,6 +39,15 @@ export async function requireEmployee(): Promise<Employee> {
   }
 
   if (!employee) redirect("/login?error=no_employee");
+
+  // 退職済みの従業員はここでも弾く(ログイン画面の水際チェックの保険。
+  // 例えばログイン後に退職処理された場合、既存セッションが残っていると
+  // 通り抜けてしまうため)。ログイン時と同じく通常の認証エラーと同じ扱いにする。
+  if (employee.status !== "active") {
+    await supabase.auth.signOut();
+    redirect("/login");
+  }
+
   return employee;
 }
 

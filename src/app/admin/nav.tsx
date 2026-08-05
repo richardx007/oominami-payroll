@@ -65,6 +65,25 @@ export function LogoButton({ className = "" }: { className?: string }) {
   );
 }
 
+/** アカウント設定リンク用の人物アイコン(単色フラット)。ヘッダーの名前の隣に置く。 */
+export function PersonIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M4.5 20c1.5-4 4.5-6 7.5-6s6 2 7.5 6" />
+    </svg>
+  );
+}
+
 // サイドバーの各行に共通のクラス(グループ化で縦に長くなるため間隔は控えめ)
 const sidebarItemClass =
   "flex w-full touch-manipulation items-center gap-3 rounded-lg px-3 py-1.5 text-lg font-medium transition-colors active:opacity-70";
