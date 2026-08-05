@@ -36,7 +36,7 @@ export default async function EmployeesPage() {
     .order("employee_no");
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto w-full max-w-5xl space-y-8">
       <div>
         <h1 className="text-xl font-bold">従業員管理</h1>
         <p className="mt-1 text-sm text-gray-500">
