@@ -179,12 +179,13 @@ function DeviceNotificationSection({
           userAgent: navigator.userAgent,
         });
         setDeviceOn(res.ok);
+        // 🔴 これは画面を開いた時に裏で自動的に行う突き合わせ(本人の操作ではない)。
+        // 初回訪問(まだ一度も登録していない)でも通りうる経路なので、ここで赤いエラーを
+        // 出すと「初回は未登録で当然なのに」不安を煽ってしまう(実際にオーナー報告あり)。
+        // 失敗時は静かに「未登録」の表示に倒し、原因追跡用に console にだけ残す。
+        // ユーザーが実際にボタンを押した(toggleDevice)ときの失敗は、そちらで表示する。
         if (!res.ok) {
-          setDeviceMsg({
-            ok: false,
-            message:
-              "この端末の登録がサーバーに残っていません。「この端末で通知を受け取る」を押し直してください。",
-          });
+          console.warn("[account] 通知購読の自動突き合わせに失敗:", res.message);
         }
       })
       .catch(() => setDeviceOn(false));
