@@ -255,8 +255,55 @@ for (let y = 0, first = true; y < canvas.height; first = false) {
 ```
 
 (Slicing cuts at a fixed pixel offset, so a row can be split across the page break. Acceptable
-for an internal report; if it isn't, you need real per-row pagination, which means abandoning
-the single-canvas approach.)
+for an internal report — but if the table has natural group boundaries (one block per employee,
+per order, per day…), there's a cheap fix short of abandoning the single-canvas approach:
+see "Keeping groups together across page breaks" below.)
+
+### Keeping groups together across page breaks
+
+If splitting mid-row inside a group is a real complaint (not just cosmetic), don't move to
+per-row pagination — instead make the *cut points* boundary-aware while keeping everything else
+about the single-canvas approach unchanged. Mark each group's container with a shared class, and
+measure where those containers land **in the DOM, right before the html2canvas call** — not
+after, once it's a flat image there's no group information left to use:
+
+```ts
+const scale = 2;
+const elRect = el.getBoundingClientRect();
+// canvas-space Y of each group's top edge (scale factor converts DOM px → canvas px)
+const groupBoundaries = Array.from(el.querySelectorAll(".pdf-group"))
+  .map((g) => Math.round((g.getBoundingClientRect().top - elRect.top) * scale))
+  .filter((v) => v > 0);                    // the very first group needs no cut before it
+
+const canvas = await html2canvas(el, { scale, backgroundColor: "#ffffff", useCORS: true });
+```
+
+Then, in the pagination loop, prefer the nearest group boundary at or before where a mechanical
+cut would land — and only fall back to the mechanical cut when no boundary fits (a single group
+taller than one page; without this fallback you get an infinite loop or an empty page):
+
+```ts
+let y = 0, first = true;
+while (y < canvas.height) {
+  const desiredEnd = Math.min(y + sliceHpx, canvas.height);
+  let end = desiredEnd;
+  if (desiredEnd < canvas.height) {
+    const candidates = groupBoundaries.filter((b) => b > y && b <= desiredEnd);
+    if (candidates.length > 0) end = candidates[candidates.length - 1];
+  }
+  const h = end - y;
+  /* ...same slice/addImage as above, using h instead of the old fixed slice height... */
+  first = false;
+  y = end;
+}
+```
+
+This is a strict superset of the plain version: pass no group selector (or an empty match) and
+it degenerates to exactly the old fixed-offset behavior, so it's safe to make this the default
+signature of a shared PDF-download component rather than a special case. Verify with a quick
+pure-function simulation (canvas height, slice height, boundary list → page ranges) before
+trusting it on a real capture — it's cheap to check for infinite loops, non-contiguous ranges, or
+a boundary that never gets used, and those bugs are hard to spot by eyeballing a generated PDF.
 
 **3. The button lives far from the table.** With the trigger in a toolbar component and the
 table in a page component, you can't pass a `ref`. Give the table a **stable `id`** and let the
@@ -269,7 +316,7 @@ it's an invisible coupling that a rename will silently break.
 | --- | --- |
 | `assets/PrintablePanel.tsx` | **Small panel.** Print button (Gotcha 1 detection + Gotcha 2/3 isolated-window printing) + PDF button (html2canvas+jsPDF). Adapt the markup/styles to your panel. |
 | `assets/capture-sheet.css` | Companion CSS for the panel's PDF-capture node (`.pdf-capture-sheet` / `body.pdf-capture-mode`). |
-| `assets/TablePdfButton.tsx` | **Wide table.** PDF-only button: id-based target, off-screen full-width capture, landscape, canvas slicing across pages, error surfaced (Gotchas 4/5/6). |
+| `assets/TablePdfButton.tsx` | **Wide table.** PDF-only button: id-based target, off-screen full-width capture, landscape, canvas slicing across pages with optional group-boundary-aware cuts (`sectionSelector`), error surfaced (Gotchas 4/5/6). |
 | `assets/table-capture.css` | Companion CSS for the table capture (`.pdf-capture-target`: off-screen width, releasing `overflow-x`, neutralising sticky columns). |
 
 ## Verify

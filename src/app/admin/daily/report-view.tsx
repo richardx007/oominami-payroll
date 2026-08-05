@@ -87,6 +87,7 @@ export function DailyReportView({
               <DownloadPdfButton
                 targetId="daily-report"
                 filename={`日別実績_${period.key}.pdf`}
+                sectionSelector=".pdf-section"
               />
               <DownloadDailyCsvButton from={from} to={to} />
             </>
@@ -150,9 +151,11 @@ export function DailyReportView({
       )}
 
       {report.employees.map((emp) => (
+        // pdf-section: PDFダウンロード時、この要素の途中で改ページしないようにする
+        // 目印(DownloadPdfButton の sectionSelector と対応。片方だけ変更しないこと)
         <section
           key={emp.employeeId}
-          className="rounded-xl border border-gray-200 bg-white"
+          className="pdf-section rounded-xl border border-gray-200 bg-white"
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-t-xl border-b border-result-200 bg-result-50 p-4">
             {/* 画面上の従業員表示は原則ニックネーム優先(未設定なら氏名)。
