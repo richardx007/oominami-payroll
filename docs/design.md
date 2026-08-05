@@ -1322,6 +1322,7 @@ foreign key (employee_id, work_date)
   | 用途 | 使うライブラリ | 理由 |
   |---|---|---|
   | 給与明細一覧（`admin/report/ui.tsx`） | **`html2canvas-pro`** | Tailwind のクラスを使うため `oklch()` 対応が必須 |
+  | 日別実績（`admin/daily/report-view.tsx`。2026-08-05追加。`DownloadPdfButton`を再利用） | **`html2canvas-pro`** | 同上 |
   | 出退勤QRシート（`admin/settings/clock.tsx`） | **`html2canvas`（本家）** | pro に変えるとレイアウトが崩れる |
 
   - 本プロジェクトは **Tailwind CSS v4** で、標準カラー（`gray-*`/`red-*` など）が **`oklch()`** で
@@ -1334,6 +1335,16 @@ foreign key (employee_id, work_date)
     本家のままで問題ない。
   - **どちらか一方に寄せようとしないこと。** 両方とも動的 import（コード分割）なので、
     それぞれの画面を開いたときにしか読み込まれない。
+- **`DownloadPdfButton`（`admin/report/ui.tsx`）は `targetId`/`filename` だけの汎用コンポーネント**
+  なので、他画面でもそのまま import して使い回せる（新規実装不要）。日別実績画面
+  （`admin/daily/report-view.tsx`）はこれをそのまま再利用し、`id="daily-report"` を
+  キャプチャ対象にしている。**CSVも同じ発想**で、日別専用の
+  `DownloadDailyCsvButton`（`admin/daily/ui.tsx`）を文字ボタン化して見出し横に配置した
+  （旧実装は「対象期間」の折りたたみ枠に隠れたアイコンボタンで、印刷は `window.print()`
+  のままだった＝iOSのPWAで動作しない状態のまま気付かれず残っていた。オーナー依頼で
+  給与明細画面と同じ方式に統一）。
+  🔴 **`DailyReportView` は管理者・従業員で共用**（`editable` prop で出し分け）。
+  PDF/CSVボタンは `editable` のときだけ出す（従業員の閲覧専用画面には出さない）。
 
 ### 11.5 実装で踏んだ落とし穴（再発注意）
 
