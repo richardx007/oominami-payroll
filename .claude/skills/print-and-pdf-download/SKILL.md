@@ -261,6 +261,10 @@ see "Keeping groups together across page breaks" below.)
 
 ### Keeping groups together across page breaks
 
+Confirmed working in production (2026-08-05): a per-employee daily report went from routinely
+splitting a person's rows across a page break to every group landing cleanly on its own page(s),
+verified against a real generated PDF, not just the pagination math.
+
 If splitting mid-row inside a group is a real complaint (not just cosmetic), don't move to
 per-row pagination — instead make the *cut points* boundary-aware while keeping everything else
 about the single-canvas approach unchanged. Mark each group's container with a shared class, and
