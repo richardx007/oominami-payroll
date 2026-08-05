@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireEmployee } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { EmployeeNav } from "./nav";
-import { LogoButton } from "@/app/admin/nav";
+import { LogoButton, PersonIcon } from "@/app/admin/nav";
 
 export default async function EmployeeLayout({
   children,
@@ -44,9 +44,14 @@ export default async function EmployeeLayout({
             <span className="text-lg font-bold">給与管理</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-blue-100">
-              {employee.nickname || employee.name}
-            </span>
+            {/* 名前の右にアイコン(スマホの見え方に合わせる。iPhoneの場合は名前の右側) */}
+            <Link
+              href="/account"
+              className="flex items-center gap-1.5 text-blue-100 hover:text-white"
+            >
+              <span>{employee.nickname || employee.name}</span>
+              <PersonIcon className="h-4 w-4 shrink-0" />
+            </Link>
             {employee.is_admin && (
               <Link href="/admin" className="text-blue-100 underline hover:text-white">
                 管理画面

@@ -435,6 +435,12 @@ middleware.ts            未認証は /login へ
 
 ### 認証・ロール
 - Supabase Auth。ログインはメール+パスワード。
+- 🔴 **退職済み(`employees.status <> 'active'`)は認証に成功してもログインさせない**
+  （2026-08-06）。Supabase Auth自体はDBの`status`を知らないため認証は通ってしまう。
+  `login/page.tsx`が`signInWithPassword`成功後に`status`を確認し、`active`でなければ
+  `signOut()`のうえ**通常の認証エラーと同じ文言**を出す（退職を理由に案内しない）。
+  `lib/auth.ts`の`requireEmployee()`にも同じチェックがあり、ログイン後に退職処理された
+  場合の保険になっている。
 - **メールリンクは3種類とも `token_hash` + `verifyOtp` 方式に統一**（初回登録=magiclink /
   管理者発行の再設定=recovery / ログイン画面「パスワードを忘れたら」=recovery）。
 - **⚠️ `/auth/callback` は検証を直接行わない（2026-07-18 に変更・重要）**: メールのリンク先は
@@ -608,6 +614,29 @@ middleware.ts            未認証は /login へ
 ### 無料枠での運用
 - Supabase 無料 / Cloudflare Workers 無料 / Gmail SMTP（無料枠）で運用。
 - Supabase 無料プロジェクトは長期未アクセスで一時停止する点に注意（現状 cron ping は未設定 → 未実装事項参照）。
+
+### 👤 アカウント設定画面（2026-08-06追加）
+`/admin/account`（管理者）・`/account`（従業員）の2ルート。中身は共通コンポーネント
+`src/app/account/AccountSettingsView.tsx` を薄い `page.tsx` から呼ぶ構成
+（`DailyReportView` と同じ「共通コンポーネント＋役割ごとの薄いpage.tsx」パターン）。
+
+- **導線**: ヘッダーの氏名/ニックネーム表示に人物アイコン（`admin/nav.tsx`の`PersonIcon`）を
+  添え、タップでこの画面へ遷移する。**配置はメニューの位置に合わせて左右を変える**
+  （管理者PC/タブレットの左サイドバーではアイコンが名前の左、管理者スマホの上部ヘッダーと
+  従業員（常に上部ヘッダー）ではアイコンが名前の右。オーナー指定）。
+- **プロフィール編集**（ニックネーム・氏名・ふりがな）: SECURITY DEFINER関数
+  `update_own_profile(p_nickname, p_name, p_furigana)`経由。
+  🔴 **RLSの自己UPDATEポリシー＋列単位GRANTではなく関数にした理由**: 管理者用の
+  `employees_admin_all`ポリシーと本人の自己更新は**同じ`authenticated`ロール**で動くため、
+  列単位GRANTで絞ると管理者が他の列（email/is_admin/status等）を更新する権限まで
+  一緒に制限されてしまう。関数側で「自分の行の、この3列だけ」に固定するほうが安全。
+- **通知（この端末で受け取るボタン）**: 旧`admin/settings`の`NotifySettingsForm`をここへ移設。
+  **管理者・従業員の両方に表示**する（現状は従業員向けの通知は無いが、将来のための準備。
+  オーナー明示）。サーバーアクションは`account/actions.ts`の
+  `saveMyPushSubscription`/`deleteMyPushSubscription`（`requireEmployee()`ベース）。
+- **通知種類別スイッチ（管理者のみ）**: 出勤/退勤で別々にオン/オフできる
+  （`notify_missing_punch_in`/`notify_missing_punch_out`。旧: 単一スイッチ
+  `notify_missing_punch`から分離）。`admin/settings`画面からは完全に削除済み。
 
 ### 🔔 未打刻通知（Web Push・2026-08-04追加）
 シフトの**出勤予定を5分・退勤予定を30分**過ぎても打刻が無いとき、管理者の端末へ

@@ -286,6 +286,9 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
+  // 在職者のみ/退職者のみの二択(デフォルトは在職者のみ)。
+  const [statusFilter, setStatusFilter] = useState<"active" | "retired">("active");
+  const filteredEmployees = employees.filter((e) => e.status === statusFilter);
 
   function run(action: () => Promise<ActionResult>) {
     startTransition(async () => {
@@ -312,6 +315,31 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
           <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">従業員一覧</h2>
           <AddEmployeePanel />
         </div>
+        {/* 在職者/退職者の二択。既定は在職者のみ(普段の管理業務は在職者が対象のため)。 */}
+        <div className="mt-2 inline-flex overflow-hidden rounded-lg border border-blue-300 text-sm">
+          <button
+            type="button"
+            onClick={() => setStatusFilter("active")}
+            className={`px-3 py-1.5 font-medium ${
+              statusFilter === "active"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-blue-700 hover:bg-blue-50"
+            }`}
+          >
+            在職者のみ
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("retired")}
+            className={`border-l border-blue-300 px-3 py-1.5 font-medium ${
+              statusFilter === "retired"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-blue-700 hover:bg-blue-50"
+            }`}
+          >
+            退職者のみ
+          </button>
+        </div>
         {result && (
           <p
             className={`mt-1 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
@@ -330,7 +358,16 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp) => {
+            {filteredEmployees.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-400">
+                  {statusFilter === "active"
+                    ? "在職中の従業員はいません"
+                    : "退職済みの従業員はいません"}
+                </td>
+              </tr>
+            )}
+            {filteredEmployees.map((emp) => {
               return (
                 <EmployeeTableRow
                   key={emp.id}

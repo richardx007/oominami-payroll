@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
-import { AdminBottomNav, AdminSidebarNav, LogoButton } from "./nav";
+import { AdminBottomNav, AdminSidebarNav, LogoButton, PersonIcon } from "./nav";
 import { signOut } from "./actions";
 
 export default async function AdminLayout({
@@ -21,9 +22,14 @@ export default async function AdminLayout({
           <AdminSidebarNav />
         </div>
         <div className="border-t border-white/15 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-sm">
-          <div className="mb-2 truncate text-blue-100">
-            {admin.nickname || admin.name}
-          </div>
+          {/* PC/タブレット: メニューが左側にあるので、アイコンは名前の左 */}
+          <Link
+            href="/admin/account"
+            className="mb-2 flex items-center gap-1.5 truncate text-blue-100 hover:text-white"
+          >
+            <PersonIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{admin.nickname || admin.name}</span>
+          </Link>
           <form action={signOut}>
             <button className="w-full rounded-lg bg-white/15 px-3 py-1.5 text-blue-50 hover:bg-white/25">
               ログアウト
@@ -43,7 +49,14 @@ export default async function AdminLayout({
             <span className="text-base font-bold">給与管理</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-blue-100">{admin.nickname || admin.name}</span>
+            {/* モバイル: 名前の右にアイコン(iPhoneでの見え方に合わせる) */}
+            <Link
+              href="/admin/account"
+              className="flex items-center gap-1.5 text-blue-100 hover:text-white"
+            >
+              <span>{admin.nickname || admin.name}</span>
+              <PersonIcon className="h-4 w-4 shrink-0" />
+            </Link>
           </div>
         </div>
       </header>

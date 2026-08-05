@@ -22,12 +22,28 @@ export default function LoginPage() {
     setError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
+      setError("メールアドレスまたはパスワードが正しくありません");
+      setLoading(false);
+      return;
+    }
+
+    // 退職済みの従業員はログインさせない。認証(Supabase Auth)自体は成功してしまうため、
+    // ここで status を確認し、退職済みならセッションを破棄する。
+    // 「退職済みのため」とは案内せず、通常の認証エラーと同じ文言にする
+    // (在職状況を外部から推測されないようにするため)。
+    const { data: me } = await supabase
+      .from("employees")
+      .select("status")
+      .eq("auth_user_id", signInData.user?.id ?? "")
+      .maybeSingle();
+    if (!me || me.status !== "active") {
+      await supabase.auth.signOut();
       setError("メールアドレスまたはパスワードが正しくありません");
       setLoading(false);
       return;
