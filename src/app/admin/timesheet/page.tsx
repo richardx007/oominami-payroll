@@ -36,7 +36,7 @@ export default async function AdminTimesheetPage({
 
   if (!selectedId) {
     return (
-      <div className="space-y-4">
+      <div className="mx-auto w-full max-w-5xl space-y-4">
         <h1 className="text-xl font-bold">勤務表</h1>
         <p className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
           対象の従業員が登録されていません。
@@ -108,7 +108,7 @@ export default async function AdminTimesheetPage({
   const holidays = await fetchJapaneseHolidays(years);
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto w-full max-w-5xl space-y-4">
       <TimesheetCalendar
         period={period}
         entries={normalized as WorkEntry[]}

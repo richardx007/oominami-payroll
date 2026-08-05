@@ -50,10 +50,11 @@ export default async function AdminLayout({
 
       {/* 本文だけを内部スクロールさせる(下部ナビは fixed ではなく通常フローで最下部に置く)。
           md 以上ではサイドバー横の通常スクロールに戻る(globals.css の .app-shell--sidebar) */}
+      {/* 幅の制限(max-w-5xl)はここでは掛けない。日別・給与明細は表の列を多く見せたいため
+          横幅いっぱいに使いたい(オーナー依頼)。他の画面は読みやすさのため各ページ側で
+          `mx-auto max-w-5xl` を付けている。パディングだけはここで全画面共通にする。 */}
       <main className="app-scroll min-w-0">
-        <div className="mx-auto w-full min-w-0 max-w-5xl px-4 py-6">
-          {children}
-        </div>
+        <div className="w-full min-w-0 px-4 py-6">{children}</div>
       </main>
 
       {/* モバイル用の下部タブナビ */}

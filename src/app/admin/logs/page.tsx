@@ -80,7 +80,7 @@ export default async function LogsPage() {
   const logs = (data ?? []) as LogRow[];
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto w-full max-w-5xl space-y-4">
       <div>
         <h1 className="text-xl font-bold">操作ログ</h1>
         <p className="mt-1 text-sm text-gray-500">

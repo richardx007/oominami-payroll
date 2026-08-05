@@ -57,7 +57,7 @@ export default async function SettingsPage() {
     : null;
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto w-full max-w-5xl space-y-8">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold">設定</h1>

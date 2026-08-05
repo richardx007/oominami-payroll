@@ -26,7 +26,7 @@ export default async function AdminHomePage({
   const holidays = await fetchJapaneseHolidays(years);
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto w-full max-w-5xl space-y-4">
       <ShiftSchedule
         period={period}
         slots={shiftData.slots}
