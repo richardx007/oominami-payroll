@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function SetPasswordPage() {
+function SetPasswordInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isInitialSetup = searchParams.get("setup") === "1";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -57,10 +59,19 @@ export default function SetPasswordPage() {
       }
     }
 
-    // 操作ログ(パスワード設定)を記録。失敗しても無視する
+    // 操作ログを記録。初回登録(setup=1)と通常の再設定を区別する。失敗しても無視する
     try {
-      await supabase.rpc("log_activity", { p_action: "パスワード設定" });
+      await supabase.rpc("log_activity", {
+        p_action: isInitialSetup ? "初回ログイン" : "パスワード設定",
+      });
     } catch {}
+
+    // 初回登録の場合のみ、管理者へPush通知を送る(再設定・自己申請時は送らない)
+    if (isInitialSetup) {
+      try {
+        await supabase.rpc("notify_first_login");
+      } catch {}
+    }
 
     router.push("/");
     router.refresh();
@@ -113,5 +124,13 @@ export default function SetPasswordPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+export default function SetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <SetPasswordInner />
+    </Suspense>
   );
 }

@@ -502,6 +502,71 @@ COMMENT ON FUNCTION public.update_own_profile(p_nickname text, p_name text, p_fu
 
 
 --
+-- Name: notify_first_login(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.notify_first_login() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+  v_name text;
+  v_secret text;
+  v_url text;
+  v_subs jsonb;
+begin
+  select e.id, coalesce(nullif(trim(e.nickname), ''), e.name) into v_id, v_name
+  from employees e
+  where e.id = current_employee_id();
+
+  if v_id is null then
+    raise exception '従業員が見つかりません';
+  end if;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object('endpoint', ps.endpoint, 'p256dh', ps.p256dh, 'auth', ps.auth)
+    ),
+    '[]'::jsonb
+  )
+  into v_subs
+  from push_subscriptions ps
+  join employees e on e.id = ps.employee_id
+  where e.is_admin and e.status = 'active';
+
+  if jsonb_array_length(v_subs) = 0 then
+    return;
+  end if;
+
+  select decrypted_secret into v_secret
+  from vault.decrypted_secrets where name = 'notify_secret';
+
+  select decrypted_secret into v_url
+  from vault.decrypted_secrets where name = 'notify_first_login_url';
+
+  if v_secret is null or v_url is null then
+    raise warning '初回ログイン通知: Vault に notify_secret / notify_first_login_url がありません';
+    return;
+  end if;
+
+  perform net.http_post(
+    url := v_url,
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-notify-secret', v_secret
+    ),
+    body := jsonb_build_object('employee_name', v_name, 'subscriptions', v_subs),
+    timeout_milliseconds := 15000
+  );
+end;
+$$;
+
+COMMENT ON FUNCTION public.notify_first_login() IS
+  '本人の初回パスワード設定完了時に呼ぶ。管理者の購読先へPush通知を送る(送信自体はAPI経由)。';
+
+
+--
 -- Name: link_employee_account(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2061,6 +2126,14 @@ GRANT ALL ON FUNCTION public.is_shift_locked(p_employee_id uuid, d date) TO serv
 
 REVOKE ALL ON FUNCTION public.update_own_profile(p_nickname text, p_name text, p_furigana text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.update_own_profile(p_nickname text, p_name text, p_furigana text) TO authenticated;
+
+
+--
+-- Name: FUNCTION notify_first_login(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.notify_first_login() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notify_first_login() TO authenticated;
 
 
 --

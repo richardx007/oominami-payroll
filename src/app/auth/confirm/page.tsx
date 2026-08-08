@@ -56,7 +56,9 @@ function ConfirmInner() {
 
     await supabase.rpc("link_employee_account");
 
-    if (setup === "1" || type === "recovery") {
+    if (setup === "1") {
+      router.push("/set-password?setup=1");
+    } else if (type === "recovery") {
       router.push("/set-password");
     } else {
       router.push("/");
