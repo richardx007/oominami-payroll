@@ -512,10 +512,20 @@ CREATE FUNCTION public.notify_first_login() RETURNS void
 declare
   v_id uuid;
   v_name text;
+  v_enabled boolean;
   v_secret text;
   v_url text;
   v_subs jsonb;
 begin
+  select coalesce(
+    (select value <> 'false' from app_settings where key = 'notify_first_login'),
+    true
+  ) into v_enabled;
+
+  if not v_enabled then
+    return;
+  end if;
+
   select e.id, coalesce(nullif(trim(e.nickname), ''), e.name) into v_id, v_name
   from employees e
   where e.id = current_employee_id();

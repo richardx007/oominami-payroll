@@ -702,6 +702,16 @@ middleware.ts            未認証は /login へ
   `notify_first_login_url`として登録（`supabase/migrations/20260808010000_first_login_notify.sql`
   末尾に復元手順あり。DR復旧時はVaultへの再登録が必要）。
 - 送信APIは`src/app/api/notify/first-login/route.ts`（`src/app/api/notify/punch`と同一パターン）。
+- **オン/オフスイッチ（2026-08-08追加）**: `app_settings`の`notify_first_login`キー（既定`true`）。
+  `notify_first_login()`はRPC冒頭でこのフラグを確認し、`false`なら何もせず正常終了する
+  （未打刻通知の`notify_missing_punch_in/_out`と同じ`coalesce(value <> 'false', true)`パターン）。
+  管理者アカウント設定画面「通知対象（管理者向け）」の3つ目のチェックボックスから変更する。
+- **UI配置（2026-08-08）**: 「通知対象（管理者向け）」（旧称: 未打刻通知（管理者向け）。
+  出勤/退勤/初回ログインの3スイッチに増えたため名称変更）は、独立したセクションではなく
+  **「通知」枠（端末の通知許可セクション）の内側にネスト**して表示する
+  （`DeviceNotificationSection`が`notifyTypeSection` propとして`NotifyTypeForm`を受け取り、
+  自身の`<section>`内の末尾で描画する）。端末側の通知許可が親、通知対象の選別が子という
+  親子関係を画面構造にも反映させる意図（オーナー指定）。
 
 ### PWA / 自動更新（Service Worker）
 ホーム画面追加した PWA で、エンドユーザーが**ロゴ1タップで最新化**でき、新版デプロイ時に

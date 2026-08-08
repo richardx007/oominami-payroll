@@ -16,7 +16,11 @@ export default async function AdminAccountPage() {
     supabase
       .from("app_settings")
       .select("key, value")
-      .in("key", ["notify_missing_punch_in", "notify_missing_punch_out"]),
+      .in("key", [
+        "notify_missing_punch_in",
+        "notify_missing_punch_out",
+        "notify_first_login",
+      ]),
   ]);
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
@@ -33,6 +37,7 @@ export default async function AdminAccountPage() {
         registeredEndpoints={(subs ?? []).map((r) => r.endpoint)}
         notifyInEnabled={settingsMap.get("notify_missing_punch_in") !== "false"}
         notifyOutEnabled={settingsMap.get("notify_missing_punch_out") !== "false"}
+        notifyFirstLoginEnabled={settingsMap.get("notify_first_login") !== "false"}
       />
     </div>
   );

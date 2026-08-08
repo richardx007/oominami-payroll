@@ -149,7 +149,7 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
                   <button
                     type="button"
                     onClick={() => toggleDay(day)}
-                    className="flex w-full items-center justify-between gap-2 bg-gray-50 px-3 py-2 text-left text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                    className="flex w-full items-center justify-between gap-2 bg-gray-200 px-3 py-2 text-left text-sm font-semibold text-gray-800 hover:bg-gray-300"
                   >
                     <span className="flex items-center gap-2">
                       <span
@@ -159,7 +159,7 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
                       </span>
                       {jstDateLabel(dayLogs[0].created_at)}
                     </span>
-                    <span className="text-xs font-normal text-gray-400">
+                    <span className="text-xs font-normal text-gray-500">
                       {dayLogs.length}件
                     </span>
                   </button>

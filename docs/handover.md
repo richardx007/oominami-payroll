@@ -2374,12 +2374,28 @@ Supabaseの「リフレッシュトークン再利用検知」がこれを盗用
   `notify_first_login_url`登録済み（値: `https://oominami-payroll.shinsekai.workers.dev/api/notify/first-login`）、
   ロール偽装SQLでRPC実行確認済み（エラー無し）。
 
+**追加対応（同日）**: オーナー依頼により以下を実施。
+- **オン/オフスイッチ追加**: `app_settings.notify_first_login`（既定`true`、本番へ登録済み）。
+  マイグレーション`20260808020000_first_login_notify_toggle.sql`で`notify_first_login()`の
+  冒頭にフラグ確認を追加（無効時は何もせず正常終了）。ロール偽装SQLで`false`時に
+  エラーなく即終了することを確認済み。
+- **UI再構成**: 「未打刻通知（管理者向け）」→「通知対象（管理者向け）」に改称し、
+  端末通知許可の「通知」枠の内側にネスト表示（親子関係の明示・オーナー指定）。
+  出勤/退勤チェックボックスの右側にそれぞれ発火条件の説明文を追加、上部の説明文は
+  「種類ごとに個別にオン/オフできます。」のみに簡略化。3つ目のチェックボックス
+  「新規従業員の初回ログイン」を追加（上記スイッチと連動）。
+  `src/app/account/AccountSettingsView.tsx`の`DeviceNotificationSection`が
+  `notifyTypeSection` propとして`NotifyTypeForm`を受け取り、自身の`<section>`内末尾で描画する形。
+
 ### 操作ログ画面：日単位トグル・カテゴリ絞り込み（2026-08-08）
 `/admin/logs`をサーバーコンポーネント`page.tsx`（データ取得のみ）とクライアントコンポーネント
 `LogsView.tsx`（表示・フィルタ状態）に分離。詳細はdesign.md「6.2 操作ログのランク制」末尾参照。
 - 日付ヘッダー（▼・件数）クリックで日単位に開閉。未操作の日は既定で開く。
 - カテゴリ（実際にログに存在するaction文字列のみ）でプルダウン絞り込み。絞り込みを
   グループ化より先に適用するため、該当が無い日はヘッダーごと非表示になる。
+- **背景色を濃く（同日追加）**: 日付ヘッダーの背景を`bg-gray-50`→`bg-gray-200`
+  （hover: `bg-gray-300`）、文字色を`text-gray-700`→`text-gray-800`に変更し、
+  行内容との対比を強めた。
 
 ## 7. すぐ使えるコマンド集
 

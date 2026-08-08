@@ -105,9 +105,9 @@ export async function deleteMyPushSubscription(endpoint: string): Promise<Action
 }
 
 /**
- * 未打刻通知の種類別(出勤/退勤)スイッチ。管理者のみ変更可能。
+ * 通知対象(未打刻の出勤/退勤・初回ログイン)のスイッチ。管理者のみ変更可能。
  * 以前は admin/settings 画面にあった単一スイッチを、出勤/退勤で分離して
- * アカウント設定画面に移動した(2026-08-06)。
+ * アカウント設定画面に移動した(2026-08-06)。初回ログイン通知は2026-08-08追加。
  */
 export async function updateNotifyTypeSettings(formData: FormData): Promise<ActionResult> {
   await requireAdmin();
@@ -115,11 +115,13 @@ export async function updateNotifyTypeSettings(formData: FormData): Promise<Acti
 
   const notifyIn = formData.get("notify_missing_punch_in") === "on";
   const notifyOut = formData.get("notify_missing_punch_out") === "on";
+  const notifyFirstLogin = formData.get("notify_first_login") === "on";
 
   const { error } = await supabase.from("app_settings").upsert(
     [
       { key: "notify_missing_punch_in", value: notifyIn ? "true" : "false" },
       { key: "notify_missing_punch_out", value: notifyOut ? "true" : "false" },
+      { key: "notify_first_login", value: notifyFirstLogin ? "true" : "false" },
     ],
     { onConflict: "key" }
   );
@@ -128,7 +130,8 @@ export async function updateNotifyTypeSettings(formData: FormData): Promise<Acti
 
   await logActivity(
     "notify_settings_update",
-    `未打刻通知: 出勤=${notifyIn ? "有効" : "無効"} / 退勤=${notifyOut ? "有効" : "無効"}`
+    `未打刻通知: 出勤=${notifyIn ? "有効" : "無効"} / 退勤=${notifyOut ? "有効" : "無効"} / ` +
+      `初回ログイン=${notifyFirstLogin ? "有効" : "無効"}`
   );
 
   revalidatePath("/admin/account");

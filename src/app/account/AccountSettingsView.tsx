@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import {
   updateOwnProfile,
   saveMyPushSubscription,
@@ -29,6 +29,7 @@ export function AccountSettingsView({
   registeredEndpoints,
   notifyInEnabled,
   notifyOutEnabled,
+  notifyFirstLoginEnabled,
 }: {
   name: string;
   nickname: string | null;
@@ -37,9 +38,10 @@ export function AccountSettingsView({
   vapidPublicKey: string | null;
   /** サーバー側に登録済みの購読エンドポイント(この本人の分) */
   registeredEndpoints: string[];
-  /** 管理者のみ使用。出勤/退勤それぞれの通知スイッチの現在値 */
+  /** 管理者のみ使用。出勤/退勤・初回ログインそれぞれの通知スイッチの現在値 */
   notifyInEnabled?: boolean;
   notifyOutEnabled?: boolean;
+  notifyFirstLoginEnabled?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -47,13 +49,16 @@ export function AccountSettingsView({
       <DeviceNotificationSection
         vapidPublicKey={vapidPublicKey}
         registeredEndpoints={registeredEndpoints}
+        notifyTypeSection={
+          isAdmin ? (
+            <NotifyTypeForm
+              notifyInEnabled={notifyInEnabled ?? true}
+              notifyOutEnabled={notifyOutEnabled ?? true}
+              notifyFirstLoginEnabled={notifyFirstLoginEnabled ?? true}
+            />
+          ) : null
+        }
       />
-      {isAdmin && (
-        <NotifyTypeForm
-          notifyInEnabled={notifyInEnabled ?? true}
-          notifyOutEnabled={notifyOutEnabled ?? true}
-        />
-      )}
     </div>
   );
 }
@@ -137,9 +142,12 @@ function ProfileForm({
 function DeviceNotificationSection({
   vapidPublicKey,
   registeredEndpoints,
+  notifyTypeSection,
 }: {
   vapidPublicKey: string | null;
   registeredEndpoints: string[];
+  /** 管理者のみ。「通知」枠の内側にネストして表示する通知対象スイッチ */
+  notifyTypeSection?: ReactNode;
 }) {
   const [deviceOn, setDeviceOn] = useState<boolean | null>(null);
   const [unsupported, setUnsupported] = useState<string | null>(null);
@@ -321,30 +329,32 @@ function DeviceNotificationSection({
           通知用の鍵（VAPID）が未設定のため、通知は動作しません。
         </p>
       )}
+
+      {notifyTypeSection}
     </section>
   );
 }
 
-/** 未打刻の出勤/退勤それぞれのスイッチ(管理者のみ) */
+/** 通知対象(未打刻の出勤/退勤・初回ログイン)それぞれのスイッチ(管理者のみ)。
+ * 「通知」枠の内側にネストして表示する(端末の通知許可が親、対象の選別が子という
+ * 親子関係のため)。
+ */
 function NotifyTypeForm({
   notifyInEnabled,
   notifyOutEnabled,
+  notifyFirstLoginEnabled,
 }: {
   notifyInEnabled: boolean;
   notifyOutEnabled: boolean;
+  notifyFirstLoginEnabled: boolean;
 }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-        未打刻通知（管理者向け）
-      </h2>
-      <p className="mt-1 text-sm text-gray-500">
-        シフトの出勤予定時刻を5分、退勤予定時刻を30分過ぎても打刻が無い場合に通知します。
-        同じ人・同じ日・同じ種別につき通知は1回だけです。種類ごとに個別にオン/オフできます。
-      </p>
+    <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+      <h3 className="font-semibold text-gray-800">通知対象（管理者向け）</h3>
+      <p className="mt-1 text-sm text-gray-500">種類ごとに個別にオン/オフできます。</p>
       <form
         action={(fd) =>
           startTransition(async () => setResult(await updateNotifyTypeSettings(fd)))
@@ -359,6 +369,9 @@ function NotifyTypeForm({
             className="h-4 w-4 rounded border-gray-300"
           />
           出勤の未打刻を通知する
+          <span className="font-normal text-gray-500">
+            （シフトの出勤予定時刻を5分過ぎても打刻が無い場合に通知）
+          </span>
         </label>
         <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
           <input
@@ -368,6 +381,21 @@ function NotifyTypeForm({
             className="h-4 w-4 rounded border-gray-300"
           />
           退勤の未打刻を通知する
+          <span className="font-normal text-gray-500">
+            （シフトの退勤予定時刻を30分過ぎても打刻が無い場合に通知）
+          </span>
+        </label>
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            name="notify_first_login"
+            defaultChecked={notifyFirstLoginEnabled}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          新規従業員の初回ログイン
+          <span className="font-normal text-gray-500">
+            （初回パスワード設定の完了時に通知）
+          </span>
         </label>
         {result && (
           <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
@@ -381,6 +409,6 @@ function NotifyTypeForm({
           {pending ? "保存中..." : "保存する"}
         </button>
       </form>
-    </section>
+    </div>
   );
 }
