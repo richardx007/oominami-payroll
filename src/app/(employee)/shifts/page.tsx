@@ -40,6 +40,7 @@ export default async function EmployeeShiftsPage({
       assignments={shiftData.assignments}
       locks={shiftData.locks}
       statusMap={shiftData.statusMap}
+      timesMap={shiftData.timesMap}
       holidays={holidays}
       today={todayJST()}
       basePath="/shifts"

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
 import { adjacentPeriodKey, datesInPeriod } from "@/lib/period";
@@ -12,10 +12,12 @@ import {
   nicknameStyle,
   shiftNoteLabel,
   slotHourRangeLabel,
+  todayNicknameStyle,
   toInputTime,
   type NicknameStyle,
   shiftModeLabel,
   type ShiftMode,
+  type ShiftTimes,
   type SlotDef,
   type SlotKey,
   type ShiftStatus,
@@ -79,11 +81,12 @@ function LockIcon({ className = "h-5 w-5" }: { className?: string }) {
 function nicknameClass(style: NicknameStyle): string {
   if (style === "match") return "font-bold";
   if (style === "mismatch") return "font-bold text-red-600";
+  if (style === "overdue") return "text-red-600"; // 太字にしない(細字のまま)
   return "";
 }
 function nicknameColor(style: NicknameStyle): string | undefined {
   if (style === "match") return "#000";
-  if (style === "mismatch") return undefined; // text-red-600 が優先
+  if (style === "mismatch" || style === "overdue") return undefined; // text-red-600 が優先
   return SHIFT_TEXT_COLOR;
 }
 
@@ -94,6 +97,7 @@ export function ShiftSchedule({
   assignments,
   locks = [],
   statusMap,
+  timesMap,
   holidays,
   today,
   basePath,
@@ -115,6 +119,8 @@ export function ShiftSchedule({
   locks?: ShiftLock[];
   /** `${employee_id}|${work_date}` -> status。ニックネームのフォント表示に使う(nicknameStyle参照) */
   statusMap: Record<string, ShiftStatus>;
+  /** `${employee_id}|${work_date}` -> 予定/実績の生時刻。本日の動的な色分け(todayNicknameStyle)に使う */
+  timesMap: Record<string, ShiftTimes>;
   holidays: Record<string, string>;
   today: string;
   /** 期間ナビのリンク先ベース("/admin" または "/shifts") */
@@ -155,6 +161,28 @@ export function ShiftSchedule({
   const [result, setResult] = useState<ActionResult | null>(null);
   // モード切替の確認ダイアログ(管理者のみ)
   const [confirmMode, setConfirmMode] = useState(false);
+
+  // 本日のニックネーム色分け(todayNicknameStyle)に使う「現在時刻」。
+  // サーバー/クライアントでの描画差分(hydrationの不一致)を避けるため、初期値は null にして
+  // マウント後に確定させる(初回描画では本日も通常のnicknameStyleにフォールバックする)。
+  // 1分ごとに更新し、遅刻・退勤超過の表示が開きっぱなしの画面でも自然に切り替わるようにする。
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  /** 本日は todayNicknameStyle を優先し、対象外(予定なし/出退勤とも打刻済み/本日以外)なら
+   * 通常の nicknameStyle(status) にフォールバックする */
+  function styleFor(employeeId: string, date: string): NicknameStyle {
+    const key = `${employeeId}|${date}`;
+    if (date === today && nowMs != null) {
+      const s = todayNicknameStyle(timesMap[key], date, nowMs);
+      if (s !== null) return s;
+    }
+    return nicknameStyle(statusMap[key]);
+  }
 
   const memberById = useMemo(
     () => new Map(roster.map((m) => [m.id, m] as const)),
@@ -472,8 +500,12 @@ export function ShiftSchedule({
                     onClick={() => setSelected(isSelected ? null : date)}
                     title={holidays[date] ?? undefined}
                     className={`relative flex min-h-16 flex-col border border-gray-100 p-0 text-left align-top transition sm:min-h-20 ${
-                      isSelected ? "z-10 ring-2 ring-blue-500" : "hover:bg-gray-50"
-                    } ${isToday ? "bg-gray-100" : ""}`}
+                      isSelected
+                        ? "z-10 ring-2 ring-blue-500"
+                        : isToday
+                          ? "bg-gray-200"
+                          : "hover:bg-gray-50"
+                    } ${isToday && !isSelected ? "ring-2 ring-gray-400" : ""}`}
                   >
                     {/* 調整中に希望が同時間帯でぶつかっている日の目印。当人同士で
                         気付いて調整できるよう、日付の左側に目立つ赤字で出す。 */}
@@ -504,9 +536,7 @@ export function ShiftSchedule({
                         <div key={k} className="flex min-h-[15px] flex-col gap-px">
                           {(slotsForDay?.[k] ?? []).map(
                             ({ member: m, customStart, customEnd }) => {
-                              const style = nicknameStyle(
-                                statusMap[`${m.id}|${date}`]
-                              );
+                              const style = styleFor(m.id, date);
                               const note = shiftNoteLabel(customStart, customEnd);
                               return (
                                 <span
@@ -550,7 +580,10 @@ export function ShiftSchedule({
         </p>
         <p className="text-xs font-medium">
           <span className="text-gray-800">太字＝実績入力済み。</span>
-          <span className="text-red-600">赤太字＝予定と実績が相違</span>
+          <span className="text-red-600">赤太字＝予定と実績が相違。</span>
+          <span className="text-gray-500">
+            （本日のみ: 赤太字＝出勤未打刻、黒太字＝出勤済み・退勤待ち、赤細字＝退勤30分超過）
+          </span>
         </p>
       </div>
 
@@ -563,7 +596,7 @@ export function ShiftSchedule({
             roster={roster}
             slotByKey={slotByKey}
             customByKey={customByKey}
-            statusMap={statusMap}
+            styleFor={styleFor}
             editable={editable}
             // 枠の割当ができるか(確定モードの従業員画面では false。行は出すが枠は押せない)
             canAssign={!!assign && !!clear}
@@ -907,7 +940,7 @@ function DayPanel({
   roster,
   slotByKey,
   customByKey,
-  statusMap,
+  styleFor,
   editable,
   canAssign,
   editableEmployeeId,
@@ -921,7 +954,8 @@ function DayPanel({
   roster: RosterMember[];
   slotByKey: Map<string, SlotKey>;
   customByKey: Map<string, { start: string | null; end: string | null }>;
-  statusMap: Record<string, ShiftStatus>;
+  /** ニックネームの表示区分を解決する(本日は動的、それ以外は通常のnicknameStyle) */
+  styleFor: (employeeId: string, date: string) => NicknameStyle;
   editable: boolean;
   /** 枠の割当ができるか。false なら行は出すが枠ボタンは押せない(確定モードの従業員画面) */
   canAssign: boolean;
@@ -957,7 +991,7 @@ function DayPanel({
               (m) => slotByKey.get(`${m.id}|${date}`) === k
             );
             return members.map((m) => {
-              const style = nicknameStyle(statusMap[`${m.id}|${date}`]);
+              const style = styleFor(m.id, date);
               const c = customByKey.get(`${m.id}|${date}`);
               const paren = customTimeParen(c?.start ?? null, c?.end ?? null);
               return (
@@ -1051,7 +1085,7 @@ function DayPanel({
                 cur={slotByKey.get(`${m.id}|${date}`) ?? null}
                 customStart={c?.start ?? null}
                 customEnd={c?.end ?? null}
-                style={nicknameStyle(statusMap[`${m.id}|${date}`])}
+                style={styleFor(m.id, date)}
                 // 枠を押せない条件: 他人の行 / 割当不可(確定モード) /
                 // ロックされた日(本人以外=管理者。本人は自分の意思表示なので動かせてよい)
                 readOnly={!canEdit || !canAssign || (locked && !onLock)}

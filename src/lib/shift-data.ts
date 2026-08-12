@@ -5,6 +5,7 @@ import {
   parseSlots,
   type ShiftMode,
   type ShiftStatus,
+  type ShiftTimes,
   type SlotKey,
 } from "@/lib/shifts";
 import type {
@@ -83,12 +84,24 @@ export async function loadShiftData(
   const locks = (lockRows ?? []) as ShiftLock[];
 
   const statusMap: Record<string, ShiftStatus> = {};
+  const timesMap: Record<string, ShiftTimes> = {};
   for (const r of (statusRows ?? []) as {
     employee_id: string;
     work_date: string;
     status: ShiftStatus;
+    planned_start: string | null;
+    planned_end: string | null;
+    actual_start: string | null;
+    actual_end: string | null;
   }[]) {
-    statusMap[`${r.employee_id}|${r.work_date}`] = r.status;
+    const key = `${r.employee_id}|${r.work_date}`;
+    statusMap[key] = r.status;
+    timesMap[key] = {
+      plannedStart: r.planned_start,
+      plannedEnd: r.planned_end,
+      actualStart: r.actual_start,
+      actualEnd: r.actual_end,
+    };
   }
 
   return {
@@ -98,6 +111,7 @@ export async function loadShiftData(
     assignments,
     locks,
     statusMap,
+    timesMap,
     monthStart,
     mode,
   };

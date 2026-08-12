@@ -2397,6 +2397,37 @@ Supabaseの「リフレッシュトークン再利用検知」がこれを盗用
   （hover: `bg-gray-300`）、文字色を`text-gray-700`→`text-gray-800`に変更し、
   行内容との対比を強めた。
 
+### 操作ログ：iPhoneでの詳細列折り返し・8日以前を既定で閉じる（2026-08-09）
+- iPhoneで詳細欄の文字列が折り返されて読みにくいとの指摘に対応。テーブルの`w-full`を外し、
+  詳細`<td>`にも`whitespace-nowrap`を追加。列幅は内容に合わせて広がり、画面に収まらない分は
+  `overflow-x-auto`の横スクロールで見る形にした（折り返しよりスクロール優先）。
+- 「8日以前（今日を含め9日目以降）のログは既定で閉じる」を追加。`LogsView.tsx`の
+  `collapsedDays`初期値を、propsの`logs`から`jstDaysAgo()`(JST暦日ベースの日数差)が8以上の日を
+  集めて構築するようにした（`useState`の遅延初期化関数）。手動でトグルすればその状態が優先される。
+
+### シフト予定表：本日の予実に応じた動的な色分け・本日セルの強調（2026-08-09）
+オーナー指摘: 従来の`nicknameStyle()`（予定と実績の突合、実績確定後にしか判定できない）だと、
+出勤前・出勤中は常に「実績未入力=通常フォント」になり、**遅刻や無断欠勤が画面上に何も表現されない**
+問題があった。設計の詳細はdesign.mdの該当節（「ニックネームのフォント表示区分」直後）参照。
+- **本日限定**で`todayNicknameStyle()`（`src/lib/shifts.ts`、新規追加）を`nicknameStyle()`より
+  優先。出勤予定時刻超過で未打刻→赤太字、出勤済みで退勤予定+30分以内→黒太字、退勤予定を30分以上
+  超過して未打刻→**新設の`"overdue"`区分**（赤字だが太字にしない＝細字）。出退勤とも打刻済みなら
+  `nicknameStyle(status)`にフォールバックする（従来どおり）。
+- `get_shift_status()`RPCを拡張し、予実カテゴリに加えて生の予定/実績時刻
+  （`planned_start`/`planned_end`/`actual_start`/`actual_end`）も返すようにした。
+  ⚠️ **戻り値の型(OUT列)を変える`ALTER`は`create or replace function`では通らない**
+  （`42P13: cannot change return type of existing function`）。`DROP FUNCTION`してから
+  `CREATE FUNCTION`し直す必要がある（`supabase/migrations/20260809000000_shift_status_raw_times.sql`
+  末尾にGRANTも含めて記載。本番はDROP→CREATE→GRANTの順で適用済み、ロール偽装SQLで
+  生時刻が正しく返ることを確認済み）。
+- 予定時刻→実時刻の変換（`scheduleWindow()`）は未打刻通知`collect_punch_alerts()`と**同じ
+  「開始が0〜5時台なら翌日扱い」ルールをTS側に複製**（深夜番の日またぎに対応）。単体テスト
+  `shifts.test.ts`に日またぎ含め追加済み。
+- 「現在時刻」は`ShiftSchedule.tsx`内で1分ごとに更新する`state`（`nowMs`）。初回描画では
+  hydration不一致を避けるため`null`にし、本日も一旦は通常ルールで描画してからマウント後に切り替わる。
+- **本日のカレンダーセルを勤務表画面と同じ書式に統一**: `bg-gray-100`のみだったのを
+  `bg-gray-200`＋`ring-2 ring-gray-400`に変更（選択時は従来どおり`ring-2 ring-blue-500`優先）。
+
 ## 7. すぐ使えるコマンド集
 
 ```bash

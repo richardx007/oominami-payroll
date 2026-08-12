@@ -34,6 +34,7 @@ export default async function AdminHomePage({
         assignments={shiftData.assignments}
         locks={shiftData.locks}
         statusMap={shiftData.statusMap}
+        timesMap={shiftData.timesMap}
         holidays={holidays}
         today={todayJST()}
         basePath="/admin"

@@ -30,6 +30,24 @@ function jstDate(iso: string) {
   });
 }
 
+/** JSTの暦日でのUTC正午タイムスタンプ(日数差の計算専用。時刻は無視する) */
+function jstCalendarDayMs(iso: string) {
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+  const [y, m, d] = ymd.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+/** JST暦日で「今日」から何日前か(0=今日) */
+function jstDaysAgo(iso: string) {
+  const today = jstCalendarDayMs(new Date().toISOString());
+  return Math.round((today - jstCalendarDayMs(iso)) / 86400000);
+}
+
 function jstDateLabel(iso: string) {
   return new Date(iso).toLocaleDateString("ja-JP", {
     timeZone: "Asia/Tokyo",
@@ -86,8 +104,15 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
   }, [logs]);
 
   const [category, setCategory] = useState<string>("all");
-  // 未操作(null)の日は既定で開く。一度でも触った日だけ Set に入れて管理する
-  const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
+  // 既定で「8日以前」(今日を含め9日目以降)の日は閉じた状態にする。
+  // 一度でも手動でトグルした日はこの初期値を上書きして扱う(toggleDayで反転するだけなので自然に上書きされる)。
+  const [collapsedDays, setCollapsedDays] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    for (const log of logs) {
+      if (jstDaysAgo(log.created_at) >= 8) initial.add(jstDate(log.created_at));
+    }
+    return initial;
+  });
 
   const filtered = useMemo(
     () => (category === "all" ? logs : logs.filter((l) => l.action === category)),
@@ -165,7 +190,7 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
                   </button>
                   {!collapsed && (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="text-sm">
                         <tbody>
                           {dayLogs.map((log, i) => (
                             <tr key={i} className="border-t border-gray-100">
@@ -184,7 +209,7 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
                               <td className="whitespace-nowrap px-3 py-2.5 text-gray-700">
                                 {log.actor_name ?? "(不明)"}
                               </td>
-                              <td className="px-3 py-2.5 text-gray-600">
+                              <td className="whitespace-nowrap px-3 py-2.5 text-gray-600">
                                 {log.detail}
                               </td>
                             </tr>

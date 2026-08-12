@@ -184,7 +184,7 @@ $$;
 -- Name: get_shift_status(date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_shift_status(p_start date, p_end date) RETURNS TABLE(employee_id uuid, work_date date, status text)
+CREATE FUNCTION public.get_shift_status(p_start date, p_end date) RETURNS TABLE(employee_id uuid, work_date date, status text, planned_start text, planned_end text, actual_start text, actual_end text)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -227,7 +227,11 @@ begin
       when a.eid is null then 'missing'
       when p.ps = a.as_s and coalesce(p.pe, '') = coalesce(a.as_e, '') then 'match'
       else 'timediff'
-    end
+    end,
+    p.ps,
+    p.pe,
+    a.as_s,
+    a.as_e
   from plan p
   full outer join act a on p.eid = a.eid and p.wd = a.wd;
 end;

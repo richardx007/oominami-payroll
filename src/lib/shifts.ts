@@ -199,13 +199,78 @@ export type ShiftStatus = "match" | "missing" | "timediff" | "unplanned";
  * - "normal": 実績が未入力(missing)→通常フォント
  * - "match": 実績が予定と合致→黒字の太字
  * - "mismatch": 実績が予定と不一致(timediff/unplanned)→赤字の太字
+ * - "overdue": 本日限定。退勤予定を30分以上過ぎても退勤が未打刻→赤字の細字(太字にしない)
  */
-export type NicknameStyle = "normal" | "match" | "mismatch";
+export type NicknameStyle = "normal" | "match" | "mismatch" | "overdue";
 
 export function nicknameStyle(status: ShiftStatus | undefined): NicknameStyle {
   if (status === "match") return "match";
   if (status === "timediff" || status === "unplanned") return "mismatch";
   return "normal";
+}
+
+/** get_shift_status() が返す予定/実績の生時刻("H:MM"正規化済み/"HH:MM") */
+export type ShiftTimes = {
+  plannedStart: string | null;
+  plannedEnd: string | null;
+  actualStart: string | null;
+  actualEnd: string | null;
+};
+
+function hhmmToMinutes(t: string): number {
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(t.trim());
+  if (!m) return 0;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+/**
+ * 予定の出勤/退勤を実際のタイムスタンプへ変換する。開始が0〜5時台なら「翌日」扱いにする
+ * (未打刻通知 collect_punch_alerts() と同じ判定。深夜番の開始が当日0時台になるケースに対応)。
+ */
+export function scheduleWindow(
+  workDate: string,
+  startHHMM: string,
+  endHHMM: string
+): { startAt: Date; endAt: Date } {
+  const sMin = hhmmToMinutes(startHHMM);
+  const eMin = hhmmToMinutes(endHHMM);
+  const base = new Date(`${workDate}T00:00:00+09:00`);
+  let startAt = new Date(base.getTime() + sMin * 60000);
+  if (sMin < 5 * 60) startAt = new Date(startAt.getTime() + 24 * 3600000);
+  const durMin = eMin > sMin ? eMin - sMin : eMin - sMin + 24 * 60;
+  const endAt = new Date(startAt.getTime() + durMin * 60000);
+  return { startAt, endAt };
+}
+
+/**
+ * 本日限定のニックネーム表示区分。予定通りの出勤をしているかを一目で示すため、
+ * 通常の突合ロジック(nicknameStyle)より優先して使う。
+ * - 出勤予定時刻を過ぎても出勤が未打刻 → "mismatch"(赤太字)
+ * - 出勤済み・退勤予定時刻+30分以内で退勤が未打刻 → "match"(黒太字)
+ * - 退勤予定時刻を30分以上過ぎても退勤が未打刻 → "overdue"(赤細字)
+ * - 出退勤とも打刻済み → null を返す(呼び出し側は nicknameStyle(status) にフォールバックすること)
+ * - その日にシフト予定が無い → null
+ */
+export function todayNicknameStyle(
+  times: ShiftTimes | undefined,
+  workDate: string,
+  nowMs: number
+): NicknameStyle | null {
+  if (!times?.plannedStart) return null;
+  const { startAt, endAt } = scheduleWindow(
+    workDate,
+    times.plannedStart,
+    times.plannedEnd ?? times.plannedStart
+  );
+
+  if (!times.actualStart) {
+    return nowMs >= startAt.getTime() ? "mismatch" : "normal";
+  }
+  if (!times.actualEnd) {
+    const graceMs = endAt.getTime() + 30 * 60000;
+    return nowMs <= graceMs ? "match" : "overdue";
+  }
+  return null;
 }
 
 /**
