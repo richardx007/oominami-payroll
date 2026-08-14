@@ -10,6 +10,7 @@ import {
   SHIFT_TEXT_COLOR,
   customTimeParen,
   nicknameStyle,
+  previousDate,
   shiftNoteLabel,
   slotHourRangeLabel,
   todayNicknameStyle,
@@ -173,11 +174,17 @@ export function ShiftSchedule({
     return () => clearInterval(id);
   }, []);
 
-  /** 本日は todayNicknameStyle を優先し、対象外(予定なし/出退勤とも打刻済み/本日以外)なら
-   * 通常の nicknameStyle(status) にフォールバックする */
+  // 深夜番(0〜5時始まり)は「業務日付」が実際の壁時計の日付より1日前になる
+  // (businessDateOf()と同じ規則。打刻もこのルールでwork_dateを決めている)。
+  // そのため進行中の深夜勤務は「本日」ではなく「前日の業務日付」のセルに載っている。
+  // 本日と前日の両方を対象にしないと、日をまたいで勤務中の人が色分けされない。
+  const yesterday = useMemo(() => previousDate(today), [today]);
+
+  /** 本日(および日またぎの深夜勤務がある前日)は todayNicknameStyle を優先し、
+   * 対象外(予定なし/出退勤とも打刻済み/対象日以外)なら通常の nicknameStyle(status) にフォールバックする */
   function styleFor(employeeId: string, date: string): NicknameStyle {
     const key = `${employeeId}|${date}`;
-    if (date === today && nowMs != null) {
+    if ((date === today || date === yesterday) && nowMs != null) {
       const s = todayNicknameStyle(timesMap[key], date, nowMs);
       if (s !== null) return s;
     }

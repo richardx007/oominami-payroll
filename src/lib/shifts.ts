@@ -245,11 +245,19 @@ export function scheduleWindow(
 /**
  * 本日限定のニックネーム表示区分。予定通りの出勤をしているかを一目で示すため、
  * 通常の突合ロジック(nicknameStyle)より優先して使う。
- * - 出勤予定時刻を過ぎても出勤が未打刻 → "mismatch"(赤太字)
+ * - 出勤予定時刻を過ぎても出勤が未打刻(かつ退勤予定時刻はまだ過ぎていない) → "mismatch"(赤太字)
  * - 出勤済み・退勤予定時刻+30分以内で退勤が未打刻 → "match"(黒太字)
  * - 退勤予定時刻を30分以上過ぎても退勤が未打刻 → "overdue"(赤細字)
+ * - 出勤予定・退勤予定とも過ぎてなお出勤の打刻が無い → "normal"(既に終わった過去の欠勤扱いに戻す。
+ *   呼び出し側は対象日を「本日または前営業日」に絞ること。それより古い日にまで適用すると、
+ *   遠い過去の欠勤が延々と赤字表示され続けてしまう)
  * - 出退勤とも打刻済み → null を返す(呼び出し側は nicknameStyle(status) にフォールバックすること)
  * - その日にシフト予定が無い → null
+ *
+ * ⚠️ `workDate`は「業務日付」(深夜0〜5時始まりの勤務は打刻上、前日の業務日付として記録される。
+ *    `businessDateOf()`と同じ規則)。そのため深夜番のシフトは、実際の壁時計上の日付と`workDate`が
+ *    1日ずれる。呼び出し側は本日の日付だけでなく前日の業務日付のセルにもこの関数を適用すること
+ *    (でないと日をまたいで進行中の深夜勤務が「本日」として認識されない)。
  */
 export function todayNicknameStyle(
   times: ShiftTimes | undefined,
@@ -264,13 +272,24 @@ export function todayNicknameStyle(
   );
 
   if (!times.actualStart) {
-    return nowMs >= startAt.getTime() ? "mismatch" : "normal";
+    if (nowMs < startAt.getTime()) return "normal";
+    // 出勤予定を過ぎても未打刻。ただし退勤予定時刻を過ぎてなお未出勤なら「今まさに遅刻中」
+    // ではなく既に過去の欠勤扱いなので、通常ルール(missing→normal)に戻す
+    // (呼び出し側が対象日を「本日または前営業日」に絞っているため、他の古い日には影響しない)。
+    return nowMs <= endAt.getTime() ? "mismatch" : "normal";
   }
   if (!times.actualEnd) {
     const graceMs = endAt.getTime() + 30 * 60000;
     return nowMs <= graceMs ? "match" : "overdue";
   }
   return null;
+}
+
+/** "YYYY-MM-DD" の前日を返す(JST基準。日付文字列だけの単純な減算) */
+export function previousDate(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 /**

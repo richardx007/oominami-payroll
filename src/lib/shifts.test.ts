@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultShiftMode,
+  previousDate,
   scheduleWindow,
   shiftModeLabel,
   todayNicknameStyle,
@@ -116,5 +117,42 @@ describe("todayNicknameStyle", () => {
       actualEnd: "17:00",
     };
     expect(todayNicknameStyle(times, workDate, endAt.getTime())).toBeNull();
+  });
+
+  it("退勤予定時刻を過ぎてなお出勤の打刻すら無い場合はnormalに戻す(過去の欠勤扱い)", () => {
+    const times = {
+      plannedStart: "8:00",
+      plannedEnd: "17:00",
+      actualStart: null,
+      actualEnd: null,
+    };
+    expect(
+      todayNicknameStyle(times, workDate, endAt.getTime() + 60_000)
+    ).toBe("normal");
+  });
+
+  it("日をまたぐ深夜勤務(業務日付は前日)でも進行中ならmatch", () => {
+    // けーやんの実例(2026-08-15調査): shift_assignments.work_date=8/14, slot C(0:00-9:00)。
+    // businessDateOf の規則により深夜番の業務日付は前日のまま。実際の壁時計では8/15 00:00に開始、
+    // 未退勤のまま8/15の朝を迎えても「進行中(match)」であるべき(赤字太字にならないこと)。
+    const nightWorkDate = "2026-08-14";
+    const { endAt: nightEndAt } = scheduleWindow(nightWorkDate, "0:00", "9:00");
+    const times = {
+      plannedStart: "0:00",
+      plannedEnd: "9:00",
+      actualStart: "00:00",
+      actualEnd: null,
+    };
+    // 8/15 08:18相当(退勤予定9:00より前)
+    const nowMs = nightEndAt.getTime() - 42 * 60_000;
+    expect(todayNicknameStyle(times, nightWorkDate, nowMs)).toBe("match");
+  });
+});
+
+describe("previousDate", () => {
+  it("前日の日付文字列を返す", () => {
+    expect(previousDate("2026-08-15")).toBe("2026-08-14");
+    expect(previousDate("2026-09-01")).toBe("2026-08-31");
+    expect(previousDate("2027-01-01")).toBe("2026-12-31");
   });
 });
