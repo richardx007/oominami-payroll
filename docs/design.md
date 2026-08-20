@@ -294,6 +294,9 @@ app/
                          ニックネーム(未設定は氏名)のみ（ログアウトはハンバーガーへ移設）。
                          スマホは main に pb-24 を付け下部ナビと重ならないようにする
     actions.ts           signOut サーバーアクション（layout・nav から共用）
+    account/             アカウント設定(page.tsxは薄いラッパー)。中身は共通コンポーネント
+                         `src/app/account/AccountSettingsView.tsx`（従業員側`/account`と共用）。
+                         通知許可・通知対象・端末情報などを表示（下記「アカウント設定画面」参照）
     nav.tsx              Logo / AdminSidebarNav / AdminBottomNav（現在ページをハイライト）
                          メニュー(アイコン+キャプション): ホーム(家) / 勤務表(カレンダー) /
                          給与明細(¥) / 日当(紙幣) / 従業員(人が重なる) / 配信(紙飛行機) / 設定(歯車) / 操作ログ(書類)。

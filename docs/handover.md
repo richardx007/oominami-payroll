@@ -2600,7 +2600,10 @@ git checkout main && git merge claude/payroll-system-plan-8wvobq && git push ori
 git checkout claude/payroll-system-plan-8wvobq
 ```
 
-- Supabase 操作は MCP ツール（project_id: `zvrwkmriosaldjqpxdwi`）。
+- Supabase 操作は MCP ツール（project_id: `zvrwkmriosaldjqpxdwi`）。**MCP接続名は`supabase-oominami`
+  固定**（2026-08-16、`.mcp.json`+`CLAUDE.md`で運用ルール化。他アプリ・別アカウントと接続名を
+  混在させないための取り決め。詳細・セッション開始時プリフライト手順はリポジトリ直下の`CLAUDE.md`
+  参照）。
 - GitHub 操作は GitHub MCP ツール（`richardx007/oominami-payroll`）。
 - デプロイは main push による自動ビルド。**Cloudflare MCP ツールで同一アカウント内の Worker 情報
   （`workers_list`/`workers_get_worker`等）は参照可能**（2026-07-29確認）。ただしデプロイ状況の
