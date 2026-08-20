@@ -27,7 +27,8 @@ function csvEscape(v: string) {
  */
 export async function buildDailyReportCsv(
   from: string,
-  to: string
+  to: string,
+  includeRetired?: boolean
 ): Promise<DailyCsvResult> {
   await requireAdmin();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
@@ -37,7 +38,7 @@ export async function buildDailyReportCsv(
     return { ok: false, message: "開始日は終了日以前にしてください" };
   }
 
-  const report = await loadDailyReport(from, to);
+  const report = await loadDailyReport(from, to, undefined, includeRetired);
   if (report.employees.length === 0) {
     return { ok: false, message: "対象期間に勤務データがありません" };
   }

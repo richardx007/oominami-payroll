@@ -26,6 +26,7 @@ export default async function EmployeeDailyReportPage({
         "日当の前払いが行われた場合もここで確認できます。",
       ]}
       editable={false}
+      includeRetired={false}
     />
   );
 }

@@ -12,14 +12,21 @@ import { DailyReportView } from "./report-view";
 export default async function DailyReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string }>;
+  searchParams: Promise<{ p?: string; retired?: string }>;
 }) {
   await requireAdmin();
-  const { p } = await searchParams;
+  const { p, retired } = await searchParams;
   // 期間の指定方法は給与明細画面と揃える(月度単位・前月/翌月で移動)
   const period = (p && periodFromKey(p)) || currentPeriod();
+  // 退職者を含めるかは既定オフ(仮の退職者複製が混ざって紛らわしいため。2026-08-20)
+  const includeRetired = retired === "1";
 
-  const report = await loadDailyReport(period.start, period.end);
+  const report = await loadDailyReport(
+    period.start,
+    period.end,
+    undefined,
+    includeRetired
+  );
 
   return (
     <DailyReportView
@@ -32,6 +39,7 @@ export default async function DailyReportPage({
         "日当の前払いをした場合は「前払済」ボタンを押してください。月末の支給額からは除外されます。",
       ]}
       editable
+      includeRetired={includeRetired}
     />
   );
 }

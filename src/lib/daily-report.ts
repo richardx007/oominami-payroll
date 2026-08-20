@@ -124,7 +124,8 @@ function emptyTotals(): DailyEmployeeReport["totals"] {
 export async function loadDailyReport(
   from: string,
   to: string,
-  employeeId?: string
+  employeeId?: string,
+  includeRetired?: boolean
 ): Promise<DailyReport> {
   const supabase = await createClient();
 
@@ -133,6 +134,11 @@ export async function loadDailyReport(
     .select("id, employee_no, name, nickname")
     .eq("is_admin", false)
     .order("employee_no");
+  // 退職者(複製した仮の退職者を含む)は既定で除外する。7月分実績の付け替えで
+  // 作成した仮の退職者(employee_no末尾x)が一覧に混ざって紛らわしいため(2026-08-20)。
+  if (!includeRetired) {
+    employeesQuery = employeesQuery.eq("status", "active");
+  }
   let entriesQuery = supabase
     .from("work_entries")
     .select(

@@ -34,6 +34,7 @@ export function DailyReportView({
   title,
   descriptionLines,
   editable,
+  includeRetired,
 }: {
   period: Period;
   report: DailyReport;
@@ -41,6 +42,8 @@ export function DailyReportView({
   title: string;
   descriptionLines: [string, string];
   editable: boolean;
+  /** 退職者(仮の退職者複製を含む)を一覧に含めるか。既定オフ(2026-08-20) */
+  includeRetired: boolean;
 }) {
   const from = report.from;
   const to = report.to;
@@ -84,12 +87,24 @@ export function DailyReportView({
               スマホ(特にiOSのPWA)では window.print() が動かないため、印刷ではなくPDFダウンロード */}
           {editable && (
             <>
+              <Link
+                href={`${basePath}?p=${period.key}${includeRetired ? "" : "&retired=1"}`}
+                aria-pressed={includeRetired}
+                title="退職者(仮の退職者複製を含む)を一覧に含めるか切り替えます"
+                className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium ${
+                  includeRetired
+                    ? "border-gray-400 bg-gray-200 text-gray-800"
+                    : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                退職者を含む{includeRetired ? " ✓" : ""}
+              </Link>
               <DownloadPdfButton
                 targetId="daily-report"
                 filename={`日別実績_${period.key}.pdf`}
                 sectionSelector=".pdf-section"
               />
-              <DownloadDailyCsvButton from={from} to={to} />
+              <DownloadDailyCsvButton from={from} to={to} includeRetired={includeRetired} />
             </>
           )}
         </div>

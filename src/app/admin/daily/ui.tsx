@@ -13,7 +13,15 @@ const textBtn =
  * 以前はページ内の折りたたみ枠に隠れたアイコンボタンだったため、
  * ページ見出し横の目立つ位置に文字ボタンとして出すよう変更した(2026-08-05)。
  */
-export function DownloadDailyCsvButton({ from, to }: { from: string; to: string }) {
+export function DownloadDailyCsvButton({
+  from,
+  to,
+  includeRetired,
+}: {
+  from: string;
+  to: string;
+  includeRetired: boolean;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -27,7 +35,7 @@ export function DownloadDailyCsvButton({ from, to }: { from: string; to: string 
         onClick={() => {
           setError(null);
           startTransition(async () => {
-            const res = await buildDailyReportCsv(from, to);
+            const res = await buildDailyReportCsv(from, to, includeRetired);
             if (!res.ok) {
               setError(res.message);
               return;
