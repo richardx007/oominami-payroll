@@ -473,6 +473,15 @@ middleware.ts            未認証は /login へ
     `email_registered` を確認 → implicit クライアントで `signInWithOtp`（`shouldCreateUser:true`,
     `emailRedirectTo=/auth/callback?setup=1`）。未登録メールでも列挙対策のため実際には送信せず
     成功と同じ応答を返す（2026-07-18対応）。
+  - **管理者からの招待（`inviteEmployee`）を1段階化する案は2026-08-20に検討・実装したが同日中に
+    撤回した**: 自前の日本語案内メール（「/registerを開いてメールアドレスを再入力してください」）を
+    廃止し`signInWithOtp`を直接呼ぶ案だったが、**本人に届く唯一のメールがSupabaseの「Confirm
+    signup」テンプレートそのものになり、かつこのテンプレートの件名/本文カスタマイズは有料プラン
+    限定とオーナーが記憶しており（無料プランのままでは変更できない）、結果的に唯一の説明文が
+    英語のまま届いてしまう**ため、自前の日本語案内メール（1通目）を残す従来の2段階方式に戻した。
+    詳細な経緯は`docs/handover.md`の該当セッション記録を参照。今後同種の相談が来た場合、
+    「1段階化」自体は筋が良いが、Confirm signupテンプレの日本語化が有料プラン前提であることを
+    先に確認してから着手すること。
   - 管理者発行の再設定: `resetEmployeePassword`（`employees/actions.ts`）が implicit クライアントで
     `resetPasswordForEmail`。
   - ログイン画面の自己申請: `requestPasswordReset`（`login/actions.ts`）が同様に implicit で送信。
@@ -525,9 +534,11 @@ middleware.ts            未認証は /login へ
   コード変更は不要。再発する場合は同ログの`session_not_found`を確認して発生頻度を評価すること。
 - `requireAdmin()` で管理画面を保護。ログイン後、管理者は `/admin`、従業員は `/timesheet` へ。
 - 最初の管理者: employee_no `0001`（seed 投入済み）。
-- **Supabase 認証メール**: カスタムSMTP（自社Gmail）を設定済み。無料枠のままテンプレート編集が可能な状態
-  （Authentication → Emails）。件名/本文は運用側で日本語化する。送信はレート制限があり、テスト連投で
-  一時的に届かなくなることがある（数十分で回復）。
+- **Supabase 認証メール**: カスタムSMTP（自社Gmail）を設定済み。送信元・送信経路はカスタムSMTPで
+  自由になるが、⚠️ **件名/本文テンプレート自体（Authentication → Emails）の編集は無料プランでは
+  できず、有料プランが必要とオーナーが記憶している**（2026-08-20確認。この認識のため招待フローの
+  日本語化・簡略化は見送った経緯あり、上記「管理者からの招待」参照）。そのため既定の英語文面のまま
+  運用している。送信はレート制限があり、テスト連投で一時的に届かなくなることがある（数十分で回復）。
 
 ### 給与計算エンジン（`lib/payroll.ts`）
 - `computePayslip()`: 勤務日ごとに時給を適用して基本給を日割り（分単位、日ごとに切り捨て）、昼食補助 = 勤務日数 × 定額、交通費 = 実費合計。
