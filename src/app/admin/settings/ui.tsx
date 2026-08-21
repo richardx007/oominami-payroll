@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import {
   importTaxTable,
   updateBreakWindows,
@@ -501,6 +501,48 @@ export function WorkRulesForm({
 export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const yearInputRef = useRef<HTMLInputElement>(null);
+  const csvTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [fileStatus, setFileStatus] = useState<ActionResult | null>(null);
+  const [filePending, setFilePending] = useState(false);
+
+  /**
+   * 国税庁の月額表Excel(.xls/.xlsx)を選択すると、対象年・下の入力欄(コピペ欄と同じ形式)を
+   * 自動入力する。取り込み自体は行わず、内容を確認してから「取り込む」ボタンを押してもらう
+   * (税務データのため自動送信はしない。2026-08-21追加)。
+   */
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // 同じファイルを選び直しても再度読み取れるようにする
+    if (!file) return;
+    setFileStatus(null);
+    setFilePending(true);
+    try {
+      const { parseTaxTableExcel } = await import("@/lib/tax-table-excel");
+      const buffer = await file.arrayBuffer();
+      const parsed = parseTaxTableExcel(buffer);
+      if (yearInputRef.current && parsed.year) {
+        yearInputRef.current.value = String(parsed.year);
+      }
+      if (csvTextareaRef.current) {
+        csvTextareaRef.current.value = parsed.csv;
+      }
+      setFileStatus({
+        ok: true,
+        message: `ファイルから${parsed.count}区分を読み取りました(¥${parsed.minAmount.toLocaleString()}〜¥${parsed.maxAmount.toLocaleString()})。内容を確認して「取り込む」を押してください。`,
+      });
+    } catch (err) {
+      setFileStatus({
+        ok: false,
+        message:
+          "ファイルの読み取りに失敗しました: " +
+          (err instanceof Error ? err.message : String(err)) +
+          "(形式が想定と異なる場合は、下の手動コピペをご利用ください)",
+      });
+    } finally {
+      setFilePending(false);
+    }
+  }
 
   // 年ごとに区分数・取り込み日時(最新)を集計(登録済み表示用)
   const yearCounts = new Map<number, number>();
@@ -541,27 +583,54 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
           <li>
             検索結果から国税庁の対象年分の
             <strong>「給与所得の源泉徴収税額表（月額表）」</strong>
-            のExcel(またはCSV)をダウンロードします。
+            のExcel(.xls/.xlsx)をダウンロードします。
           </li>
           <li>
-            ダウンロードしたファイルをExcel等で開き、
+            下の「Excelファイルから自動入力」でそのファイルを選択すると、
+            対象年・入力欄が自動で埋まります。内容を確認して「取り込む」を押してください。
+          </li>
+          <li>
+            自動入力がうまくいかない場合は、ファイルをExcel等で開き、
             <strong>「その月の社会保険料等控除後の給与等の金額」の“以上・未満”</strong>
             、<strong>甲欄(扶養0〜7人)</strong>、<strong>乙欄</strong>
-            の各列の数値を選択してコピーします。
+            の各列の数値を選択してコピーし、下の入力欄に貼り付けてください(タブ区切りのまま
+            貼り付け可・列の並びは<strong>「以上,未満,甲0〜甲7,乙」</strong>)。
           </li>
-          <li>
-            下の入力欄にそのまま貼り付けます。Excelからの貼り付けは
-            <strong>タブ区切り</strong>になりますが、そのまま取り込めます(数値内の
-            桁区切りカンマも自動で除去します)。列の並びは
-            <strong>「以上,未満,甲0〜甲7,乙」</strong>
-            です(下の形式・例を参照)。
-          </li>
-          <li>「対象年」を合わせて「取り込む」を押すと、その年分に置き換わります。</li>
         </ol>
         <p className="mt-2 text-xs text-gray-400">
-          ※ 国税庁は月額表をExcel/PDFで公開しているため、当システムから自動取得はできません。
-          公開様式・ページ構成は年により変わることがあります。
+          ※ 国税庁は月額表をExcel/PDFで公開しています。公開様式・ページ構成は年により
+          変わることがあるため、自動入力がうまく読み取れない場合は手動コピペをご利用ください。
         </p>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-green-200 bg-green-50/60 p-3 text-sm">
+        <label className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-green-800">
+            Excelファイルから自動入力
+          </span>
+          <input
+            type="file"
+            accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            disabled={filePending}
+            onChange={handleFile}
+            className="text-sm"
+          />
+        </label>
+        <p className="mt-1 text-xs text-gray-600">
+          国税庁からダウンロードした月額表のExcelファイルをそのまま選択してください。
+          対象年・下の入力欄に自動入力します(この時点ではまだ登録されません。内容を確認して
+          「取り込む」を押してください)。
+        </p>
+        {filePending && (
+          <p className="mt-1 text-xs text-gray-500">読み取り中...</p>
+        )}
+        {fileStatus && (
+          <p
+            className={`mt-1 text-xs ${fileStatus.ok ? "text-green-700" : "text-red-600"}`}
+          >
+            {fileStatus.message}
+          </p>
+        )}
       </div>
 
       <div className="mt-2 rounded-lg bg-gray-50 p-3 font-mono text-xs text-gray-600">
@@ -607,6 +676,7 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium">対象年</label>
           <input
+            ref={yearInputRef}
             name="year"
             type="number"
             required
@@ -615,6 +685,7 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
           />
         </div>
         <textarea
+          ref={csvTextareaRef}
           name="csv"
           rows={6}
           placeholder={
