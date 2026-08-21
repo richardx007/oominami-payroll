@@ -149,6 +149,9 @@ export default async function ClosePage({
             </dl>
           </div>
         </div>
+        <p className="px-4 pt-2 text-right text-xs text-gray-500">
+          *印は課税対象外
+        </p>
         <div className="overflow-x-auto print-report">
           <table className="w-full text-sm">
             <thead>
@@ -168,7 +171,7 @@ export default async function ClosePage({
                 <th className="px-4 py-2 text-right">基本給</th>
                 <th className="px-4 py-2 text-right">深夜手当</th>
                 <th className="px-4 py-2 text-right">残業手当</th>
-                <th className="px-4 py-2 text-right">交通費</th>
+                <th className="px-4 py-2 text-right">交通費*</th>
                 <th className="px-4 py-2 text-right">昼食補助</th>
                 <th className="px-4 py-2 text-right">総支給</th>
                 <th className="px-4 py-2 text-right">課税対象額</th>
