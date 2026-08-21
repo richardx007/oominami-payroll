@@ -142,7 +142,7 @@ export function computeIncomeTax(
       return Math.floor(taxable * 0.03063);
     }
     throw new PayrollError(
-      `課税対象額 ¥${taxable.toLocaleString()} に対応する税額表(月額表)のデータがありません。設定画面から税額表を登録してください。`
+      `課税対象額 ¥${taxable.toLocaleString()} に対応する税額表(月額表)のデータがありません。「税額表」画面から登録してください。`
     );
   }
 
