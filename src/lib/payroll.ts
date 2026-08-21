@@ -21,10 +21,13 @@ import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "./breaks";
  * - 残業手当 = Σ(勤務日ごとの 残業分数 × 時給 × 25% ÷ 60、日単位で切り捨て)
  *   残業分数は1日の勤務分数(休憩控除後)のうち8時間(480分)を超えた分。
  *   基本給とは別に単価の25%分を割増手当として追加支給する(課税対象)
- * - 課税対象額 = 基本給 + 深夜勤務手当 + 残業手当 + 昼食補助
- * - 源泉所得税 = 月額表(甲欄/乙欄)による
- *   - 乙欄: 88,000円未満は課税対象額 × 3.063%(1円未満切り捨て)、以上は税額表を参照
- *   - 甲欄: 88,000円未満は 0円、以上は税額表(扶養親族数別)を参照
+ * - 課税対象額 = 基本給 + 深夜勤務手当 + 残業手当 + 昼食補助（交通費は非課税のため含めない。
+ *   国税庁の月額表の基準額「その月の社会保険料等控除後の給与等の金額」も非課税の通勤手当を
+ *   含まない額のため、この扱いで一致する）
+ * - 源泉所得税 = 月額表(甲欄/乙欄)による。表の最小登録額(年度により異なる。例: 令和8年分は
+ *   105,000円)未満は「(最小額)円未満」の帯として扱う:
+ *   - 乙欄: 表の最小登録額未満は課税対象額 × 3.063%(1円未満切り捨て)、以上は税額表を参照
+ *   - 甲欄: 表の最小登録額未満は 0円、以上は税額表(扶養親族数別)を参照
  * - 前払金控除 = 当期の勤務日に対して日当として先に現金で支払った額の合計
  *   総支給額・課税対象額・源泉所得税には影響させず、差引支給額からのみ差し引く
  *   (所得の控除ではなく既払い分の精算のため、源泉徴収は月額表による月単位の計算のまま)
@@ -103,6 +106,11 @@ export function effectiveAt<T extends { effective_from: string }>(
 
 export class PayrollError extends Error {}
 
+/** 税額表データが1件も無い場合にのみ使う暫定の「表の下限」。令和年度によって国税庁の
+ *  月額表の先頭「(最小額)円未満」の境界は変わりうる(例: 令和8年分は105,000円)ため、
+ *  税額表データが1件でもあればそちらの最小`min_amount`を優先して使う(下記参照)。 */
+const FALLBACK_TABLE_MIN = 88000;
+
 /** 源泉所得税を計算する */
 export function computeIncomeTax(
   taxable: number,
@@ -112,23 +120,26 @@ export function computeIncomeTax(
 ): number {
   if (taxable <= 0) return 0;
 
-  if (taxable < 88000) {
-    if (category === "kou") return 0;
-    return Math.floor(taxable * 0.03063);
-  }
-
   const row = taxRows.find(
     (r) =>
       taxable >= r.min_amount &&
       (r.max_amount === null || taxable < r.max_amount)
   );
   if (!row) {
-    // 税額表の最小「以上」金額未満は非課税(0円)とみなす。
-    // (国税庁の月額表は「(最小額)円未満→0」の変則行を先頭に持つが取込時に除外しており、
-    //  その帯に該当する課税対象額はここで 0 円と判定する)
-    if (taxRows.length > 0) {
-      const tableMin = Math.min(...taxRows.map((r) => r.min_amount));
-      if (taxable < tableMin) return 0;
+    // 税額表に該当行が無い場合、課税対象額が税額表の最小「以上」金額未満
+    // (国税庁の月額表の先頭「(最小額)円未満」の行に相当)なら、
+    // **甲欄は0円、乙欄は課税対象額の3.063%(1円未満切り捨て)**。
+    // ⚠️ 以前は「甲欄・乙欄とも0円」としていたが誤り(2026-08-21発覚)。国税庁の月額表は
+    // 先頭行でも乙欄だけは「その月の給与等の金額の3.063%に相当する金額」であり0円ではない。
+    // 表の最小額は年度改正で変わりうるため(例: 令和8年分は105,000円)ハードコードせず、
+    // 税額表データが1件でもあればその最小`min_amount`を「表の下限」として使う。
+    const tableMin =
+      taxRows.length > 0
+        ? Math.min(...taxRows.map((r) => r.min_amount))
+        : FALLBACK_TABLE_MIN;
+    if (taxable < tableMin) {
+      if (category === "kou") return 0;
+      return Math.floor(taxable * 0.03063);
     }
     throw new PayrollError(
       `課税対象額 ¥${taxable.toLocaleString()} に対応する税額表(月額表)のデータがありません。設定画面から税額表を登録してください。`

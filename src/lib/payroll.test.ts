@@ -190,8 +190,11 @@ describe("computeIncomeTax", () => {
     );
   });
 
-  it("税額表の最小「以上」金額未満は非課税(0円)", () => {
-    // 最小の以上が105,000の表で、88,000〜105,000の帯は0円と判定する
+  it("税額表の最小「以上」金額未満: 甲は0円・乙は3.063%(2026-08-21修正)", () => {
+    // 最小の以上が105,000の表(令和8年分はこの形)で、88,000〜105,000の帯は
+    // 「(最小額)円未満」の行として扱う。甲欄は0円だが、乙欄は0円ではなく3.063%になる
+    // (国税庁の月額表は先頭行でも乙欄だけは課税対象額の3.063%であり、以前の実装は
+    //  乙欄も誤って0円にしていた=幸田さんの税額が¥0になっていたバグの原因)。
     const rows = [
       {
         min_amount: 105000,
@@ -203,10 +206,31 @@ describe("computeIncomeTax", () => {
         tax_otsu: 500,
       },
     ];
-    expect(computeIncomeTax(90000, "otsu", 0, rows)).toBe(0);
+    expect(computeIncomeTax(90000, "otsu", 0, rows)).toBe(
+      Math.floor(90000 * 0.03063)
+    );
     expect(computeIncomeTax(104999, "kou", 0, rows)).toBe(0);
     // 表の範囲内は通常どおり参照
     expect(computeIncomeTax(105000, "kou", 0, rows)).toBe(170);
+  });
+
+  it("幸田さんの実例(2026-08-21報告): 課税対象額103,000円・乙欄・扶養0人 → ¥3,154", () => {
+    // 税額表の登録範囲が105,000円以上のみ(2026年分)のため、103,000円は
+    // 「最小額未満」の帯として3.063%が適用されるべき(以前は誤って¥0になっていた)
+    const rows: TaxTableRow[] = [
+      {
+        min_amount: 105000,
+        max_amount: 107000,
+        tax_kou_0: 170,
+        tax_kou_1: 0,
+        tax_kou_2: 0,
+        tax_kou_3: 0,
+        tax_otsu: 3800,
+      },
+    ];
+    expect(computeIncomeTax(103000, "otsu", 0, rows)).toBe(
+      Math.floor(103000 * 0.03063)
+    );
   });
 });
 

@@ -20,10 +20,10 @@ import { CloseActions } from "./ui";
 export default async function ClosePage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string; tentative?: string }>;
+  searchParams: Promise<{ p?: string }>;
 }) {
   await requireAdmin();
-  const { p, tentative: tentativeParam } = await searchParams;
+  const { p } = await searchParams;
   const period = (p && periodFromKey(p)) || currentPeriod();
 
   const supabase = await createClient();
@@ -35,9 +35,11 @@ export default async function ClosePage({
     .maybeSingle();
 
   const status = payPeriod?.status ?? "open";
-  // 「税額仮計算」は締め前(status==="open")のみ有効。締め済み・支払済みの期間は
-  // 確定済みの数字を見せるべきなので、クエリパラメータが付いていても無視する。
-  const tentative = status === "open" && tentativeParam === "1";
+  // 締め前(status==="open")は常に退勤未入力の日(進行中の勤務など)を除外して計算する。
+  // これにより「入力受付中」の間は常に現時点の最新の勤務実績に基づく暫定額を確認できる
+  // (2026-08-21、トグル切替は不要という要望を受けて常時適用に変更。締め済み以降は
+  // 全日入力済みであるはずなので通常どおり厳密に計算する)。
+  const tentative = status === "open";
   const payrolls = await calculatePeriodPayroll(period, {
     ignoreIncomplete: tentative,
   });
@@ -100,26 +102,8 @@ export default async function ClosePage({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* 締め前のみ: 退勤未入力(進行中の勤務)を除外して税額を仮に確認できるトグル。
-              締め本体(closePeriod)は従来どおり退勤未入力があれば止まる(このトグルは表示切替のみ)。 */}
-          {status === "open" && (
-            <Link
-              href={`/admin/close?p=${period.key}${tentative ? "" : "&tentative=1"}`}
-              aria-pressed={tentative}
-              title="退勤未入力(進行中の勤務など)を除外して、税額を仮に計算します"
-              className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium print:hidden ${
-                tentative
-                  ? "border-gray-400 bg-gray-200 text-gray-800"
-                  : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              税額仮計算{tentative ? " ✓" : ""}
-            </Link>
-          )}
-          {/* 操作ボタンはヘッダ部分に配置(締め/支払・明細配信・締め解除・税理士資料操作) */}
-          <CloseActions periodKey={period.key} status={status} />
-        </div>
+        {/* 操作ボタンはヘッダ部分に配置(締め/支払・明細配信・締め解除・税理士資料操作) */}
+        <CloseActions periodKey={period.key} status={status} />
       </div>
 
       {/* id は PDFダウンロード(DownloadPdfButton)のキャプチャ対象。変更する場合は
@@ -131,15 +115,11 @@ export default async function ClosePage({
         <div className={`rounded-t-xl border-b p-4 ${bandClass}`}>
           <div>
             <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-              {tentative
-                ? "税額仮計算"
-                : status === "open"
-                  ? "給与計算プレビュー"
-                  : "確定明細"}
+              {status === "open" ? "給与計算プレビュー" : "確定明細"}
             </h2>
             {tentative && (
-              <p className="mt-1 text-xs font-normal text-amber-700">
-                退勤未入力の日(進行中の勤務など)は除外して計算した仮の金額です。確定額ではありません。
+              <p className="mt-1 text-xs font-normal text-gray-500">
+                ※ 退勤未入力の日(進行中の勤務など)は除外し、現時点の勤務実績で計算しています
               </p>
             )}
             {/* 総支給・源泉所得税・差引支給は重要なので1項目1行・濃い黒字・金額右寄せで表示 */}
@@ -191,6 +171,7 @@ export default async function ClosePage({
                 <th className="px-4 py-2 text-right">交通費</th>
                 <th className="px-4 py-2 text-right">昼食補助</th>
                 <th className="px-4 py-2 text-right">総支給</th>
+                <th className="px-4 py-2 text-right">課税対象額</th>
                 <th className="px-4 py-2 text-right">所得税</th>
                 <th className="px-4 py-2 text-right">前払金</th>
                 <th className="px-4 py-2 text-right">差引支給</th>
@@ -250,6 +231,10 @@ export default async function ClosePage({
                       <td className="px-4 py-3 text-right font-medium">
                         ¥{p.result.gross_pay.toLocaleString()}
                       </td>
+                      {/* 交通費を除いた課税対象額。税額表と突き合わせて検算するための列(2026-08-21追加) */}
+                      <td className="whitespace-nowrap px-4 py-3 text-right text-gray-600">
+                        ¥{p.result.taxable_amount.toLocaleString()}
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">
                         −¥{p.result.income_tax.toLocaleString()}
                       </td>
@@ -264,7 +249,7 @@ export default async function ClosePage({
                       </td>
                     </>
                   ) : (
-                    <td colSpan={14} className="px-4 py-3 text-red-600">
+                    <td colSpan={15} className="px-4 py-3 text-red-600">
                       {p.error}
                     </td>
                   )}
@@ -273,7 +258,7 @@ export default async function ClosePage({
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={15}
+                    colSpan={16}
                     className="px-4 py-8 text-center text-gray-400"
                   >
                     対象の従業員がいません
