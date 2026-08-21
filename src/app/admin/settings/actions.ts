@@ -405,7 +405,8 @@ export async function importTaxTable(
       };
     }
 
-    revalidatePath("/admin/settings");
+    // 2026-08-22: 税額表は設定画面から独立したメニュー(/admin/tax-table)に移動した
+    revalidatePath("/admin/tax-table");
     return {
       ok: true,
       message: `${year}年分の税額表を${filteredRows.length}区分登録しました`,

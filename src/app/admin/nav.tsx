@@ -21,6 +21,7 @@ const moreLinks = [
   { href: "/admin/employees", label: "従業員", icon: PeopleIcon },
   { href: "/admin/notices", label: "配信", icon: SendIcon },
   { href: "/admin/settings", label: "設定", icon: GearIcon },
+  { href: "/admin/tax-table", label: "税額表", icon: TableIcon },
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },
 ];
 
@@ -531,6 +532,25 @@ function GearIcon({ className }: { className?: string }) {
     >
       <circle cx="12" cy="12" r="3" />
       <path d="M12 2.5v3M12 18.5v3M4.2 7l2.6 1.5M17.2 15.5l2.6 1.5M4.2 17l2.6-1.5M17.2 8.5l2.6-1.5" />
+    </svg>
+  );
+}
+
+/** 税額表(月額表)メニュー用の表アイコン */
+function TableIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3.5" y="4" width="17" height="16" rx="2" />
+      <path d="M3.5 9.5h17M9.5 9.5V20" />
     </svg>
   );
 }

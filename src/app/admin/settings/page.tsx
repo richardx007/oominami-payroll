@@ -5,10 +5,8 @@ import {
   EmailSettingsForm,
   LunchAllowanceForm,
   ShiftSlotsForm,
-  TaxTableForm,
   TimesheetLockForm,
   WorkRulesForm,
-  type TaxTableRow,
 } from "./ui";
 import { ClockSettingsForm } from "./clock";
 import { parseSlots } from "@/lib/shifts";
@@ -18,22 +16,14 @@ export default async function SettingsPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: allowances }, { data: taxYears }, { data: settings }] =
-    await Promise.all([
-      supabase
-        .from("allowance_settings")
-        .select("lunch_allowance_per_day, effective_from")
-        .order("effective_from", { ascending: false })
-        .limit(5),
-      supabase
-        .from("withholding_tax_table")
-        .select(
-          "year, min_amount, max_amount, tax_otsu, tax_kou_0, tax_kou_1, tax_kou_2, tax_kou_3, tax_kou_4, tax_kou_5, tax_kou_6, tax_kou_7, created_at"
-        )
-        .order("year", { ascending: false })
-        .order("min_amount", { ascending: true }),
-      supabase.from("app_settings").select("key, value"),
-    ]);
+  const [{ data: allowances }, { data: settings }] = await Promise.all([
+    supabase
+      .from("allowance_settings")
+      .select("lunch_allowance_per_day, effective_from")
+      .order("effective_from", { ascending: false })
+      .limit(5),
+    supabase.from("app_settings").select("key, value"),
+  ]);
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
   const slots = parseSlots(settings ?? []);
@@ -87,7 +77,6 @@ export default async function SettingsPage() {
         currentFilename={settingsMap.get("work_rules_filename") ?? null}
         previewUrl={workRulesPreviewUrl}
       />
-      <TaxTableForm rows={(taxYears ?? []) as TaxTableRow[]} />
     </div>
   );
 }
