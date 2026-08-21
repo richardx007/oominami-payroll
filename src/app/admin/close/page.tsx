@@ -20,24 +20,27 @@ import { CloseActions } from "./ui";
 export default async function ClosePage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string }>;
+  searchParams: Promise<{ p?: string; tentative?: string }>;
 }) {
   await requireAdmin();
-  const { p } = await searchParams;
+  const { p, tentative: tentativeParam } = await searchParams;
   const period = (p && periodFromKey(p)) || currentPeriod();
 
   const supabase = await createClient();
-  const [{ data: payPeriod }, payrolls] = await Promise.all([
-    supabase
-      .from("pay_periods")
-      .select("status")
-      .eq("start_date", period.start)
-      .eq("end_date", period.end)
-      .maybeSingle(),
-    calculatePeriodPayroll(period),
-  ]);
+  const { data: payPeriod } = await supabase
+    .from("pay_periods")
+    .select("status")
+    .eq("start_date", period.start)
+    .eq("end_date", period.end)
+    .maybeSingle();
 
   const status = payPeriod?.status ?? "open";
+  // 「税額仮計算」は締め前(status==="open")のみ有効。締め済み・支払済みの期間は
+  // 確定済みの数字を見せるべきなので、クエリパラメータが付いていても無視する。
+  const tentative = status === "open" && tentativeParam === "1";
+  const payrolls = await calculatePeriodPayroll(period, {
+    ignoreIncomplete: tentative,
+  });
   // 未締め(=金額が未確定)は表をイエロー系にする。
   // 配色の意味づけは「確定=グリーン系 / 未確定=イエロー系 / それ以外=ブルー系」で統一しており、
   // イエローはシフト表の「調整中」モード(bg-yellow-200)と同じ色に揃えている。
@@ -97,8 +100,26 @@ export default async function ClosePage({
           </p>
         </div>
 
-        {/* 操作ボタンはヘッダ部分に配置(締め/支払・明細配信・締め解除・税理士資料操作) */}
-        <CloseActions periodKey={period.key} status={status} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* 締め前のみ: 退勤未入力(進行中の勤務)を除外して税額を仮に確認できるトグル。
+              締め本体(closePeriod)は従来どおり退勤未入力があれば止まる(このトグルは表示切替のみ)。 */}
+          {status === "open" && (
+            <Link
+              href={`/admin/close?p=${period.key}${tentative ? "" : "&tentative=1"}`}
+              aria-pressed={tentative}
+              title="退勤未入力(進行中の勤務など)を除外して、税額を仮に計算します"
+              className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium print:hidden ${
+                tentative
+                  ? "border-gray-400 bg-gray-200 text-gray-800"
+                  : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              税額仮計算{tentative ? " ✓" : ""}
+            </Link>
+          )}
+          {/* 操作ボタンはヘッダ部分に配置(締め/支払・明細配信・締め解除・税理士資料操作) */}
+          <CloseActions periodKey={period.key} status={status} />
+        </div>
       </div>
 
       {/* id は PDFダウンロード(DownloadPdfButton)のキャプチャ対象。変更する場合は
@@ -110,8 +131,17 @@ export default async function ClosePage({
         <div className={`rounded-t-xl border-b p-4 ${bandClass}`}>
           <div>
             <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-              {status === "open" ? "給与計算プレビュー" : "確定明細"}
+              {tentative
+                ? "税額仮計算"
+                : status === "open"
+                  ? "給与計算プレビュー"
+                  : "確定明細"}
             </h2>
+            {tentative && (
+              <p className="mt-1 text-xs font-normal text-amber-700">
+                退勤未入力の日(進行中の勤務など)は除外して計算した仮の金額です。確定額ではありません。
+              </p>
+            )}
             {/* 総支給・源泉所得税・差引支給は重要なので1項目1行・濃い黒字・金額右寄せで表示 */}
             <dl className="mt-2 max-w-xs space-y-1 text-sm font-semibold text-gray-900">
               <div className="flex items-baseline justify-between gap-4">
@@ -171,6 +201,15 @@ export default async function ClosePage({
                 <tr key={p.employee_id} className="border-b border-gray-50">
                   <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
                     {p.name}
+                    {/* 仮計算で除外した日を氏名の下に小さく注記(退勤未入力=進行中の勤務など) */}
+                    {tentative && p.result && p.result.excluded_dates.length > 0 && (
+                      <span className="mt-0.5 block text-xs font-normal text-amber-600">
+                        {p.result.excluded_dates
+                          .map((d) => d.slice(5).replace("-", "/"))
+                          .join("・")}
+                        は退勤未入力のため除外
+                      </span>
+                    )}
                   </td>
                   {p.result ? (
                     <>

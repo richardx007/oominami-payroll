@@ -82,6 +82,9 @@ export type PayslipResult = {
   /** 差引支給額 = 総支給額 - 源泉所得税 - 前払金控除(前払いが多ければマイナスになりうる) */
   net_pay: number;
   tax_category: "kou" | "otsu";
+  /** 仮計算(ignoreIncomplete)で計算対象から除外した勤務日(退勤未入力のため)。
+   *  通常計算(ignoreIncomplete省略/false)では常に空配列 */
+  excluded_dates: string[];
 };
 
 /** 指定日時点で有効な設定(effective_from <= date の最新)を返す */
@@ -165,6 +168,11 @@ export function computePayslip(params: {
   breakWindows?: BreakWindow[];
   /** 当期に日当として先に支払った前払金の合計(未指定なら0) */
   advanceTotal?: number;
+  /**
+   * true の場合、退勤未入力の日をエラーにせず計算対象から除外する(締め前の「税額仮計算」用)。
+   * 締め処理本体(実際の締め)では使わないこと(退勤未入力を見逃したまま確定してしまうため)。
+   */
+  ignoreIncomplete?: boolean;
 }): PayslipResult {
   const {
     entries,
@@ -175,19 +183,24 @@ export function computePayslip(params: {
     periodEnd,
     breakWindows = DEFAULT_BREAK_WINDOWS,
     advanceTotal = 0,
+    ignoreIncomplete = false,
   } = params;
 
   if (wageRates.length === 0) {
     throw new PayrollError("時給が設定されていません");
   }
 
-  // 退勤未入力(end_time が null/空)の日は計算できないため、日付を列挙してエラーにする
+  // 退勤未入力(end_time が null/空)の日は本来計算できない。通常はエラーにして締めを止めるが、
+  // ignoreIncomplete=true(仮計算)のときは日付を記録した上で計算対象から除外して続行する。
   const missingOut = entries
     .filter((e) => !e.end_time)
     .map((e) => e.work_date);
-  if (missingOut.length > 0) {
+  if (missingOut.length > 0 && !ignoreIncomplete) {
     throw new PayrollError(`退勤未入力の日があります: ${missingOut.join("、")}`);
   }
+  const usableEntries = ignoreIncomplete
+    ? entries.filter((e) => e.end_time)
+    : entries;
 
   let basePay = 0;
   let totalMinutes = 0;
@@ -197,7 +210,7 @@ export function computePayslip(params: {
   let overtimePay = 0;
   let transportTotal = 0;
 
-  for (const e of entries) {
+  for (const e of usableEntries) {
     const wage = effectiveAt(wageRates, e.work_date);
     if (!wage) {
       throw new PayrollError(
@@ -222,7 +235,8 @@ export function computePayslip(params: {
   }
 
   const allowance = effectiveAt(allowances, periodEnd);
-  const lunchTotal = (allowance?.lunch_allowance_per_day ?? 0) * entries.length;
+  const lunchTotal =
+    (allowance?.lunch_allowance_per_day ?? 0) * usableEntries.length;
 
   const taxSetting = effectiveAt(taxSettings, periodEnd);
   const category = taxSetting?.tax_category ?? "otsu";
@@ -235,7 +249,7 @@ export function computePayslip(params: {
   const currentWage = effectiveAt(wageRates, periodEnd);
 
   return {
-    work_days: entries.length,
+    work_days: usableEntries.length,
     total_minutes: totalMinutes,
     night_minutes: nightMins,
     overtime_minutes: overtimeMins,
@@ -252,5 +266,6 @@ export function computePayslip(params: {
     // 前払金は課税対象額・源泉所得税には影響させず、差引支給額からのみ控除する
     net_pay: grossPay - incomeTax - advanceTotal,
     tax_category: category,
+    excluded_dates: ignoreIncomplete ? missingOut : [],
   };
 }

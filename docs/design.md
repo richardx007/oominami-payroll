@@ -1525,6 +1525,30 @@ foreign key (employee_id, work_date)
 - 反映先: `admin/close/{page,actions}.ts(x)`、`admin/report/actions.ts`、`lib/email.ts`、`(employee)/payslips/page.tsx`。
 - テスト: `lib/payroll.test.ts` に2件追加（前払金が総支給額・課税対象額・源泉所得税を変えず差引支給額のみ減らすこと）。
 
+### 11.7 税額仮計算（締め前のプレビュー切替、2026-08-21追加）
+
+**背景**: 締め前(`status==="open"`)の給与計算プレビューは、対象期間内に**退勤未入力の日が1件でもある
+従業員**がいると、その従業員の行が丸ごとエラー表示になる（`computePayslip`が`PayrollError`を投げる
+仕様は締め処理と共通のため。§「退勤未入力」参照）。退勤未入力は「進行中の勤務(まだ退勤打刻していない)」
+でも起こりうるため、月の途中で概算の税額を確認したいときにエラーだらけで見られない、という不便があった。
+
+- **`computePayslip`に`ignoreIncomplete?: boolean`を追加**（`lib/payroll.ts`）。`true`のときは退勤未入力の
+  日をエラーにせず**計算対象から除外**して続行する（`usableEntries = entries.filter(e => e.end_time)`）。
+  除外した日付は`PayslipResult.excluded_dates`（通常計算では常に空配列）で返す。**締め処理本体
+  (`closePeriod`)はこのオプションを使わず、従来どおり退勤未入力があれば厳格に止まる**
+  （退勤未入力を見逃したまま確定させないため。仮計算はあくまで表示切替であり、確定処理には一切影響しない）。
+- **`calculatePeriodPayroll`（`lib/payroll-data.ts`）に`opts?: { ignoreIncomplete?: boolean }`を追加**し、
+  `computePayslip`へそのまま渡す。
+- **UI**: `admin/close/page.tsx`に`?tentative=1`のクエリパラメータで切り替えるトグルボタン
+  「税額仮計算」を追加（**`status==="open"`のときのみ表示**。締め済み・支払済みの期間は確定済みの数字を
+  見せるべきなのでクエリが付いていても無視する＝`tentative = status==="open" && tentativeParam==="1"`）。
+  オンにすると見出しが「給与計算プレビュー」→「税額仮計算」に変わり、「退勤未入力の日は除外して計算した
+  仮の金額です。確定額ではありません。」と注記。除外された従業員は氏名の下に除外した日付を
+  小さく注記する（`退勤未入力のため除外`）。トグルは`admin/daily`の「退職者を含む」トグルと同じ
+  Link+クエリパラメータ方式（コード変更なしでURL共有・戻る/進むが自然に効く）。
+- テスト: `lib/payroll.test.ts`に2件追加（除外対象の日を除いて計算されること、除外対象が無ければ
+  `excluded_dates`が空配列であること）。
+
 ---
 
 ## 12. アプリからの打刻導線（2026-07-27追加）

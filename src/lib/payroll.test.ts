@@ -362,6 +362,51 @@ describe("computePayslip", () => {
     ).toThrow(PayrollError);
   });
 
+  it("ignoreIncomplete=trueなら退勤未入力の日を除外して計算する(税額仮計算)", () => {
+    const result = computePayslip({
+      ...base,
+      ignoreIncomplete: true,
+      entries: [
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "17:00",
+          break_minutes: 60,
+          transport_cost: 0,
+        },
+        {
+          // 退勤未入力(進行中の勤務など)。エラーにせず除外される
+          work_date: "2026-07-03",
+          start_time: "10:00",
+          end_time: null,
+          break_minutes: 0,
+          transport_cost: 0,
+        },
+      ],
+    });
+    // 7/1のみ計算対象(9-17時は標準休憩帯12-13時と重なり1h控除=7h × 1200円 = 8400円)、7/3は除外
+    expect(result.work_days).toBe(1);
+    expect(result.base_pay).toBe(8400);
+    expect(result.excluded_dates).toEqual(["2026-07-03"]);
+  });
+
+  it("ignoreIncomplete=trueでも退勤未入力が無ければexcluded_datesは空", () => {
+    const result = computePayslip({
+      ...base,
+      ignoreIncomplete: true,
+      entries: [
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "17:00",
+          break_minutes: 60,
+          transport_cost: 0,
+        },
+      ],
+    });
+    expect(result.excluded_dates).toEqual([]);
+  });
+
   it("時給の値上げが勤務日ごとに適用される", () => {
     const result = computePayslip({
       ...base,

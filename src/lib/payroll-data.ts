@@ -21,7 +21,11 @@ export type EmployeePayroll = {
 
 /** 指定期間の全従業員の給与を計算する(プレビュー/締め共通) */
 export async function calculatePeriodPayroll(
-  period: Period
+  period: Period,
+  opts?: {
+    /** true の場合、退勤未入力の日をエラーにせず除外して計算する(締め前の「税額仮計算」用) */
+    ignoreIncomplete?: boolean;
+  }
 ): Promise<EmployeePayroll[]> {
   const supabase = await createClient();
   const taxYear = Number(period.end.slice(0, 4));
@@ -103,6 +107,7 @@ export async function calculatePeriodPayroll(
         periodEnd: period.end,
         breakWindows,
         advanceTotal: advanceBy.get(emp.id) ?? 0,
+        ignoreIncomplete: opts?.ignoreIncomplete,
       });
       return {
         employee_id: emp.id,
