@@ -141,8 +141,8 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
         源泉徴収税額表(月額表)
       </h2>
       <p className="mt-1 text-sm text-gray-500">
-        課税対象額が月88,000円以上の人がいる場合に必要です(88,000円未満は自動計算:
-        乙欄3.063%・甲欄0円)。国税庁の月額表をダウンロードし、下から取り込んでください。
+        課税対象額が下の表の最小登録額以上の人がいる場合に必要です(最小登録額未満は下の一覧に
+        表示のとおり自動計算されます)。国税庁の月額表をダウンロードし、下から取り込んでください。
       </p>
 
       <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/60 p-3 text-sm">
