@@ -340,6 +340,23 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
                 </tr>
               </thead>
               <tbody>
+                {/* 表には現れないが実際に適用されるルール: 最小「以上」金額未満は甲欄0円・
+                    乙欄は課税対象額の3.063%(computeIncomeTax()が動的に判定。§design.md参照)。
+                    国税庁の月額表にも先頭にこの行があるが、通常の帯として取り込めないため
+                    データとしては保持していない。見落とされやすいのでここに明示する。 */}
+                {shownRows.length > 0 && (
+                  <tr className="border-t border-amber-200 bg-amber-50 text-amber-800">
+                    <td className="px-2 py-1" colSpan={2}>
+                      {yen(shownRows[0].min_amount)}円未満
+                    </td>
+                    <td className="px-2 py-1" colSpan={8}>
+                      甲欄はすべて0円
+                    </td>
+                    <td className="px-2 py-1 font-medium">
+                      課税対象額の3.063%
+                    </td>
+                  </tr>
+                )}
                 {shownRows.map((r, i) => (
                   <tr key={i} className="border-t border-gray-100">
                     <td className="px-2 py-1">{yen(r.min_amount)}</td>
