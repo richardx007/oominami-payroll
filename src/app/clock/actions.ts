@@ -247,6 +247,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
           break_minutes: 0,
           transport_cost: transport?.transport_cost ?? 0,
           ...(transport ?? {}),
+          updated_by: employee.id,
         },
         { onConflict: "employee_id,work_date" }
       )
@@ -299,7 +300,12 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     const brk = standardBreakMinutes(target.start_time.slice(0, 5), time, breakWindows);
     const { error } = await supabase
       .from("work_entries")
-      .update({ end_time: time, break_minutes: brk, ...(transport ?? {}) })
+      .update({
+        end_time: time,
+        break_minutes: brk,
+        ...(transport ?? {}),
+        updated_by: employee.id,
+      })
       .eq("id", target.id);
     if (error) {
       await logActivity("エラー", `退勤打刻に失敗: ${employee.name} ${error.message}`);

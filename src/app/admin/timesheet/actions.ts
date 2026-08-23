@@ -20,7 +20,7 @@ export async function adminUpsertWorkEntry(
   employeeId: string,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const parsed = entrySchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -51,6 +51,7 @@ export async function adminUpsertWorkEntry(
       station_to: d.station_to?.trim() || null,
       round_trip: d.round_trip === "on",
       note: d.note || null,
+      updated_by: admin.id,
     },
     { onConflict: "employee_id,work_date" }
   );

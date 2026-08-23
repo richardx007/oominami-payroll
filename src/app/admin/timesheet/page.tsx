@@ -55,7 +55,7 @@ export default async function AdminTimesheetPage({
     supabase
       .from("work_entries")
       .select(
-        "work_date, start_time, end_time, break_minutes, transport_cost, transport_mode, station_from, station_to, round_trip, note"
+        "work_date, start_time, end_time, break_minutes, transport_cost, transport_mode, station_from, station_to, round_trip, note, created_at, updated_at, created_by, updated_by"
       )
       .eq("employee_id", selectedId)
       .gte("work_date", period.start)
@@ -90,10 +90,33 @@ export default async function AdminTimesheetPage({
     slots
   );
 
+  // 登録・修正ユーザの表示名を解決(自分以外の担当者名もRLSを介さず引ける専用関数を使う)
+  const actorIds = Array.from(
+    new Set(
+      (entries ?? [])
+        .flatMap((row) => [row.created_by, row.updated_by])
+        .filter((v): v is string => !!v)
+    )
+  );
+  const { data: actorRows } = actorIds.length
+    ? await supabase.rpc("get_employee_names", { p_ids: actorIds })
+    : { data: [] as { id: string; display_name: string }[] };
+  const actorNames = new Map(
+    (actorRows as { id: string; display_name: string }[] | null ?? []).map(
+      (r) => [r.id, r.display_name]
+    )
+  );
+
   const normalized = (entries ?? []).map((row) => ({
     ...row,
     start_time: row.start_time.slice(0, 5),
     end_time: row.end_time ? row.end_time.slice(0, 5) : null,
+    created_by_name: row.created_by
+      ? (actorNames.get(row.created_by) ?? null)
+      : null,
+    updated_by_name: row.updated_by
+      ? (actorNames.get(row.updated_by) ?? null)
+      : null,
   }));
 
   const stationSet = new Set<string>();

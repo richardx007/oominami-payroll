@@ -153,6 +153,20 @@ $$;
 
 
 --
+-- Name: get_employee_names(uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_employee_names(p_ids uuid[]) RETURNS TABLE(id uuid, display_name text)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select id, coalesce(nullif(trim(nickname), ''), name)
+  from employees
+  where id = any(p_ids);
+$$;
+
+
+--
 -- Name: get_shift_roster(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -677,6 +691,24 @@ end $$;
 
 
 --
+-- Name: set_work_entry_audit(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_work_entry_audit() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if tg_op = 'INSERT' then
+    new.created_by = coalesce(new.created_by, new.updated_by);
+  elsif tg_op = 'UPDATE' then
+    new.created_by = old.created_by;
+  end if;
+  return new;
+end $$;
+
+
+--
 -- Name: shift_period_key(date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1103,6 +1135,8 @@ CREATE TABLE public.work_entries (
     station_from text,
     station_to text,
     round_trip boolean DEFAULT true NOT NULL,
+    created_by uuid,
+    updated_by uuid,
     CONSTRAINT work_entries_break_minutes_check CHECK ((break_minutes >= 0)),
     CONSTRAINT work_entries_transport_cost_check CHECK ((transport_cost >= 0))
 );
@@ -1422,6 +1456,13 @@ CREATE TRIGGER work_entries_updated_at BEFORE UPDATE ON public.work_entries FOR 
 
 
 --
+-- Name: work_entries work_entries_audit; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER work_entries_audit BEFORE INSERT OR UPDATE ON public.work_entries FOR EACH ROW EXECUTE FUNCTION public.set_work_entry_audit();
+
+
+--
 -- Name: activity_logs activity_logs_actor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1563,6 +1604,22 @@ ALTER TABLE ONLY public.wage_rates
 
 ALTER TABLE ONLY public.work_entries
     ADD CONSTRAINT work_entries_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+
+
+--
+-- Name: work_entries work_entries_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_entries
+    ADD CONSTRAINT work_entries_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.employees(id) ON DELETE SET NULL;
+
+
+--
+-- Name: work_entries work_entries_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.work_entries
+    ADD CONSTRAINT work_entries_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.employees(id) ON DELETE SET NULL;
 
 
 --
@@ -2051,6 +2108,15 @@ GRANT ALL ON FUNCTION public.get_contact_settings() TO service_role;
 
 
 --
+-- Name: FUNCTION get_employee_names(p_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.get_employee_names(p_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.get_employee_names(p_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.get_employee_names(p_ids uuid[]) TO service_role;
+
+
+--
 -- Name: FUNCTION get_shift_roster(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -2185,6 +2251,15 @@ GRANT ALL ON FUNCTION public.norm_hhmm(t text) TO service_role;
 GRANT ALL ON FUNCTION public.set_updated_at() TO anon;
 GRANT ALL ON FUNCTION public.set_updated_at() TO authenticated;
 GRANT ALL ON FUNCTION public.set_updated_at() TO service_role;
+
+
+--
+-- Name: FUNCTION set_work_entry_audit(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.set_work_entry_audit() TO anon;
+GRANT ALL ON FUNCTION public.set_work_entry_audit() TO authenticated;
+GRANT ALL ON FUNCTION public.set_work_entry_audit() TO service_role;
 
 
 --

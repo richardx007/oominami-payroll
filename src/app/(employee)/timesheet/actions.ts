@@ -70,6 +70,7 @@ export async function upsertWorkEntry(
       station_to: d.station_to?.trim() || null,
       round_trip: d.round_trip === "on",
       note: d.note || null,
+      updated_by: employee.id,
     },
     { onConflict: "employee_id,work_date" }
   );

@@ -18,6 +18,11 @@ export type WorkEntry = {
   station_to: string | null;
   round_trip: boolean;
   note: string | null;
+  created_at: string;
+  updated_at: string;
+  /** 登録・修正した従業員の表示名(ニックネーム優先)。取得不可・未記録の過去データは null */
+  created_by_name: string | null;
+  updated_by_name: string | null;
 };
 
 export type TransportHistory = {
@@ -47,7 +52,7 @@ export default async function TimesheetPage({
       supabase
         .from("work_entries")
         .select(
-          "work_date, start_time, end_time, break_minutes, transport_cost, transport_mode, station_from, station_to, round_trip, note"
+          "work_date, start_time, end_time, break_minutes, transport_cost, transport_mode, station_from, station_to, round_trip, note, created_at, updated_at, created_by, updated_by"
         )
         .eq("employee_id", employee.id)
         .gte("work_date", period.start)
@@ -97,11 +102,30 @@ export default async function TimesheetPage({
     slots
   );
 
+  // 登録・修正ユーザの表示名を解決(自分以外の担当者名もRLSを介さず引ける専用関数を使う)
+  const actorIds = Array.from(
+    new Set(
+      (entries ?? [])
+        .flatMap((e) => [e.created_by, e.updated_by])
+        .filter((v): v is string => !!v)
+    )
+  );
+  const { data: actorRows } = actorIds.length
+    ? await supabase.rpc("get_employee_names", { p_ids: actorIds })
+    : { data: [] as { id: string; display_name: string }[] };
+  const actorNames = new Map(
+    (actorRows as { id: string; display_name: string }[] | null ?? []).map(
+      (r) => [r.id, r.display_name]
+    )
+  );
+
   // time型は "HH:MM:SS" で返るため "HH:MM" に整形
   const normalized = (entries ?? []).map((e) => ({
     ...e,
     start_time: e.start_time.slice(0, 5),
     end_time: e.end_time ? e.end_time.slice(0, 5) : null,
+    created_by_name: e.created_by ? (actorNames.get(e.created_by) ?? null) : null,
+    updated_by_name: e.updated_by ? (actorNames.get(e.updated_by) ?? null) : null,
   }));
 
   const stationSet = new Set<string>();

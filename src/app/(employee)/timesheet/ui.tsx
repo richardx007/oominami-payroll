@@ -417,6 +417,11 @@ function entryFromFormData(fd: FormData): WorkEntry {
     station_to: s("station_to") || null,
     round_trip: s("round_trip") === "on",
     note: s("note") || null,
+    // 「次の新規日への既定値プレビュー」用の合成データなので登録情報は持たない
+    created_at: "",
+    updated_at: "",
+    created_by_name: null,
+    updated_by_name: null,
   };
 }
 
@@ -928,31 +933,81 @@ function EntryForm({
           />
         </div>
 
-        {/* 更新/登録ボタンを枠の右下に配置。削除がある場合は左に並べる */}
-        <div className="flex items-center justify-end gap-2">
-          {entry && !timeLocked && (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => {
-                if (window.confirm(`${formatDateJa(date)}の勤務記録を削除します。よろしいですか？`)) {
-                  onDelete(date);
-                }
-              }}
-              className="rounded-lg border border-red-200 px-4 py-2.5 text-red-600 hover:bg-red-50 disabled:opacity-50"
-            >
-              削除
-            </button>
+        {/* 登録・修正履歴(左)と 削除/更新ボタン(右)を1行にまとめ、枠が縦に伸びないようにする */}
+        <div className="flex items-end justify-end gap-3">
+          {entry && (
+            <div className="mr-auto min-w-0 flex-1 space-y-0.5 text-[11px] leading-tight text-gray-400">
+              <p className="truncate">
+                登録: {formatDateTimeJa(entry.created_at)}
+                {entry.created_by_name && ` ${entry.created_by_name}`}
+              </p>
+              <p className="truncate">
+                修正: {formatDateTimeJa(entry.updated_at)}
+                {entry.updated_by_name && ` ${entry.updated_by_name}`}
+              </p>
+            </div>
           )}
-          <button
-            type="submit"
-            disabled={pending}
-            className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {pending ? "保存中..." : entry ? "更新" : "登録"}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {entry && !timeLocked && (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  if (window.confirm(`${formatDateJa(date)}の勤務記録を削除します。よろしいですか？`)) {
+                    onDelete(date);
+                  }
+                }}
+                aria-label="削除"
+                title="削除"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                <TrashIcon className="h-5 w-5" />
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={pending}
+              className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {pending ? "保存中..." : entry ? "更新" : "登録"}
+            </button>
+          </div>
         </div>
       </form>
     </div>
   );
+}
+
+// 単色フラットアイコン(currentColorで色は親から継承)。admin/nav.tsx のアイコンと同じ様式。
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16" />
+      <path d="M6 7l1 13a2 2 0 002 2h6a2 2 0 002-2l1-13" />
+      <path d="M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+/** ISO日時を日本時間の「年/月/日 時:分」表記にする(登録・修正履歴の表示用) */
+function formatDateTimeJa(iso: string) {
+  return new Date(iso).toLocaleString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
