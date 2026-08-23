@@ -1,6 +1,6 @@
 # 給与管理システム 設計書
 
-最終更新: 2026-07-19
+最終更新: 2026-08-24
 対象リポジトリ: `richardx007/oominami-payroll`
 本番URL: https://oominami-payroll.shinsekai.workers.dev
 
@@ -134,7 +134,7 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 | `tax_settings` | 税区分履歴 | employee_id, tax_category(kou/otsu), dependents, effective_from |
 | `allowance_settings` | 昼食補助設定 | lunch_allowance_per_day, effective_from |
 | `pay_periods` | 給与計算期間（`period_label` は「2026年8月度」形式。§用語参照） | period_label, start_date, end_date, payment_date, status(open/closed/paid) |
-| `work_entries` | 勤務表 | employee_id, work_date, start_time, end_time, break_minutes, transport_cost, transport_mode(手段), station_from(駅1), station_to(駅2), round_trip(往復), note ／ ※深夜勤務(退勤翌日, 例18:00→2:00)を許容するため `end_time > start_time` のCHECK制約は撤去済み。end≤start は翌日とみなし `workMinutes` が24時間加算 |
+| `work_entries` | 勤務表 | employee_id, work_date, start_time, end_time, break_minutes, transport_cost, transport_mode(手段), station_from(駅1), station_to(駅2), round_trip(往復), note, created_at, updated_at, created_by(登録者=employees.id), updated_by(直近の修正者=employees.id) ／ ※深夜勤務(退勤翌日, 例18:00→2:00)を許容するため `end_time > start_time` のCHECK制約は撤去済み。end≤start は翌日とみなし `workMinutes` が24時間加算。created_by/updated_byの記録方式は§14参照 |
 | `payslips` | 給与明細（締め時に確定保存） | employee_id, pay_period_id, work_days, total_minutes, night_minutes(深夜帯勤務分), overtime_minutes(1日8h超過分), hourly_wage, base_pay, night_pay(深夜勤務手当=時給25%割増分), overtime_pay(残業手当=時給25%割増分), transport_total, lunch_total, gross_pay, income_tax, advance_deduction(前払金控除。既定0), net_pay, tax_category, finalized_at, emailed_at |
 | `advance_payments` | 前払金（日当として先に現金で支払った分。§11） | employee_id, work_date, amount, note, created_at, unique(employee_id,work_date)。**(employee_id, work_date) が `work_entries` への複合FK**（`ON UPDATE CASCADE`／`ON DELETE NO ACTION`。§11.3.3）。RLS=従業員は自分の行を参照のみ・登録/変更/削除は管理者(`is_admin()`) |
 | `notifications` | 連絡・催促・一斉報知 | sender_id, recipient_id(null=全員), type(individual/broadcast/reminder), subject, body, emailed, sent_at |
@@ -211,6 +211,9 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 - `get_break_settings()`: `app_settings` の `break_window_*`（標準休憩時間帯3枠）を返す（SECURITY DEFINER・authenticated）。§10.1参照。
 - `get_work_rules_meta()`: `app_settings` の `work_rules_*`（勤務ルール文書のストレージパス・元ファイル名・MIME）を返す
   （SECURITY DEFINER・authenticated）。§10.2参照。
+- `get_employee_names(uuid[])`: 指定id群の表示名（ニックネーム優先）だけを返す（SECURITY DEFINER・
+  authenticated）。従業員は他人の `employees` 行を直接 SELECT できないため、勤務表の登録者/修正者名の
+  解決に使う（§14参照）。
 - いずれの SECURITY DEFINER 関数も anon から revoke 済み（`email_registered`・`log_activity` のみ anon 実行可）。
 - 従業員は自分のレコードのみ read/write、管理者は全件。`activity_logs` は管理者のみ select。
 
@@ -860,6 +863,12 @@ middleware.ts            未認証は /login へ
 >   本構成は Serwist を使わず Turbopack を維持している。
 > - iOS standalone は SW 更新の反映が鈍い。壊れた SW を配ってしまった場合は、`/sw.js` を自己解除する
 >   **キルスイッチ SW**（unregister＋全キャッシュ削除＋再読込）に差し替えて回収する。
+> - 🔴 **`SW_VERSION` は「ビルド時点の `git rev-parse --short HEAD`」であり、作業ツリーの差分は見ない**。
+>   コミットせずに `npm run deploy`（`opennextjs-cloudflare build && deploy`）を実行すると、Worker の
+>   コード自体は新しくなるのに `SW_VERSION` は直前のコミットのままで変わらず、**端末側は「更新なし」と
+>   判定して更新バナーが一切出ない**（2026-08-23に実際発生）。デプロイ前に必ず `git commit` してから
+>   `npm run deploy` すること。この事象は本番稼働に支障は無い（新コードは即配信されている）が、
+>   ユーザーに更新完了を知らせる手段が失われる点が問題。
 
 ---
 
@@ -1791,3 +1800,52 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
 - アクション: `admin/shifts/actions.ts`（`canEditShift()`/`setShiftMode()`。`assignShift`/`clearShift` は
   管理者専用から「管理者 or 調整中の本人」に緩和）。
 - テスト: `lib/shifts.test.ts`（既定モードの判定）。
+
+---
+
+## 14. 勤務表の登録・修正履歴（作成者/更新者）（2026-08-23追加）
+
+勤務表の日別編集枠（`EntryForm`。従業員/管理者の勤務表画面で共通）の一番下に、その日の勤務実績を
+「いつ・誰が登録し、いつ・誰が最後に修正したか」を表示する。管理者が代理入力・QR打刻・従業員本人
+入力のいずれで記録された勤務実績かを見分けられるようにするのが目的。
+
+### 14.1 スキーマ・トリガー
+- `work_entries` に `created_by`/`updated_by`（ともに `employees.id` への FK・NULL許容）を追加
+  （`20260823000000_work_entries_audit_fields.sql`）。
+- アプリ側は毎回の保存で **`updated_by` に操作者の `employees.id` を渡すだけ**でよい。`created_by` の
+  確定はトリガー `work_entries_audit`（`set_work_entry_audit()`）が担う:
+  - INSERT時: `created_by` が未指定なら `updated_by` の値で補完する。
+  - UPDATE時: `created_by` は常に既存値（`old.created_by`）で上書きし、クライアントからの値は無視する
+    （＝登録者は最初の1回で固定され、以後の修正では変わらない）。
+- **既存データ（本機能追加より前の行）は `created_by`/`updated_by` とも `NULL`**。過去の登録・修正の
+  行為者を遡って特定する手段は無いため、画面側は該当欄を空表示にする（バグではない）。
+
+### 14.2 表示名の解決
+- 従業員は自分以外の `employees` 行を直接 SELECT できない（RLS）ため、`created_by`/`updated_by` が
+  自分以外のid（例: 管理者が代理保存した行を本人が見るケース）だと素の埋め込みJOINでは名前が
+  引けない。これを避けるため `get_employee_names(uuid[])`（SECURITY DEFINER、§3参照）で
+  ニックネーム優先の表示名だけを横断解決する。
+- 呼び出し元: `(employee)/timesheet/page.tsx` と `admin/timesheet/page.tsx` がそれぞれ、取得した
+  月内エントリの `created_by`/`updated_by` の重複除去済みidリストを1回のRPCにまとめて渡し、
+  `Map<id, display_name>` を作って各行にマージする（月ごとに最大でも数件のidなのでN+1にはならない）。
+
+### 14.3 書き込み経路（3箇所すべてで `updated_by` を設定）
+- 従業員本人の保存: `(employee)/timesheet/actions.ts` の `upsertWorkEntry` → `updated_by: employee.id`。
+- 管理者代理の保存: `admin/timesheet/actions.ts` の `adminUpsertWorkEntry` → `updated_by: admin.id`
+  （`employeeId`＝対象従業員ではなく、操作した**管理者自身**のidを入れる点に注意）。
+- QR打刻: `clock/actions.ts` の `punchClock`（出勤時のupsert・退勤時のupdateの両方）→
+  `updated_by: employee.id`（打刻した本人）。
+
+### 14.4 UI
+- `(employee)/timesheet/ui.tsx` の `EntryForm` 最下部、**削除/更新ボタンと同じ行**に
+  「登録: 日時 氏名」「修正: 日時 氏名」を2行の小さい文字（`text-[11px]`）で表示し、
+  `mr-auto` でボタン列と反対側（左）に寄せる。ボタン行と別に枠を伸ばさない配置にしている
+  （最初の実装ではボタン行の下に独立ブロックを置いていたが、枠が縦に伸びる指摘を受け統合した）。
+  既存レコード（`entry`）がある日のみ表示。日時は `formatDateTimeJa()`（Asia/Tokyo・年/月/日 時:分）。
+- 削除ボタンはテキスト「削除」からゴミ箱アイコン（`TrashIcon`。`admin/nav.tsx` のフラットSVGアイコンと
+  同じ様式・`currentColor`）に変更。
+
+### 14.5 補足: デプロイ時の注意
+本機能をデプロイした際、**変更をコミットせずに `npm run deploy`** したため PWA の更新バナーが
+出ない事象が発生した（原因・詳細は「5. デプロイ / 運用 > PWA / 自動更新」の教訓ボックス参照）。
+コミット→デプロイの順序を必ず守ること。
