@@ -178,7 +178,7 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
   受けていることが税法上の要件**」である旨を表示している（2026-07-29追加。誤って甲欄を選ぶのを防ぐため）。
 - **締め処理**: `pay_periods.status` が open 以外になると、該当期間の `work_entries` が RLS で編集ロックされる。締め時に `payslips` を確定保存。
 - **設定の置き場所**:
-  - 送信元Gmail・税理士アドレス・会社名 → `app_settings`（管理画面から変更）
+  - 送信元Gmail・税理士アドレス・会社名・責任者名 → `app_settings`（管理画面から変更）
   - `GMAIL_APP_PASSWORD`（秘密）→ Cloudflare の Secret
   - Supabase 公開値 → `wrangler.jsonc` の vars
 
@@ -668,18 +668,22 @@ middleware.ts            未認証は /login へ
 
 #### 税理士向け資料（`admin/report`）
 - 画面に支給一覧表を表示。ボタンは3つ：
-  1. **印刷 / PDF保存**（ブラウザ印刷）
+  1. **印刷 / PDF保存**（ブラウザ印刷／`DownloadPdfButton`）
   2. **CSVダウンロード**（BOM付き `payroll_YYYY-MM.csv` をBlobで保存）
-  3. **税理士へメール送信**（アプリから **自動送信**。宛先=税理士、CC=送信元、CSVを添付）
+  3. **税理士へメール送信**（アプリから **自動送信**。宛先=税理士、**CSV・PDFの両方を添付**）
 - CSVの列順（税理士送付・ダウンロードとも共通の `buildCsv()`）: 従業員No/氏名/勤務日数/**勤務時間**/
-  **うち深夜**/**うち残業**/**基本時給**/基本給/深夜勤務手当/残業手当/交通費/昼食補助/総支給額/源泉所得税/差引支給額/税区分
-  （勤務時間・うち深夜・うち残業は H:MM。2026-07-23に深夜列、2026-07-24に残業列を追加、締め処理画面の一覧表と列構成を統一）。
+  **うち深夜**/**うち残業**/**基本時給**/基本給/深夜勤務手当/残業手当/交通費/昼食補助/総支給額/
+  **課税対象額**/源泉所得税/前払金控除/差引支給額/税区分
+  （勤務時間・うち深夜・うち残業は H:MM。2026-07-23に深夜列、2026-07-24に残業列、2026-08-25に
+  課税対象額列を追加、締め処理画面の一覧表と列構成を統一）。**総支給額が0円の人はCSV・PDFとも
+  出力対象外**（給与明細画面には表示したまま。2026-08-25追加）。
 - 送信ボタンはダイアログを開き、**補足事項/申し送り事項**（textarea）を入力できる。入力内容は
-  本文末尾に追記される。本文に勤務データ表は載せない（数値は添付CSVに集約）。
-- 宛名は **税理士の氏名 + 様**（設定の `tax_accountant_name` を使用。「税理士 御中」ではない）。
-  氏名未設定時は「税理士 御中」にフォールバック。
-- 実装: `admin/report/actions.ts`（`loadReport`/`buildTaxReportCsv`/`sendTaxReport(periodKey, note)`）、
-  `admin/report/ui.tsx`（`SendReportButton` のモーダル + `DownloadCsvButton`）。
+  本文末尾に追記される。本文に勤務データ表は載せない（数値は添付CSV・PDFに集約）。
+- 宛名・添付PDF・テスト送信機能の詳細は「15. 税理士向けメールの拡充」参照（2026-08-25に大幅拡充。
+  このセクションの記述は基本形として残すが、宛名は現在2行対応、添付はCSV+PDFの2点）。
+- 実装: `admin/report/actions.ts`（`loadReport`/`buildTaxReportCsv`/`sendTaxReport`/`sendTaxReportTest`/
+  `previewTaxReportRows`/`previewTaxReportTestRows`）、`admin/report/ui.tsx`（`SendReportButton` の
+  モーダル + `DownloadCsvButton` + `DownloadPdfButton`）。
 - （以前は mailto 方式だったが、CSV自動添付付きの自動送信に戻した。CSVダウンロードは引き続き提供。）
 
 ---
@@ -1849,3 +1853,94 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
 本機能をデプロイした際、**変更をコミットせずに `npm run deploy`** したため PWA の更新バナーが
 出ない事象が発生した（原因・詳細は「5. デプロイ / 運用 > PWA / 自動更新」の教訓ボックス参照）。
 コミット→デプロイの順序を必ず守ること。
+
+---
+
+## 15. 税理士向けメールの拡充（PDF添付・宛名2行・テスト送信・責任者名署名）（2026-08-25追加）
+
+オーナーからの一連の依頼で、税理士向けメール（`admin/report/actions.ts` の `sendTaxReport` /
+新設 `sendTaxReportTest`）を大幅に拡充した。
+
+### 15.1 宛名の2行対応
+- `tax_accountant_name`（設定画面）を1行の`<input>`から**2行の`<textarea>`**に変更。1行目=事務所名、
+  2行目=氏名という運用を想定（改行込みの文字列としてそのまま `app_settings` に保存する）。
+- `lib/email.ts` の `buildTaxGreetingLines(taxName): string[]` が宛名行を組み立てる:
+  未設定→`["税理士 御中"]`、1行のみ→`["(氏名) 様"]`（後方互換）、2行以上→最終行にだけ「様」を付け、
+  それ以外の行はそのまま返す。メール本文には配列をそのまま展開（`...buildTaxGreetingLines(taxName)`）
+  して複数行として差し込む。
+
+### 15.2 設定画面「テスト送信」機能
+- `/admin/settings` の「メール設定」直下に新設。締め処理を待たず、**当月の現時点情報**
+  （`calculatePeriodPayroll(currentPeriod(), {ignoreIncomplete:true})`。`/admin/close` の
+  プレビューと同じ方式）でテスト送信できる。テスト送信先を指定でき、件名の冒頭に
+  「【テスト送信】」が付く。締め処理（`payslips`確定）は一切行わない。
+- 実装は `sendTaxReportTest(testEmail, data, pdf?)`（`admin/report/actions.ts`）。本番送信
+  （`sendTaxReport`）と共通の `ReportData`/添付ロジックを使うため、文面・添付ファイルの構成が
+  実際の送信内容と一致する（テストの意味が保てる）。
+
+### 15.3 PDF添付（CSVに加えて）
+- **PDF生成はブラウザ側（`html2canvas-pro` + `jsPDF`）でしか行えない**（Cloudflare Workers サーバー
+  側にはDOM/canvasが無い）。既存の「PDFダウンロード」ボタン（`DownloadPdfButton`）と同じキャプチャ
+  ロジックを `src/lib/pdf-capture.ts` に切り出し、`captureElementToPdfBlob()`（DOM要素→PDF Blob）・
+  `blobToBase64()`・`renderAndCapturePdfBase64()`（Reactコンポーネントを画面外に一時マウント→
+  キャプチャ→アンマウント。`createRoot` を使用）として共通化した。
+- 添付PDFの中身は新設 `admin/report/PdfReportTable.tsx`（常に `position:fixed; left:-10000px` で
+  画面外に配置。CSV=`buildCsv()`と同じ列構成）。送信直前に `previewTaxReportRows(periodKey)` /
+  `previewTaxReportTestRows()` で取得した行データを描画→キャプチャ→base64化し、`sendTaxReport`/
+  `sendTaxReportTest` の引数として渡す（`pdf?: { base64, filename }`）。PDF作成に失敗しても
+  `undefined` を返してCSVのみで送信を続行する（`admin/report/pdf-attachment.tsx` の
+  `buildTaxReportPdfAttachment` がこのフォールバックを担う）。
+- **バイナリ添付は `smtp.ts` の `b64()`（UTF-8前提）に通してはいけない**: `MailAttachment` に
+  `encoding?: "utf8" | "base64"` を追加し、`"base64"` 指定時はブラウザ側で作った base64 文字列を
+  そのままMIMEパートに使う（CSV等のテキスト添付は従来どおり `b64()` でUTF-8→base64）。誤って
+  バイナリをUTF-8経由で再エンコードすると1バイト超の値がずれてPDFが壊れる。
+- ダウンロード用PDF（`DownloadPdfButton`）は `scale:2`のまま、メール添付用PDFのみ `scale:1` に
+  下げて軽量化（下記15.4のリソース制約対策）。
+
+### 15.4 🔴 障害: Cloudflare Workers Freeプランのリソース上限でテスト送信がエラー画面に
+PDF添付を実装した直後、テスト送信を実行すると「This page couldn't load / A server error occurred」
+という汎用エラー画面になる不具合が発生した（オーナー報告・2026-08-25）。
+
+- **調査**: `activity_logs` を確認すると該当のメール送信は**成功として記録されていた**
+  （実際にメールも届いていた）。つまりSMTP送信自体は完走しているのに、Workerがレスポンスを返す
+  前後で失敗していた。`wrangler.jsonc` のコメントに残っていた過去のError 1102（全員一斉配信での
+  CPU時間超過）の記録から、**本アプリはCloudflare Workers Freeプラン（CPU時間の既定上限10ms、
+  サブリクエスト数にも上限あり）**で動いていることを確認。
+- **原因**: PDF添付の実装が、送信直前のプレビュー取得（`previewTaxReportRows`/`previewTaxReportTestRows`。
+  重いDB問い合わせ`calculatePeriodPayroll`/`loadReport`を含む）と、送信アクション本体
+  （`sendTaxReport`/`sendTaxReportTest`）の**両方で同じ重い問い合わせを別々に実行**していた。
+  これにPDFのbase64処理・SMTPの多段ラウンドトリップが加わり、Freeプランのリソース上限に触れて
+  リクエストごと失敗していたとみられる。
+- **対応**: `previewTaxReportRows`/`previewTaxReportTestRows` が返す `ReportData`
+  （`periodLabel`/`companyName`/`rows`/`periodStart`/`periodEnd`/`paymentDate`/`periodKey`）を
+  そのまま `sendTaxReport`/`sendTaxReportTest` の引数として渡す設計に変更し、**DB問い合わせは
+  1回だけ**で完結するようにした（呼び出し元は `preview.ok` を先にチェックしてから使う）。
+  あわせて15.3のとおり添付PDFの `scale` を1に下げ、処理量そのものも減らした。
+- **教訓**: このアプリでサーバーアクションに機能を追加する際は、**「プレビュー取得」と「本番実行」を
+  分けるパターンで同じ重い問い合わせを2回書かない**こと。Freeプランはリクエストあたりの余裕が
+  非常に小さく、DB問い合わせ・添付ファイルのエンコード等が二重になるだけで丸ごと失敗しうる。
+
+### 15.5 CSV「課税対象額」列・PDF「交通費*」注釈
+- CSV（`buildCsv`）に**「課税対象額」列を「総支給額」の直後**に追加（給与明細画面の表と同じ並び）。
+  `payslips` テーブルに `taxable_amount` 列は無いため、`loadReport()` で
+  `base_pay + night_pay + overtime_pay + lunch_total`（`payroll.ts` の課税対象額の計算式と同じ。
+  交通費は非課税のため含めない）から算出して付与している。
+- `PdfReportTable`（添付PDF）の「交通費」見出しに `*` を付け、表の右上に「*印は課税対象外」を
+  追加。ダウンロード用PDF（`DownloadPdfButton`）は元々close画面の表（既に同じ注記あり）を
+  そのままキャプチャしているため対応不要だった。
+
+### 15.6 総支給額0円の人はCSV・PDF出力対象外
+`buildCsv`・`PdfReportTable` それぞれの入口で `gross_pay !== 0` の行だけにフィルタしてから
+本文・合計行を組み立てる（合計欄の人数・金額も除外後の値になる）。**給与明細画面（`/admin/close`
+の表）は従来どおり0円の人も表示したまま**（出力対象外なのはCSV/PDFのみ）。
+
+### 15.7 責任者名（設定）・メール文言
+- 設定画面「メール設定」に **責任者名**（`app_settings.manager_name`）を会社名の直下に追加。
+  `lib/email.ts` の `getManagerName()` で取得（未設定なら空文字）。
+- 税理士向けメール本文の書き出しを `${会社名}の${期間ラベル}　給与支給一覧をお送りします。`
+  （全角スペース区切り）に変更。
+- 本文末尾の署名を `会社名` 単独から **`会社名　責任者名`**（`buildSignatureLine()`。責任者名未設定
+  なら会社名のみ）に変更。
+- **署名の直後に空行を追加**（`lines.push("", 署名, "")`）: 空行が無いと一部メールクライアント
+  （Gmailアプリ等）で添付ファイルのプレビューカードが署名行の右側に食い込んで表示が崩れる
+  （オーナー報告・スクリーンショットで確認）。`sendTaxReport`/`sendTaxReportTest` 両方に適用。
