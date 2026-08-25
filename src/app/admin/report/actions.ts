@@ -1,9 +1,12 @@
 "use server";
 
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { periodFromKey, type Period } from "@/lib/period";
+import { currentPeriod, periodFromKey, type Period } from "@/lib/period";
+import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import {
+  buildTaxGreetingLines,
   getCompanyName,
   getTaxEmail,
   getTaxName,
@@ -209,7 +212,7 @@ export type SendResult = { ok: boolean; message: string };
 
 /**
  * 税理士へ支給一覧CSVを添付して自動送信する。
- * - メール冒頭は「(税理士名) 様」(未設定時は「税理士 御中」)
+ * - メール冒頭は税理士名の宛名行(1行目:事務所名/2行目:氏名+「様」、未設定時は「税理士 御中」)
  * - 本文に勤務データの表は載せず、明細は添付CSVに委ねる
  * - note(申し送り事項)があれば本文に追記する
  */
@@ -235,11 +238,10 @@ export async function sendTaxReport(
     getCompanyName(),
   ]);
 
-  const greeting = taxName?.trim() ? `${taxName.trim()} 様` : "税理士 御中";
   const trimmedNote = (note ?? "").trim();
 
   const lines = [
-    greeting,
+    ...buildTaxGreetingLines(taxName),
     "",
     "いつもお世話になっております。",
     `${loaded.periodLabel}の給与支給一覧をお送りします。`,
@@ -259,6 +261,69 @@ export async function sendTaxReport(
       {
         filename: `payroll_${loaded.period.key}.csv`,
         content: buildCsv(loaded.rows),
+        contentType: "text/csv",
+      },
+    ],
+  });
+}
+
+const testSendEmailSchema = z.email(
+  "テスト送信先のメールアドレスの形式が正しくありません"
+);
+
+/**
+ * 税理士向けメールのテスト送信(設定画面から実行)。
+ * - 締め処理を待たず、当月(締め前でも現時点)の期間を対象に work_entries 等から都度計算する
+ *   (calculatePeriodPayroll + ignoreIncomplete。close/page.tsx のプレビューと同じ方式)
+ * - 実際の締め処理(payslips確定)は一切行わない
+ * - 件名の冒頭に「【テスト送信】」を付与する
+ */
+export async function sendTaxReportTest(testEmail: string): Promise<SendResult> {
+  await requireAdmin();
+
+  const parsed = testSendEmailSchema.safeParse(testEmail.trim());
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const to = parsed.data;
+
+  const period = currentPeriod();
+  const payrolls = await calculatePeriodPayroll(period, {
+    ignoreIncomplete: true,
+  });
+
+  const rows: PayRow[] = payrolls
+    .filter((p) => p.result !== null)
+    .map((p) => ({
+      ...(p.result as NonNullable<typeof p.result>),
+      emp: { employee_no: p.employee_no, name: p.name },
+    }))
+    .sort((a, b) => a.emp.employee_no.localeCompare(b.emp.employee_no));
+
+  const [taxName, companyName] = await Promise.all([
+    getTaxName(),
+    getCompanyName(),
+  ]);
+
+  const lines = [
+    ...buildTaxGreetingLines(taxName),
+    "",
+    "いつもお世話になっております。",
+    `${period.label}の給与支給一覧をお送りします。(テスト送信・締め前の現時点情報です)`,
+    `対象期間: ${period.start.replaceAll("-", "/")}〜${period.end.replaceAll("-", "/")} / 支給日: ${period.paymentDate.replaceAll("-", "/")}`,
+    "詳細は添付のCSVファイル(支給一覧)をご確認ください。",
+    "",
+    companyName,
+  ];
+
+  return await sendMail({
+    to,
+    subject: `【テスト送信】【給与支給一覧】${period.label}`,
+    text: lines.join("\n"),
+    attachments: [
+      {
+        filename: `payroll_${period.key}_test.csv`,
+        content: buildCsv(rows),
         contentType: "text/csv",
       },
     ],

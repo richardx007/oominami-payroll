@@ -9,6 +9,7 @@ import {
   updateTimesheetLock,
   uploadWorkRules,
 } from "./actions";
+import { sendTaxReportTest } from "../report/actions";
 import type { SlotDef, SlotKey } from "@/lib/shifts";
 import { minutesToHHMM, type BreakWindow } from "@/lib/breaks";
 import type { ActionResult } from "../employees/actions";
@@ -291,14 +292,16 @@ export function EmailSettingsForm({
             <label className="mb-1 block text-sm font-medium">
               税理士の氏名
             </label>
-            <input
+            <textarea
               name="tax_accountant_name"
               defaultValue={taxName}
-              placeholder="例: 山田太郎"
-              className={inputClass}
+              rows={2}
+              placeholder={"例: 〇〇税理士事務所\n山田太郎"}
+              className={`${inputClass} resize-none`}
             />
             <p className="mt-1 text-xs text-gray-400">
-              メール冒頭の宛名(「〇〇 様」)に使われます(未入力なら「税理士 御中」)
+              メール冒頭の宛名に使われます。1行目に事務所名、2行目に氏名を入力してください
+              (氏名には自動で「様」が付きます・未入力なら「税理士 御中」)
             </p>
           </div>
           <div>
@@ -329,6 +332,60 @@ export function EmailSettingsForm({
           className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+/** 税理士向けメールのテスト送信。締め処理を待たず、当月の現時点情報で文面・宛名を確認できる */
+export function TestSendForm({ defaultEmail }: { defaultEmail: string }) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
+        テスト送信
+      </h2>
+      <p className="mt-1 text-sm text-gray-500">
+        締め処理の前でも、当月の現時点の情報で税理士向けメールの宛名・文面を確認できます。
+        件名の冒頭に「【テスト送信】」が付き、実際の締め処理は行われません。
+      </p>
+      <form
+        action={(fd) =>
+          startTransition(async () => {
+            const to = String(fd.get("test_send_to") ?? "");
+            setResult(await sendTaxReportTest(to));
+          })
+        }
+        className="mt-4 max-w-md space-y-3"
+      >
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            テスト送信先
+          </label>
+          <input
+            name="test_send_to"
+            type="email"
+            required
+            defaultValue={defaultEmail}
+            placeholder="例: your-address@example.com"
+            className={inputClass}
+          />
+        </div>
+        {result && (
+          <p
+            className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
+          >
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "送信中..." : "税理士向けメールのテスト送信"}
         </button>
       </form>
     </section>

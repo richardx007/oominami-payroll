@@ -11,7 +11,7 @@ import type { ActionResult } from "../employees/actions";
 const emailSettingsSchema = z.object({
   company_name: z.string().max(100),
   gmail_user: z.union([z.literal(""), z.email("送信元メールの形式が正しくありません")]),
-  tax_accountant_name: z.string().max(100),
+  tax_accountant_name: z.string().max(200),
   tax_accountant_email: z.union([
     z.literal(""),
     z.email("税理士メールの形式が正しくありません"),

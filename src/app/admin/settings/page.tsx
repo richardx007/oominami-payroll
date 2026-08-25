@@ -5,6 +5,7 @@ import {
   EmailSettingsForm,
   LunchAllowanceForm,
   ShiftSlotsForm,
+  TestSendForm,
   TimesheetLockForm,
   WorkRulesForm,
 } from "./ui";
@@ -13,7 +14,7 @@ import { parseSlots } from "@/lib/shifts";
 import { parseBreakWindows } from "@/lib/breaks";
 
 export default async function SettingsPage() {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const supabase = await createClient();
 
   const [{ data: allowances }, { data: settings }] = await Promise.all([
@@ -56,6 +57,7 @@ export default async function SettingsPage() {
         taxName={settingsMap.get("tax_accountant_name") ?? ""}
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
       />
+      <TestSendForm defaultEmail={admin.email} />
       <ShiftSlotsForm
         slots={slots}
         monthStart={settingsMap.get("shift_month_start") === "1"}

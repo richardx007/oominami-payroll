@@ -43,9 +43,25 @@ export async function getTaxEmail(): Promise<string | null> {
   );
 }
 
-/** 税理士の氏名(メール冒頭の宛名に使用) */
+/** 税理士の氏名(メール冒頭の宛名に使用。「事務所名\n氏名」の2行を想定) */
 export async function getTaxName(): Promise<string | null> {
   return await getSetting("tax_accountant_name");
+}
+
+/**
+ * 税理士宛メール冒頭の宛名行を組み立てる。
+ * - 未設定: ["税理士 御中"]
+ * - 1行のみ(氏名のみ運用): ["(氏名) 様"]
+ * - 2行以上(1行目:事務所名 / 2行目:氏名): ["(1行目)", "(2行目) 様"]
+ *   最終行にだけ「様」を付け、それ以外の行はそのまま表示する。
+ */
+export function buildTaxGreetingLines(taxName: string | null): string[] {
+  const lines = (taxName ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (lines.length === 0) return ["税理士 御中"];
+  return [...lines.slice(0, -1), `${lines[lines.length - 1]} 様`];
 }
 
 /** 管理者のメールアドレス一覧(個別連絡のCC・全員通知の送付先に使用) */
