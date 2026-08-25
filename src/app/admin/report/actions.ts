@@ -8,6 +8,7 @@ import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import {
   buildTaxGreetingLines,
   getCompanyName,
+  getManagerName,
   getTaxEmail,
   getTaxName,
   sendMail,
@@ -25,6 +26,7 @@ export type PayRow = {
   transport_total: number;
   lunch_total: number;
   gross_pay: number;
+  taxable_amount: number;
   income_tax: number;
   advance_deduction: number;
   net_pay: number;
@@ -72,6 +74,9 @@ async function loadReport(periodKey: string): Promise<LoadedReport> {
   const rows = (payslips ?? [])
     .map((r) => ({
       ...r,
+      // payslips テーブルに taxable_amount 列は無いため、payroll.ts の計算式
+      // (基本給+深夜勤務手当+残業手当+昼食補助。交通費は非課税のため含めない)から算出する
+      taxable_amount: r.base_pay + r.night_pay + r.overtime_pay + r.lunch_total,
       emp: r.employees as unknown as { employee_no: string; name: string },
     }))
     .sort((a, b) => a.emp.employee_no.localeCompare(b.emp.employee_no));
@@ -108,6 +113,7 @@ function buildCsv(rows: PayRow[]): string {
       transport: acc.transport + r.transport_total,
       lunch: acc.lunch + r.lunch_total,
       gross: acc.gross + r.gross_pay,
+      taxable: acc.taxable + r.taxable_amount,
       tax: acc.tax + r.income_tax,
       advance: acc.advance + r.advance_deduction,
       net: acc.net + r.net_pay,
@@ -121,6 +127,7 @@ function buildCsv(rows: PayRow[]): string {
       transport: 0,
       lunch: 0,
       gross: 0,
+      taxable: 0,
       tax: 0,
       advance: 0,
       net: 0,
@@ -141,6 +148,7 @@ function buildCsv(rows: PayRow[]): string {
     "交通費",
     "昼食補助",
     "総支給額",
+    "課税対象額",
     "源泉所得税",
     "前払金控除",
     "差引支給額",
@@ -161,6 +169,7 @@ function buildCsv(rows: PayRow[]): string {
       r.transport_total,
       r.lunch_total,
       r.gross_pay,
+      r.taxable_amount,
       r.income_tax,
       r.advance_deduction,
       r.net_pay,
@@ -181,6 +190,7 @@ function buildCsv(rows: PayRow[]): string {
     totals.transport,
     totals.lunch,
     totals.gross,
+    totals.taxable,
     totals.tax,
     totals.advance,
     totals.net,
@@ -276,6 +286,11 @@ export async function previewTaxReportTestRows(): Promise<PreviewRows> {
 /** メール添付用のPDF(base64・既にブラウザ側でキャプチャ済み)。任意 */
 type PdfAttachment = { base64: string; filename: string };
 
+/** メール本文末尾の署名行「会社名 責任者名」(責任者名未設定なら会社名のみ) */
+function buildSignatureLine(companyName: string, managerName: string): string {
+  return managerName.trim() ? `${companyName}　${managerName.trim()}` : companyName;
+}
+
 /**
  * 税理士へ支給一覧CSV(+任意でPDF)を添付して自動送信する。
  * - メール冒頭は税理士名の宛名行(1行目:事務所名/2行目:氏名+「様」、未設定時は「税理士 御中」)
@@ -303,7 +318,10 @@ export async function sendTaxReport(
     };
   }
 
-  const taxName = await getTaxName();
+  const [taxName, managerName] = await Promise.all([
+    getTaxName(),
+    getManagerName(),
+  ]);
 
   const trimmedNote = (note ?? "").trim();
 
@@ -311,14 +329,14 @@ export async function sendTaxReport(
     ...buildTaxGreetingLines(taxName),
     "",
     "いつもお世話になっております。",
-    `${data.periodLabel}の給与支給一覧をお送りします。`,
+    `${data.companyName}の${data.periodLabel}　給与支給一覧をお送りします。`,
     `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
     `詳細は添付の${pdf ? "PDF・CSVファイル" : "CSVファイル"}(支給一覧)をご確認ください。`,
   ];
   if (trimmedNote) {
     lines.push("", "【申し送り事項】", trimmedNote);
   }
-  lines.push("", data.companyName);
+  lines.push("", buildSignatureLine(data.companyName, managerName));
 
   return await sendMail({
     to,
@@ -368,17 +386,20 @@ export async function sendTaxReportTest(
   }
   const to = parsed.data;
 
-  const taxName = await getTaxName();
+  const [taxName, managerName] = await Promise.all([
+    getTaxName(),
+    getManagerName(),
+  ]);
 
   const lines = [
     ...buildTaxGreetingLines(taxName),
     "",
     "いつもお世話になっております。",
-    `${data.periodLabel}の給与支給一覧をお送りします。(テスト送信・締め前の現時点情報です)`,
+    `${data.companyName}の${data.periodLabel}　給与支給一覧をお送りします。(テスト送信・締め前の現時点情報です)`,
     `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
     `詳細は添付の${pdf ? "PDF・CSVファイル" : "CSVファイル"}(支給一覧)をご確認ください。`,
     "",
-    data.companyName,
+    buildSignatureLine(data.companyName, managerName),
   ];
 
   return await sendMail({

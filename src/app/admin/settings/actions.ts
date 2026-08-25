@@ -10,6 +10,7 @@ import type { ActionResult } from "../employees/actions";
 
 const emailSettingsSchema = z.object({
   company_name: z.string().max(100),
+  manager_name: z.string().max(100),
   gmail_user: z.union([z.literal(""), z.email("送信元メールの形式が正しくありません")]),
   tax_accountant_name: z.string().max(200),
   tax_accountant_email: z.union([
@@ -32,6 +33,7 @@ export async function updateEmailSettings(
 
   const rows = [
     { key: "company_name", value: d.company_name.trim() },
+    { key: "manager_name", value: d.manager_name.trim() },
     { key: "gmail_user", value: d.gmail_user.trim() },
     { key: "tax_accountant_name", value: d.tax_accountant_name.trim() },
     { key: "tax_accountant_email", value: d.tax_accountant_email.trim() },

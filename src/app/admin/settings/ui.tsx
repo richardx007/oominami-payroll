@@ -228,11 +228,13 @@ export function TimesheetLockForm({ locked }: { locked: boolean }) {
 
 export function EmailSettingsForm({
   companyName,
+  managerName,
   gmailUser,
   taxName,
   taxEmail,
 }: {
   companyName: string;
+  managerName: string;
   gmailUser: string;
   taxName: string;
   taxEmail: string;
@@ -255,21 +257,37 @@ export function EmailSettingsForm({
         }
         className="mt-4 max-w-2xl space-y-4"
       >
-        {/* 会社名 + 送信元メールを1行に横並び(スマホでは縦積み) */}
+        {/* 会社名・責任者名 + 送信元メールを1行に横並び(スマホでは縦積み) */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              会社名・事業者名
-            </label>
-            <input
-              name="company_name"
-              defaultValue={companyName}
-              placeholder="例: 大波株式会社"
-              className={inputClass}
-            />
-            <p className="mt-1 text-xs text-gray-400">
-              メールの差出人名に使われます(未入力なら「給与管理システム」)
-            </p>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                会社名・事業者名
+              </label>
+              <input
+                name="company_name"
+                defaultValue={companyName}
+                placeholder="例: 大波株式会社"
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                メールの差出人名に使われます(未入力なら「給与管理システム」)
+              </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                責任者名
+              </label>
+              <input
+                name="manager_name"
+                defaultValue={managerName}
+                placeholder="例: 山田太郎"
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                税理士向けメール末尾の署名(「会社名 責任者名」)に使われます(未入力なら会社名のみ)
+              </p>
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">

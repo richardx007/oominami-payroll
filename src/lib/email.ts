@@ -86,6 +86,11 @@ export async function getCompanyName(): Promise<string> {
   return (await getSetting("company_name")) || "給与管理システム";
 }
 
+/** 責任者名(税理士向けメール末尾の署名「会社名 責任者名」に使用。未設定なら空文字) */
+export async function getManagerName(): Promise<string> {
+  return (await getSetting("manager_name")) ?? "";
+}
+
 export async function sendMail(params: {
   to: string;
   cc?: string[];

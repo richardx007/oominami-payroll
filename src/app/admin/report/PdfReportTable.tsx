@@ -70,7 +70,8 @@ export function PdfReportTable({
     >
       <h1 className="text-lg font-bold">{periodLabel} 給与支給一覧</h1>
       <p className="mt-1 text-xs text-gray-500">{companyName}</p>
-      <table className="mt-4 w-full border-collapse text-xs">
+      <p className="mt-2 text-right text-xs text-gray-500">*印は課税対象外</p>
+      <table className="mt-1 w-full border-collapse text-xs">
         <thead>
           <tr>
             <th className={thName}>従業員No</th>
@@ -83,7 +84,7 @@ export function PdfReportTable({
             <th className={th}>基本給</th>
             <th className={th}>深夜勤務手当</th>
             <th className={th}>残業手当</th>
-            <th className={th}>交通費</th>
+            <th className={th}>交通費*</th>
             <th className={th}>昼食補助</th>
             <th className={th}>総支給額</th>
             <th className={th}>源泉所得税</th>
