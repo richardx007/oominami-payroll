@@ -50,8 +50,12 @@ class SmtpError extends Error {}
 
 export type MailAttachment = {
   filename: string; // ASCII推奨
-  content: string; // テキスト内容(UTF-8)
-  contentType: string; // 例: "text/csv"
+  content: string; // encoding省略時: テキスト内容(UTF-8)。"base64"指定時: 既にbase64化済みのバイナリ
+  contentType: string; // 例: "text/csv" / "application/pdf"
+  /** "base64" を指定すると content を(UTF-8文字列とみなさず)base64済みバイナリとしてそのまま使う。
+   *  省略時は従来どおりテキスト(UTF-8)として b64() でエンコードする。
+   *  PDF等のバイナリを CSV と同じ経路(TextEncoder)に通すと1バイト超の文字がずれて壊れるため必須。 */
+  encoding?: "utf8" | "base64";
 };
 
 export async function smtpSendMail(params: {
@@ -164,14 +168,19 @@ export async function smtpSendMail(params: {
           "Content-Transfer-Encoding: base64\r\n\r\n" +
           wrap76(b64(params.text))
       );
-      // 添付パート
+      // 添付パート。バイナリ(PDF等)は既にbase64化済みなのでそのまま使い、
+      // テキスト(CSV等)だけ UTF-8 とみなして b64() でエンコードする。
       for (const att of attachments) {
+        const isBinary = att.encoding === "base64";
+        const contentTypeHeader = isBinary
+          ? `Content-Type: ${att.contentType}; name="${att.filename}"\r\n`
+          : `Content-Type: ${att.contentType}; charset="UTF-8"; name="${att.filename}"\r\n`;
         parts.push(
           `--${boundary}\r\n` +
-            `Content-Type: ${att.contentType}; charset="UTF-8"; name="${att.filename}"\r\n` +
+            contentTypeHeader +
             "Content-Transfer-Encoding: base64\r\n" +
             `Content-Disposition: attachment; filename="${att.filename}"\r\n\r\n` +
-            wrap76(b64(att.content))
+            wrap76(isBinary ? att.content : b64(att.content))
         );
       }
       message =

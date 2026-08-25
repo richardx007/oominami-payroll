@@ -9,7 +9,8 @@ import {
   updateTimesheetLock,
   uploadWorkRules,
 } from "./actions";
-import { sendTaxReportTest } from "../report/actions";
+import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
+import { buildTaxReportPdfAttachment } from "../report/pdf-attachment";
 import type { SlotDef, SlotKey } from "@/lib/shifts";
 import { minutesToHHMM, type BreakWindow } from "@/lib/breaks";
 import type { ActionResult } from "../employees/actions";
@@ -356,7 +357,12 @@ export function TestSendForm({ defaultEmail }: { defaultEmail: string }) {
         action={(fd) =>
           startTransition(async () => {
             const to = String(fd.get("test_send_to") ?? "");
-            setResult(await sendTaxReportTest(to));
+            const preview = await previewTaxReportTestRows();
+            const pdf = await buildTaxReportPdfAttachment(
+              preview,
+              "payroll_test.pdf"
+            );
+            setResult(await sendTaxReportTest(to, pdf));
           })
         }
         className="mt-4 max-w-md space-y-3"

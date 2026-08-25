@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { buildTaxReportCsv, sendTaxReport } from "./actions";
+import { buildTaxReportCsv, previewTaxReportRows, sendTaxReport } from "./actions";
+import { buildTaxReportPdfAttachment } from "./pdf-attachment";
+import { captureElementToPdfBlob } from "@/lib/pdf-capture";
 
 // アイコンではなく文字(PDF / CSV)で見せるボタン。「税理士へ」ボタンと高さ・配色を揃える
 const textBtn =
@@ -63,110 +65,27 @@ export function DownloadPdfButton({
     }
     setBusy(true);
     setError(null);
+    // キャプチャ中だけ画面外で全幅描画にする(globals.css の pdf-capture-mode)
+    el.classList.add("pdf-capture-target");
+    document.body.classList.add("pdf-capture-mode");
     try {
-      // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと。
-      // Tailwind v4 の標準カラーは oklch() で出力されるが、本家は oklch を解釈できず
-      // 「Attempting to parse an unsupported color function」で失敗する(2026-07-31に発生)。
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas-pro"),
-        import("jspdf"),
-      ]);
-
-      // キャプチャ中だけ画面外で全幅描画にする(globals.css の pdf-capture-mode)
-      el.classList.add("pdf-capture-target");
-      document.body.classList.add("pdf-capture-mode");
-      try {
-        // レイアウト反映を待ってから撮る
-        await new Promise((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(resolve))
-        );
-
-        const scale = 2;
-
-        // 改ページ禁止セクションの境界位置を、実際にキャプチャする直前(画面外・全幅レイアウト
-        // が確定した状態)のDOM座標から求め、canvas座標(scale倍)に変換しておく。
-        // html2canvas を呼んだ後では要素の位置は分からない(すでに画像になっている)ため、
-        // 必ずここで測っておく必要がある。
-        let sectionBoundaries: number[] = [];
-        if (sectionSelector) {
-          const elRect = el.getBoundingClientRect();
-          sectionBoundaries = Array.from(
-            el.querySelectorAll(sectionSelector)
-          )
-            .map((s) =>
-              Math.round((s.getBoundingClientRect().top - elRect.top) * scale)
-            )
-            .filter((v) => v > 0); // 先頭(0)はもともと切る必要がない
-
-        }
-
-        const canvas = await html2canvas(el, {
-          scale,
-          backgroundColor: "#ffffff",
-          useCORS: true,
-        });
-
-        const pdf = new jsPDF({
-          unit: "mm",
-          format: "a4",
-          orientation: "landscape",
-        });
-        const margin = 8;
-        const pageW = 297;
-        const pageH = 210;
-        const imgW = pageW - margin * 2;
-        // 画像の実寸(mm)。1mmあたりのピクセル数を出して、ページ高さで切り分ける
-        const pxPerMm = canvas.width / imgW;
-        const usableH = pageH - margin * 2;
-        const sliceHpx = Math.floor(usableH * pxPerMm);
-
-        let y = 0;
-        let firstPage = true;
-        while (y < canvas.height) {
-          const desiredEnd = Math.min(y + sliceHpx, canvas.height);
-          // このページに収まる範囲(y, desiredEnd]の中にある最後の区切り位置で切る。
-          // 無ければ(1セクションがページより長い等)従来どおり機械的に切る。
-          let end = desiredEnd;
-          if (desiredEnd < canvas.height) {
-            const candidates = sectionBoundaries.filter(
-              (b) => b > y && b <= desiredEnd
-            );
-            if (candidates.length > 0) end = candidates[candidates.length - 1];
-          }
-          const h = end - y;
-          const slice = document.createElement("canvas");
-          slice.width = canvas.width;
-          slice.height = h;
-          const ctx = slice.getContext("2d");
-          if (!ctx) throw new Error("canvas context を取得できませんでした");
-          // 余白が透明にならないよう白で塗ってから貼る
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, slice.width, slice.height);
-          ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
-
-          if (!firstPage) pdf.addPage();
-          pdf.addImage(
-            slice.toDataURL("image/png"),
-            "PNG",
-            margin,
-            margin,
-            imgW,
-            h / pxPerMm
-          );
-          firstPage = false;
-          y = end;
-        }
-        pdf.save(filename);
-      } finally {
-        // 例外時も必ず画面表示を元に戻す
-        document.body.classList.remove("pdf-capture-mode");
-        el.classList.remove("pdf-capture-target");
-      }
+      const blob = await captureElementToPdfBlob(el, { sectionSelector });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     } catch (e) {
       // 原因を追えるよう、握りつぶさずエラー内容も出す
       const detail = e instanceof Error ? e.message : String(e);
       setError(`PDFの作成に失敗しました(${detail})`);
     } finally {
+      // 例外時も必ず画面表示を元に戻す
+      document.body.classList.remove("pdf-capture-mode");
+      el.classList.remove("pdf-capture-target");
       setBusy(false);
     }
   }
@@ -239,7 +158,12 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
 
   function submit() {
     startTransition(async () => {
-      const res = await sendTaxReport(periodKey, note);
+      const preview = await previewTaxReportRows(periodKey);
+      const pdf = await buildTaxReportPdfAttachment(
+        preview,
+        preview.ok ? `payroll_${periodKey}.pdf` : "payroll.pdf"
+      );
+      const res = await sendTaxReport(periodKey, note, pdf);
       setResult(res);
       if (res.ok) {
         setOpen(false);
@@ -277,7 +201,7 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
               税理士へメール送信
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              支給一覧のCSVを添付して送信します。補足事項(申し送り事項)があれば入力してください。空欄でも送信できます。
+              支給一覧のPDF・CSVを添付して送信します。補足事項(申し送り事項)があれば入力してください。空欄でも送信できます。
             </p>
             <textarea
               value={note}

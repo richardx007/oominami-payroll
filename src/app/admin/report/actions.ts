@@ -13,7 +13,7 @@ import {
   sendMail,
 } from "@/lib/email";
 
-type PayRow = {
+export type PayRow = {
   work_days: number;
   total_minutes: number;
   night_minutes: number;
@@ -210,15 +210,56 @@ export async function buildTaxReportCsv(
 
 export type SendResult = { ok: boolean; message: string };
 
+export type PreviewRows =
+  | { ok: true; periodLabel: string; companyName: string; rows: PayRow[] }
+  | { ok: false; message: string };
+
 /**
- * 税理士へ支給一覧CSVを添付して自動送信する。
+ * 税理士向けPDF添付を作るためのプレビュー行を返す(締め済み期間・CSVと同じ元データ)。
+ * PDF自体はブラウザ側(html2canvas+jsPDF)でしか作れないため、送信直前にこれを呼び、
+ * 返った行を画面外のテーブルに描画してキャプチャし、base64にしてから送信アクションへ渡す。
+ */
+export async function previewTaxReportRows(periodKey: string): Promise<PreviewRows> {
+  await requireAdmin();
+  const loaded = await loadReport(periodKey);
+  if (!loaded.ok) return loaded;
+  const companyName = await getCompanyName();
+  return { ok: true, periodLabel: loaded.periodLabel, companyName, rows: loaded.rows };
+}
+
+/** テスト送信のPDF添付用プレビュー行(締め前・当月の現時点情報) */
+export async function previewTaxReportTestRows(): Promise<PreviewRows> {
+  await requireAdmin();
+  const period = currentPeriod();
+  const [payrolls, companyName] = await Promise.all([
+    calculatePeriodPayroll(period, { ignoreIncomplete: true }),
+    getCompanyName(),
+  ]);
+  const rows: PayRow[] = payrolls
+    .filter((p) => p.result !== null)
+    .map((p) => ({
+      ...(p.result as NonNullable<typeof p.result>),
+      emp: { employee_no: p.employee_no, name: p.name },
+    }))
+    .sort((a, b) => a.emp.employee_no.localeCompare(b.emp.employee_no));
+  return { ok: true, periodLabel: period.label, companyName, rows };
+}
+
+/** メール添付用のPDF(base64・既にブラウザ側でキャプチャ済み)。任意 */
+type PdfAttachment = { base64: string; filename: string };
+
+/**
+ * 税理士へ支給一覧CSV(+任意でPDF)を添付して自動送信する。
  * - メール冒頭は税理士名の宛名行(1行目:事務所名/2行目:氏名+「様」、未設定時は「税理士 御中」)
- * - 本文に勤務データの表は載せず、明細は添付CSVに委ねる
+ * - 本文に勤務データの表は載せず、明細は添付CSV(・PDF)に委ねる
  * - note(申し送り事項)があれば本文に追記する
+ * - PDFはブラウザ側で `previewTaxReportRows` の結果をキャプチャして作るため、失敗時は
+ *   pdf を省略してもCSVのみで送信を続行できるようにしている(呼び出し側の責務)
  */
 export async function sendTaxReport(
   periodKey: string,
-  note: string
+  note: string,
+  pdf?: PdfAttachment
 ): Promise<SendResult> {
   await requireAdmin();
 
@@ -246,7 +287,7 @@ export async function sendTaxReport(
     "いつもお世話になっております。",
     `${loaded.periodLabel}の給与支給一覧をお送りします。`,
     `対象期間: ${loaded.period.start.replaceAll("-", "/")}〜${loaded.period.end.replaceAll("-", "/")} / 支給日: ${loaded.paymentDate.replaceAll("-", "/")}`,
-    "詳細は添付のCSVファイル(支給一覧)をご確認ください。",
+    `詳細は添付の${pdf ? "PDF・CSVファイル" : "CSVファイル"}(支給一覧)をご確認ください。`,
   ];
   if (trimmedNote) {
     lines.push("", "【申し送り事項】", trimmedNote);
@@ -263,6 +304,16 @@ export async function sendTaxReport(
         content: buildCsv(loaded.rows),
         contentType: "text/csv",
       },
+      ...(pdf
+        ? [
+            {
+              filename: pdf.filename,
+              content: pdf.base64,
+              contentType: "application/pdf",
+              encoding: "base64" as const,
+            },
+          ]
+        : []),
     ],
   });
 }
@@ -274,11 +325,15 @@ const testSendEmailSchema = z.email(
 /**
  * 税理士向けメールのテスト送信(設定画面から実行)。
  * - 締め処理を待たず、当月(締め前でも現時点)の期間を対象に work_entries 等から都度計算する
- *   (calculatePeriodPayroll + ignoreIncomplete。close/page.tsx のプレビューと同じ方式)
+ *   (previewTaxReportTestRows = calculatePeriodPayroll + ignoreIncomplete。
+ *   close/page.tsx のプレビューと同じ方式)
  * - 実際の締め処理(payslips確定)は一切行わない
  * - 件名の冒頭に「【テスト送信】」を付与する
  */
-export async function sendTaxReportTest(testEmail: string): Promise<SendResult> {
+export async function sendTaxReportTest(
+  testEmail: string,
+  pdf?: PdfAttachment
+): Promise<SendResult> {
   await requireAdmin();
 
   const parsed = testSendEmailSchema.safeParse(testEmail.trim());
@@ -288,22 +343,11 @@ export async function sendTaxReportTest(testEmail: string): Promise<SendResult> 
   const to = parsed.data;
 
   const period = currentPeriod();
-  const payrolls = await calculatePeriodPayroll(period, {
-    ignoreIncomplete: true,
-  });
+  const preview = await previewTaxReportTestRows();
+  if (!preview.ok) return preview;
+  const { rows, companyName } = preview;
 
-  const rows: PayRow[] = payrolls
-    .filter((p) => p.result !== null)
-    .map((p) => ({
-      ...(p.result as NonNullable<typeof p.result>),
-      emp: { employee_no: p.employee_no, name: p.name },
-    }))
-    .sort((a, b) => a.emp.employee_no.localeCompare(b.emp.employee_no));
-
-  const [taxName, companyName] = await Promise.all([
-    getTaxName(),
-    getCompanyName(),
-  ]);
+  const taxName = await getTaxName();
 
   const lines = [
     ...buildTaxGreetingLines(taxName),
@@ -311,7 +355,7 @@ export async function sendTaxReportTest(testEmail: string): Promise<SendResult> 
     "いつもお世話になっております。",
     `${period.label}の給与支給一覧をお送りします。(テスト送信・締め前の現時点情報です)`,
     `対象期間: ${period.start.replaceAll("-", "/")}〜${period.end.replaceAll("-", "/")} / 支給日: ${period.paymentDate.replaceAll("-", "/")}`,
-    "詳細は添付のCSVファイル(支給一覧)をご確認ください。",
+    `詳細は添付の${pdf ? "PDF・CSVファイル" : "CSVファイル"}(支給一覧)をご確認ください。`,
     "",
     companyName,
   ];
@@ -326,6 +370,16 @@ export async function sendTaxReportTest(testEmail: string): Promise<SendResult> 
         content: buildCsv(rows),
         contentType: "text/csv",
       },
+      ...(pdf
+        ? [
+            {
+              filename: pdf.filename,
+              content: pdf.base64,
+              contentType: "application/pdf",
+              encoding: "base64" as const,
+            },
+          ]
+        : []),
     ],
   });
 }
