@@ -337,7 +337,9 @@ export async function sendTaxReport(
   if (trimmedNote) {
     lines.push("", "【申し送り事項】", trimmedNote);
   }
-  lines.push("", buildSignatureLine(data.companyName, managerName));
+  // 末尾に空行を入れる(無いとメールクライアントによっては添付ファイルのプレビューが
+  // 署名の右側に食い込んで体裁が崩れるため)
+  lines.push("", buildSignatureLine(data.companyName, managerName), "");
 
   return await sendMail({
     to,
@@ -400,7 +402,10 @@ export async function sendTaxReportTest(
     `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
     `詳細は添付の${pdf ? "PDF・CSVファイル" : "CSVファイル"}(支給一覧)をご確認ください。`,
     "",
+    // 末尾に空行を入れる(無いとメールクライアントによっては添付ファイルのプレビューが
+    // 署名の右側に食い込んで体裁が崩れるため)
     buildSignatureLine(data.companyName, managerName),
+    "",
   ];
 
   return await sendMail({
