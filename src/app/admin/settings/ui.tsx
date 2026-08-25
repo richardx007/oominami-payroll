@@ -357,12 +357,19 @@ export function TestSendForm({ defaultEmail }: { defaultEmail: string }) {
         action={(fd) =>
           startTransition(async () => {
             const to = String(fd.get("test_send_to") ?? "");
+            // previewTaxReportTestRows は1回だけ呼び、PDFキャプチャにも
+            // sendTaxReportTest にもそのまま渡す(Cloudflare Workers Free プランの
+            // CPU時間・サブリクエスト数の上限対策。同じ重い問い合わせを2回行わない)。
             const preview = await previewTaxReportTestRows();
+            if (!preview.ok) {
+              setResult(preview);
+              return;
+            }
             const pdf = await buildTaxReportPdfAttachment(
               preview,
               "payroll_test.pdf"
             );
-            setResult(await sendTaxReportTest(to, pdf));
+            setResult(await sendTaxReportTest(to, preview, pdf));
           })
         }
         className="mt-4 max-w-md space-y-3"

@@ -12,10 +12,13 @@ import type { ReactElement } from "react";
  *
  * @param sectionSelector 指定すると、ページ分割時にこのセレクタに一致する要素の
  *   「内部」では改ページしないようにする(el の子孫に対する querySelectorAll)。
+ * @param scale 画質倍率(既定2)。メール添付用は画面表示のみのため1に落とし、
+ *   画像サイズ(≒base64化・SMTP送信時のCPU負荷)を抑える(Cloudflare Workers Free
+ *   プランはCPU時間10ms・サブリクエスト数の上限が非常に厳しいため)。
  */
 export async function captureElementToPdfBlob(
   el: HTMLElement,
-  opts?: { sectionSelector?: string }
+  opts?: { sectionSelector?: string; scale?: number }
 ): Promise<Blob> {
   // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと。
   // Tailwind v4 の標準カラーは oklch() で出力されるが、本家は oklch を解釈できず
@@ -30,7 +33,7 @@ export async function captureElementToPdfBlob(
     requestAnimationFrame(() => requestAnimationFrame(resolve))
   );
 
-  const scale = 2;
+  const scale = opts?.scale ?? 2;
 
   // 改ページ禁止セクションの境界位置を、キャプチャする直前のDOM座標から求め、
   // canvas座標(scale倍)に変換しておく(html2canvas を呼んだ後では要素の位置が分からない)。
@@ -138,7 +141,8 @@ export async function renderAndCapturePdfBase64(
     );
     const el = document.getElementById(targetId);
     if (!el) throw new Error("PDF描画用の要素が見つかりません");
-    const blob = await captureElementToPdfBlob(el);
+    // メール添付用は画面表示のみのため scale:1(既定2)に落として軽量化する
+    const blob = await captureElementToPdfBlob(el, { scale: 1 });
     return await blobToBase64(blob);
   } finally {
     root.unmount();

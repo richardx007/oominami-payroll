@@ -210,24 +210,43 @@ export async function buildTaxReportCsv(
 
 export type SendResult = { ok: boolean; message: string };
 
-export type PreviewRows =
-  | { ok: true; periodLabel: string; companyName: string; rows: PayRow[] }
-  | { ok: false; message: string };
+/** 送信本文・CSV・PDFを組み立てるのに必要な情報一式(DB問い合わせは1回だけで済ませる) */
+export type ReportData = {
+  periodLabel: string;
+  companyName: string;
+  rows: PayRow[];
+  periodStart: string;
+  periodEnd: string;
+  paymentDate: string;
+  periodKey: string;
+};
+
+export type PreviewRows = ({ ok: true } & ReportData) | { ok: false; message: string };
 
 /**
- * 税理士向けPDF添付を作るためのプレビュー行を返す(締め済み期間・CSVと同じ元データ)。
- * PDF自体はブラウザ側(html2canvas+jsPDF)でしか作れないため、送信直前にこれを呼び、
- * 返った行を画面外のテーブルに描画してキャプチャし、base64にしてから送信アクションへ渡す。
+ * 税理士向けメール(PDF添付・本文・CSV)を作るための元データをまとめて取得する
+ * (締め済み期間・CSVと同じ元データ)。DB問い合わせはここで1回だけ行い、返った値を
+ * PDFキャプチャにも `sendTaxReport` にもそのまま渡して使い回す
+ * (Cloudflare Workers Freeプランのリソース上限対策。二重に問い合わせない)。
  */
 export async function previewTaxReportRows(periodKey: string): Promise<PreviewRows> {
   await requireAdmin();
   const loaded = await loadReport(periodKey);
   if (!loaded.ok) return loaded;
   const companyName = await getCompanyName();
-  return { ok: true, periodLabel: loaded.periodLabel, companyName, rows: loaded.rows };
+  return {
+    ok: true,
+    periodLabel: loaded.periodLabel,
+    companyName,
+    rows: loaded.rows,
+    periodStart: loaded.period.start,
+    periodEnd: loaded.period.end,
+    paymentDate: loaded.paymentDate,
+    periodKey: loaded.period.key,
+  };
 }
 
-/** テスト送信のPDF添付用プレビュー行(締め前・当月の現時点情報) */
+/** テスト送信用の元データ(締め前・当月の現時点情報)。同上の理由でDB問い合わせは1回だけ */
 export async function previewTaxReportTestRows(): Promise<PreviewRows> {
   await requireAdmin();
   const period = currentPeriod();
@@ -242,7 +261,16 @@ export async function previewTaxReportTestRows(): Promise<PreviewRows> {
       emp: { employee_no: p.employee_no, name: p.name },
     }))
     .sort((a, b) => a.emp.employee_no.localeCompare(b.emp.employee_no));
-  return { ok: true, periodLabel: period.label, companyName, rows };
+  return {
+    ok: true,
+    periodLabel: period.label,
+    companyName,
+    rows,
+    periodStart: period.start,
+    periodEnd: period.end,
+    paymentDate: period.paymentDate,
+    periodKey: period.key,
+  };
 }
 
 /** メール添付用のPDF(base64・既にブラウザ側でキャプチャ済み)。任意 */
@@ -253,11 +281,15 @@ type PdfAttachment = { base64: string; filename: string };
  * - メール冒頭は税理士名の宛名行(1行目:事務所名/2行目:氏名+「様」、未設定時は「税理士 御中」)
  * - 本文に勤務データの表は載せず、明細は添付CSV(・PDF)に委ねる
  * - note(申し送り事項)があれば本文に追記する
- * - PDFはブラウザ側で `previewTaxReportRows` の結果をキャプチャして作るため、失敗時は
- *   pdf を省略してもCSVのみで送信を続行できるようにしている(呼び出し側の責務)
+ * - data は呼び出し側が事前に `previewTaxReportRows` で取得した結果をそのまま渡す
+ *   (このアクション内ではDB問い合わせをしない。Cloudflare Workers Freeプランは
+ *   CPU時間10ms・サブリクエスト数の上限が非常に厳しく、PDF添付ぶんの処理が増えた際に
+ *   同じ重い問い合わせを2回行うと上限超過でリクエストごと失敗しうるため)
+ * - PDFはブラウザ側でキャプチャするため、失敗時は pdf を省略してもCSVのみで
+ *   送信を続行できるようにしている(呼び出し側の責務)
  */
 export async function sendTaxReport(
-  periodKey: string,
+  data: ReportData,
   note: string,
   pdf?: PdfAttachment
 ): Promise<SendResult> {
@@ -271,13 +303,7 @@ export async function sendTaxReport(
     };
   }
 
-  const loaded = await loadReport(periodKey);
-  if (!loaded.ok) return loaded;
-
-  const [taxName, companyName] = await Promise.all([
-    getTaxName(),
-    getCompanyName(),
-  ]);
+  const taxName = await getTaxName();
 
   const trimmedNote = (note ?? "").trim();
 
@@ -285,23 +311,23 @@ export async function sendTaxReport(
     ...buildTaxGreetingLines(taxName),
     "",
     "いつもお世話になっております。",
-    `${loaded.periodLabel}の給与支給一覧をお送りします。`,
-    `対象期間: ${loaded.period.start.replaceAll("-", "/")}〜${loaded.period.end.replaceAll("-", "/")} / 支給日: ${loaded.paymentDate.replaceAll("-", "/")}`,
+    `${data.periodLabel}の給与支給一覧をお送りします。`,
+    `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
     `詳細は添付の${pdf ? "PDF・CSVファイル" : "CSVファイル"}(支給一覧)をご確認ください。`,
   ];
   if (trimmedNote) {
     lines.push("", "【申し送り事項】", trimmedNote);
   }
-  lines.push("", companyName);
+  lines.push("", data.companyName);
 
   return await sendMail({
     to,
-    subject: `【給与支給一覧】${loaded.periodLabel}`,
+    subject: `【給与支給一覧】${data.periodLabel}`,
     text: lines.join("\n"),
     attachments: [
       {
-        filename: `payroll_${loaded.period.key}.csv`,
-        content: buildCsv(loaded.rows),
+        filename: `payroll_${data.periodKey}.csv`,
+        content: buildCsv(data.rows),
         contentType: "text/csv",
       },
       ...(pdf
@@ -324,14 +350,14 @@ const testSendEmailSchema = z.email(
 
 /**
  * 税理士向けメールのテスト送信(設定画面から実行)。
- * - 締め処理を待たず、当月(締め前でも現時点)の期間を対象に work_entries 等から都度計算する
- *   (previewTaxReportTestRows = calculatePeriodPayroll + ignoreIncomplete。
- *   close/page.tsx のプレビューと同じ方式)
+ * - 締め処理を待たず、当月(締め前でも現時点)の期間を対象にした `previewTaxReportTestRows`
+ *   の結果(data)を呼び出し側から受け取る。ここではDB問い合わせをしない(sendTaxReportと同じ理由)
  * - 実際の締め処理(payslips確定)は一切行わない
  * - 件名の冒頭に「【テスト送信】」を付与する
  */
 export async function sendTaxReportTest(
   testEmail: string,
+  data: ReportData,
   pdf?: PdfAttachment
 ): Promise<SendResult> {
   await requireAdmin();
@@ -342,32 +368,27 @@ export async function sendTaxReportTest(
   }
   const to = parsed.data;
 
-  const period = currentPeriod();
-  const preview = await previewTaxReportTestRows();
-  if (!preview.ok) return preview;
-  const { rows, companyName } = preview;
-
   const taxName = await getTaxName();
 
   const lines = [
     ...buildTaxGreetingLines(taxName),
     "",
     "いつもお世話になっております。",
-    `${period.label}の給与支給一覧をお送りします。(テスト送信・締め前の現時点情報です)`,
-    `対象期間: ${period.start.replaceAll("-", "/")}〜${period.end.replaceAll("-", "/")} / 支給日: ${period.paymentDate.replaceAll("-", "/")}`,
+    `${data.periodLabel}の給与支給一覧をお送りします。(テスト送信・締め前の現時点情報です)`,
+    `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
     `詳細は添付の${pdf ? "PDF・CSVファイル" : "CSVファイル"}(支給一覧)をご確認ください。`,
     "",
-    companyName,
+    data.companyName,
   ];
 
   return await sendMail({
     to,
-    subject: `【テスト送信】【給与支給一覧】${period.label}`,
+    subject: `【テスト送信】【給与支給一覧】${data.periodLabel}`,
     text: lines.join("\n"),
     attachments: [
       {
-        filename: `payroll_${period.key}_test.csv`,
-        content: buildCsv(rows),
+        filename: `payroll_${data.periodKey}_test.csv`,
+        content: buildCsv(data.rows),
         contentType: "text/csv",
       },
       ...(pdf

@@ -158,12 +158,19 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
 
   function submit() {
     startTransition(async () => {
+      // previewTaxReportRows は1回だけ呼び、PDFキャプチャにも sendTaxReport にも
+      // そのまま渡す(同じ重い問い合わせを2回行うと Cloudflare Workers Free プランの
+      // CPU時間・サブリクエスト数の上限に引っかかりうるため)。
       const preview = await previewTaxReportRows(periodKey);
+      if (!preview.ok) {
+        setResult(preview);
+        return;
+      }
       const pdf = await buildTaxReportPdfAttachment(
         preview,
-        preview.ok ? `payroll_${periodKey}.pdf` : "payroll.pdf"
+        `payroll_${periodKey}.pdf`
       );
-      const res = await sendTaxReport(periodKey, note, pdf);
+      const res = await sendTaxReport(preview, note, pdf);
       setResult(res);
       if (res.ok) {
         setOpen(false);
