@@ -101,8 +101,9 @@ function hhmmCsv(minutes: number) {
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
-/** 支給一覧の CSV(BOM付き)文字列を生成 */
-function buildCsv(rows: PayRow[]): string {
+/** 支給一覧の CSV(BOM付き)文字列を生成。総支給額が0の人は出力対象外(給与明細画面には表示したまま) */
+function buildCsv(allRows: PayRow[]): string {
+  const rows = allRows.filter((r) => r.gross_pay !== 0);
   const totals = rows.reduce(
     (acc, r) => ({
       totalMinutes: acc.totalMinutes + r.total_minutes,

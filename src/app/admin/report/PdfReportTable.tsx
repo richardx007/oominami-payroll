@@ -21,13 +21,15 @@ export function PdfReportTable({
   id,
   periodLabel,
   companyName,
-  rows,
+  rows: allRows,
 }: {
   id: string;
   periodLabel: string;
   companyName: string;
   rows: PayRow[];
 }) {
+  // 総支給額が0の人は出力対象外(給与明細画面には表示したまま)
+  const rows = allRows.filter((r) => r.gross_pay !== 0);
   const totals = rows.reduce(
     (acc, r) => ({
       workDays: acc.workDays + r.work_days,
