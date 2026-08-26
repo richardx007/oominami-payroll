@@ -209,7 +209,7 @@ export async function emailPayslips(
     .select(
       `id, employee_id, work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay,
        night_pay, overtime_pay, transport_total, lunch_total, gross_pay, income_tax,
-       advance_deduction, net_pay, tax_category, emailed_at, employees ( name, email )`
+       advance_deduction, net_pay, tax_category, emailed_at, employees ( name, email, status )`
     )
     .eq("pay_period_id", payPeriod.id);
 
@@ -259,7 +259,8 @@ export async function emailPayslips(
 
   const allTargets = (payslips ?? []).filter((p) => {
     if (onlyUnsent && p.emailed_at) return false;
-    const emp = p.employees as unknown as { name: string; email: string };
+    const emp = p.employees as unknown as { name: string; email: string; status: string };
+    if (emp.status !== "active") return false;
     const email = emp.email?.trim().toLowerCase();
     if (!email) return false;
     if (senderEmail && email === senderEmail) return false;
