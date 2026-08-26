@@ -44,5 +44,19 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // "/"(PWAのstart_url)は行き先を振り分けるだけのページ。ここで判定してしまうことで、
+  // src/app/page.tsx 側で同じ auth.getUser()+employees 問い合わせをもう一度行う無駄を無くす
+  // (二重問い合わせが起動直後の白画面を長引かせていた)。
+  if (user && request.nextUrl.pathname === "/") {
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("is_admin")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+    const url = request.nextUrl.clone();
+    url.pathname = employee?.is_admin ? "/admin" : "/timesheet";
+    return NextResponse.redirect(url);
+  }
+
   return supabaseResponse;
 }

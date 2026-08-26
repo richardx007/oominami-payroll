@@ -1,15 +1,10 @@
 // 起動時・画面遷移中のローディング表示(loading.tsx 各所から共有)。
-// ロゴを共通デザインにして、複数の Suspense 境界(layout側の認証待ち→page側の
-// データ取得待ち)が続けて発火しても見た目が変わらず「白飛び」しないようにする。
-export function Splash({ variant = "full" }: { variant?: "full" | "panel" }) {
+// layout側の認証待ち→page側のデータ取得待ちと、Suspense境界が続けて発火しても
+// 常に同じ見た目(全画面・同じ位置・同じ大きさ)にすることで、サイズが変わって
+// 見えるチラつきが起きないようにしている。
+export function Splash() {
   return (
-    <div
-      className={
-        variant === "full"
-          ? "fixed inset-0 flex flex-col items-center justify-center gap-4 bg-[#152449]"
-          : "flex min-h-[65vh] flex-col items-center justify-center gap-4 rounded-2xl bg-[#152449]"
-      }
-    >
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-[#152449]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/logo.svg"
