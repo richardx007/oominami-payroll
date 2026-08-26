@@ -259,7 +259,7 @@ app/
     layout.tsx           スマホ:max-w-lg / lg以上:max-w-5xl（ヘッダーはネイビー+ロゴ）。ヘッダー右肩は
                          ニックネーム(未設定は氏名)。最新お知らせの sent_at と get_contact_settings()
                          (会社名・送信元メール)を取得し EmployeeNav に渡す（未読バッジ・管理者メール用）。
-    loading.tsx          画面遷移中のスピナー
+    loading.tsx          画面遷移中のローディング（中身は共通`Splash`。§後述「起動時スプラッシュ」参照）
     actions.ts           signOut サーバーアクション（クライアントnavから form action で呼ぶ）
     nav.tsx              下部ナビ(単色フラットSVGアイコン)。シフト/勤務表/給与明細＋4つ目。4つ目はスマホ=
                          ハンバーガー(キャプション「その他」。タップで出退勤の記録/お知らせ/管理者へ✉️/
@@ -315,7 +315,7 @@ app/
                          種別バッジの配色は**4段階のランク制**（2026-07-19導入）。カテゴリ(action文字列)ごとに
                          色を決め打ちせず、まずランクを割り当ててからランクの色を適用する（`src/app/admin/logs/page.tsx`
                          の`RANK_BY_ACTION`/`RANK_CLASS`）。詳細は「6.2 操作ログのランク制」参照。
-    loading.tsx          画面遷移中のスピナー（連打防止・iPad体感改善）
+    loading.tsx          画面遷移中のローディング（連打防止・iPad体感改善。中身は共通`Splash`）
     page.tsx             ホーム=シフト表(2026-07-19に旧ダッシュボードから置換)。ShiftSchedule を editable＋
                          canSwitchMode(モード切替可)で表示。
                          右上に状態バッジ。旧 DashboardCalendar(勤務者数カレンダー)は廃止。
@@ -428,6 +428,9 @@ app/
                          （オーナーとの合意事項）。共有アイコン自体（四角＋上向き矢印）はiOS26でも変わって
                          いないため、同アイコンを模したインラインSVG（`ShareIcon`）を案内文に併記している。
   layout.tsx             ルート（ReloadPrompt常設・viewport-fit=cover）, page.tsx, globals.css
+  loading.tsx             起動直後（ログイン判定・初回データ取得中）のスプラッシュ。中身は`Splash.tsx`
+  Splash.tsx              起動時・画面遷移中ローディングの共通部品（ロゴ+スピナー、ネイビー全画面固定）。
+                         root/admin/(employee)の3つのloading.tsxすべてが同じ見た目で使う（下記参照）
 lib/
   supabase/              client.ts / server.ts / middleware.ts
   auth.ts                requireEmployee() / requireAdmin()
@@ -441,7 +444,9 @@ lib/
   smtp.ts                Gmail SMTP 最小実装（cloudflare:sockets）・multipart添付
   log.ts                 操作ログ記録ヘルパー（`log_activity` RPC を best-effort 実行。失敗は握りつぶす）
   holidays.ts            日本の祝日取得（holidays-jp）
-middleware.ts            未認証は /login へ
+middleware.ts            未認証は /login へ。認証済みで"/"（PWAのstart_url）のときは
+                         is_adminを判定し /admin または /timesheet へ直接振り分ける（2026-08-26追加。
+                         下記「起動時スプラッシュ」参照）
 ```
 
 ### 認証・ロール
@@ -663,6 +668,13 @@ middleware.ts            未認証は /login へ
   勤務時間・交通費・昼食補助）を本文末尾に付ける。日付は **MM/DD**、時刻・休憩・勤務時間は **HH:MM**（時も
   2桁ゼロ埋め）で桁を揃える。日別行は `admin/close/actions.ts` の `emailPayslips` が当期 `work_entries` と
   昼食補助日額（`allowance_settings` の期末有効値）から生成し `PayslipDailyRow[]` として渡す。
+- 🔴 **`emailPayslips` は `employees.status` を確認していなかった（2026-08-26発覚・同日修正）**:
+  `payslips` を取得するクエリの `employees(...)` に `status` が含まれておらず、配信対象の絞り込みも
+  行っていなかったため、**退職済みの従業員にも給与明細メールが送られてしまう不具合**があった
+  （本番で退職済みの太郎ちゃんに実際に送信されてしまい発覚）。クエリに `status` を追加し、
+  `allTargets` のフィルタに `status !== "active"` の除外を追加して修正。給与明細画面自体の表示は
+  変更していない。他のメール配信（お知らせ配信・招待・税理士向け）は元々 `status='active'` で
+  絞られていることを確認済み（`docs/handover.md`「テスト用従業員『太郎ちゃん』の扱い」参照）。
 - `Message-ID` ヘッダー付き（迷惑メール判定対策）。
 - **添付対応**: `smtpSendMail` は `attachments` を受け取り multipart/mixed で送信可能。
 
@@ -1944,3 +1956,56 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
 - **署名の直後に空行を追加**（`lines.push("", 署名, "")`）: 空行が無いと一部メールクライアント
   （Gmailアプリ等）で添付ファイルのプレビューカードが署名行の右側に食い込んで表示が崩れる
   （オーナー報告・スクリーンショットで確認）。`sendTaxReport`/`sendTaxReportTest` 両方に適用。
+
+## 16. 起動時スプラッシュ・空白画面の短縮（2026-08-26追加）
+オーナー報告「久しぶりにアプリを開くと数秒間真っ白になる」への対応。実機の画面録画を
+フレーム単位で確認しながら段階的に対応した。詳細な経緯は`docs/handover.md`「起動時の白画面・
+ロゴのチラつき調査と対応」参照。
+
+### 16.1 共通`Splash`コンポーネント
+- `src/app/Splash.tsx`: ロゴ（`/logo.svg`）+ アプリ名 + スピナーを、ネイビー（`#152449`）背景の
+  `fixed inset-0`（全画面固定）で表示する共通部品。
+- `src/app/loading.tsx`（ルート）・`src/app/admin/loading.tsx`・`src/app/(employee)/loading.tsx`の
+  **3箇所すべてがこの同じ`Splash`をそのまま使う**（各ファイルはimportして返すだけの薄いラッパー）。
+- 🔴 **見た目を1種類に統一している理由（サイズが変わって見えるチラつきの対策）**: 当初はroot用に
+  「全画面」、admin/(employee)用に「ページ内の小さいカード」と2種類の見た目を用意していたが、
+  起動直後は①layout側の認証待ち（root用の見た目）→②page側のデータ取得待ち（page用の見た目）と
+  **異なる2つのSuspense境界が続けて発火する**ため、ロゴの大きさ・位置が変わる「チラつき」として
+  実機で確認された。2種類の出し分けをやめ、常に同じ全画面表示にすることで解消した。
+  **このコンポーネントに手を入れる際は、root/admin/(employee)の3箇所すべてで見た目が
+  完全に同一であることを崩さないこと**（崩すと同じチラつきが再発する）。
+
+### 16.2 なぜ`loading.tsx`だけでは起動直後の空白を防げないか
+- Next.js の `loading.tsx` は、**同じセグメントの`layout.tsx`自体の待ち時間はカバーしない**
+  （`page.tsx`と、その下の子だけをSuspenseでラップする）。`admin/layout.tsx`・
+  `(employee)/layout.tsx`はどちらも`requireAdmin()`/`requireEmployee()`で認証確認・DB問い合わせを
+  行っているが、これらのlayout自身の待ち時間をカバーするのは**親セグメント（ルート）の
+  `loading.tsx`**になる。そのため`src/app/loading.tsx`（ルート）を新設していなかった時期は、
+  layoutの認証確認中は本当に何も表示されない空白になっていた。
+- **`redirect()`を呼ぶページは、その待ち時間を`loading.tsx`で一切カバーできない**（構造上の制約）。
+  HTTPリダイレクトはボディを送れないため、Next.jsは`redirect()`を呼ぶ可能性がある非同期
+  Server Componentの実行を**完全に完了させてから**でなければストリーミングを開始できない。
+  旧`src/app/page.tsx`（"/"）は`auth.getUser()`+`employees`問い合わせの後に必ず`redirect()`を
+  呼ぶ構造だったため、ここでの待ち時間はどんなローディングUIを足しても表示できなかった。
+
+### 16.3 middlewareでの二重問い合わせ解消（2026-08-26）
+- 画面録画で確認したところ、**認証済みユーザーが"/"（PWAの`start_url`）を開くたびに、
+  `middleware.ts`と`src/app/page.tsx`の両方で`auth.getUser()`が実行され、さらに`page.tsx`側で
+  `employees.is_admin`の問い合わせも行っていた**（`middleware.ts`は元々全ページで
+  `auth.getUser()`を実行しセッションをrefreshする役割だったため、`page.tsx`側の同じ確認は
+  完全な重複だった）。この重複区間は前段16.2のとおりローディングUIで一切カバーできないため、
+  そのまま体感の空白時間になっていた。
+- **対応**: `src/lib/supabase/middleware.ts`の`updateSession()`に、`user`が存在し
+  `pathname === "/"`のときは`employees.is_admin`まで問い合わせて`/admin`または`/timesheet`へ
+  直接`NextResponse.redirect()`する分岐を追加。これにより`page.tsx`側での再確認が不要になり
+  （認証済みユーザーは常にmiddleware側で先に振り分けられるため`page.tsx`のロジックは実質
+  到達しなくなる。未認証ユーザー向けの元のロジックは`page.tsx`にそのまま残置＝保険）、
+  問い合わせ回数を3回→2回に削減した。
+- **既知の限界（これ以上は現状据え置き。オーナー合意・2026-08-26）**: 上記の対応後も、
+  **Cloudflare Workers Freeプランのコールドスタート＋Supabaseとの通信**そのものにかかる
+  数百ms〜数秒はローディングUIでは短縮できない（middlewareはReactのレンダリング開始前に
+  動くため、ここでも`Splash`は出せない）。さらに縮めるには`middleware.ts`の`auth.getUser()`
+  （毎回Supabaseに通信してJWTを検証している）を、非対称鍵によるJWTのローカル検証
+  （`getClaims()`)に置き換える案があるが、Supabase側の署名鍵方式の変更を伴う認証まわりの
+  変更のため、着手前に影響範囲を確認すること。オーナーへは「これ以上はアプリ側のUI実装では
+  縮められない領域」と説明し、現状で区切ることに合意済み。
