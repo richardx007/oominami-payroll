@@ -682,17 +682,18 @@ middleware.ts            未認証は /login へ。認証済みで"/"（PWAのst
 - 画面に支給一覧表を表示。ボタンは3つ：
   1. **印刷 / PDF保存**（ブラウザ印刷／`DownloadPdfButton`）
   2. **CSVダウンロード**（BOM付き `payroll_YYYY-MM.csv` をBlobで保存）
-  3. **税理士へメール送信**（アプリから **自動送信**。宛先=税理士、**CSV・PDFの両方を添付**）
+  3. **税理士へメール送信**（アプリから **自動送信**。宛先=税理士、**CSVを添付**）
 - CSVの列順（税理士送付・ダウンロードとも共通の `buildCsv()`）: 従業員No/氏名/勤務日数/**勤務時間**/
   **うち深夜**/**うち残業**/**基本時給**/基本給/深夜勤務手当/残業手当/交通費/昼食補助/総支給額/
   **課税対象額**/源泉所得税/前払金控除/差引支給額/税区分
   （勤務時間・うち深夜・うち残業は H:MM。2026-07-23に深夜列、2026-07-24に残業列、2026-08-25に
-  課税対象額列を追加、締め処理画面の一覧表と列構成を統一）。**総支給額が0円の人はCSV・PDFとも
-  出力対象外**（給与明細画面には表示したまま。2026-08-25追加）。
+  課税対象額列を追加、締め処理画面の一覧表と列構成を統一）。**総支給額が0円の人はCSV出力対象外**
+  （給与明細画面には表示したまま。2026-08-25追加）。
 - 送信ボタンはダイアログを開き、**補足事項/申し送り事項**（textarea）を入力できる。入力内容は
-  本文末尾に追記される。本文に勤務データ表は載せない（数値は添付CSV・PDFに集約）。
-- 宛名・添付PDF・テスト送信機能の詳細は「15. 税理士向けメールの拡充」参照（2026-08-25に大幅拡充。
-  このセクションの記述は基本形として残すが、宛名は現在2行対応、添付はCSV+PDFの2点）。
+  本文末尾に追記される。本文に勤務データ表は載せない（数値は添付CSVに集約）。
+- 宛名・テスト送信機能の詳細は「15. 税理士向けメールの拡充」参照（2026-08-25に大幅拡充。宛名は
+  現在2行対応。**一時期CSVに加えてPDFも添付していたが、解像度が粗く2026-08-28に撤回済み**
+  （現在の添付はCSVのみ。詳細は15.3）。
 - 実装: `admin/report/actions.ts`（`loadReport`/`buildTaxReportCsv`/`sendTaxReport`/`sendTaxReportTest`/
   `previewTaxReportRows`/`previewTaxReportTestRows`）、`admin/report/ui.tsx`（`SendReportButton` の
   モーダル + `DownloadCsvButton` + `DownloadPdfButton`）。
@@ -1890,24 +1891,39 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
   （`sendTaxReport`）と共通の `ReportData`/添付ロジックを使うため、文面・添付ファイルの構成が
   実際の送信内容と一致する（テストの意味が保てる）。
 
-### 15.3 PDF添付（CSVに加えて）
-- **PDF生成はブラウザ側（`html2canvas-pro` + `jsPDF`）でしか行えない**（Cloudflare Workers サーバー
-  側にはDOM/canvasが無い）。既存の「PDFダウンロード」ボタン（`DownloadPdfButton`）と同じキャプチャ
-  ロジックを `src/lib/pdf-capture.ts` に切り出し、`captureElementToPdfBlob()`（DOM要素→PDF Blob）・
-  `blobToBase64()`・`renderAndCapturePdfBase64()`（Reactコンポーネントを画面外に一時マウント→
-  キャプチャ→アンマウント。`createRoot` を使用）として共通化した。
-- 添付PDFの中身は新設 `admin/report/PdfReportTable.tsx`（常に `position:fixed; left:-10000px` で
+### 15.3 PDF添付は実装したが撤回（CSVのみに戻した。2026-08-28）
+一時期、CSVに加えて支給一覧のPDFも添付していた（実装内容は下記「実装していた内容(参考)」）。
+**オーナー確認の結果、添付PDFの解像度が粗く（にじんで見える）実用に耐えないと判断され撤回**。
+現在は**CSVのみ**を添付する（元の挙動）。`admin/report/PdfReportTable.tsx`・
+`admin/report/pdf-attachment.tsx` は削除、`sendTaxReport`/`sendTaxReportTest` から `pdf` 引数を
+除去、`smtp.ts` の `MailAttachment.encoding`（バイナリ添付用に追加していたもの）も未使用になった
+ため削除した。`src/lib/pdf-capture.ts` の `captureElementToPdfBlob()` 自体（ダウンロード用PDF
+ボタンが使う）は影響なし。**再実装する場合は、この解像度問題（下記参照）を先に解消すること。**
+
+- **解像度が粗かった理由**: 添付用だけ `html2canvas` の `scale` を（ダウンロード用の既定`2`から）
+  `1`に落として軽量化していた（15.4のCloudflare Workers Freeプランのリソース上限対策）。
+  画質と軽量化はトレードオフで、今回は画質を優先して機能ごと撤回する判断になった。
+  再実装するなら、`scale`を上げつつ他の手段（例: JPEG圧縮、PDF側でのダウンサンプリング調整、
+  有料プランへの移行でCPU時間上限を緩和 等）でリソース制約と両立させる必要がある。
+
+<details>
+<summary>実装していた内容(参考。現在は削除済み)</summary>
+
+- PDF生成はブラウザ側（`html2canvas-pro` + `jsPDF`）でしか行えない（Cloudflare Workers サーバー
+  側にはDOM/canvasが無い）ため、既存の「PDFダウンロード」ボタン（`DownloadPdfButton`）と同じ
+  キャプチャロジックを `src/lib/pdf-capture.ts` に切り出し、`captureElementToPdfBlob()`
+  （DOM要素→PDF Blob）・`blobToBase64()`・`renderAndCapturePdfBase64()`（Reactコンポーネントを
+  画面外に一時マウント→キャプチャ→アンマウント。`createRoot` を使用）として共通化していた。
+- 添付PDFの中身は `admin/report/PdfReportTable.tsx`（常に `position:fixed; left:-10000px` で
   画面外に配置。CSV=`buildCsv()`と同じ列構成）。送信直前に `previewTaxReportRows(periodKey)` /
   `previewTaxReportTestRows()` で取得した行データを描画→キャプチャ→base64化し、`sendTaxReport`/
-  `sendTaxReportTest` の引数として渡す（`pdf?: { base64, filename }`）。PDF作成に失敗しても
-  `undefined` を返してCSVのみで送信を続行する（`admin/report/pdf-attachment.tsx` の
-  `buildTaxReportPdfAttachment` がこのフォールバックを担う）。
-- **バイナリ添付は `smtp.ts` の `b64()`（UTF-8前提）に通してはいけない**: `MailAttachment` に
-  `encoding?: "utf8" | "base64"` を追加し、`"base64"` 指定時はブラウザ側で作った base64 文字列を
-  そのままMIMEパートに使う（CSV等のテキスト添付は従来どおり `b64()` でUTF-8→base64）。誤って
-  バイナリをUTF-8経由で再エンコードすると1バイト超の値がずれてPDFが壊れる。
-- ダウンロード用PDF（`DownloadPdfButton`）は `scale:2`のまま、メール添付用PDFのみ `scale:1` に
-  下げて軽量化（下記15.4のリソース制約対策）。
+  `sendTaxReportTest` の引数として渡していた（`pdf?: { base64, filename }`）。PDF作成に失敗しても
+  `undefined` を返してCSVのみで送信を続行するフォールバックがあった。
+- バイナリ添付は `smtp.ts` の `b64()`（UTF-8前提）に通すと1バイト超の値がずれてPDFが壊れるため、
+  `MailAttachment` に `encoding?: "utf8" | "base64"` を追加し、`"base64"` 指定時はブラウザ側で
+  作った base64 文字列をそのままMIMEパートに使う経路を分けていた。
+
+</details>
 
 ### 15.4 🔴 障害: Cloudflare Workers Freeプランのリソース上限でテスト送信がエラー画面に
 PDF添付を実装した直後、テスト送信を実行すると「This page couldn't load / A server error occurred」
@@ -1927,24 +1943,23 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
   （`periodLabel`/`companyName`/`rows`/`periodStart`/`periodEnd`/`paymentDate`/`periodKey`）を
   そのまま `sendTaxReport`/`sendTaxReportTest` の引数として渡す設計に変更し、**DB問い合わせは
   1回だけ**で完結するようにした（呼び出し元は `preview.ok` を先にチェックしてから使う）。
-  あわせて15.3のとおり添付PDFの `scale` を1に下げ、処理量そのものも減らした。
+  あわせて当時は15.3のとおり添付PDFの `scale` を1に下げ、処理量そのものも減らしていたが、
+  **PDF添付自体は後日撤回済み**（15.3参照）。DB問い合わせを1回にまとめる設計だけは、今もCSV
+  単独送信のまま有効な対策として残している。
 - **教訓**: このアプリでサーバーアクションに機能を追加する際は、**「プレビュー取得」と「本番実行」を
   分けるパターンで同じ重い問い合わせを2回書かない**こと。Freeプランはリクエストあたりの余裕が
   非常に小さく、DB問い合わせ・添付ファイルのエンコード等が二重になるだけで丸ごと失敗しうる。
 
-### 15.5 CSV「課税対象額」列・PDF「交通費*」注釈
+### 15.5 CSV「課税対象額」列
 - CSV（`buildCsv`）に**「課税対象額」列を「総支給額」の直後**に追加（給与明細画面の表と同じ並び）。
   `payslips` テーブルに `taxable_amount` 列は無いため、`loadReport()` で
   `base_pay + night_pay + overtime_pay + lunch_total`（`payroll.ts` の課税対象額の計算式と同じ。
   交通費は非課税のため含めない）から算出して付与している。
-- `PdfReportTable`（添付PDF）の「交通費」見出しに `*` を付け、表の右上に「*印は課税対象外」を
-  追加。ダウンロード用PDF（`DownloadPdfButton`）は元々close画面の表（既に同じ注記あり）を
-  そのままキャプチャしているため対応不要だった。
 
-### 15.6 総支給額0円の人はCSV・PDF出力対象外
-`buildCsv`・`PdfReportTable` それぞれの入口で `gross_pay !== 0` の行だけにフィルタしてから
-本文・合計行を組み立てる（合計欄の人数・金額も除外後の値になる）。**給与明細画面（`/admin/close`
-の表）は従来どおり0円の人も表示したまま**（出力対象外なのはCSV/PDFのみ）。
+### 15.6 総支給額0円の人はCSV出力対象外
+`buildCsv` の入口で `gross_pay !== 0` の行だけにフィルタしてから本文・合計行を組み立てる
+（合計欄の人数・金額も除外後の値になる）。**給与明細画面（`/admin/close` の表）は従来どおり
+0円の人も表示したまま**（出力対象外なのはCSVのみ）。
 
 ### 15.7 責任者名（設定）・メール文言
 - 設定画面「メール設定」に **責任者名**（`app_settings.manager_name`）を会社名の直下に追加。

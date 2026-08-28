@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { buildTaxReportCsv, previewTaxReportRows, sendTaxReport } from "./actions";
-import { buildTaxReportPdfAttachment } from "./pdf-attachment";
 import { captureElementToPdfBlob } from "@/lib/pdf-capture";
 
 // アイコンではなく文字(PDF / CSV)で見せるボタン。「税理士へ」ボタンと高さ・配色を揃える
@@ -158,19 +157,15 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
 
   function submit() {
     startTransition(async () => {
-      // previewTaxReportRows は1回だけ呼び、PDFキャプチャにも sendTaxReport にも
-      // そのまま渡す(同じ重い問い合わせを2回行うと Cloudflare Workers Free プランの
+      // previewTaxReportRows は1回だけ呼び、sendTaxReport にそのまま渡す
+      // (同じ重い問い合わせを2回行うと Cloudflare Workers Free プランの
       // CPU時間・サブリクエスト数の上限に引っかかりうるため)。
       const preview = await previewTaxReportRows(periodKey);
       if (!preview.ok) {
         setResult(preview);
         return;
       }
-      const pdf = await buildTaxReportPdfAttachment(
-        preview,
-        `payroll_${periodKey}.pdf`
-      );
-      const res = await sendTaxReport(preview, note, pdf);
+      const res = await sendTaxReport(preview, note);
       setResult(res);
       if (res.ok) {
         setOpen(false);
@@ -208,7 +203,7 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
               税理士へメール送信
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              支給一覧のPDF・CSVを添付して送信します。補足事項(申し送り事項)があれば入力してください。空欄でも送信できます。
+              支給一覧のCSVを添付して送信します。補足事項(申し送り事項)があれば入力してください。空欄でも送信できます。
             </p>
             <textarea
               value={note}

@@ -235,9 +235,9 @@ export type ReportData = {
 export type PreviewRows = ({ ok: true } & ReportData) | { ok: false; message: string };
 
 /**
- * 税理士向けメール(PDF添付・本文・CSV)を作るための元データをまとめて取得する
+ * 税理士向けメール(本文・CSV)を作るための元データをまとめて取得する
  * (締め済み期間・CSVと同じ元データ)。DB問い合わせはここで1回だけ行い、返った値を
- * PDFキャプチャにも `sendTaxReport` にもそのまま渡して使い回す
+ * `sendTaxReport` にそのまま渡して使い回す
  * (Cloudflare Workers Freeプランのリソース上限対策。二重に問い合わせない)。
  */
 export async function previewTaxReportRows(periodKey: string): Promise<PreviewRows> {
@@ -284,30 +284,24 @@ export async function previewTaxReportTestRows(): Promise<PreviewRows> {
   };
 }
 
-/** メール添付用のPDF(base64・既にブラウザ側でキャプチャ済み)。任意 */
-type PdfAttachment = { base64: string; filename: string };
-
 /** メール本文末尾の署名行「会社名 責任者名」(責任者名未設定なら会社名のみ) */
 function buildSignatureLine(companyName: string, managerName: string): string {
   return managerName.trim() ? `${companyName}　${managerName.trim()}` : companyName;
 }
 
 /**
- * 税理士へ支給一覧CSV(+任意でPDF)を添付して自動送信する。
+ * 税理士へ支給一覧CSVを添付して自動送信する。
  * - メール冒頭は税理士名の宛名行(1行目:事務所名/2行目:氏名+「様」、未設定時は「税理士 御中」)
- * - 本文に勤務データの表は載せず、明細は添付CSV(・PDF)に委ねる
+ * - 本文に勤務データの表は載せず、明細は添付CSVに委ねる
  * - note(申し送り事項)があれば本文に追記する
  * - data は呼び出し側が事前に `previewTaxReportRows` で取得した結果をそのまま渡す
  *   (このアクション内ではDB問い合わせをしない。Cloudflare Workers Freeプランは
- *   CPU時間10ms・サブリクエスト数の上限が非常に厳しく、PDF添付ぶんの処理が増えた際に
- *   同じ重い問い合わせを2回行うと上限超過でリクエストごと失敗しうるため)
- * - PDFはブラウザ側でキャプチャするため、失敗時は pdf を省略してもCSVのみで
- *   送信を続行できるようにしている(呼び出し側の責務)
+ *   CPU時間10ms・サブリクエスト数の上限が非常に厳しいため、同じ重い問い合わせを
+ *   2回行うと上限超過でリクエストごと失敗しうる)
  */
 export async function sendTaxReport(
   data: ReportData,
-  note: string,
-  pdf?: PdfAttachment
+  note: string
 ): Promise<SendResult> {
   await requireAdmin();
 
@@ -332,7 +326,7 @@ export async function sendTaxReport(
     "いつもお世話になっております。",
     `${data.companyName}の${data.periodLabel}　給与支給一覧をお送りします。`,
     `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
-    `詳細は添付の${pdf ? "PDF・CSVファイル" : "CSVファイル"}(支給一覧)をご確認ください。`,
+    `詳細は添付のCSVファイル(支給一覧)をご確認ください。`,
   ];
   if (trimmedNote) {
     lines.push("", "【申し送り事項】", trimmedNote);
@@ -351,16 +345,6 @@ export async function sendTaxReport(
         content: buildCsv(data.rows),
         contentType: "text/csv",
       },
-      ...(pdf
-        ? [
-            {
-              filename: pdf.filename,
-              content: pdf.base64,
-              contentType: "application/pdf",
-              encoding: "base64" as const,
-            },
-          ]
-        : []),
     ],
   });
 }
@@ -378,8 +362,7 @@ const testSendEmailSchema = z.email(
  */
 export async function sendTaxReportTest(
   testEmail: string,
-  data: ReportData,
-  pdf?: PdfAttachment
+  data: ReportData
 ): Promise<SendResult> {
   await requireAdmin();
 
@@ -400,7 +383,7 @@ export async function sendTaxReportTest(
     "いつもお世話になっております。",
     `${data.companyName}の${data.periodLabel}　給与支給一覧をお送りします。(テスト送信・締め前の現時点情報です)`,
     `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
-    `詳細は添付の${pdf ? "PDF・CSVファイル" : "CSVファイル"}(支給一覧)をご確認ください。`,
+    `詳細は添付のCSVファイル(支給一覧)をご確認ください。`,
     "",
     // 末尾に空行を入れる(無いとメールクライアントによっては添付ファイルのプレビューが
     // 署名の右側に食い込んで体裁が崩れるため)
@@ -418,16 +401,6 @@ export async function sendTaxReportTest(
         content: buildCsv(data.rows),
         contentType: "text/csv",
       },
-      ...(pdf
-        ? [
-            {
-              filename: pdf.filename,
-              content: pdf.base64,
-              contentType: "application/pdf",
-              encoding: "base64" as const,
-            },
-          ]
-        : []),
     ],
   });
 }

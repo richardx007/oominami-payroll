@@ -10,7 +10,6 @@ import {
   uploadWorkRules,
 } from "./actions";
 import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
-import { buildTaxReportPdfAttachment } from "../report/pdf-attachment";
 import type { SlotDef, SlotKey } from "@/lib/shifts";
 import { minutesToHHMM, type BreakWindow } from "@/lib/breaks";
 import type { ActionResult } from "../employees/actions";
@@ -375,19 +374,15 @@ export function TestSendForm({ defaultEmail }: { defaultEmail: string }) {
         action={(fd) =>
           startTransition(async () => {
             const to = String(fd.get("test_send_to") ?? "");
-            // previewTaxReportTestRows は1回だけ呼び、PDFキャプチャにも
-            // sendTaxReportTest にもそのまま渡す(Cloudflare Workers Free プランの
-            // CPU時間・サブリクエスト数の上限対策。同じ重い問い合わせを2回行わない)。
+            // previewTaxReportTestRows は1回だけ呼び、sendTaxReportTest にそのまま
+            // 渡す(Cloudflare Workers Free プランの CPU時間・サブリクエスト数の
+            // 上限対策。同じ重い問い合わせを2回行わない)。
             const preview = await previewTaxReportTestRows();
             if (!preview.ok) {
               setResult(preview);
               return;
             }
-            const pdf = await buildTaxReportPdfAttachment(
-              preview,
-              "payroll_test.pdf"
-            );
-            setResult(await sendTaxReportTest(to, preview, pdf));
+            setResult(await sendTaxReportTest(to, preview));
           })
         }
         className="mt-4 max-w-md space-y-3"

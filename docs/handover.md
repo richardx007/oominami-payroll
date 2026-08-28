@@ -2950,6 +2950,25 @@ PWAの更新検知バージョン`SW_VERSION`（`public/sw.js`）は`git rev-par
   `getClaims()`案の検討から始めてよい。
 - 詳細な設計・コード上の注意点は設計書「16. 起動時スプラッシュ・空白画面の短縮」参照。
 
+### 税理士向けメールのPDF添付を撤回、CSVのみに戻す（2026-08-26に追加、2026-08-28撤回）
+オーナーから「PDFの表示がぼやけている」と報告があり、税理士向けメールへのPDF添付機能
+（2026-08-25導入。設計書「15.3」参照）を撤回し、**従来どおりCSVファイルのみ添付**に戻した。
+`npx tsc --noEmit`・`eslint`・`npm run build` はすべて通過確認済み。
+
+- **経緯**: 添付PDF専用に `html2canvas` の `scale` をダウンロード用の既定`2`から`1`に落として
+  いた（Cloudflare Workers Freeプランのリソース上限対策。設計書「15.4」参照）。この軽量化と
+  引き換えに解像度が粗くなっており、オーナー確認の結果実用に耐えないと判断された。
+- **対応**: `admin/report/PdfReportTable.tsx`・`admin/report/pdf-attachment.tsx` を削除、
+  `sendTaxReport`/`sendTaxReportTest`（`admin/report/actions.ts`）から `pdf` 引数と関連分岐を
+  除去、`admin/report/ui.tsx`・`admin/settings/ui.tsx` の呼び出し側もPDF生成呼び出しを削除。
+  `src/lib/pdf-capture.ts` から添付専用だった `renderAndCapturePdfBase64()`/`blobToBase64()`と
+  `scale` オプションを削除（ダウンロード用PDFボタンが使う `captureElementToPdfBlob()` 自体は
+  据え置き、常に `scale:2`）。`smtp.ts` の `MailAttachment.encoding`（バイナリ添付用に追加して
+  いたもの）も呼び出し元が無くなったため削除し、添付は常にテキスト(UTF-8)前提の元の実装に戻した。
+- **PDF添付機能を再実装する場合**: 解像度問題を先に解消すること。設計書「15.3」に再実装時の
+  検討事項（`scale`を上げつつ他の軽量化手段と両立させる等）を残してある。
+- ドキュメントは設計書「15.3〜15.6」・「§税理士向け資料」を今回の状態に合わせて更新済み。
+
 ## 7. すぐ使えるコマンド集
 
 ```bash

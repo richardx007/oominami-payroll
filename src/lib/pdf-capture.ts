@@ -1,24 +1,17 @@
-import { createRoot } from "react-dom/client";
-import type { ReactElement } from "react";
-
 /**
  * DOM要素をPDF化する共通ロジック(ブラウザ専用)。
  *
- * `admin/report/ui.tsx` の `DownloadPdfButton`(表をそのままダウンロード)と、
- * 税理士向けメールへのPDF添付(メール送信前にキャプチャしてbase64化)の両方から使う。
+ * `admin/report/ui.tsx` の `DownloadPdfButton`(表をそのままダウンロード)が使う。
  * 画面の表をそのまま html2canvas で画像化し、jsPDF で A4横向きに貼り付ける
  * (日本語はブラウザ側で描画されるため、PDFにフォントを埋め込む必要がない)。
  * 縦に長い場合はページを分割する。
  *
  * @param sectionSelector 指定すると、ページ分割時にこのセレクタに一致する要素の
  *   「内部」では改ページしないようにする(el の子孫に対する querySelectorAll)。
- * @param scale 画質倍率(既定2)。メール添付用は画面表示のみのため1に落とし、
- *   画像サイズ(≒base64化・SMTP送信時のCPU負荷)を抑える(Cloudflare Workers Free
- *   プランはCPU時間10ms・サブリクエスト数の上限が非常に厳しいため)。
  */
 export async function captureElementToPdfBlob(
   el: HTMLElement,
-  opts?: { sectionSelector?: string; scale?: number }
+  opts?: { sectionSelector?: string }
 ): Promise<Blob> {
   // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと。
   // Tailwind v4 の標準カラーは oklch() で出力されるが、本家は oklch を解釈できず
@@ -33,7 +26,7 @@ export async function captureElementToPdfBlob(
     requestAnimationFrame(() => requestAnimationFrame(resolve))
   );
 
-  const scale = opts?.scale ?? 2;
+  const scale = 2;
 
   // 改ページ禁止セクションの境界位置を、キャプチャする直前のDOM座標から求め、
   // canvas座標(scale倍)に変換しておく(html2canvas を呼んだ後では要素の位置が分からない)。
@@ -105,47 +98,4 @@ export async function captureElementToPdfBlob(
   }
 
   return pdf.output("blob");
-}
-
-/** Blob をメール添付(base64)用の文字列に変換する */
-export async function blobToBase64(blob: Blob): Promise<string> {
-  const buf = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  // btoa は一括では大きいバイナリで引数エラーになりうるためチャンクに分けて処理する
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
-/**
- * 通常は画面に表示しない React 要素(`PdfReportTable` のような、常に画面外に固定配置される
- * コンポーネント)を一時的にマウントし、指定id要素をPDF化してbase64を返す。
- * メール送信前にブラウザ側でPDFを作ってサーバーアクションへ渡す用途
- * (admin/report/ui.tsx の SendReportButton・admin/settings/ui.tsx の TestSendForm で共用)。
- */
-export async function renderAndCapturePdfBase64(
-  element: ReactElement,
-  targetId: string
-): Promise<string> {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  root.render(element);
-  try {
-    // マウント直後は未描画のため2フレーム待つ
-    await new Promise((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(resolve))
-    );
-    const el = document.getElementById(targetId);
-    if (!el) throw new Error("PDF描画用の要素が見つかりません");
-    // メール添付用は画面表示のみのため scale:1(既定2)に落として軽量化する
-    const blob = await captureElementToPdfBlob(el, { scale: 1 });
-    return await blobToBase64(blob);
-  } finally {
-    root.unmount();
-    container.remove();
-  }
 }
