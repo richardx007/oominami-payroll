@@ -41,6 +41,15 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
+    // 元々開こうとしていた画面をログイン後に復元できるよう保持する。
+    // 特に QR 打刻(/clock?type=in / ?type=out)は、未ログイン端末で読み取ると
+    // ここで /login に飛ばされ、ログイン後は既定の /timesheet に着地して
+    // 「出勤の確認画面が出ずに勤務表に飛ぶ」という混乱の原因になっていた。
+    const dest = request.nextUrl.pathname + request.nextUrl.search;
+    if (dest && dest !== "/" && !dest.startsWith("/login")) {
+      url.searchParams.set("redirect", dest);
+    }
     return NextResponse.redirect(url);
   }
 

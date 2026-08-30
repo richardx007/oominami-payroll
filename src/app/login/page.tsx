@@ -7,6 +7,19 @@ import { createClient } from "@/lib/supabase/client";
 import { requestPasswordReset } from "./actions";
 import { describeClient, formatClientInfo } from "@/lib/client-info";
 
+/**
+ * ログイン後に戻る先(?redirect=)を検証する。オープンリダイレクト対策として
+ * 自サイト内の単純なパス + クエリだけを許可する("//..." や絶対URLは弾く)。
+ * QR打刻の "/clock?type=in" を通せるようクエリ文字列も許容する。
+ */
+function safeRedirect(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  if (raw.startsWith("/login")) return null;
+  if (!/^\/[A-Za-z0-9\-_/]*(\?[A-Za-z0-9\-_=&%.]*)?$/.test(raw)) return null;
+  return raw;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -60,7 +73,11 @@ export default function LoginPage() {
       });
     } catch {}
 
-    router.push("/");
+    const dest =
+      safeRedirect(
+        new URLSearchParams(window.location.search).get("redirect")
+      ) ?? "/";
+    router.push(dest);
     router.refresh();
   }
 
