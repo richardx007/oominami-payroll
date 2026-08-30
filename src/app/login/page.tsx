@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { requestPasswordReset } from "./actions";
 import { describeClient, formatClientInfo } from "@/lib/client-info";
+import { AccessHelp } from "@/components/AccessHelp";
 
 /**
  * ログイン後に戻る先(?redirect=)を検証する。オープンリダイレクト対策として
@@ -28,6 +29,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  // QR打刻(/clock)からログイン画面に飛ばされて来たか。来ていれば打刻向けの案内を出す。
+  const [fromClock, setFromClock] = useState(false);
+
+  useEffect(() => {
+    const r = new URLSearchParams(window.location.search).get("redirect") ?? "";
+    if (r.startsWith("/clock")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- URLパラメータの初回読み取り
+      setFromClock(true);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,6 +114,7 @@ export default function LoginPage() {
         <p className="mb-8 text-center text-sm text-gray-500">
           ver.{process.env.NEXT_PUBLIC_BUILD_TIME ?? "dev"}
         </p>
+        {fromClock && <AccessHelp variant="login" />}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="mb-1 block text-sm font-medium">

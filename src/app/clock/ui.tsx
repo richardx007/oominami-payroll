@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { punchClock, type ClockResult } from "./actions";
+import { AccessHelp } from "@/components/AccessHelp";
 
 type Coords = { lat: number; lng: number; accuracy: number | null };
 
@@ -373,6 +374,8 @@ export function ClockConfirm({
                 戻る
               </Link>
             )}
+            {/* 「毎回ログインを求められる」等でつまずく人向けの案内(プライベートブラウズ/Cookieブロック) */}
+            <AccessHelp variant="clock" />
           </>
         )}
       </div>
