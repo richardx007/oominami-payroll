@@ -116,6 +116,11 @@ export function TimesheetCalendar({
     return result;
   }, [dates]);
 
+  // 管理者画面(従業員セレクトを表示する側)かどうか。
+  // 管理者は「出勤だけ先に代理入力し、退勤は後日」というケースがあるため、
+  // 新規入力時の退勤欄を空欄スタートにする。
+  const adminMode = !!employees;
+
   const selectedEntry = selected ? entryMap.get(selected) : undefined;
   // 新規日(未入力日)の既定値: 最後に表示/入力した勤務記録を引き継ぐ。
   // これにより別の日の勤務情報をそのまま新規入力に流用できる。無ければ EntryForm の既定値。
@@ -359,6 +364,7 @@ export function TimesheetCalendar({
               setSelected(null);
             }}
             timeLocked={timeLocked}
+            adminMode={adminMode}
           />
         )}
         {selected && closed && selectedEntry && (
@@ -630,6 +636,7 @@ function EntryForm({
   onDelete,
   onClose,
   timeLocked = false,
+  adminMode = false,
 }: {
   date: string;
   entry: WorkEntry | undefined;
@@ -643,6 +650,8 @@ function EntryForm({
   onClose: () => void;
   /** 管理者が設定でロックした場合、出勤/退勤時刻・休憩時間を編集できない */
   timeLocked?: boolean;
+  /** 管理者の勤務表画面。新規入力時に退勤欄を空欄スタートにする(出勤のみの代理入力) */
+  adminMode?: boolean;
 }) {
   const init = entry ?? defaults;
 
@@ -655,7 +664,15 @@ function EntryForm({
     ? entry.end_time
     : endMissing
       ? ""
-      : shift?.endInput ?? init?.end_time ?? "18:00";
+      : // 管理者の新規代理入力は退勤を空欄スタート(出勤後に退勤を後入力するケース)
+        adminMode && !entry
+        ? ""
+        : shift?.endInput ?? init?.end_time ?? "18:00";
+
+  // 退勤欄は空欄で保存できる(退勤未入力扱い)。ネイティブの time 入力は
+  // 空欄化しづらいため「空欄にする」ボタンを用意し、値を state で制御する。
+  const [endTime, setEndTime] = useState(endDefault);
+  const endBlank = !endTime;
 
   const formRef = useRef<HTMLFormElement>(null);
   const modeRef = useRef<HTMLSelectElement>(null);
@@ -778,20 +795,32 @@ function EntryForm({
             />
           </div>
           <div className="min-w-0">
-            <label className="mb-1 block text-sm font-medium text-gray-600">
-              退勤
-              {endMissing && (
-                <span className="ml-1 text-amber-600">未入力</span>
+            <div className="mb-1 flex items-baseline justify-between gap-1">
+              <label className="block text-sm font-medium text-gray-600">
+                退勤
+                {endBlank && (
+                  <span className="ml-1 text-amber-600">未入力</span>
+                )}
+              </label>
+              {!timeLocked && !endBlank && (
+                <button
+                  type="button"
+                  onClick={() => setEndTime("")}
+                  className="shrink-0 text-xs font-medium text-blue-600 hover:underline"
+                >
+                  空欄にする
+                </button>
               )}
-            </label>
+            </div>
             <input
               name="end_time"
               type="time"
               step={900}
               disabled={timeLocked}
-              defaultValue={endDefault}
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
               className={`${timeInputClass} ${
-                endMissing
+                endBlank
                   ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300"
                   : ""
               } ${timeLocked ? "opacity-60" : ""}`}
@@ -808,9 +837,16 @@ function EntryForm({
           </>
         )}
         {!timeLocked && (
-          <p className="-mt-2 text-xs text-gray-500">
-            ※ 深夜勤務で退勤が翌日になる場合は、退勤にその時刻(例: 2:00)をそのまま入力してください。翌日ぶんとして計算します。
-          </p>
+          <div className="-mt-2 space-y-0.5 text-xs text-gray-500">
+            <p>
+              ※ 深夜勤務で退勤が翌日になる場合は、退勤にその時刻(例: 2:00)をそのまま入力してください。翌日ぶんとして計算します。
+            </p>
+            {adminMode && (
+              <p>
+                ※ 出勤だけ先に代理入力する場合は、退勤を空欄のまま登録できます(退勤未入力扱い)。
+              </p>
+            )}
+          </div>
         )}
 
         {/* 交通費(1つの枠にまとめる) */}
