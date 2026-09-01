@@ -66,6 +66,18 @@ export type TaxTableRow = {
   tax_otsu: number;
 };
 
+/** 期間内に複数の時給が混在する場合の、時給ごとの内訳(値上げ等で月度途中に時給が変わった場合用) */
+export type WageBreakdown = {
+  hourly_wage: number;
+  work_days: number;
+  total_minutes: number;
+  night_minutes: number;
+  overtime_minutes: number;
+  base_pay: number;
+  night_pay: number;
+  overtime_pay: number;
+};
+
 export type PayslipResult = {
   work_days: number;
   total_minutes: number;
@@ -75,6 +87,8 @@ export type PayslipResult = {
   base_pay: number;
   night_pay: number; // 深夜勤務手当(単価の25%割増分)
   overtime_pay: number; // 残業手当(単価の25%割増分)
+  /** 時給ごとの内訳(期間内で時給が1種類のみなら要素数1) */
+  wage_breakdown: WageBreakdown[];
   transport_total: number;
   lunch_total: number;
   gross_pay: number;
@@ -220,8 +234,14 @@ export function computePayslip(params: {
   let overtimeMins = 0;
   let overtimePay = 0;
   let transportTotal = 0;
+  // 時給ごとの内訳(値上げ等で月度途中に時給が変わった場合の明細行分割用)。
+  // 勤務日順に積み上げるので、時系列順(旧時給→新時給)に並ぶ
+  const wageBreakdownMap = new Map<number, WageBreakdown>();
+  const sortedEntries = [...usableEntries].sort((a, b) =>
+    a.work_date < b.work_date ? -1 : a.work_date > b.work_date ? 1 : 0
+  );
 
-  for (const e of usableEntries) {
+  for (const e of sortedEntries) {
     const wage = effectiveAt(wageRates, e.work_date);
     if (!wage) {
       throw new PayrollError(
@@ -233,17 +253,40 @@ export function computePayslip(params: {
     const brk = standardBreakMinutes(e.start_time, e.end_time as string, breakWindows);
     const minutes = workMinutes(e.start_time, e.end_time as string, brk);
     totalMinutes += minutes;
-    basePay += Math.floor((minutes * wage.hourly_wage) / 60);
+    const dayBasePay = Math.floor((minutes * wage.hourly_wage) / 60);
+    basePay += dayBasePay;
     // 深夜勤務手当: 深夜帯の勤務分数(標準休憩ぶんを除く)に対し時給の25%を割増して追加支給(日単位で切り捨て)
     const nm = nightMinutes(e.start_time, e.end_time as string, breakWindows);
     nightMins += nm;
-    nightPay += Math.floor((nm * wage.hourly_wage * 0.25) / 60);
+    const dayNightPay = Math.floor((nm * wage.hourly_wage * 0.25) / 60);
+    nightPay += dayNightPay;
     // 残業手当: その日の勤務分数(休憩控除後)のうち8時間を超えた分に時給の25%を割増して追加支給
     const om = overtimeMinutes(minutes);
     overtimeMins += om;
-    overtimePay += Math.floor((om * wage.hourly_wage * 0.25) / 60);
+    const dayOvertimePay = Math.floor((om * wage.hourly_wage * 0.25) / 60);
+    overtimePay += dayOvertimePay;
     transportTotal += e.transport_cost;
+
+    const bucket = wageBreakdownMap.get(wage.hourly_wage) ?? {
+      hourly_wage: wage.hourly_wage,
+      work_days: 0,
+      total_minutes: 0,
+      night_minutes: 0,
+      overtime_minutes: 0,
+      base_pay: 0,
+      night_pay: 0,
+      overtime_pay: 0,
+    };
+    bucket.work_days += 1;
+    bucket.total_minutes += minutes;
+    bucket.night_minutes += nm;
+    bucket.overtime_minutes += om;
+    bucket.base_pay += dayBasePay;
+    bucket.night_pay += dayNightPay;
+    bucket.overtime_pay += dayOvertimePay;
+    wageBreakdownMap.set(wage.hourly_wage, bucket);
   }
+  const wageBreakdown = Array.from(wageBreakdownMap.values());
 
   const allowance = effectiveAt(allowances, periodEnd);
   const lunchTotal =
@@ -268,6 +311,7 @@ export function computePayslip(params: {
     base_pay: basePay,
     night_pay: nightPay,
     overtime_pay: overtimePay,
+    wage_breakdown: wageBreakdown,
     transport_total: transportTotal,
     lunch_total: lunchTotal,
     gross_pay: grossPay,

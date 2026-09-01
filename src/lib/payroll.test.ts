@@ -458,6 +458,56 @@ describe("computePayslip", () => {
     // 6/30: 3h × 1000 = 3000 / 7/1: 3h × 1200 = 3600
     expect(result.base_pay).toBe(6600);
     expect(result.hourly_wage).toBe(1200); // 期間末時点
+    // 時給ごとの内訳(明細行分割用): 時系列順(旧→新)に並ぶ
+    expect(result.wage_breakdown).toEqual([
+      {
+        hourly_wage: 1000,
+        work_days: 1,
+        total_minutes: 180,
+        night_minutes: 0,
+        overtime_minutes: 0,
+        base_pay: 3000,
+        night_pay: 0,
+        overtime_pay: 0,
+      },
+      {
+        hourly_wage: 1200,
+        work_days: 1,
+        total_minutes: 180,
+        night_minutes: 0,
+        overtime_minutes: 0,
+        base_pay: 3600,
+        night_pay: 0,
+        overtime_pay: 0,
+      },
+    ]);
+  });
+
+  it("時給が期間中1種類のみなら wage_breakdown は1要素", () => {
+    const result = computePayslip({
+      ...base,
+      entries: [
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "12:00",
+          break_minutes: 0,
+          transport_cost: 0,
+        },
+      ],
+    });
+    expect(result.wage_breakdown).toEqual([
+      {
+        hourly_wage: 1200,
+        work_days: 1,
+        total_minutes: 180,
+        night_minutes: 0,
+        overtime_minutes: 0,
+        base_pay: 3600,
+        night_pay: 0,
+        overtime_pay: 0,
+      },
+    ]);
   });
 
   it("勤務0日なら全額0円", () => {

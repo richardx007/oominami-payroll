@@ -181,83 +181,118 @@ export default async function ClosePage({
               </tr>
             </thead>
             <tbody>
-              {payrolls.map((p) => (
-                <tr key={p.employee_id} className="border-b border-gray-50">
-                  <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
-                    {p.name}
-                    {/* 仮計算で除外した日を氏名の下に小さく注記(退勤未入力=進行中の勤務など) */}
-                    {tentative && p.result && p.result.excluded_dates.length > 0 && (
-                      <span className="mt-0.5 block text-xs font-normal text-amber-600">
-                        {p.result.excluded_dates
-                          .map((d) => d.slice(5).replace("-", "/"))
-                          .join("・")}
-                        は退勤未入力のため除外
-                      </span>
+              {payrolls.flatMap((p) => {
+                const result = p.result;
+                if (!result) {
+                  return (
+                    <tr key={p.employee_id} className="border-b border-gray-50">
+                      <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
+                        {p.name}
+                      </td>
+                      <td colSpan={15} className="px-4 py-3 text-red-600">
+                        {p.error}
+                      </td>
+                    </tr>
+                  );
+                }
+                // 月度途中で時給が変わった場合、時給ごとに明細行を分ける。
+                // 時給に依存しない列(交通費・昼食補助・総支給・課税対象額・所得税・前払金・差引支給)は
+                // 分割できないので rowSpan で人単位1つにまとめる
+                const breakdown = result.wage_breakdown;
+                const rowSpan = breakdown.length;
+                return breakdown.map((b, i) => (
+                  <tr
+                    key={`${p.employee_id}-${i}`}
+                    className="border-b border-gray-50"
+                  >
+                    {i === 0 && (
+                      <td
+                        rowSpan={rowSpan}
+                        className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 align-top shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]"
+                      >
+                        {p.name}
+                        {/* 仮計算で除外した日を氏名の下に小さく注記(退勤未入力=進行中の勤務など) */}
+                        {tentative && result.excluded_dates.length > 0 && (
+                          <span className="mt-0.5 block text-xs font-normal text-amber-600">
+                            {result.excluded_dates
+                              .map((d) => d.slice(5).replace("-", "/"))
+                              .join("・")}
+                            は退勤未入力のため除外
+                          </span>
+                        )}
+                      </td>
                     )}
-                  </td>
-                  {p.result ? (
-                    <>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
-                        {p.result.work_days}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
-                        {hhmm(p.result.total_minutes)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
-                        {p.result.night_minutes > 0
-                          ? hhmm(p.result.night_minutes)
-                          : "―"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
-                        {p.result.overtime_minutes > 0
-                          ? hhmm(p.result.overtime_minutes)
-                          : "―"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
-                        ¥{p.result.hourly_wage.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        ¥{p.result.base_pay.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        ¥{p.result.night_pay.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        ¥{p.result.overtime_pay.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        ¥{p.result.transport_total.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        ¥{p.result.lunch_total.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        ¥{p.result.gross_pay.toLocaleString()}
-                      </td>
-                      {/* 交通費を除いた課税対象額。税額表と突き合わせて検算するための列(2026-08-21追加) */}
-                      <td className="whitespace-nowrap px-4 py-3 text-right text-gray-600">
-                        ¥{p.result.taxable_amount.toLocaleString()}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">
-                        −¥{p.result.income_tax.toLocaleString()}
-                      </td>
-                      {/* 日当として先に現金で支払った分。差引支給からのみ控除する */}
-                      <td className="whitespace-nowrap px-4 py-3 text-right text-red-600">
-                        {p.result.advance_deduction > 0
-                          ? `−¥${p.result.advance_deduction.toLocaleString()}`
-                          : "―"}
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold">
-                        ¥{p.result.net_pay.toLocaleString()}
-                      </td>
-                    </>
-                  ) : (
-                    <td colSpan={15} className="px-4 py-3 text-red-600">
-                      {p.error}
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      {b.work_days}
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      {hhmm(b.total_minutes)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      {b.night_minutes > 0 ? hhmm(b.night_minutes) : "―"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      {b.overtime_minutes > 0 ? hhmm(b.overtime_minutes) : "―"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      ¥{b.hourly_wage.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      ¥{b.base_pay.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      ¥{b.night_pay.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      ¥{b.overtime_pay.toLocaleString()}
+                    </td>
+                    {i === 0 && (
+                      <>
+                        <td rowSpan={rowSpan} className="px-4 py-3 text-right align-top">
+                          ¥{result.transport_total.toLocaleString()}
+                        </td>
+                        <td rowSpan={rowSpan} className="px-4 py-3 text-right align-top">
+                          ¥{result.lunch_total.toLocaleString()}
+                        </td>
+                        <td
+                          rowSpan={rowSpan}
+                          className="px-4 py-3 text-right align-top font-medium"
+                        >
+                          ¥{result.gross_pay.toLocaleString()}
+                        </td>
+                        {/* 交通費を除いた課税対象額。税額表と突き合わせて検算するための列(2026-08-21追加) */}
+                        <td
+                          rowSpan={rowSpan}
+                          className="whitespace-nowrap px-4 py-3 text-right align-top text-gray-600"
+                        >
+                          ¥{result.taxable_amount.toLocaleString()}
+                        </td>
+                        <td
+                          rowSpan={rowSpan}
+                          className="whitespace-nowrap px-4 py-3 text-right align-top text-red-600"
+                        >
+                          −¥{result.income_tax.toLocaleString()}
+                        </td>
+                        {/* 日当として先に現金で支払った分。差引支給からのみ控除する */}
+                        <td
+                          rowSpan={rowSpan}
+                          className="whitespace-nowrap px-4 py-3 text-right align-top text-red-600"
+                        >
+                          {result.advance_deduction > 0
+                            ? `−¥${result.advance_deduction.toLocaleString()}`
+                            : "―"}
+                        </td>
+                        <td
+                          rowSpan={rowSpan}
+                          className="px-4 py-3 text-right align-top font-bold"
+                        >
+                          ¥{result.net_pay.toLocaleString()}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ));
+              })}
               {payrolls.length === 0 && (
                 <tr>
                   <td
