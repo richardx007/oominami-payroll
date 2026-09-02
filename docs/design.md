@@ -1,6 +1,6 @@
 # 給与管理システム 設計書
 
-最終更新: 2026-08-31
+最終更新: 2026-09-02
 対象リポジトリ: `richardx007/oominami-payroll`
 本番URL: https://oominami-payroll.shinsekai.workers.dev
 
@@ -18,7 +18,7 @@
 - 締め日: 毎月25日（対象期間は前月26日〜当月25日）
 - 支払日: 月末
 - 給与 = 時給 × 勤務時間 + 深夜勤務手当（22:00〜翌5:00の勤務に時給25%割増）+ 残業手当（1日8時間超過分に時給25%割増）
-  + 交通費実費 + 昼食補助（勤務日数 × 定額）− 源泉所得税
+  + 交通費実費 + 昼食補助（勤務日ごとに従業員別の設定額。当日だけの上書きがあればその額）− 源泉所得税
 
 ### スコープ外
 - 年末調整、社会保険・雇用保険の管理
@@ -131,10 +131,10 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 | `shift_assignments` | 勤務予定/希望（1日3枠A/B/Cの交代制・1従業員1日1枠） | employee_id, work_date, slot(A/B/C), custom_start, custom_end, unique(employee_id,work_date)。RLS は月のモードで変わる（§13）|
 | `shift_modes` | シフトの月ごとのモード（確定/調整中。§13） | period_key("YYYY-MM"), status(draft/confirmed), updated_at。RLS=閲覧は全ログインユーザー・変更は管理者のみ |
 | `wage_rates` | 時給履歴（値上げ対応） | employee_id, hourly_wage, effective_from |
+| `lunch_allowance_rates` | 昼食補助額の履歴（従業員ごと。`wage_rates`と同形。§17） | employee_id, lunch_allowance, effective_from |
 | `tax_settings` | 税区分履歴 | employee_id, tax_category(kou/otsu), dependents, effective_from |
-| `allowance_settings` | 昼食補助設定 | lunch_allowance_per_day, effective_from |
 | `pay_periods` | 給与計算期間（`period_label` は「2026年8月度」形式。§用語参照） | period_label, start_date, end_date, payment_date, status(open/closed/paid) |
-| `work_entries` | 勤務表 | employee_id, work_date, start_time, end_time, break_minutes, transport_cost, transport_mode(手段), station_from(駅1), station_to(駅2), round_trip(往復), note, created_at, updated_at, created_by(登録者=employees.id), updated_by(直近の修正者=employees.id) ／ ※深夜勤務(退勤翌日, 例18:00→2:00)を許容するため `end_time > start_time` のCHECK制約は撤去済み。end≤start は翌日とみなし `workMinutes` が24時間加算。created_by/updated_byの記録方式は§14参照 |
+| `work_entries` | 勤務表 | employee_id, work_date, start_time, end_time, break_minutes, transport_cost, transport_mode(手段), station_from(駅1), station_to(駅2), round_trip(往復), note, created_at, updated_at, created_by(登録者=employees.id), updated_by(直近の修正者=employees.id), lunch_change_amount(当日だけの昼食費上書き。最終金額・null=上書きなし), lunch_change_reason_type(in_kind/other), lunch_change_reason_note(other時の自由入力理由) ／ ※深夜勤務(退勤翌日, 例18:00→2:00)を許容するため `end_time > start_time` のCHECK制約は撤去済み。end≤start は翌日とみなし `workMinutes` が24時間加算。created_by/updated_byの記録方式は§14、昼食費の上書き3列は§17参照 |
 | `payslips` | 給与明細（締め時に確定保存） | employee_id, pay_period_id, work_days, total_minutes, night_minutes(深夜帯勤務分), overtime_minutes(1日8h超過分), hourly_wage, base_pay, night_pay(深夜勤務手当=時給25%割増分), overtime_pay(残業手当=時給25%割増分), transport_total, lunch_total, gross_pay, income_tax, advance_deduction(前払金控除。既定0), net_pay, tax_category, finalized_at, emailed_at |
 | `advance_payments` | 前払金（日当として先に現金で支払った分。§11） | employee_id, work_date, amount, note, created_at, unique(employee_id,work_date)。**(employee_id, work_date) が `work_entries` への複合FK**（`ON UPDATE CASCADE`／`ON DELETE NO ACTION`。§11.3.3）。RLS=従業員は自分の行を参照のみ・登録/変更/削除は管理者(`is_admin()`) |
 | `notifications` | 連絡・催促・一斉報知 | sender_id, recipient_id(null=全員), type(individual/broadcast/reminder), subject, body, emailed, sent_at |
@@ -154,9 +154,12 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
   を null に戻して「未登録」化**し、再招待→新メールでの初回登録（email一致で再連携）を促す。
 - **招待日**: `employees.invited_at` に最後に招待メールを送った日時を記録（再招待で更新）。未登録の従業員は
   一覧に「招待日 M/D」を表示し、招待ボタンは初回=「招待」/2回目以降=「再招待」になる。
-- **時給・税区分の履歴編集UI（`admin/employees/ui.tsx`の`WageHistory`/`TaxHistory`。2026-07-24整理）**:
-  従業員詳細パネル下部に、時給(`wage_rates`)・税区分(`tax_settings`)とも**同じフォーマット**で並ぶ
-  （md以上は2カラム）。各履歴一覧は**適用年月日の昇順**（古い順）で表示し、1行は「適用年月日（左）→
+- **時給・昼食補助額・税区分の履歴編集UI（`admin/employees/ui.tsx`の`WageHistory`/`LunchHistory`/
+  `TaxHistory`。2026-07-24整理、2026-09-02に`LunchHistory`追加）**:
+  従業員詳細パネル下部に、時給(`wage_rates`)・昼食補助額(`lunch_allowance_rates`)・税区分(`tax_settings`)
+  とも**同じフォーマット**で並ぶ（md以上は時給・昼食補助額が2カラム、モバイルは1カラムで縦積み。
+  時給↔昼食補助額の間・{時給+昼食補助額}↔税区分の間とも`border-t-2 border-dashed`の明瞭な区切り線で
+  分ける）。各履歴一覧は**適用年月日の昇順**（古い順）で表示し、1行は「適用年月日（左）→
   値（右。時給は¥金額、税区分は"甲欄/乙欄(扶養N人)"）→現在有効バッジ→編集/削除ボタン」の構成。
   編集フォームも「適用開始日（左）→値（右）」の順。**iOSの`<input type=date>`は内容(YYYY/MM/DD)に
   合わせた実測幅を要求し、full幅や50%グリッドだと数字が枠からはみ出す／隣の入力に重なる**ため、
@@ -171,8 +174,14 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
   編集/削除ボタン側に`ml-auto`＋外側`flex-wrap`で、収まらない場合はボタンごと次行へ折り返す。
   税区分履歴の訂正・削除は`editTaxSetting`/`deleteTaxSetting`（`admin/employees/actions.ts`。
   `editWageRate`/`deleteWageRate`と同じ、適用開始日変更時は一意制約の衝突確認→旧行削除→再作成のパターン）。
+  昼食補助額の履歴も`updateLunchAllowance`/`editLunchAllowanceRate`/`deleteLunchAllowanceRate`として
+  完全に同じパターンで実装（§17）。
 - **時給の値上げ対応**: `wage_rates` に適用開始日つき履歴。勤務日ごとに有効な時給を適用（`effectiveAt()`）。
   **0円を許容**（経営者が現場ヘルプで入る場合など無給勤務の記録用途。DBのCHECK制約・入力欄とも `>=0`）。
+- **昼食補助額の従業員別管理（2026-09-02、`allowance_settings`の全社共通定額から移行。§17）**:
+  `lunch_allowance_rates`に`wage_rates`と同形の適用開始日つき履歴。**0円を許容**（特定の従業員だけ
+  試用期間中は昼食補助を除外する、等の用途）。新規登録時は時給と同じ画面・同じ適用開始日で必須入力
+  （初期値ブランク）。
 - **税区分**: 従業員ごとに甲欄/乙欄・扶養親族数を適用開始日つきで保持。管理画面から変更可。当面は全員乙欄デフォルト。
   管理画面の税区分入力欄の直下に「**甲欄を適用するには従業員から「扶養控除等（異動）申告書」の提出を
   受けていることが税法上の要件**」である旨を表示している（2026-07-29追加。誤って甲欄を選ぶのを防ぐため）。
@@ -190,8 +199,9 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 - `link_employee_account()`: ログイン済みユーザーを employees 行に紐付け（auth_user_id のみ更新）
 - `count_employee_work_entries(uuid)`: 指定従業員の勤務実績件数（削除前警告用。管理者チェック内包）
 - `delete_employee(uuid)`: 従業員の完全削除（管理者チェック内包）。`notifications`（FK が NO ACTION）を
-  先に削除し、`employees` 行を削除 → `work_entries`/`payslips`/`wage_rates`/`tax_settings` は FK CASCADE で
-  自動削除。認証アカウント（`auth.users`）はサービスロール鍵不要方針のため残る（同メール再登録で再連携）。
+  先に削除し、`employees` 行を削除 → `work_entries`/`payslips`/`wage_rates`/`lunch_allowance_rates`/
+  `tax_settings` は FK CASCADE で自動削除。認証アカウント（`auth.users`）はサービスロール鍵不要方針のため
+  残る（同メール再登録で再連携）。
 - `log_activity(action, detail)`: 操作ログを1行追加（SECURITY DEFINER）。actor は `auth.uid()` から解決
   （未ログインは「(未ログイン)」）。90日超過ログを間引き削除し、削除時は「ログ削除」も記録。
   ログイン/初回登録/再設定申請でも呼べるよう **authenticated と anon に実行付与**（他のDEFINER関数はanon revoke）。
@@ -328,11 +338,12 @@ app/
     timesheet/           管理者用の勤務表（page/actions）。従業員用 TimesheetCalendar を共用し、
                          右上の従業員セレクトで対象を切替(?e=)、管理者は任意従業員の勤務記録を CRUD。
                          RLS の work_entries_admin(ALL/is_admin) により締め済みでも編集可(closed=false固定)
-    employees/           従業員管理（登録・氏名/メール編集・時給・税区分・退職・招待・パスワード再設定・完全削除）
-                         区分(管理者M/従業員E)を選んで自動採番。一覧は iPhone 考慮で「氏名/招待状態/状態」
-                         の3列に集約（各セルwhitespace-nowrapで折り返し防止）、行タップで吹き出し詳細
-                         (レスポンシブ)を開く。詳細トップにパスワード再設定 / 招待・再招待ボタン。
-                         招待状態=未招待→招待済→登録済。詳細下部に時給・税区分の履歴編集（下記参照）
+    employees/           従業員管理（登録・氏名/メール編集・時給・昼食補助額・税区分・退職・招待・
+                         パスワード再設定・完全削除）区分(管理者M/従業員E)を選んで自動採番。一覧は
+                         iPhone 考慮で「氏名/招待状態/状態」の3列に集約（各セルwhitespace-nowrapで
+                         折り返し防止）、行タップで吹き出し詳細(レスポンシブ)を開く。詳細トップに
+                         パスワード再設定 / 招待・再招待ボタン。招待状態=未招待→招待済→登録済。
+                         詳細下部に時給・昼食補助額・税区分の履歴編集（下記参照）
     daily/               日当設定（page/ui/actions）。給与期間ごとの「従業員×日ごと」の勤務時間・支給額一覧。
                          期間指定は給与明細画面と同じ月度単位（＜ 年月度 ＞ で前月/翌月移動・`?p=YYYY-MM`）。
                          合計枠(対象期間)は開閉式で既定は閉。CSV/印刷ボタンはその枠の中に収める。
@@ -358,9 +369,11 @@ app/
     report/              税理士資料の部品のみ残置（page は廃止）。actions.ts(sendTaxReport/buildTaxReportCsv)と
                          ui.tsx(税理士メール送信=アイコン+文字 / PDF・CSV=文字ラベルのボタン)を close から利用
     settings/            メール設定（会社名/送信元/税理士 氏名・アドレスを2カラム）・シフト枠・休憩時間(3枠)・
-                         勤務表ロック・昼食補助・QR打刻の位置設定+出退勤QRコード・勤務ルール文書アップロード、
+                         勤務表ロック・QR打刻の位置設定+出退勤QRコード・勤務ルール文書アップロード、
                          の順に並ぶ（§10参照）。右上に ver.表示。取り込みは例外安全化し body上限を5mbに拡張
-                         （next.config）。源泉徴収税額表は2026-08-22に`admin/tax-table/`へ独立（下記）
+                         （next.config）。源泉徴収税額表は2026-08-22に`admin/tax-table/`へ独立（下記）。
+                         昼食補助（全社共通定額）の設定は2026-09-02に廃止し`employees/`の従業員別履歴に
+                         一本化（§17）
     tax-table/           源泉徴収税額表(月額表)専用ページ(メニュー「税額表」。2026-08-22、設定画面から独立)。
                          Excelファイル(.xls/.xlsx)を選択するだけで取り込める主経路(`lib/tax-table-excel.ts`
                          の`parseTaxTableExcel()`をクライアント側で動的import→年・区分数・範囲をプレビュー→
@@ -557,7 +570,9 @@ middleware.ts            未認証は /login へ。認証済みで"/"（PWAのst
   運用している。送信はレート制限があり、テスト連投で一時的に届かなくなることがある（数十分で回復）。
 
 ### 給与計算エンジン（`lib/payroll.ts`）
-- `computePayslip()`: 勤務日ごとに時給を適用して基本給を日割り（分単位、日ごとに切り捨て）、昼食補助 = 勤務日数 × 定額、交通費 = 実費合計。
+- `computePayslip()`: 勤務日ごとに時給を適用して基本給を日割り（分単位、日ごとに切り捨て）、
+  昼食補助 = 勤務日ごとに従業員別・勤務日時点で有効な`lunch_allowance_rates`の額を合計（当日だけの
+  上書き`work_entries.lunch_change_amount`があればその額を使う。§17）、交通費 = 実費合計。
 - **標準休憩ルール（2026-07-23導入）**: 休憩は労使合意の**標準休憩時間帯 12:00-13:00 / 19:00-20:00 / 4:00-5:00**に取る前提で計算する（`lib/period.ts` の `standardBreakMinutes()`。勤務区間に重なる休憩帯の合計）。深夜の人が休憩を5:00の前後どちらで取るかで深夜割増が変わる問題を避けるため、休憩の都度申告を廃止し原則ルールで一意に定める。**勤務時間・深夜割増とも入力された `break_minutes` は使わず標準ルールから導出**する（勤務表の休憩入力欄は廃止し、保存時・QR打刻時に標準ルールで自動計算して `break_minutes` に格納）。
 - **深夜勤務手当**: 勤務時間のうち **22:00〜翌5:00** に該当する分数から**標準休憩帯ぶんを除いた**分数（`lib/period.ts` の `nightMinutes()`。特に 4:00-5:00 の休憩は深夜帯に取るため深夜割増から除外される）に対し、**時給の25%**を割増手当として基本給とは別に追加支給する（日ごとに切り捨て）。課税対象額・総支給額に含める。明細（アプリ・メール）と締め処理表・税理士CSVに深夜勤務時間/手当の内訳を表示（深夜勤務があるときのみ）。
 - **残業手当（2026-07-24導入）**: **1日の勤務分数(休憩控除後)のうち8時間(480分)を超えた分**（`lib/period.ts` の `overtimeMinutes(workedMinutes)`。日ごとの `workMinutes()` の結果に適用）に対し、**時給の25%**を割増手当として基本給とは別に追加支給する（日ごとに切り捨て）。課税対象額・総支給額に含める。深夜勤務手当と同様、明細（アプリ・メール）と締め処理表・税理士CSVに残業時間/手当の内訳を表示（残業があるときのみ）。深夜割増と残業割増は独立に加算する（同じ時間帯が両方に該当する日でも二重には計算しないが、それぞれの条件を満たす分をそれぞれ計上する＝両方付く時間帯があり得る）。勤務表の予実一覧では実績行の勤務時間の後ろに `(深夜)<残業>` の順で表示する。
@@ -667,7 +682,8 @@ middleware.ts            未認証は /login へ。認証済みで"/"（PWAのst
 - 給与明細メール（`buildPayslipMailText`）は集計に加え **日別明細**（＜日別明細＞: 日付・出勤〜退勤・休憩・
   勤務時間・交通費・昼食補助）を本文末尾に付ける。日付は **MM/DD**、時刻・休憩・勤務時間は **HH:MM**（時も
   2桁ゼロ埋め）で桁を揃える。日別行は `admin/close/actions.ts` の `emailPayslips` が当期 `work_entries` と
-  昼食補助日額（`allowance_settings` の期末有効値）から生成し `PayslipDailyRow[]` として渡す。
+  従業員別`lunch_allowance_rates`（勤務日時点で有効な額。当日だけの上書きがあればその額。§17）から
+  生成し `PayslipDailyRow[]` として渡す。
 - 🔴 **`emailPayslips` は `employees.status` を確認していなかった（2026-08-26発覚・同日修正）**:
   `payslips` を取得するクエリの `employees(...)` に `status` が含まれておらず、配信対象の絞り込みも
   行っていなかったため、**退職済みの従業員にも給与明細メールが送られてしまう不具合**があった
@@ -704,9 +720,14 @@ middleware.ts            未認証は /login へ。認証済みで"/"（PWAのst
 ## 5. デプロイ / 運用
 
 ### デプロイ方式
-- Cloudflare Workers Builds（GitHub 連携）。**main ブランチへの push で自動ビルド・デプロイ**。
+- Cloudflare Workers Builds（GitHub App `cloudflare-workers-and-pages` 連携）。**main ブランチへの
+  push で自動ビルド・デプロイ**（push した commit の check run `Workers Builds: oominami-payroll`
+  で成否を確認可能）。
 - ビルドコマンド: `npx opennextjs-cloudflare build`
-- デプロイコマンド: `npx opennextjs-cloudflare deploy`
+- デプロイコマンド: `npx opennextjs-cloudflare deploy`（`npm run deploy`）。**pushとは独立した経路**
+  （working treeを直接Cloudflareへアップロードするため、コミット・push前でも実行できてしまう）。
+  ローカルCLIセッションからの緊急デプロイ等に使えるが、通常は「コミット→push→Workers Builds任せ」が
+  ビルドログを一本化できて安全（2026-09-02確認）。
 - ⚠️ Cloudflare 側で過去バージョンの「Retry build」をすると、その時点のコミットで再ビルドされ、
   Plaintext 変数が消える。設定変更は必ず「最新 main の再デプロイ」または DB/Secret 側で行う。
 
@@ -1489,7 +1510,8 @@ middleware.ts            未認証は /login へ。認証済みで"/"（PWAのst
 前払金の記録単位が「勤務日」で給与期間から控除される以上、確認単位も給与期間に揃えるのが自然なため
 （当初は任意の日付範囲だったが2026-07-27に変更）。
 **金額の計算方法（標準休憩の導出・深夜25%増・8時間超の残業25%増・昼食補助・日単位の切り捨て）は
-月次の給与計算と完全に同一**（`lib/daily-report.ts`。時給・昼食補助はその勤務日時点で有効な設定を使う）。
+月次の給与計算と完全に同一**（`lib/daily-report.ts`。時給・昼食補助（従業員別`lunch_allowance_rates`）は
+その勤務日時点で有効な設定を使い、当日だけの上書き`lunch_change_amount`があればその額を使う。§17）。
 
 - 源泉所得税は月単位の計算のためこの画面には含めない（画面上部の説明文で案内）。
 - 画面上部は 月度セレクタ＋「日別実績」見出し、その下に説明文2行（日別支給額の確認／前払済ボタンの案内。従業員側は2行目のみ異なる。§11.3）。
@@ -2048,3 +2070,80 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
   （`getClaims()`)に置き換える案があるが、Supabase側の署名鍵方式の変更を伴う認証まわりの
   変更のため、着手前に影響範囲を確認すること。オーナーへは「これ以上はアプリ側のUI実装では
   縮められない領域」と説明し、現状で区切ることに合意済み。
+
+---
+
+## 17. 昼食補助費の従業員別管理・当日上書き（2026-09-02追加）
+
+**背景**: 「特定の人・日だけ昼食補助を除外したい（現物支給の日など）」「特定の人だけ試用期間中は
+昼食補助を除外したい」という要望に対応するため、それまで全社共通の定額（`allowance_settings`。
+勤務日数×定額）だった昼食補助を、**時給と同じ「従業員ごとの適用開始日つき履歴」**に一本化し、
+さらに**当日だけの上書き**を勤務表に追加した。
+
+### 17.1 スキーマ
+- `lunch_allowance_rates`（新設。`wage_rates`と完全に同形）: `employee_id, lunch_allowance, effective_from`。
+  0円を許容（CHECK制約 `>=0`）。`unique(employee_id, effective_from)`。RLSは`wage_rates`と同じ
+  （管理者=ALL、本人=SELECTのみ）。
+- `allowance_settings`（全社共通の定額。旧実装）は**廃止（DROP TABLE）**。移行マイグレーション
+  （`20260902000000_lunch_allowance_per_employee.sql`）で、廃止前の履歴行を**全従業員（非管理者）に
+  複製**してから削除しており、既存の給与計算結果には影響しない。
+- `work_entries`に**当日だけの上書き列**を3つ追加: `lunch_change_amount`（その日の最終金額。**差分では
+  なく上書き後の絶対額**。null=上書きなし）、`lunch_change_reason_type`（`in_kind`=現物支給 /
+  `other`=その他）、`lunch_change_reason_note`（`other`時の自由入力理由）。DBのCHECK制約で
+  「金額があれば理由区分も必須」「理由区分が`other`なら自由入力も必須（空文字不可）」を強制。
+
+### 17.2 給与計算（`lib/payroll.ts` / `lib/payroll-data.ts` / `lib/daily-report.ts` / `admin/close/actions.ts`）
+- `computePayslip()`の`allowances`パラメータ（`Allowance[]`・期間末日1回だけ参照）を廃止し、
+  `lunchRates: LunchRate[]`（`wage_rates`と同じ`effectiveAt()`パターン）に置き換え。**勤務日ごとの
+  ループ内で**、その日時点で有効な`lunch_allowance`を求め、`work_entries.lunch_change_amount`が
+  非nullならそちらを優先する（`base ?? override`ではなく`override ?? base`。上書きは絶対額）。
+  以前は「期間末時点の1レートを勤務日数倍」だったため、**月度途中で昼食補助額が変わった場合の
+  計算精度も同時に改善**された（時給の値上げ対応と同じ扱いになった）。
+- 同じロジック（従業員別レート＋当日上書き）を`lib/daily-report.ts`（日別実績・日当レポート）と
+  `admin/close/actions.ts`の`emailPayslips`（給与明細メールの日別明細）にも展開し、3箇所の計算方法を
+  完全に一致させた（月次給与計算と日別レポートの数字を一致させる既存方針の継続）。
+- `payroll.test.ts`に「当日上書きで除外（0円）」「試用期間中は0円→終了後は通常額」のテストを追加
+  （既存の`allowances`フィクスチャは`lunchRates`にリネーム）。
+
+### 17.3 従業員画面（`admin/employees/`）
+- 登録フォーム・詳細編集パネルとも、**時給欄の直後に昼食補助額欄**を追加（必須・0円可・初期値ブランク）。
+  新規登録は時給・税区分と同じ`effective_from`を共有して`lunch_allowance_rates`にも1行挿入する。
+- 詳細編集パネルは`WageHistory`と同じフォーマットの`LunchHistory`コンポーネントを新設し、
+  `updateLunchAllowance`/`editLunchAllowanceRate`/`deleteLunchAllowanceRate`（`admin/employees/actions.ts`。
+  `updateWage`/`editWageRate`/`deleteWageRate`と同一パターン）で履歴のCRUDを行う。
+- **区切り線（2026-09-02、オーナー指摘を受けて2段階で調整）**: 当初は履歴セクション全体の上を
+  薄い`border-gray-100`のままにしていたが分かりにくいとの指摘で`border-t-2 border-dashed
+  border-gray-300`に強化。あわせて、時給履歴と昼食補助額履歴は`md:grid-cols-2`で**PCは横並び・
+  モバイルは縦積み**になるため、モバイルでの視認性のために**`md:hidden`の区切り線をグリッド内に
+  追加**（`display:none`要素はCSS Gridのレイアウトに参加しないため、PC側の2カラム配置には影響しない）。
+  {時給+昼食補助額}のグループと税区分の間も同じ太さの区切り線で分けている。
+
+### 17.4 勤務表画面（`(employee)/timesheet/` と `admin/timesheet/`。`TimesheetCalendar`/`EntryForm`共用）
+- 交通費フィールドセットの下に**昼食費フィールドセット**を追加。**「本来の昼食補助費」は常に表示のみ**
+  （`effectiveAt(lunchRates, date)`で当日時点の従業員別レートを算出。編集不可）。
+- **当日の変更金額・理由の入力は管理者のみ**（`adminMode`。従業員本人の画面では入力欄自体を
+  レンダリングしない＝フォーム送信時にキーごと存在しないため、悪意ある直接呼び出しでもサーバー側の
+  `entrySchema`はこれらを任意項目として無視するだけで書き込まれない）。理由は「現物支給」固定選択 /
+  「その他:（自由入力）」のラジオ。**変更金額を入力した場合のみ理由の選択を`required`にする**（ネイティブ
+  のラジオグループ必須制約。金額が空欄なら理由は不要）、「その他」を選ぶと自由入力欄が現れ`required`に
+  なる（いずれもReact状態で`required`属性を動的に切り替え、ブラウザの標準バリデーションに任せている。
+  交通費フィールドの`setCustomValidity`方式とは異なり追加のJS検証関数は不要だった）。
+- 従業員本人の画面では、既に上書きが入っている日は「管理者により変更されています: ¥N（理由: …）」と
+  読み取り専用で表示するのみ（透明性のため。編集はできない）。
+- 保存経路: `(employee)/timesheet/actions.ts`の`upsertWorkEntry`（従業員本人）は昼食費の3列を
+  **一切書き込まない**（Supabaseの`upsert`はペイロードに存在しない列をON CONFLICT時のSET句にも
+  含めないため、既存の管理者設定の上書きが従業員の保存操作で消えることはない）。
+  `admin/timesheet/actions.ts`の`adminUpsertWorkEntry`のみ3列を書き込み、金額が未入力(undefined)なら
+  `null`で明示的に上書きを解除する。
+- 新規日への既定値引き継ぎ（`lastDefaults`）には昼食費の上書きを含めない（前日の例外的な変更が
+  無関係な別日に誤って引き継がれないようにするため）。
+
+### 17.5 実装ファイル
+`supabase/migrations/20260902000000_lunch_allowance_per_employee.sql` /
+`src/lib/payroll.ts` / `src/lib/payroll-data.ts` / `src/lib/daily-report.ts` /
+`src/app/admin/close/actions.ts`（`emailPayslips`） /
+`src/app/admin/employees/{page,ui,actions}.tsx` /
+`src/app/(employee)/timesheet/{page,ui,schema,actions}.tsx` /
+`src/app/admin/timesheet/{page,actions}.tsx` /
+`src/app/admin/settings/{page,ui,actions}.tsx`（全社共通設定`LunchAllowanceForm`/`updateLunchAllowance`
+※旧・全社共通版を削除）。

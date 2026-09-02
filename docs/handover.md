@@ -170,7 +170,7 @@
 - **従業員の完全削除機能を追加**: 従業員編集パネルにゴミ箱アイコンの「削除」。**2段階警告**
   （1回目「元に戻せません」→ 押下で勤務実績件数を確認 → あれば2回目「勤務実績も全て削除されます（N件）」
   →「全て削除」）。DB は SECURITY DEFINER 関数 `delete_employee(uuid)`（notifications を先に削除 →
-  employees 削除で work_entries/payslips/wage_rates/tax_settings は CASCADE）と
+  employees 削除で work_entries/payslips/wage_rates/lunch_allowance_rates/tax_settings は CASCADE）と
   `count_employee_work_entries(uuid)` を新設。件数は RLS 下の head/count が 0 を返す事象があったため
   RPC 化した。認証アカウントは残る（サービスロール鍵不要方針）。
 - **各種 UI 調整**:
@@ -255,7 +255,8 @@
   `closePeriod` も想定外例外を ActionResult 化。※固着時もサーバー側の締めは成功していることがある点に注意。
 - **給与明細メールに日別明細**: `buildPayslipMailText` に `dailyRows` を追加し ＜日別明細＞(日付・出勤〜退勤・
   休憩・勤務・交通費・昼食補助) を本文末尾へ。日付=MM/DD、時刻/休憩/勤務=HH:MM(2桁ゼロ埋め)で桁揃え。
-  行生成は `emailPayslips`(当期 work_entries＋昼食補助日額)。勤務表の合計行右端は「一覧」を常時表示。
+  行生成は `emailPayslips`(当期 work_entries＋従業員別`lunch_allowance_rates`。当日上書きがあれば優先。
+  2026-09-02に全社共通日額から移行)。勤務表の合計行右端は「一覧」を常時表示。
 - **給与明細の印刷/PDF**: 横に切れる問題を `globals.css` の `@media print`＋`.print-report` で解消
   (html 11px/表9px・A4縦余白10mm・overflow可視化・桁の多い金額は折返し)。表コンテナに `print-report` 付与。
 - **操作ログ機能**: `activity_logs` テーブル＋`log_activity(action,detail)`(SECURITY DEFINER・90日で自動削除・
@@ -1279,7 +1280,8 @@ npm test           # Vitest（給与計算ロジック）
   期間の繰り下げではなく前払金方式で対応すること(源泉徴収を月単位に保てるため)。
 - **日当レポート(`/admin/daily`)**: 任意期間の「従業員×日ごと」の勤務時間・支給額一覧(`lib/daily-report.ts`)。
   **計算方法は月次の給与計算と完全に同一**(標準休憩の導出・深夜25%増・8h超の残業25%増・昼食補助・日単位切り捨て。
-  時給と昼食補助はその勤務日時点で有効な設定を使う)。**給与計算ロジックを変更したらこちらも合わせること**。
+  時給と昼食補助(従業員別`lunch_allowance_rates`)はその勤務日時点で有効な設定を使い、昼食補助は
+  当日だけの上書き`lunch_change_amount`があればその額を使う)。**給与計算ロジックを変更したらこちらも合わせること**。
   列順は 日付(固定列)/支給額/前払金/出勤/... で、スマホで横スクロールせず支払状況を確認できるようにしている。
   CSVの列順は勤務内容順のまま(画面=支払確認用・CSV=記録用として意図的に分けている。オーナー了承済み)。
   **期間指定は給与明細画面と同じ月度単位**(`?p=YYYY-MM`・前月/翌月移動。2026-07-27に任意日付範囲から変更)。
@@ -2988,6 +2990,41 @@ PWAの更新検知バージョン`SW_VERSION`（`public/sw.js`）は`git rev-par
   検討事項（`scale`を上げつつ他の軽量化手段と両立させる等）を残してある。
 - ドキュメントは設計書「15.3〜15.6」・「§税理士向け資料」を今回の状態に合わせて更新済み。
 
+### 昼食補助費を従業員ごとの履歴管理にし、勤務表で当日だけの上書きに対応（2026-09-02）
+オーナーからの要望2点に対応: ①「特定の人・日だけ昼食補助を除外したい（現物支給の日など）」
+②「特定の人だけ試用期間中は昼食補助を除外したい」。詳細は設計書「17. 昼食補助費の従業員別管理・
+当日上書き」参照（本項は要点のみ）。
+
+- **DB変更**: 全社共通の定額テーブル`allowance_settings`を廃止し、`wage_rates`と同形の
+  `lunch_allowance_rates`（従業員ごと・適用開始日つき履歴・0円可）に一本化。移行マイグレーション
+  （`20260902000000_lunch_allowance_per_employee.sql`）は、廃止前の`allowance_settings`の履歴を
+  **全従業員に複製してから**テーブルを削除しており、既存の給与計算結果は変わらない。
+  `work_entries`に`lunch_change_amount`(当日の上書き後の絶対額・null=上書きなし)/
+  `lunch_change_reason_type`(in_kind/other)/`lunch_change_reason_note`(other時の自由入力)の3列を追加。
+- **給与計算**: `computePayslip()`の`allowances`(期間末日1回だけ参照)を`lunchRates`(勤務日ごとに
+  `effectiveAt()`で参照＋当日上書きがあれば優先)に置き換え。`lib/daily-report.ts`・
+  `admin/close/actions.ts`の`emailPayslips`（給与明細メールの日別明細）にも同じロジックを展開し、
+  3箇所の計算方法を一致させた。
+- **従業員画面**（`admin/employees/`）: 時給欄の直後に昼食補助額欄を追加（必須・0円可・初期値
+  ブランク）。詳細編集パネルに`LunchHistory`（`WageHistory`と同フォーマット）を追加。
+- **勤務表画面**（従業員・管理者で`TimesheetCalendar`/`EntryForm`共用）: 交通費欄の下に昼食費欄を
+  追加。本来の金額は常に表示のみ、**変更金額・理由の入力は管理者のみ**（従業員本人の画面はフォーム
+  自体に入力欄を出さないため、`entrySchema`が値を受け取ってもサーバー側の書き込みには使われない
+  ＝従業員の保存操作で管理者設定の上書きが消えることはない）。
+- **区切り線の追加改善（同日、オーナー指摘）**: 従業員詳細編集パネルで、履歴セクション全体の上の
+  区切り線が薄すぎる、モバイル(1カラム表示)では時給履歴と昼食補助額履歴の境目が分からない、との
+  指摘を受け、`border-t-2 border-dashed border-gray-300`に統一。モバイル用の区切り線は`md:hidden`
+  （`display:none`要素はCSS Gridに参加しないためPC側の2カラム配置には影響しない）。
+- `npx tsc --noEmit`・`eslint`・`vitest run`(74件)・`npm run build`はすべて通過確認済み。
+  ブラウザでの実機能確認（従業員画面の昼食補助履歴入力、勤務表の当日上書き）は**このセッションでは
+  未実施**（管理者ログイン情報が共有されなかったため）。次に触る際は一度実機確認を推奨。
+- コミット→ローカルで`npm run deploy`を実行し本番反映済み。**GitHubへの`git push`はまだ実施していない**
+  （このリポジトリは Cloudflare Workers Builds（GitHub App連携）が有効で、**本来 main への push だけで
+  自動ビルド・デプロイされる**設計だが、`npm run deploy`はそれとは別にローカルのworking treeを直接
+  Cloudflareへアップロードする経路のため、pushしていなくても本番に反映できてしまう。**このセッションの
+  コミットはこの後まとめてpushする**。pushすると Workers Builds が改めて同じ内容を自動ビルド・
+  デプロイするが、結果は同一なので無害）。
+
 ## 7. すぐ使えるコマンド集
 
 ```bash
@@ -3010,7 +3047,17 @@ git checkout claude/payroll-system-plan-8wvobq
   混在させないための取り決め。詳細・セッション開始時プリフライト手順はリポジトリ直下の`CLAUDE.md`
   参照）。
 - GitHub 操作は GitHub MCP ツール（`richardx007/oominami-payroll`）。
-- デプロイは main push による自動ビルド。**Cloudflare MCP ツールで同一アカウント内の Worker 情報
+- デプロイは main push による自動ビルド（**Cloudflare Workers Builds**、GitHub App
+  `cloudflare-workers-and-pages` 連携。push した commit に対する check run
+  `Workers Builds: oominami-payroll` の成功/失敗でビルド結果が分かる。
+  `gh api repos/richardx007/oominami-payroll/commits/{sha}/check-runs` で確認可能）。
+  **加えて、`npm run deploy`（`opennextjs-cloudflare build && opennextjs-cloudflare deploy`）で
+  ローカルから直接デプロイすることも可能**（2026-09-02、ローカルCLIセッションで確認。working treeを
+  直接Cloudflareへアップロードするため**`git push`していなくても・コミットしていなくても実行できて
+  しまう**）。この2経路は独立しているため、**ローカルで`npm run deploy`した後に該当コミットをpushすると、
+  Workers Builds が同じ内容をもう一度自動ビルド・デプロイする**（結果は同一なので無害だが、二度手間・
+  ビルドログの混乱を避けたい場合はどちらか一方に統一すること。通常はpush（自動）に任せ、緊急時のみ
+  ローカルデプロイを使うのが安全）。**Cloudflare MCP ツールで同一アカウント内の Worker 情報
   （`workers_list`/`workers_get_worker`等）は参照可能**（2026-07-29確認）。ただしデプロイ状況の
   詳細確認はダッシュボード（Deployments タブ）の方が確実。
 - Supabase の Session pooler（`*.pooler.supabase.com:5432`）へは、この環境（Claude Code on the web）の
