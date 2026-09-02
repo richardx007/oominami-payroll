@@ -13,11 +13,18 @@ import {
 } from "@/lib/period";
 import { useSwipeNav } from "@/lib/useSwipeNav";
 import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "@/lib/breaks";
+import { effectiveAt } from "@/lib/payroll";
 import type { ShiftInfo } from "@/lib/shifts";
 import type { WorkEntry } from "./page";
 import { type ActionResult } from "./actions";
 
 export type TimesheetEmployee = { id: string; name: string };
+export type LunchRate = { lunch_allowance: number; effective_from: string };
+
+const LUNCH_REASON_LABELS: Record<string, string> = {
+  in_kind: "現物支給",
+  other: "その他",
+};
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -47,6 +54,7 @@ export function TimesheetCalendar({
   shifts = {},
   timeLocked = false,
   breakWindows = DEFAULT_BREAK_WINDOWS,
+  lunchRates = [],
 }: {
   period: Period;
   entries: WorkEntry[];
@@ -60,6 +68,8 @@ export function TimesheetCalendar({
   timeLocked?: boolean;
   /** 標準休憩時間帯(設定画面「休憩時間」で変更可)。勤務時間の表示計算に使う(保存時の実際の値はサーバー側で確定) */
   breakWindows?: BreakWindow[];
+  /** 従業員別の昼食補助額の履歴(当日の「本来の」金額の表示用) */
+  lunchRates?: LunchRate[];
   /** 勤務記録の保存アクション(従業員=自分, 管理者=対象従業員にバインド済み) */
   save: (formData: FormData) => Promise<ActionResult>;
   /** 勤務記録の削除アクション */
@@ -365,6 +375,7 @@ export function TimesheetCalendar({
             }}
             timeLocked={timeLocked}
             adminMode={adminMode}
+            lunchRates={lunchRates}
           />
         )}
         {selected && closed && selectedEntry && (
@@ -423,6 +434,10 @@ function entryFromFormData(fd: FormData): WorkEntry {
     station_to: s("station_to") || null,
     round_trip: s("round_trip") === "on",
     note: s("note") || null,
+    // 昼食費の上書きは日ごとの例外的な入力のため、次の新規日への既定値には引き継がない
+    lunch_change_amount: null,
+    lunch_change_reason_type: null,
+    lunch_change_reason_note: null,
     // 「次の新規日への既定値プレビュー」用の合成データなので登録情報は持たない
     created_at: "",
     updated_at: "",
@@ -637,6 +652,7 @@ function EntryForm({
   onClose,
   timeLocked = false,
   adminMode = false,
+  lunchRates = [],
 }: {
   date: string;
   entry: WorkEntry | undefined;
@@ -652,6 +668,8 @@ function EntryForm({
   timeLocked?: boolean;
   /** 管理者の勤務表画面。新規入力時に退勤欄を空欄スタートにする(出勤のみの代理入力) */
   adminMode?: boolean;
+  /** 従業員別の昼食補助額の履歴(当日の「本来の」金額の表示用) */
+  lunchRates?: LunchRate[];
 }) {
   const init = entry ?? defaults;
 
@@ -679,6 +697,17 @@ function EntryForm({
   const costRef = useRef<HTMLInputElement>(null);
   const fromRef = useRef<HTMLInputElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
+
+  // 昼食費: その日時点で有効な従業員別の「本来の」金額(表示専用、上書きが無ければこの金額を支給)
+  const baseLunch = effectiveAt(lunchRates, date)?.lunch_allowance ?? 0;
+  // 上書き入力欄(管理者のみ編集可)。既存の上書きがあれば引き継ぐ(新規日の既定値としては流用しない)
+  const [lunchAmount, setLunchAmount] = useState(
+    entry?.lunch_change_amount != null ? String(entry.lunch_change_amount) : ""
+  );
+  const [lunchReasonType, setLunchReasonType] = useState(
+    entry?.lunch_change_reason_type ?? ""
+  );
+  const lunchChanged = lunchAmount.trim() !== "";
 
   // ロック中に既存レコードが無い日は、時刻を確定できず新規作成できない
   // (サーバー側 upsertWorkEntry も同条件で拒否する)。フォーム自体を出さず案内のみ表示する。
@@ -955,6 +984,99 @@ function EntryForm({
                 </label>
               </div>
             </div>
+          </div>
+        </fieldset>
+
+        {/* 昼食費: 本来の金額は表示のみ。当日だけの変更は管理者のみ入力可 */}
+        <fieldset className="rounded-xl border border-gray-200 bg-gray-100 p-3 pt-2">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="px-1 text-base font-semibold text-gray-700">
+              昼食費
+            </span>
+          </div>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              本来の昼食補助費:{" "}
+              <span className="font-medium tabular-nums">
+                ¥{baseLunch.toLocaleString()}
+              </span>
+            </p>
+            {adminMode ? (
+              <>
+                <div className="grid grid-cols-2 gap-3 [&>div]:min-w-0">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-600">
+                      変更後の金額
+                    </label>
+                    <input
+                      name="lunch_change_amount"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={10}
+                      placeholder="変更なし"
+                      value={lunchAmount}
+                      onChange={(e) => setLunchAmount(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-600">
+                      理由
+                    </label>
+                    <div className="flex h-[42px] items-center gap-3 text-sm">
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="radio"
+                          name="lunch_change_reason_type"
+                          value="in_kind"
+                          required={lunchChanged}
+                          checked={lunchReasonType === "in_kind"}
+                          onChange={() => setLunchReasonType("in_kind")}
+                        />
+                        現物支給
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="radio"
+                          name="lunch_change_reason_type"
+                          value="other"
+                          required={lunchChanged}
+                          checked={lunchReasonType === "other"}
+                          onChange={() => setLunchReasonType("other")}
+                        />
+                        その他
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                {lunchChanged && lunchReasonType === "other" && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-600">
+                      理由(自由入力)
+                    </label>
+                    <input
+                      name="lunch_change_reason_note"
+                      required
+                      defaultValue={entry?.lunch_change_reason_note ?? ""}
+                      className={inputClass}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              entry?.lunch_change_amount != null && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  管理者により変更されています: ¥
+                  {entry.lunch_change_amount.toLocaleString()}(理由:{" "}
+                  {entry.lunch_change_reason_type === "other"
+                    ? entry.lunch_change_reason_note || "その他"
+                    : LUNCH_REASON_LABELS[entry.lunch_change_reason_type ?? ""] ??
+                      entry.lunch_change_reason_type}
+                  )
+                </p>
+              )
+            )}
           </div>
         </fieldset>
 

@@ -213,25 +213,29 @@ export async function emailPayslips(
     )
     .eq("pay_period_id", payPeriod.id);
 
-  // 日別明細用に当期の勤務実績・昼食補助(日額)・標準休憩時間帯を取得する
-  const [{ data: periodEntries }, { data: allowances }, { data: breakSettings }] =
+  // 日別明細用に当期の勤務実績・昼食補助(従業員別日額)・標準休憩時間帯を取得する
+  const [{ data: periodEntries }, { data: lunchRates }, { data: breakSettings }] =
     await Promise.all([
       supabase
         .from("work_entries")
         .select(
-          "employee_id, work_date, start_time, end_time, break_minutes, transport_cost"
+          "employee_id, work_date, start_time, end_time, break_minutes, transport_cost, lunch_change_amount"
         )
         .gte("work_date", period.start)
         .lte("work_date", period.end)
         .order("work_date"),
       supabase
-        .from("allowance_settings")
-        .select("lunch_allowance_per_day, effective_from"),
+        .from("lunch_allowance_rates")
+        .select("employee_id, lunch_allowance, effective_from"),
       supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
     ]);
   const breakWindows = parseBreakWindows(breakSettings);
-  const lunchPerDay =
-    effectiveAt(allowances ?? [], period.end)?.lunch_allowance_per_day ?? 0;
+  const lunchRatesByEmployee = new Map<string, NonNullable<typeof lunchRates>>();
+  for (const l of lunchRates ?? []) {
+    const arr = lunchRatesByEmployee.get(l.employee_id);
+    if (arr) arr.push(l);
+    else lunchRatesByEmployee.set(l.employee_id, [l]);
+  }
   const entriesByEmployee = new Map<string, PayslipDailyRow[]>();
   for (const e of periodEntries ?? []) {
     // 退勤未入力(締め済みなら通常発生しない)は日別明細から除外
@@ -241,6 +245,10 @@ export async function emailPayslips(
     const end = e.end_time.slice(0, 5);
     // 休憩・勤務時間は標準休憩ルールから算出(保存済み break_minutes は使わない)
     const brk = standardBreakMinutes(start, end, breakWindows);
+    // 昼食補助はその日だけの上書き(現物支給等)があればそちらを優先する
+    const baseLunch =
+      effectiveAt(lunchRatesByEmployee.get(e.employee_id) ?? [], e.work_date)
+        ?.lunch_allowance ?? 0;
     rows.push({
       workDate: e.work_date,
       startTime: start,
@@ -248,7 +256,7 @@ export async function emailPayslips(
       breakMinutes: brk,
       workMinutes: workMinutes(start, end, brk),
       transport: e.transport_cost,
-      lunch: lunchPerDay,
+      lunch: e.lunch_change_amount ?? baseLunch,
     });
     entriesByEmployee.set(e.employee_id, rows);
   }

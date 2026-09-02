@@ -18,6 +18,10 @@ export type WorkEntry = {
   station_to: string | null;
   round_trip: boolean;
   note: string | null;
+  /** 昼食費の当日上書き額(最終金額)。null なら上書きなし(通常額を使う) */
+  lunch_change_amount: number | null;
+  lunch_change_reason_type: string | null;
+  lunch_change_reason_note: string | null;
   created_at: string;
   updated_at: string;
   /** 登録・修正した従業員の表示名(ニックネーム優先)。取得不可・未記録の過去データは null */
@@ -48,11 +52,12 @@ export default async function TimesheetPage({
     { data: slotRows },
     { data: locked },
     { data: breakRows },
+    { data: lunchRates },
   ] = await Promise.all([
       supabase
         .from("work_entries")
         .select(
-          "work_date, start_time, end_time, break_minutes, transport_cost, transport_mode, station_from, station_to, round_trip, note, created_at, updated_at, created_by, updated_by"
+          "work_date, start_time, end_time, break_minutes, transport_cost, transport_mode, station_from, station_to, round_trip, note, lunch_change_amount, lunch_change_reason_type, lunch_change_reason_note, created_at, updated_at, created_by, updated_by"
         )
         .eq("employee_id", employee.id)
         .gte("work_date", period.start)
@@ -85,6 +90,11 @@ export default async function TimesheetPage({
       supabase.rpc("get_timesheet_lock"),
       // 標準休憩時間帯(app_settings は直接読めないため関数経由)
       supabase.rpc("get_break_settings"),
+      // 昼食補助額の履歴(勤務日時点で有効な「本来の」金額の表示用)
+      supabase
+        .from("lunch_allowance_rates")
+        .select("lunch_allowance, effective_from")
+        .eq("employee_id", employee.id),
     ]);
 
   const breakWindows = parseBreakWindows(
@@ -154,6 +164,7 @@ export default async function TimesheetPage({
       shifts={shifts}
       timeLocked={!!locked}
       breakWindows={breakWindows}
+      lunchRates={lunchRates ?? []}
     />
   );
 }

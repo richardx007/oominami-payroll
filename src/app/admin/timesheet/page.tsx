@@ -51,11 +51,12 @@ export default async function AdminTimesheetPage({
     { data: shiftRows },
     { data: slotRows },
     { data: breakSettings },
+    { data: lunchRates },
   ] = await Promise.all([
     supabase
       .from("work_entries")
       .select(
-        "work_date, start_time, end_time, break_minutes, transport_cost, transport_mode, station_from, station_to, round_trip, note, created_at, updated_at, created_by, updated_by"
+        "work_date, start_time, end_time, break_minutes, transport_cost, transport_mode, station_from, station_to, round_trip, note, lunch_change_amount, lunch_change_reason_type, lunch_change_reason_note, created_at, updated_at, created_by, updated_by"
       )
       .eq("employee_id", selectedId)
       .gte("work_date", period.start)
@@ -75,6 +76,10 @@ export default async function AdminTimesheetPage({
       .lte("work_date", period.end),
     supabase.rpc("get_shift_settings"),
     supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
+    supabase
+      .from("lunch_allowance_rates")
+      .select("lunch_allowance, effective_from")
+      .eq("employee_id", selectedId),
   ]);
 
   const breakWindows = parseBreakWindows(breakSettings);
@@ -147,6 +152,7 @@ export default async function AdminTimesheetPage({
         selectedEmployeeId={selectedId}
         shifts={shifts}
         breakWindows={breakWindows}
+        lunchRates={lunchRates ?? []}
       />
     </div>
   );

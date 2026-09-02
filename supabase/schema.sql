@@ -763,19 +763,6 @@ CREATE TABLE public.advance_payments (
 
 
 --
--- Name: allowance_settings; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.allowance_settings (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    lunch_allowance_per_day integer DEFAULT 0 NOT NULL,
-    effective_from date NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT allowance_settings_lunch_allowance_per_day_check CHECK ((lunch_allowance_per_day >= 0))
-);
-
-
---
 -- Name: app_settings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -856,6 +843,20 @@ COMMENT ON COLUMN public.employees.nickname IS 'ニックネーム(任意)';
 --
 
 COMMENT ON COLUMN public.employees.color IS 'シフト表でニックネーム背景に使う識別色(HEX。パレット10色から選択・任意・重複可)';
+
+
+--
+-- Name: lunch_allowance_rates; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lunch_allowance_rates (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    employee_id uuid NOT NULL,
+    lunch_allowance integer NOT NULL,
+    effective_from date NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT lunch_allowance_rates_lunch_allowance_check CHECK ((lunch_allowance >= 0))
+);
 
 
 --
@@ -1137,8 +1138,18 @@ CREATE TABLE public.work_entries (
     round_trip boolean DEFAULT true NOT NULL,
     created_by uuid,
     updated_by uuid,
+    lunch_change_amount integer,
+    lunch_change_reason_type text,
+    lunch_change_reason_note text,
     CONSTRAINT work_entries_break_minutes_check CHECK ((break_minutes >= 0)),
-    CONSTRAINT work_entries_transport_cost_check CHECK ((transport_cost >= 0))
+    CONSTRAINT work_entries_transport_cost_check CHECK ((transport_cost >= 0)),
+    CONSTRAINT work_entries_lunch_change_amount_check CHECK ((lunch_change_amount IS NULL OR lunch_change_amount >= 0)),
+    CONSTRAINT work_entries_lunch_change_reason_type_check CHECK ((lunch_change_reason_type IS NULL OR lunch_change_reason_type = ANY (ARRAY['in_kind'::text, 'other'::text]))),
+    CONSTRAINT work_entries_lunch_change_consistency_check CHECK (
+        ((lunch_change_amount IS NULL) AND (lunch_change_reason_type IS NULL))
+        OR ((lunch_change_amount IS NOT NULL) AND (lunch_change_reason_type IS NOT NULL)
+            AND (lunch_change_reason_type <> 'other' OR (lunch_change_reason_note IS NOT NULL AND length(TRIM(BOTH FROM lunch_change_reason_note)) > 0)))
+    )
 );
 
 
@@ -1164,22 +1175,6 @@ ALTER TABLE ONLY public.advance_payments
 
 ALTER TABLE ONLY public.advance_payments
     ADD CONSTRAINT advance_payments_pkey PRIMARY KEY (id);
-
-
---
--- Name: allowance_settings allowance_settings_effective_from_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.allowance_settings
-    ADD CONSTRAINT allowance_settings_effective_from_key UNIQUE (effective_from);
-
-
---
--- Name: allowance_settings allowance_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.allowance_settings
-    ADD CONSTRAINT allowance_settings_pkey PRIMARY KEY (id);
 
 
 --
@@ -1228,6 +1223,22 @@ ALTER TABLE ONLY public.employees
 
 ALTER TABLE ONLY public.employees
     ADD CONSTRAINT employees_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: lunch_allowance_rates lunch_allowance_rates_employee_id_effective_from_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lunch_allowance_rates
+    ADD CONSTRAINT lunch_allowance_rates_employee_id_effective_from_key UNIQUE (employee_id, effective_from);
+
+
+--
+-- Name: lunch_allowance_rates lunch_allowance_rates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lunch_allowance_rates
+    ADD CONSTRAINT lunch_allowance_rates_pkey PRIMARY KEY (id);
 
 
 --
@@ -1511,6 +1522,14 @@ ALTER TABLE ONLY public.employees
 
 
 --
+-- Name: lunch_allowance_rates lunch_allowance_rates_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lunch_allowance_rates
+    ADD CONSTRAINT lunch_allowance_rates_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+
+
+--
 -- Name: notifications notifications_recipient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1656,26 +1675,6 @@ CREATE POLICY advance_payments_select ON public.advance_payments FOR SELECT USIN
 
 
 --
--- Name: allowance_settings allowance_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY allowance_admin ON public.allowance_settings USING (public.is_admin()) WITH CHECK (public.is_admin());
-
-
---
--- Name: allowance_settings allowance_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY allowance_select ON public.allowance_settings FOR SELECT USING (true);
-
-
---
--- Name: allowance_settings; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.allowance_settings ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: app_settings; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -1740,6 +1739,26 @@ CREATE POLICY employees_admin_all ON public.employees USING (public.is_admin()) 
 --
 
 CREATE POLICY employees_select_self ON public.employees FOR SELECT USING (((auth_user_id = auth.uid()) OR public.is_admin()));
+
+
+--
+-- Name: lunch_allowance_rates; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.lunch_allowance_rates ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: lunch_allowance_rates lunch_allowance_rates_admin; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY lunch_allowance_rates_admin ON public.lunch_allowance_rates USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+
+--
+-- Name: lunch_allowance_rates lunch_allowance_rates_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY lunch_allowance_rates_select ON public.lunch_allowance_rates FOR SELECT USING (((employee_id = public.current_employee_id()) OR public.is_admin()));
 
 
 --
@@ -2291,15 +2310,6 @@ GRANT ALL ON TABLE public.advance_payments TO service_role;
 
 
 --
--- Name: TABLE allowance_settings; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.allowance_settings TO anon;
-GRANT ALL ON TABLE public.allowance_settings TO authenticated;
-GRANT ALL ON TABLE public.allowance_settings TO service_role;
-
-
---
 -- Name: TABLE app_settings; Type: ACL; Schema: public; Owner: -
 --
 
@@ -2324,6 +2334,15 @@ GRANT ALL ON TABLE public.clock_events TO service_role;
 GRANT ALL ON TABLE public.employees TO anon;
 GRANT ALL ON TABLE public.employees TO authenticated;
 GRANT ALL ON TABLE public.employees TO service_role;
+
+
+--
+-- Name: TABLE lunch_allowance_rates; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.lunch_allowance_rates TO anon;
+GRANT ALL ON TABLE public.lunch_allowance_rates TO authenticated;
+GRANT ALL ON TABLE public.lunch_allowance_rates TO service_role;
 
 
 --

@@ -10,6 +10,9 @@ import {
   updateWage,
   editWageRate,
   deleteWageRate,
+  updateLunchAllowance,
+  editLunchAllowanceRate,
+  deleteLunchAllowanceRate,
   updateTaxSetting,
   editTaxSetting,
   deleteTaxSetting,
@@ -237,6 +240,22 @@ function AddEmployeePanel() {
                     </p>
                   </div>
                   <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      昼食補助額(円)
+                    </label>
+                    <input
+                      name="lunch_allowance"
+                      type="number"
+                      min={0}
+                      required
+                      className={inputClass}
+                    />
+                    <p className="mt-1 text-xs text-gray-400">
+                      対象外の場合は0を入力
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2 my-1 border-t-2 border-dashed border-gray-200" />
+                  <div>
                     <label className="mb-1 block text-sm font-medium">税区分</label>
                     <select name="tax_category" defaultValue="otsu" className={inputClass}>
                       <option value="otsu">乙欄(扶養控除等申告書 提出なし)</option>
@@ -253,7 +272,7 @@ function AddEmployeePanel() {
                       className={inputClass}
                     />
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="mb-1 block text-sm font-medium">適用開始日</label>
                     <input
                       name="effective_from"
@@ -262,6 +281,9 @@ function AddEmployeePanel() {
                       required
                       className={inputClass}
                     />
+                    <p className="mt-1 text-xs text-gray-400">
+                      時給・昼食補助額・税区分に共通の適用開始日です
+                    </p>
                   </div>
                 </>
               )}
@@ -567,6 +589,188 @@ function WageHistory({
             defaultValue={current?.hourly_wage}
             required
             placeholder="時給(円)"
+            className={historyFieldClass}
+          />
+        </div>
+        <div className="flex justify-end">
+          <button
+            disabled={pending}
+            className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            追加
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/**
+ * 昼食補助額の履歴(lunch_allowance_rates)を一覧表示し、各行の訂正・削除と新額の追加を行う。
+ * WageHistory と同じフォーマット。特定の人・日を除外したい場合は勤務表側の当日上書きで、
+ * 特定の人だけ試用期間中は除外したい場合はここで0円の履歴行を追加して対応する。
+ */
+function LunchHistory({
+  emp,
+  pending,
+  onRun,
+}: {
+  emp: EmployeeRow;
+  pending: boolean;
+  onRun: (action: () => Promise<ActionResult>) => void;
+}) {
+  // 適用開始日の昇順(古い順)に並べる
+  const rates = [...emp.lunch_allowance_rates].sort((a, b) =>
+    a.effective_from.localeCompare(b.effective_from)
+  );
+  const current = currentOf(emp.lunch_allowance_rates);
+  // 編集中の行(適用開始日で識別)。null は非編集。
+  const [editingFrom, setEditingFrom] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-xs font-semibold text-gray-500">昼食補助額の履歴</h4>
+
+      {rates.length === 0 ? (
+        <p className="text-xs text-gray-400">昼食補助額がまだ登録されていません。</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+          {rates.map((r) => {
+            const isCurrent =
+              current?.effective_from === r.effective_from;
+            const isEditing = editingFrom === r.effective_from;
+            return (
+              <li key={r.effective_from} className="px-3 py-2">
+                {isEditing ? (
+                  <form
+                    action={(fd) =>
+                      onRun(async () => {
+                        const res = await editLunchAllowanceRate(fd);
+                        if (res.ok) setEditingFrom(null);
+                        return res;
+                      })
+                    }
+                    className="space-y-2"
+                  >
+                    <input type="hidden" name="employee_id" value={emp.id} />
+                    <input
+                      type="hidden"
+                      name="original_effective_from"
+                      value={r.effective_from}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        name="effective_from"
+                        type="date"
+                        defaultValue={r.effective_from}
+                        required
+                        aria-label="適用開始日"
+                        className={historyDateClass}
+                      />
+                      <input
+                        name="lunch_allowance"
+                        type="number"
+                        min={0}
+                        defaultValue={r.lunch_allowance}
+                        required
+                        aria-label="昼食補助額(円)"
+                        placeholder="昼食補助額(円)"
+                        className={historyFieldClass}
+                      />
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          disabled={pending}
+                          className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          保存
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingFrom(null)}
+                          className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="whitespace-nowrap text-xs text-gray-500">
+                        {slashDate(r.effective_from)}〜
+                      </span>
+                      <span className="ml-2 tabular-nums font-medium">
+                        ¥{r.lunch_allowance.toLocaleString()}
+                      </span>
+                      {isCurrent && (
+                        <span className="ml-2 whitespace-nowrap rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                          現在有効
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => setEditingFrom(r.effective_from)}
+                        className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        編集
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `${slashDate(r.effective_from)}〜 の昼食補助額 ¥${r.lunch_allowance.toLocaleString()} を削除します。過去の給与計算に影響する場合があります。よろしいですか?`
+                            )
+                          )
+                            return;
+                          const fd = new FormData();
+                          fd.set("employee_id", emp.id);
+                          fd.set("effective_from", r.effective_from);
+                          onRun(() => deleteLunchAllowanceRate(fd));
+                        }}
+                        className="rounded-lg border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* 新しい昼食補助額の追加(改定・試用期間終了等は適用開始日を指定) */}
+      <form
+        action={(fd) => onRun(() => updateLunchAllowance(fd))}
+        className="space-y-1.5 border-t border-dashed border-gray-200 pt-3"
+      >
+        <p className="text-xs font-medium text-gray-500">
+          昼食補助額を追加(改定は適用開始日を指定)
+        </p>
+        <input type="hidden" name="employee_id" value={emp.id} />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            name="effective_from"
+            type="date"
+            defaultValue={today()}
+            required
+            aria-label="適用開始日"
+            className={historyDateClass}
+          />
+          <input
+            name="lunch_allowance"
+            type="number"
+            min={0}
+            defaultValue={current?.lunch_allowance}
+            required
+            placeholder="昼食補助額(円)"
             className={historyFieldClass}
           />
         </div>
@@ -1021,12 +1225,21 @@ function EmployeeTableRow({
               </form>
 
               {!emp.is_admin && (
-                <div className="grid gap-6 border-t border-gray-100 pt-4 md:grid-cols-2">
-                  <WageHistory
-                    emp={emp}
-                    pending={pending}
-                    onRun={onRunKeepOpen}
-                  />
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <WageHistory
+                      emp={emp}
+                      pending={pending}
+                      onRun={onRunKeepOpen}
+                    />
+                    <LunchHistory
+                      emp={emp}
+                      pending={pending}
+                      onRun={onRunKeepOpen}
+                    />
+                  </div>
+                  {/* 時給・昼食補助額と税区分の間を明瞭に区切る */}
+                  <div className="my-6 border-t-2 border-dashed border-gray-300" />
                   <TaxHistory
                     emp={emp}
                     pending={pending}

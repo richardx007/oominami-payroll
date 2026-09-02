@@ -35,7 +35,7 @@ export async function calculatePeriodPayroll(
     { data: entries },
     { data: wageRates },
     { data: taxSettings },
-    { data: allowances },
+    { data: lunchRates },
     { data: taxRows },
     { data: breakSettings },
     { data: advances },
@@ -49,7 +49,7 @@ export async function calculatePeriodPayroll(
     supabase
       .from("work_entries")
       .select(
-        "employee_id, work_date, start_time, end_time, break_minutes, transport_cost"
+        "employee_id, work_date, start_time, end_time, break_minutes, transport_cost, lunch_change_amount"
       )
       .gte("work_date", period.start)
       .lte("work_date", period.end),
@@ -60,8 +60,8 @@ export async function calculatePeriodPayroll(
       .from("tax_settings")
       .select("employee_id, tax_category, dependents, effective_from"),
     supabase
-      .from("allowance_settings")
-      .select("lunch_allowance_per_day, effective_from"),
+      .from("lunch_allowance_rates")
+      .select("employee_id, lunch_allowance, effective_from"),
     supabase
       .from("withholding_tax_table")
       .select(
@@ -82,6 +82,7 @@ export async function calculatePeriodPayroll(
   const entriesBy = groupBy(entries ?? [], (e) => e.employee_id);
   const wagesBy = groupBy(wageRates ?? [], (w) => w.employee_id);
   const taxBy = groupBy(taxSettings ?? [], (t) => t.employee_id);
+  const lunchRatesBy = groupBy(lunchRates ?? [], (l) => l.employee_id);
   const advanceBy = new Map<string, number>();
   for (const a of advances ?? []) {
     advanceBy.set(a.employee_id, (advanceBy.get(a.employee_id) ?? 0) + a.amount);
@@ -102,7 +103,7 @@ export async function calculatePeriodPayroll(
           ...t,
           tax_category: t.tax_category as "kou" | "otsu",
         })),
-        allowances: allowances ?? [],
+        lunchRates: lunchRatesBy.get(emp.id) ?? [],
         taxRows: (taxRows ?? []) as TaxTableRow[],
         periodEnd: period.end,
         breakWindows,

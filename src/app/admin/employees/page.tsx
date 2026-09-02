@@ -15,6 +15,7 @@ export type EmployeeRow = {
   invited_at: string | null;
   color: string | null;
   wage_rates: { hourly_wage: number; effective_from: string }[];
+  lunch_allowance_rates: { lunch_allowance: number; effective_from: string }[];
   tax_settings: {
     tax_category: string;
     dependents: number;
@@ -31,6 +32,7 @@ export default async function EmployeesPage() {
     .select(
       `id, employee_no, name, furigana, nickname, email, is_admin, status, auth_user_id, invited_at, color,
        wage_rates ( hourly_wage, effective_from ),
+       lunch_allowance_rates ( lunch_allowance, effective_from ),
        tax_settings ( tax_category, dependents, effective_from )`
     )
     .order("employee_no");

@@ -142,7 +142,7 @@ export async function loadDailyReport(
   let entriesQuery = supabase
     .from("work_entries")
     .select(
-      "employee_id, work_date, start_time, end_time, break_minutes, transport_cost, note"
+      "employee_id, work_date, start_time, end_time, break_minutes, transport_cost, note, lunch_change_amount"
     )
     .gte("work_date", from)
     .lte("work_date", to)
@@ -164,7 +164,7 @@ export async function loadDailyReport(
     { data: employees },
     { data: entries },
     { data: wageRates },
-    { data: allowances },
+    { data: lunchRates },
     { data: breakSettings },
     { data: advances },
   ] = await Promise.all([
@@ -172,8 +172,8 @@ export async function loadDailyReport(
     entriesQuery,
     supabase.from("wage_rates").select("employee_id, hourly_wage, effective_from"),
     supabase
-      .from("allowance_settings")
-      .select("lunch_allowance_per_day, effective_from"),
+      .from("lunch_allowance_rates")
+      .select("employee_id, lunch_allowance, effective_from"),
     supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
     advancesQuery,
   ]);
@@ -200,6 +200,13 @@ export async function loadDailyReport(
     else wagesBy.set(w.employee_id, [w]);
   }
 
+  const lunchRatesBy = new Map<string, NonNullable<typeof lunchRates>>();
+  for (const l of lunchRates ?? []) {
+    const arr = lunchRatesBy.get(l.employee_id);
+    if (arr) arr.push(l);
+    else lunchRatesBy.set(l.employee_id, [l]);
+  }
+
   const result: DailyEmployeeReport[] = [];
 
   for (const emp of employees ?? []) {
@@ -212,9 +219,11 @@ export async function loadDailyReport(
     for (const e of empEntries) {
       const start = e.start_time.slice(0, 5);
       const end = e.end_time ? e.end_time.slice(0, 5) : null;
-      // 昼食補助・時給はその勤務日時点で有効な設定を使う(月末時点ではない)
-      const lunch =
-        effectiveAt(allowances ?? [], e.work_date)?.lunch_allowance_per_day ?? 0;
+      // 昼食補助・時給はその勤務日時点で有効な設定を使う(月末時点ではない)。
+      // その日だけの上書き(現物支給等)があればそちらを優先する
+      const baseLunch =
+        effectiveAt(lunchRatesBy.get(emp.id) ?? [], e.work_date)?.lunch_allowance ?? 0;
+      const lunch = e.lunch_change_amount ?? baseLunch;
       const wage = effectiveAt(wagesBy.get(emp.id) ?? [], e.work_date);
       const advance = advanceBy.get(`${emp.id}_${e.work_date}`) ?? null;
 

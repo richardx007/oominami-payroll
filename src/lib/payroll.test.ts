@@ -244,7 +244,7 @@ describe("computePayslip", () => {
         effective_from: "2026-01-01",
       },
     ],
-    allowances: [{ lunch_allowance_per_day: 500, effective_from: "2026-01-01" }],
+    lunchRates: [{ lunch_allowance: 500, effective_from: "2026-01-01" }],
     taxRows: [],
     periodEnd: "2026-07-25",
   };
@@ -283,6 +283,59 @@ describe("computePayslip", () => {
     expect(result.income_tax).toBe(Math.floor(14800 * 0.03063));
     expect(result.gross_pay).toBe(15800);
     expect(result.net_pay).toBe(15800 - result.income_tax);
+  });
+
+  it("勤務日ごとの昼食補助上書きがあればその金額を使う(現物支給等で除外)", () => {
+    const result = computePayslip({
+      ...base,
+      entries: [
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "17:00",
+          break_minutes: 60,
+          transport_cost: 0,
+          lunch_change_amount: 0, // この日は現物支給のため昼食補助を除外
+        },
+        {
+          work_date: "2026-07-02",
+          start_time: "09:00",
+          end_time: "17:00",
+          break_minutes: 60,
+          transport_cost: 0,
+          // 上書きなし → 通常額(500円)
+        },
+      ],
+    });
+    // 1日目は上書きで0円、2日目は通常の500円
+    expect(result.lunch_total).toBe(500);
+  });
+
+  it("従業員ごとの昼食補助額(lunch_allowance_rates)は勤務日時点で有効なものを使う", () => {
+    const result = computePayslip({
+      ...base,
+      lunchRates: [
+        { lunch_allowance: 0, effective_from: "2026-01-01" }, // 試用期間中は除外
+        { lunch_allowance: 500, effective_from: "2026-07-15" }, // 試用終了後
+      ],
+      entries: [
+        {
+          work_date: "2026-07-01",
+          start_time: "09:00",
+          end_time: "17:00",
+          break_minutes: 60,
+          transport_cost: 0,
+        },
+        {
+          work_date: "2026-07-15",
+          start_time: "09:00",
+          end_time: "17:00",
+          break_minutes: 60,
+          transport_cost: 0,
+        },
+      ],
+    });
+    expect(result.lunch_total).toBe(500);
   });
 
   it("深夜勤務手当(時給25%増)を計算する", () => {
@@ -568,7 +621,7 @@ describe("computePayslip", () => {
     const result = computePayslip({
       ...base,
       wageRates: [{ hourly_wage: 1000, effective_from: "2026-01-01" }],
-      allowances: [],
+      lunchRates: [],
       entries: [
         {
           work_date: "2026-07-01",

@@ -22,7 +22,35 @@ export const entrySchema = z
     station_to: z.string().max(50).optional(),
     round_trip: z.string().optional(), // "on" or undefined(checkbox)
     note: z.string().max(200).optional(),
+    // 昼食費の当日上書き(管理者のみ入力想定)。空欄なら「上書きなし」(undefined)であって
+    // 0円指定と区別する必要があるため、z.coerce.number() ではなく手動で変換する。
+    lunch_change_amount: z
+      .string()
+      .optional()
+      .transform((v) => (v === undefined || v === "" ? undefined : Number(v)))
+      .refine((v) => v === undefined || (Number.isInteger(v) && v >= 0), {
+        message: "昼食費の変更金額は0以上の整数で入力してください",
+      }),
+    lunch_change_reason_type: z
+      .enum(["in_kind", "other"])
+      .optional()
+      .or(z.literal("")),
+    lunch_change_reason_note: z.string().max(100).optional(),
   })
+  .refine(
+    (d) => d.lunch_change_amount === undefined || !!d.lunch_change_reason_type,
+    {
+      message: "昼食費の変更金額を入力した場合は理由を選択してください",
+    }
+  )
+  .refine(
+    (d) =>
+      d.lunch_change_reason_type !== "other" ||
+      !!d.lunch_change_reason_note?.trim(),
+    {
+      message: "昼食費の変更理由で「その他」を選んだ場合は内容を入力してください",
+    }
+  )
   .refine(
     (d) => {
       if (!d.end_time) return true;

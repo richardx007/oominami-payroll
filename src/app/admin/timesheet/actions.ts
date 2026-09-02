@@ -51,6 +51,16 @@ export async function adminUpsertWorkEntry(
       station_to: d.station_to?.trim() || null,
       round_trip: d.round_trip === "on",
       note: d.note || null,
+      // 昼食費の当日上書き(管理者のみ入力)。未入力(undefined)ならnullで上書きを解除する
+      lunch_change_amount: d.lunch_change_amount ?? null,
+      lunch_change_reason_type:
+        d.lunch_change_amount !== undefined
+          ? d.lunch_change_reason_type || null
+          : null,
+      lunch_change_reason_note:
+        d.lunch_change_amount !== undefined && d.lunch_change_reason_type === "other"
+          ? d.lunch_change_reason_note?.trim() || null
+          : null,
       updated_by: admin.id,
     },
     { onConflict: "employee_id,work_date" }

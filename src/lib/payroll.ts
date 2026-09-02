@@ -14,7 +14,9 @@ import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "./breaks";
  *   時給は勤務日時点で有効な wage_rates を適用(値上げ対応)
  *   休憩は労使合意の標準休憩帯(12-13/19-20/4-5時)から導出する(入力値 break_minutes は使わない)
  * - 交通費 = 申告実費の合計(非課税として扱う)
- * - 昼食補助 = 勤務日数 × 定額(課税対象として扱う)
+ * - 昼食補助 = 勤務日ごとに、その日時点で有効な従業員別の昼食補助額(lunch_allowance_rates)を合計。
+ *   ただし勤務表でその日だけ金額を上書き(現物支給等の理由付き)している場合はその金額を使う
+ *   (課税対象として扱う)
  * - 深夜勤務手当 = Σ(勤務日ごとの 深夜勤務分数 × 時給 × 25% ÷ 60、日単位で切り捨て)
  *   深夜勤務分数は勤務時間のうち 22:00〜翌5:00 に該当する時間から標準休憩帯ぶんを除いたもの。
  *   基本給とは別に単価の25%分を割増手当として追加支給する(課税対象)
@@ -40,6 +42,8 @@ export type WorkEntryInput = {
   end_time: string | null;
   break_minutes: number;
   transport_cost: number;
+  /** その日だけ昼食補助を上書きする金額(最終金額。未指定/nullならlunch_allowance_ratesの通常額を使う) */
+  lunch_change_amount?: number | null;
 };
 
 export type WageRate = { hourly_wage: number; effective_from: string };
@@ -48,8 +52,8 @@ export type TaxSetting = {
   dependents: number;
   effective_from: string;
 };
-export type Allowance = {
-  lunch_allowance_per_day: number;
+export type LunchRate = {
+  lunch_allowance: number;
   effective_from: string;
 };
 export type TaxTableRow = {
@@ -186,7 +190,7 @@ export function computePayslip(params: {
   entries: WorkEntryInput[];
   wageRates: WageRate[];
   taxSettings: TaxSetting[];
-  allowances: Allowance[];
+  lunchRates: LunchRate[];
   taxRows: TaxTableRow[];
   periodEnd: string;
   /** 標準休憩時間帯(設定画面で変更可)。未指定なら既定値(12-13/19-20/4-5時) */
@@ -203,7 +207,7 @@ export function computePayslip(params: {
     entries,
     wageRates,
     taxSettings,
-    allowances,
+    lunchRates,
     taxRows,
     periodEnd,
     breakWindows = DEFAULT_BREAK_WINDOWS,
@@ -234,6 +238,7 @@ export function computePayslip(params: {
   let overtimeMins = 0;
   let overtimePay = 0;
   let transportTotal = 0;
+  let lunchTotal = 0;
   // 時給ごとの内訳(値上げ等で月度途中に時給が変わった場合の明細行分割用)。
   // 勤務日順に積み上げるので、時系列順(旧時給→新時給)に並ぶ
   const wageBreakdownMap = new Map<number, WageBreakdown>();
@@ -266,6 +271,9 @@ export function computePayslip(params: {
     const dayOvertimePay = Math.floor((om * wage.hourly_wage * 0.25) / 60);
     overtimePay += dayOvertimePay;
     transportTotal += e.transport_cost;
+    // 昼食補助: その日の上書き金額があればそれを使い、無ければ勤務日時点で有効な従業員別の額
+    const baseLunch = effectiveAt(lunchRates, e.work_date)?.lunch_allowance ?? 0;
+    lunchTotal += e.lunch_change_amount ?? baseLunch;
 
     const bucket = wageBreakdownMap.get(wage.hourly_wage) ?? {
       hourly_wage: wage.hourly_wage,
@@ -287,10 +295,6 @@ export function computePayslip(params: {
     wageBreakdownMap.set(wage.hourly_wage, bucket);
   }
   const wageBreakdown = Array.from(wageBreakdownMap.values());
-
-  const allowance = effectiveAt(allowances, periodEnd);
-  const lunchTotal =
-    (allowance?.lunch_allowance_per_day ?? 0) * usableEntries.length;
 
   const taxSetting = effectiveAt(taxSettings, periodEnd);
   const category = taxSetting?.tax_category ?? "otsu";

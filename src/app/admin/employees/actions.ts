@@ -16,6 +16,7 @@ const employeeSchema = z
     nickname: z.string().max(50).optional(),
     email: z.email("メールアドレスの形式が正しくありません"),
     hourly_wage: z.coerce.number().int().optional(),
+    lunch_allowance: z.coerce.number().int().optional(),
     tax_category: z.enum(["kou", "otsu"]).optional(),
     dependents: z.coerce.number().int().min(0).optional(),
     effective_from: z.string().optional(),
@@ -25,9 +26,11 @@ const employeeSchema = z
       d.role === "admin" ||
       (typeof d.hourly_wage === "number" &&
         d.hourly_wage >= 0 &&
+        typeof d.lunch_allowance === "number" &&
+        d.lunch_allowance >= 0 &&
         d.tax_category !== undefined &&
         !!d.effective_from),
-    { message: "従業員の場合は時給・税区分・適用開始日を入力してください" }
+    { message: "従業員の場合は時給・昼食補助額・税区分・適用開始日を入力してください" }
   );
 
 export type ActionResult = { ok: boolean; message: string };
@@ -97,10 +100,15 @@ export async function addEmployee(formData: FormData): Promise<ActionResult> {
   }
 
   if (!isAdmin) {
-    const [wageResult, taxResult] = await Promise.all([
+    const [wageResult, lunchResult, taxResult] = await Promise.all([
       supabase.from("wage_rates").insert({
         employee_id: employee.id,
         hourly_wage: d.hourly_wage,
+        effective_from: d.effective_from,
+      }),
+      supabase.from("lunch_allowance_rates").insert({
+        employee_id: employee.id,
+        lunch_allowance: d.lunch_allowance,
         effective_from: d.effective_from,
       }),
       supabase.from("tax_settings").insert({
@@ -111,11 +119,11 @@ export async function addEmployee(formData: FormData): Promise<ActionResult> {
       }),
     ]);
 
-    if (wageResult.error || taxResult.error) {
+    if (wageResult.error || lunchResult.error || taxResult.error) {
       return {
         ok: false,
         message:
-          "従業員は登録しましたが、時給/税区分の設定に失敗しました。編集画面から設定してください。",
+          "従業員は登録しましたが、時給/昼食補助額/税区分の設定に失敗しました。編集画面から設定してください。",
       };
     }
   }
@@ -337,6 +345,152 @@ export async function deleteWageRate(
   );
   revalidatePath("/admin/employees");
   return { ok: true, message: "時給履歴を削除しました" };
+}
+
+const lunchAllowanceSchema = z.object({
+  employee_id: z.uuid(),
+  // 0円を許容(試用期間中は昼食補助を除外する等の用途)
+  lunch_allowance: z.coerce
+    .number()
+    .int()
+    .min(0, "昼食補助額は0以上の整数で入力してください"),
+  effective_from: z.string().min(1, "適用開始日を入力してください"),
+});
+
+export async function updateLunchAllowance(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = lunchAllowanceSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("lunch_allowance_rates").upsert(
+    {
+      employee_id: d.employee_id,
+      lunch_allowance: d.lunch_allowance,
+      effective_from: d.effective_from,
+    },
+    { onConflict: "employee_id,effective_from" }
+  );
+
+  if (error) return { ok: false, message: "昼食補助額の更新に失敗しました" };
+
+  await logActivity(
+    "昼食補助変更",
+    `昼食補助額を設定: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜 ¥${d.lunch_allowance}`
+  );
+  revalidatePath("/admin/employees");
+  return { ok: true, message: "昼食補助額を更新しました" };
+}
+
+const editLunchAllowanceSchema = z.object({
+  employee_id: z.uuid(),
+  // 編集対象の履歴行を特定するための元の適用開始日
+  original_effective_from: z.string().min(1),
+  lunch_allowance: z.coerce
+    .number()
+    .int()
+    .min(0, "昼食補助額は0以上の整数で入力してください"),
+  effective_from: z.string().min(1, "適用開始日を入力してください"),
+});
+
+/** 昼食補助額履歴の1行を訂正する(金額・適用開始日の変更に対応)。時給履歴と同じパターン。 */
+export async function editLunchAllowanceRate(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = editLunchAllowanceSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const dateChanged = d.effective_from !== d.original_effective_from;
+
+  if (dateChanged) {
+    const { data: clash } = await supabase
+      .from("lunch_allowance_rates")
+      .select("effective_from")
+      .eq("employee_id", d.employee_id)
+      .eq("effective_from", d.effective_from)
+      .maybeSingle();
+    if (clash) {
+      return {
+        ok: false,
+        message: `${d.effective_from} には既に別の昼食補助額が登録されています。先にそちらを整理してください。`,
+      };
+    }
+    const { error: delError } = await supabase
+      .from("lunch_allowance_rates")
+      .delete()
+      .eq("employee_id", d.employee_id)
+      .eq("effective_from", d.original_effective_from);
+    if (delError) {
+      return { ok: false, message: "昼食補助額の訂正に失敗しました" };
+    }
+  }
+
+  const { error } = await supabase.from("lunch_allowance_rates").upsert(
+    {
+      employee_id: d.employee_id,
+      lunch_allowance: d.lunch_allowance,
+      effective_from: d.effective_from,
+    },
+    { onConflict: "employee_id,effective_from" }
+  );
+
+  if (error) return { ok: false, message: "昼食補助額の訂正に失敗しました" };
+
+  const label = await employeeLabel(supabase, d.employee_id);
+  await logActivity(
+    "昼食補助変更",
+    dateChanged
+      ? `昼食補助額履歴を訂正: ${label} ${d.original_effective_from}〜 → ${d.effective_from}〜 ¥${d.lunch_allowance}`
+      : `昼食補助額履歴を訂正: ${label} ${d.effective_from}〜 ¥${d.lunch_allowance}`
+  );
+  revalidatePath("/admin/employees");
+  return { ok: true, message: "昼食補助額履歴を訂正しました" };
+}
+
+const deleteLunchAllowanceSchema = z.object({
+  employee_id: z.uuid(),
+  effective_from: z.string().min(1),
+});
+
+/** 昼食補助額履歴の1行を削除する(誤って追加した設定の取り消し用) */
+export async function deleteLunchAllowanceRate(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = deleteLunchAllowanceSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("lunch_allowance_rates")
+    .delete()
+    .eq("employee_id", d.employee_id)
+    .eq("effective_from", d.effective_from);
+
+  if (error) return { ok: false, message: "昼食補助額履歴の削除に失敗しました" };
+
+  await logActivity(
+    "昼食補助変更",
+    `昼食補助額履歴を削除: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜`
+  );
+  revalidatePath("/admin/employees");
+  return { ok: true, message: "昼食補助額履歴を削除しました" };
 }
 
 const taxSchema = z.object({

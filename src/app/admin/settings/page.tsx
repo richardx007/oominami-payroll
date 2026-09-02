@@ -3,7 +3,6 @@ import { requireAdmin } from "@/lib/auth";
 import {
   BreakWindowsForm,
   EmailSettingsForm,
-  LunchAllowanceForm,
   ShiftSlotsForm,
   TestSendForm,
   TimesheetLockForm,
@@ -17,14 +16,9 @@ export default async function SettingsPage() {
   const admin = await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: allowances }, { data: settings }] = await Promise.all([
-    supabase
-      .from("allowance_settings")
-      .select("lunch_allowance_per_day, effective_from")
-      .order("effective_from", { ascending: false })
-      .limit(5),
-    supabase.from("app_settings").select("key, value"),
-  ]);
+  const { data: settings } = await supabase
+    .from("app_settings")
+    .select("key, value");
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
   const slots = parseSlots(settings ?? []);
@@ -44,7 +38,7 @@ export default async function SettingsPage() {
         <div>
           <h1 className="text-xl font-bold">設定</h1>
           <p className="mt-1 text-sm text-gray-500">
-            メール送信や手当などの共通設定を行います
+            メール送信や打刻・シフトなどの共通設定を行います
           </p>
         </div>
         <span className="shrink-0 whitespace-nowrap text-xs text-gray-400">
@@ -67,7 +61,6 @@ export default async function SettingsPage() {
       <TimesheetLockForm
         locked={settingsMap.get("lock_employee_time_edit") === "true"}
       />
-      <LunchAllowanceForm history={allowances ?? []} />
       <ClockSettingsForm
         companyName={settingsMap.get("company_name") ?? ""}
         lat={settingsMap.get("clock_base_lat") ?? ""}
