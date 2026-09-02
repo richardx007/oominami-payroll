@@ -1,7 +1,6 @@
-// 起動時・画面遷移中のローディング表示(loading.tsx 各所から共有)。
-// layout側の認証待ち→page側のデータ取得待ちと、Suspense境界が続けて発火しても
-// 常に同じ見た目(全画面・同じ位置・同じ大きさ)にすることで、サイズが変わって
-// 見えるチラつきが起きないようにしている。
+// アプリ起動時のみに表示するロゴスプラッシュ(src/app/loading.tsx から使用)。
+// メニュー遷移中のローディングは各所の軽量スピナー(admin/loading.tsx 等)を使い、
+// ここは出さない(毎回出すと画面遷移が遅く感じるため)。
 export function Splash() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-[#152449]">
