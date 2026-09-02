@@ -1225,13 +1225,16 @@ function EmployeeTableRow({
               </form>
 
               {!emp.is_admin && (
-                <div className="border-t border-gray-100 pt-4">
+                <div className="border-t-2 border-dashed border-gray-300 pt-4">
                   <div className="grid gap-6 md:grid-cols-2">
                     <WageHistory
                       emp={emp}
                       pending={pending}
                       onRun={onRunKeepOpen}
                     />
+                    {/* モバイル(1カラム表示)のときだけ時給履歴と昼食補助額履歴の間を区切る。
+                        md以上はgrid-cols-2で横並びになりこの区切りは消える(display:noneはgridに参加しない)。 */}
+                    <div className="my-2 border-t-2 border-dashed border-gray-300 md:hidden" />
                     <LunchHistory
                       emp={emp}
                       pending={pending}
