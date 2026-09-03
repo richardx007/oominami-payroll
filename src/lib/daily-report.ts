@@ -42,6 +42,10 @@ export type DailyRow = {
   nightPay: number;
   overtimePay: number;
   lunch: number;
+  /** 当日だけの上書き(現物支給等)が入っているか。true なら lunchReasonType 等に理由が入る */
+  lunchOverridden: boolean;
+  lunchReasonType: string | null;
+  lunchReasonNote: string | null;
   transport: number;
   /** その日の支給額合計(基本給+深夜+残業+昼食補助+交通費、源泉徴収前) */
   total: number;
@@ -142,7 +146,7 @@ export async function loadDailyReport(
   let entriesQuery = supabase
     .from("work_entries")
     .select(
-      "employee_id, work_date, start_time, end_time, break_minutes, transport_cost, note, lunch_change_amount"
+      "employee_id, work_date, start_time, end_time, break_minutes, transport_cost, note, lunch_change_amount, lunch_change_reason_type, lunch_change_reason_note"
     )
     .gte("work_date", from)
     .lte("work_date", to)
@@ -241,6 +245,9 @@ export async function loadDailyReport(
           nightPay: 0,
           overtimePay: 0,
           lunch: 0,
+          lunchOverridden: false,
+          lunchReasonType: null,
+          lunchReasonNote: null,
           transport: e.transport_cost,
           total: 0,
           advance,
@@ -273,6 +280,9 @@ export async function loadDailyReport(
         nightPay,
         overtimePay,
         lunch,
+        lunchOverridden: e.lunch_change_amount != null,
+        lunchReasonType: e.lunch_change_amount != null ? e.lunch_change_reason_type : null,
+        lunchReasonNote: e.lunch_change_amount != null ? e.lunch_change_reason_note : null,
         transport: e.transport_cost,
         total,
         advance,

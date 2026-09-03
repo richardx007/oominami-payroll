@@ -1,7 +1,78 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { buildDailyReportCsv, setAdvancePayment } from "./actions";
+
+const LUNCH_REASON_LABELS: Record<string, string> = {
+  in_kind: "現物支給",
+  other: "その他",
+};
+
+/**
+ * 昼食補助が当日だけ上書きされている行に付ける⚠️マーク。
+ * タップで理由を吹き出し表示する(従業員・管理者どちらの画面でも同じ挙動)。
+ * 日別一覧表は横スクロールするテーブルの中にあるため、absolute ではなく
+ * position: fixed でクリック位置を起点に描画し、overflow-x-auto によるクリップを避ける。
+ */
+export function LunchReasonBadge({
+  reasonType,
+  reasonNote,
+}: {
+  reasonType: string | null;
+  reasonNote: string | null;
+}) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const label =
+    reasonType === "other"
+      ? reasonNote?.trim() || "その他"
+      : (reasonType && LUNCH_REASON_LABELS[reasonType]) || reasonType || "不明";
+
+  function toggle() {
+    if (pos) {
+      setPos(null);
+      return;
+    }
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 224;
+    const left = Math.min(
+      Math.max(8, rect.right - width),
+      window.innerWidth - width - 8
+    );
+    setPos({ top: rect.bottom + 6, left });
+  }
+
+  return (
+    <span className="inline-block print:hidden">
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        aria-label={`昼食補助が当日変更されています。理由: ${label}`}
+        className="ml-1 align-middle text-sm leading-none"
+      >
+        ⚠️
+      </button>
+      {pos && (
+        <>
+          {/* 外側タップで閉じるための透明な全画面オーバーレイ */}
+          <span
+            className="fixed inset-0 z-40"
+            onClick={() => setPos(null)}
+          />
+          <span
+            style={{ top: pos.top, left: pos.left, width: 224 }}
+            className="fixed z-50 whitespace-normal rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-left text-xs font-normal text-amber-900 shadow-lg"
+          >
+            当日の変更理由: {label}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
 
 // アイコンではなく文字(PDF / CSV)で見せるボタン。給与明細画面(admin/report/ui.tsx)の
 // textBtn とスタイルを揃えている。

@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { WEEKDAYS, adjacentPeriodKey, weekdayOf, type Period } from "@/lib/period";
 import type { DailyReport } from "@/lib/daily-report";
-import { AdvanceToggle, DailySummary, DownloadDailyCsvButton } from "./ui";
+import {
+  AdvanceToggle,
+  DailySummary,
+  DownloadDailyCsvButton,
+  LunchReasonBadge,
+} from "./ui";
 import { DownloadPdfButton } from "@/app/admin/report/ui";
 
 /**
@@ -316,6 +321,12 @@ export function DailyReportView({
                           </td>
                           <td className="px-3 py-2 text-right">
                             {yen(r.lunch)}
+                            {r.lunchOverridden && (
+                              <LunchReasonBadge
+                                reasonType={r.lunchReasonType}
+                                reasonNote={r.lunchReasonNote}
+                              />
+                            )}
                           </td>
                           <td className="px-3 py-2 text-right">
                             {yen(r.transport)}
