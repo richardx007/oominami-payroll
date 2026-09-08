@@ -1,9 +1,10 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
-import { adjacentPeriodKey, datesInPeriod } from "@/lib/period";
+import { adjacentPeriodKey, datesInPeriod, periodKeyForDate } from "@/lib/period";
 import { useSwipeNav } from "@/lib/useSwipeNav";
 import {
   SLOT_KEYS,
@@ -78,6 +79,29 @@ function LockIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+/**
+ * 「勤務表へジャンプ」を示すカレンダーアイコン(下部ナビの「勤務表」と同じ意匠)。
+ * 日別パネルで名前の左に置き、タップするとその従業員の勤務表(該当日を選択済み)へ飛べる
+ * ことを視覚的に示す。シフトが赤字=予実相違に気付いたとき、実績確認を1タップにするための導線。
+ */
+function TimesheetIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4.5" width="18" height="16" rx="2" />
+      <path d="M3 9h18M8 3v3M16 3v3" />
+    </svg>
+  );
+}
+
 /** ニックネームの表示区分(nicknameStyle)から className/文字色を組み立てる */
 function nicknameClass(style: NicknameStyle): string {
   if (style === "match") return "font-bold";
@@ -111,6 +135,8 @@ export function ShiftSchedule({
   canSwitchMode = false,
   setMode,
   editableEmployeeId = null,
+  timesheetBasePath,
+  timesheetSelfOnly = false,
 }: {
   period: Period;
   slots: Record<SlotKey, SlotDef>;
@@ -155,6 +181,16 @@ export function ShiftSchedule({
    *   当人同士で調整できるようにするため、隠すのは編集操作だけにする。
    */
   editableEmployeeId?: string | null;
+  /**
+   * 日別パネルの各行に「勤務表へジャンプ」アイコンを出す場合のリンク先ベース。
+   * 管理者画面 = "/admin/timesheet"、従業員画面 = "/timesheet"。未指定なら出さない。
+   */
+  timesheetBasePath?: string;
+  /**
+   * 勤務表ジャンプを「自分の行だけ」に限定する(従業員権限。他人の勤務実績は見られないため)。
+   * false なら全員の行にアイコンを出す(管理者)。
+   */
+  timesheetSelfOnly?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -195,6 +231,18 @@ export function ShiftSchedule({
     () => new Map(roster.map((m) => [m.id, m] as const)),
     [roster]
   );
+
+  /**
+   * その従業員・その日の勤務表(該当日を選択済み)へのリンク。
+   * timesheetBasePath 未指定、または「自分の行だけ」設定で他人の行のときは null。
+   */
+  function timesheetHref(employeeId: string, date: string): string | null {
+    if (!timesheetBasePath) return null;
+    if (timesheetSelfOnly && employeeId !== meId) return null;
+    const params = new URLSearchParams({ p: periodKeyForDate(date), d: date });
+    if (!timesheetSelfOnly) params.set("e", employeeId);
+    return `${timesheetBasePath}?${params.toString()}`;
+  }
 
   // 枠ボタンを押した瞬間にカレンダーへ反映するためのローカル状態(楽観的更新)。
   // サーバーの応答と再レンダーを待つと1秒ほど反応が遅れて見えるため、先に画面を
@@ -610,6 +658,7 @@ export function ShiftSchedule({
             editableEmployeeId={editableEmployeeId}
             lockedKeys={lockedKeys}
             meId={meId}
+            timesheetHref={timesheetHref}
             onAssign={runAssign}
             onLock={setLock ? runLock : undefined}
           />
@@ -689,6 +738,7 @@ function EditRow({
   locked = false,
   lockIsMine = false,
   onLock,
+  timesheetHref,
   onAssign,
 }: {
   member: RosterMember;
@@ -706,6 +756,8 @@ function EditRow({
   lockIsMine?: boolean;
   /** ロックの切替(本人の行のみ渡る。管理者には渡さない=解除できない) */
   onLock?: (workDate: string, locked: boolean) => void;
+  /** その従業員・その日の勤務表へのリンク。null なら名前をリンクにしない(他人の行を見られない従業員) */
+  timesheetHref?: string | null;
   onAssign: (
     employeeId: string,
     workDate: string,
@@ -747,12 +799,30 @@ function EditRow({
             color: nicknameColor(style),
           }}
         >
-          <span
-            className={`min-w-0 flex-1 truncate ${nicknameClass(style)}`}
-            title={m.name}
-          >
-            {displayName(m)}
-          </span>
+          {/* シフトが赤字(予実相違)のとき、名前タップでその人の勤務表(該当日を選択済み)へ
+              すぐ飛べるようにする。他人の勤務を見られない従業員には timesheetHref が渡らない。 */}
+          {timesheetHref ? (
+            <Link
+              href={timesheetHref}
+              title={`${m.name}の勤務表を見る`}
+              className="flex min-w-0 flex-1 items-center gap-1"
+            >
+              <TimesheetIcon className="h-4 w-4 shrink-0 opacity-70" />
+              <span
+                className={`min-w-0 flex-1 truncate ${nicknameClass(style)}`}
+                title={m.name}
+              >
+                {displayName(m)}
+              </span>
+            </Link>
+          ) : (
+            <span
+              className={`min-w-0 flex-1 truncate ${nicknameClass(style)}`}
+              title={m.name}
+            >
+              {displayName(m)}
+            </span>
+          )}
           {/* 本人の行は押せるトグル(オフ=薄いグレー / オン=オレンジ)。
               他の人の行は、ロック中のときだけ状態表示として出す(管理者は解除できないため) */}
           {onLock ? (
@@ -953,6 +1023,7 @@ function DayPanel({
   editableEmployeeId,
   lockedKeys,
   meId = null,
+  timesheetHref,
   onAssign,
   onLock,
 }: {
@@ -972,6 +1043,8 @@ function DayPanel({
   lockedKeys: Set<string>;
   /** 画面を見ている本人の従業員ID(ロックの色分けに使う: 自分=オレンジ / 他人=黒) */
   meId?: string | null;
+  /** その従業員・その日の勤務表へのリンク(条件を満たさなければ null) */
+  timesheetHref: (employeeId: string, date: string) => string | null;
   onAssign: (
     employeeId: string,
     workDate: string,
@@ -1001,6 +1074,7 @@ function DayPanel({
               const style = styleFor(m.id, date);
               const c = customByKey.get(`${m.id}|${date}`);
               const paren = customTimeParen(c?.start ?? null, c?.end ?? null);
+              const tsHref = timesheetHref(m.id, date);
               return (
                 <Fragment key={`${k}-${m.id}`}>
                   <span className="text-base font-bold text-gray-700 sm:text-lg">
@@ -1010,9 +1084,22 @@ function DayPanel({
                     className={`flex min-w-0 items-center gap-1 text-base sm:text-lg`}
                     style={{ color: nicknameColor(style) }}
                   >
-                    <span className={`truncate ${nicknameClass(style)}`}>
-                      {displayName(m)}
-                    </span>
+                    {tsHref ? (
+                      <Link
+                        href={tsHref}
+                        title={`${m.name}の勤務表を見る`}
+                        className="flex min-w-0 items-center gap-1 hover:underline"
+                      >
+                        <TimesheetIcon className="h-4 w-4 shrink-0 opacity-70" />
+                        <span className={`truncate ${nicknameClass(style)}`}>
+                          {displayName(m)}
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className={`truncate ${nicknameClass(style)}`}>
+                        {displayName(m)}
+                      </span>
+                    )}
                     {lockedKeys.has(`${m.id}|${date}`) && (
                       <span
                         title="本人が変更不可に設定しています"
@@ -1101,6 +1188,7 @@ function DayPanel({
                 lockIsMine={!!meId && m.id === meId}
                 // ロックを切り替えられるのは本人だけ(管理者には onLock を渡さない)
                 onLock={onLock && canEdit ? onLock : undefined}
+                timesheetHref={timesheetHref(m.id, date)}
                 onAssign={onAssign}
               />
             );

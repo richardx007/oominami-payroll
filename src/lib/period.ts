@@ -36,6 +36,25 @@ export function periodOf(year: number, month: number): Period {
   };
 }
 
+/**
+ * "YYYY-MM-DD" が属する給与期間(25日締め)のキー "YYYY-MM" を返す。
+ * 26日以降は翌月度に含める(例: 2026-08-28 → "2026-09")。
+ * シフト画面から勤務表へジャンプする際、対象日を含む月度を開くのに使う。
+ */
+export function periodKeyForDate(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  let year = y;
+  let month = m;
+  if (d > 25) {
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return `${year}-${pad(month)}`;
+}
+
 /** "YYYY-MM" 形式のキーから期間を返す(不正値は null) */
 export function periodFromKey(key: string): Period | null {
   const m = /^(\d{4})-(\d{2})$/.exec(key);

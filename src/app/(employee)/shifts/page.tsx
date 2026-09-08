@@ -44,6 +44,10 @@ export default async function EmployeeShiftsPage({
       holidays={holidays}
       today={todayJST()}
       basePath="/shifts"
+      // 日別パネルで自分の行にだけ「勤務表」アイコンを出す(他人の勤務実績は見られないため)。
+      // タップで自分の勤務表(その日を選択済み)へ飛べる。
+      timesheetBasePath="/timesheet"
+      timesheetSelfOnly
       mode={shiftData.mode}
       // 確定モードでも自分の行は出す(枠は押せないが「変更不可」の設定/解除はできる)。
       // 管理者はロックを外せない仕様のため、本人がいつでも外せないと解除手段が無くなる。

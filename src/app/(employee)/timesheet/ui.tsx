@@ -55,6 +55,7 @@ export function TimesheetCalendar({
   timeLocked = false,
   breakWindows = DEFAULT_BREAK_WINDOWS,
   lunchRates = [],
+  initialDate,
 }: {
   period: Period;
   entries: WorkEntry[];
@@ -81,9 +82,14 @@ export function TimesheetCalendar({
   selectedEmployeeId?: string;
   /** 従業員用: 固定表示する自分の氏名 */
   employeeName?: string;
+  /**
+   * 初期選択日("YYYY-MM-DD")。シフト画面から「勤務表」アイコンで飛んできたとき、
+   * その日の入力フォームを開いた状態で表示するのに使う(period 内の日付のみ有効)。
+   */
+  initialDate?: string;
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialDate ?? null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
 

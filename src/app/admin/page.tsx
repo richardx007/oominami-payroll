@@ -38,6 +38,8 @@ export default async function AdminHomePage({
         holidays={holidays}
         today={todayJST()}
         basePath="/admin"
+        // 日別パネルの各行に「勤務表」アイコンを出す。タップでその従業員の勤務表(該当日を選択済み)へ
+        timesheetBasePath="/admin/timesheet"
         editable
         meId={me.id}
         assign={assignShift}

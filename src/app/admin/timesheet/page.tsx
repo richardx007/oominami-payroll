@@ -11,11 +11,13 @@ import { adminUpsertWorkEntry, adminDeleteWorkEntry } from "./actions";
 export default async function AdminTimesheetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string; e?: string }>;
+  searchParams: Promise<{ p?: string; e?: string; d?: string }>;
 }) {
   await requireAdmin();
-  const { p, e } = await searchParams;
+  const { p, e, d } = await searchParams;
   const period = (p && periodFromKey(p)) || currentPeriod();
+  // シフト画面から飛んできたときの初期選択日(期間内のときだけ有効)
+  const initialDate = d && d >= period.start && d <= period.end ? d : undefined;
 
   const supabase = await createClient();
 
@@ -153,6 +155,7 @@ export default async function AdminTimesheetPage({
         shifts={shifts}
         breakWindows={breakWindows}
         lunchRates={lunchRates ?? []}
+        initialDate={initialDate}
       />
     </div>
   );

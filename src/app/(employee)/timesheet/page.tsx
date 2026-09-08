@@ -36,11 +36,13 @@ export type TransportHistory = {
 export default async function TimesheetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string }>;
+  searchParams: Promise<{ p?: string; d?: string }>;
 }) {
   const employee = await requireEmployee();
-  const { p } = await searchParams;
+  const { p, d } = await searchParams;
   const period = (p && periodFromKey(p)) || currentPeriod();
+  // シフト画面から飛んできたときの初期選択日(期間内のときだけ有効)
+  const initialDate = d && d >= period.start && d <= period.end ? d : undefined;
 
   const supabase = await createClient();
 
@@ -165,6 +167,7 @@ export default async function TimesheetPage({
       timeLocked={!!locked}
       breakWindows={breakWindows}
       lunchRates={lunchRates ?? []}
+      initialDate={initialDate}
     />
   );
 }
