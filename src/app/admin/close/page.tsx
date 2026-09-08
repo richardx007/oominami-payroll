@@ -43,6 +43,20 @@ export default async function ClosePage({
   const payrolls = await calculatePeriodPayroll(period, {
     ignoreIncomplete: tentative,
   });
+
+  // シフト予定と勤務実績で時刻が食い違う日がある従業員を洗い出す(勤務表画面と同じ突合)。
+  // timediff=時刻相違 / unplanned=予定なしで勤務。該当者の勤務時間欄に⚠️を出し、
+  // タップで勤務表(該当従業員を選択)へ飛べるようにする。
+  const { data: shiftStatusRows } = await supabase.rpc("get_shift_status", {
+    p_start: period.start,
+    p_end: period.end,
+  });
+  const mismatchIds = new Set<string>(
+    ((shiftStatusRows ?? []) as { employee_id: string; status: string }[])
+      .filter((r) => r.status === "timediff" || r.status === "unplanned")
+      .map((r) => r.employee_id)
+  );
+  const anyMismatch = payrolls.some((p) => mismatchIds.has(p.employee_id));
   // 未締め(=金額が未確定)は表をイエロー系にする。
   // 配色の意味づけは「確定=グリーン系 / 未確定=イエロー系 / それ以外=ブルー系」で統一しており、
   // イエローはシフト表の「調整中」モード(bg-yellow-200)と同じ色に揃えている。
@@ -149,9 +163,12 @@ export default async function ClosePage({
             </dl>
           </div>
         </div>
-        <p className="px-4 pt-2 text-right text-xs text-gray-500">
-          *印は課税対象外
-        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 pt-2 text-xs text-gray-500">
+          {anyMismatch && (
+            <span className="text-amber-600">⚠️：勤務予定と不一致あり</span>
+          )}
+          <span className="ml-auto">*印は課税対象外</span>
+        </div>
         <div className="overflow-x-auto print-report">
           <table className="w-full text-sm">
             <thead>
@@ -217,7 +234,7 @@ export default async function ClosePage({
                             {result.excluded_dates
                               .map((d) => d.slice(5).replace("-", "/"))
                               .join("・")}
-                            は退勤未入力のため除外
+                            は未確定
                           </span>
                         )}
                       </td>
@@ -227,6 +244,18 @@ export default async function ClosePage({
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       {hhmm(b.total_minutes)}
+                      {/* シフト予定と時刻が食い違う日がある従業員は⚠️。
+                          タップで勤務表(該当従業員を選択)へ飛び、どの日が不一致か確認できる。 */}
+                      {i === 0 && mismatchIds.has(p.employee_id) && (
+                        <Link
+                          href={`/admin/timesheet?e=${p.employee_id}&p=${period.key}`}
+                          title="勤務予定と実績が一致しない日があります。タップして勤務表で確認"
+                          aria-label="勤務予定と不一致あり。勤務表で確認"
+                          className="ml-1 align-middle"
+                        >
+                          ⚠️
+                        </Link>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       {b.night_minutes > 0 ? hhmm(b.night_minutes) : "―"}
