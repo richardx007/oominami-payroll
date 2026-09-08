@@ -47,13 +47,24 @@ export default async function ClosePage({
   // シフト予定と勤務実績で時刻が食い違う日がある従業員を洗い出す(勤務表画面と同じ突合)。
   // timediff=時刻相違 / unplanned=予定なしで勤務。該当者の勤務時間欄に⚠️を出し、
   // タップで勤務表(該当従業員を選択)へ飛べるようにする。
+  // ※ 退勤未入力(actual_end が null)の日は「未確定」であり、まだ相違とは言えないので除外する。
   const { data: shiftStatusRows } = await supabase.rpc("get_shift_status", {
     p_start: period.start,
     p_end: period.end,
   });
   const mismatchIds = new Set<string>(
-    ((shiftStatusRows ?? []) as { employee_id: string; status: string }[])
-      .filter((r) => r.status === "timediff" || r.status === "unplanned")
+    (
+      (shiftStatusRows ?? []) as {
+        employee_id: string;
+        status: string;
+        actual_end: string | null;
+      }[]
+    )
+      .filter(
+        (r) =>
+          (r.status === "timediff" || r.status === "unplanned") &&
+          !!r.actual_end
+      )
       .map((r) => r.employee_id)
   );
   const anyMismatch = payrolls.some((p) => mismatchIds.has(p.employee_id));
@@ -243,19 +254,19 @@ export default async function ClosePage({
                       {b.work_days}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
-                      {hhmm(b.total_minutes)}
-                      {/* シフト予定と時刻が食い違う日がある従業員は⚠️。
+                      {/* シフト予定と時刻が食い違う日がある従業員は勤務時間の左に⚠️。
                           タップで勤務表(該当従業員を選択)へ飛び、どの日が不一致か確認できる。 */}
                       {i === 0 && mismatchIds.has(p.employee_id) && (
                         <Link
                           href={`/admin/timesheet?e=${p.employee_id}&p=${period.key}`}
                           title="勤務予定と実績が一致しない日があります。タップして勤務表で確認"
                           aria-label="勤務予定と不一致あり。勤務表で確認"
-                          className="ml-1 align-middle"
+                          className="mr-1 align-middle"
                         >
                           ⚠️
                         </Link>
                       )}
+                      {hhmm(b.total_minutes)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       {b.night_minutes > 0 ? hhmm(b.night_minutes) : "―"}
