@@ -1697,7 +1697,8 @@ foreign key (employee_id, work_date)
   **同日中にトグルを廃止**し、`admin/close/page.tsx`で`status==="open"`の間は**常に**
   `ignoreIncomplete: true`で計算するよう変更した（`tentative = status==="open"`のみで判定）。
   見出しは常に「給与計算プレビュー」のまま（締め済み以降は「確定明細」）。除外があった従業員は
-  氏名の下に除外した日付を小さく注記する（`退勤未入力のため除外`）。締め済み・支払済みの期間は
+  氏名の下に除外した日付を小さく注記する（文言は `mm/ddは未確定`。当初は `退勤未入力のため除外` だったが
+  2026-09-08に短縮。§19.2参照）。締め済み・支払済みの期間は
   従来どおり厳密な計算のまま（全日入力済みのはずのため）。
 - **課税対象額列を追加（同日、オーナー依頼）**: 「総支給」列の直後（＝「所得税」列の直前）に
   「課税対象額」（交通費を除いた額。`PayslipResult.taxable_amount`は既存フィールドでそのまま使える）
@@ -2186,3 +2187,25 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
   `rowSpan`で人単位1つにまとめる（先頭行にのみ`rowSpan`付きで出力し、以降の行では出さない）。
 - `payroll.test.ts`に月度途中で時給が変わるケースのテストを追加。
 - 実装ファイル: `src/lib/payroll.ts` / `src/app/admin/close/page.tsx` / `src/lib/payroll.test.ts`。
+
+---
+
+## 19. シフト予定と実績の突き合わせ導線（2026-09-08追加）
+
+シフトが赤字（予実相違）になっているのに気付いたとき、その従業員の勤務実績を最短の操作で確認できるようにする導線を2か所に追加した。
+
+### 19.1 シフト日別パネルから勤務表へジャンプ
+
+- シフト画面（`ShiftSchedule` の日別パネル）で、日を選ぶと出る従業員一覧の**各行の氏名の左に「勤務表」アイコン**（下部ナビの勤務表と同じカレンダー意匠）を表示。氏名タップでその従業員の勤務表へ遷移し、**シフトで見ていた日を選択済み**（入力フォームを開いた状態）にする。
+- **権限による出し分け**: 管理者画面（`/admin`）は全員の行にアイコンを出し `/admin/timesheet?e=<従業員>&p=<月度>&d=<日>` へ。従業員画面（`/shifts`）は**自分の行だけ**（他人の勤務実績は見られないため）で `/timesheet?p=<月度>&d=<日>` へ。`ShiftSchedule` に `timesheetBasePath` / `timesheetSelfOnly` の2 props を追加し、各ページから渡し分ける（Server→Client 境界には文字列・真偽値だけを渡し、行ごとのリンク生成は Client 側の `timesheetHref()` で行う）。
+- **日→月度キーの変換**: `lib/period.ts` に `periodKeyForDate(date)` を追加（前月26日〜当月25日の給与期間キー。26日以降は翌月度）。シフトが暦月始まり表示でも、日付そのものは一意に月度へ写せる。
+- **勤務表側**: `TimesheetCalendar` に `initialDate?: string` を追加し `useState` の初期選択日に使う（`page.tsx` 側で `d` が期間内のときだけ渡す）。管理者用・従業員用の両 timesheet ページ対応。
+- 実装ファイル: `src/lib/period.ts`（+ `src/lib/period.test.ts`）/ `src/app/admin/shifts/ShiftSchedule.tsx` / `src/app/admin/page.tsx` / `src/app/(employee)/shifts/page.tsx` / `src/app/(employee)/timesheet/{page,ui}.tsx` / `src/app/admin/timesheet/page.tsx`。
+
+### 19.2 給与計算プレビューのシフト予実不一致マーク
+
+- `admin/close/page.tsx` で `get_shift_status(period.start, period.end)` を追加取得し、`status` が **`timediff`（時刻相違）または `unplanned`（予定なしで勤務）** の日がある従業員を集合化。ただし**退勤未入力（`actual_end` が null＝「未確定」）の日は相違とはみなさず除外**する（未確定の日はまだ相違が確定していないため。松浦さんのように不一致が未確定日のみの人はマークが外れる）。
+- 該当従業員は**「勤務時間」列の値の左に⚠️**を表示し、タップで `/admin/timesheet?e=<従業員>&p=<月度>` へ（その従業員を選択した状態。どの日が不一致かは勤務表の予実一覧で確認する）。
+- 不一致がある月は表の左上に凡例「⚠️：勤務予定と不一致あり」を出す（既存の右肩「*印は課税対象外」はそのまま）。
+- あわせて、氏名の下の未確定日の注記の文言を「`mm/ddは退勤未入力のため除外`」→「`mm/ddは未確定`」に変更（§11.7）。
+- 実装ファイル: `src/app/admin/close/page.tsx`。
