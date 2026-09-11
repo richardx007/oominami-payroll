@@ -8,12 +8,10 @@
  *
  * @param sectionSelector 指定すると、ページ分割時にこのセレクタに一致する要素の
  *   「内部」では改ページしないようにする(el の子孫に対する querySelectorAll)。
- * @param orientation 用紙の向き。既定は横向き(一覧表向け)。従業員1人分の給与明細書のような
- *   縦長の帳票は "portrait" を渡す(admin/close/payslip-pdf.tsx)。
  */
 export async function captureElementToPdfBlob(
   el: HTMLElement,
-  opts?: { sectionSelector?: string; orientation?: "portrait" | "landscape" }
+  opts?: { sectionSelector?: string }
 ): Promise<Blob> {
   // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと。
   // Tailwind v4 の標準カラーは oklch() で出力されるが、本家は oklch を解釈できず
@@ -48,11 +46,14 @@ export async function captureElementToPdfBlob(
     useCORS: true,
   });
 
-  const orientation = opts?.orientation ?? "landscape";
-  const pdf = new jsPDF({ unit: "mm", format: "a4", orientation });
+  const pdf = new jsPDF({
+    unit: "mm",
+    format: "a4",
+    orientation: "landscape",
+  });
   const margin = 8;
-  const pageW = orientation === "portrait" ? 210 : 297;
-  const pageH = orientation === "portrait" ? 297 : 210;
+  const pageW = 297;
+  const pageH = 210;
   const imgW = pageW - margin * 2;
   // 画像の実寸(mm)。1mmあたりのピクセル数を出して、ページ高さで切り分ける
   const pxPerMm = canvas.width / imgW;
@@ -94,6 +95,80 @@ export async function captureElementToPdfBlob(
     );
     firstPage = false;
     y = end;
+  }
+
+  return pdf.output("blob");
+}
+
+/**
+ * 自己完結したCSS(インラインの `<style>`)だけで組んだA4縦の帳票シートをPDFにする。
+ * 給与明細書(`admin/close/payslip-pdf.tsx`)が使う。
+ *
+ * 上の `captureElementToPdfBlob` との違いと、その理由:
+ *
+ * 1. ⚠️ **本家 `html2canvas` を使う**(`html2canvas-pro` に変えないこと)。
+ *    pro(v2) は mm 指定のレイアウトを崩す実績がある(QRシートで発生。clock.tsx のコメント参照)。
+ *    この帳票は `PAYSLIP_SHEET_CSS` の16進数色のみで `oklch` を含まないため本家で問題ない。
+ * 2. **画像は用紙いっぱい(0,0,210,…)に貼る**。余白はシート側の padding で作るので、
+ *    CSSに書いた mm がそのまま印刷寸法になる(印の 16.5mm / 18mm 指定が効くのはこのため)。
+ * 3. ⚠️ **JPEGで埋め込む**。PNGを渡すと jsPDF が展開して無圧縮で埋め込むため、
+ *    A4 1枚で 9MB を超える(2026-09-11に実測。メール・LINEでの共有に耐えない)。
+ *    JPEG(0.95)なら 1MB 未満で、この解像度では文字・罫線は崩れない。
+ */
+export async function captureSheetToPdfBlob(el: HTMLElement): Promise<Blob> {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+
+  // レイアウト反映を待ってから撮る
+  await new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve))
+  );
+
+  const canvas = await html2canvas(el, {
+    scale: 3,
+    backgroundColor: "#ffffff",
+    useCORS: true,
+  });
+
+  const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  const pageW = 210;
+  const pageH = 297;
+  const pxPerMm = canvas.width / pageW;
+  const sliceHpx = Math.floor(pageH * pxPerMm);
+
+  // ⚠️ 1mm未満の端数は切り捨てて次のページを作らない。
+  // シートは min-height:297mm ちょうどで作るが、mm→px→キャンバス(scale倍)の丸めで
+  // 数pxだけはみ出ることがあり、素直に `y < canvas.height` で回すと
+  // **真っ白な2ページ目**が付く(2026-09-11に実測。切れて困る内容はこの数px には無い)。
+  const epsilon = Math.ceil(pxPerMm);
+
+  let y = 0;
+  let firstPage = true;
+  while (y < canvas.height - epsilon) {
+    const h = Math.min(sliceHpx, canvas.height - y);
+    const slice = document.createElement("canvas");
+    slice.width = canvas.width;
+    slice.height = h;
+    const ctx = slice.getContext("2d");
+    if (!ctx) throw new Error("canvas context を取得できませんでした");
+    // 余白が透明にならないよう白で塗ってから貼る
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, slice.width, slice.height);
+    ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+
+    if (!firstPage) pdf.addPage();
+    pdf.addImage(
+      slice.toDataURL("image/jpeg", 0.95),
+      "JPEG",
+      0,
+      0,
+      pageW,
+      h / pxPerMm
+    );
+    firstPage = false;
+    y += h;
   }
 
   return pdf.output("blob");

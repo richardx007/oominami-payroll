@@ -56,6 +56,7 @@ export default async function SettingsPage() {
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
       />
       <TestSendForm defaultEmail={admin.email} />
+      <PayslipIssuerForm issuer={issuer} />
       <ShiftSlotsForm
         slots={slots}
         monthStart={settingsMap.get("shift_month_start") === "1"}
@@ -72,7 +73,6 @@ export default async function SettingsPage() {
         policy={settingsMap.get("clock_out_of_range") ?? "warn"}
         roundMin={settingsMap.get("clock_round_min") ?? "0"}
       />
-      <PayslipIssuerForm issuer={issuer} />
       <WorkRulesForm
         currentFilename={settingsMap.get("work_rules_filename") ?? null}
         previewUrl={workRulesPreviewUrl}

@@ -15,10 +15,18 @@ export const PAYSLIP_ISSUER_KEYS = [
   "payslip_payer_line2",
   "payslip_seal_data_url",
   "payslip_seal_filename",
+  "payslip_seal_size_mm",
 ] as const;
 
 /** 印の画像として受け付ける種別・サイズ上限(data URL にすると約1.34倍に膨らむ) */
 export const SEAL_ALLOWED_TYPES = ["image/png", "image/jpeg"];
+
+/** 印の印字サイズ(mm)。実際のはんこの規格に合わせた2択 */
+export const SEAL_SIZES = [
+  { mm: 16.5, label: "16.5mm(認印)" },
+  { mm: 18, label: "18mm(社印)" },
+] as const;
+export const DEFAULT_SEAL_SIZE_MM = 16.5;
 export const SEAL_MAX_SIZE = 150 * 1024; // 150KB(印は小さな画像。設定画面・給与明細画面の
 // 転送量に直接乗るため、余裕を見つつ小さめに抑える)
 
@@ -31,6 +39,8 @@ export type PayslipIssuer = {
   sealDataUrl: string | null;
   /** 印としてアップロードされた元のファイル名(設定画面の表示用)。未登録なら null */
   sealFilename: string | null;
+  /** PDFに印字する印の一辺(mm)。16.5=認印 / 18=社印 */
+  sealSizeMm: number;
 };
 
 /** app_settings の (key, value) 行から支払元設定を取り出す */
@@ -43,5 +53,12 @@ export function parsePayslipIssuer(
     line2: map.get("payslip_payer_line2") ?? "",
     sealDataUrl: map.get("payslip_seal_data_url") || null,
     sealFilename: map.get("payslip_seal_filename") || null,
+    sealSizeMm: normalizeSealSizeMm(map.get("payslip_seal_size_mm")),
   };
+}
+
+/** 保存値を許可された印サイズに丸める(未設定・不正値は既定の16.5mm) */
+export function normalizeSealSizeMm(value: string | undefined | null): number {
+  const n = Number(value);
+  return SEAL_SIZES.some((s) => s.mm === n) ? n : DEFAULT_SEAL_SIZE_MM;
 }

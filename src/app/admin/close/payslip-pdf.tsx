@@ -2,9 +2,10 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { captureElementToPdfBlob } from "@/lib/pdf-capture";
+import { captureSheetToPdfBlob } from "@/lib/pdf-capture";
 import { formatMinutes } from "@/lib/period";
 import type { PayslipIssuer } from "@/lib/payslip-issuer";
+import { PAYSLIP_SHEET_CSS } from "@/lib/payslip-sheet-css";
 import type { PayslipResult } from "@/lib/payroll";
 
 /** 従業員1人分の給与明細PDFに必要なデータ(サーバーコンポーネントから受け取る) */
@@ -25,10 +26,6 @@ export type PayslipPdfData = {
 
 const yen = (n: number) => `¥${n.toLocaleString()}`;
 const slash = (d: string) => d.replaceAll("-", "/");
-
-/** 明細書の原寸幅(px)と、A4縦の比率で決まる最低高さ。プレビューはこれを縮小して見せる */
-const SHEET_W = 760;
-const SHEET_MIN_H = Math.round((SHEET_W * 297) / 210);
 
 /**
  * この端末がPDFファイルの共有(OSの共有シート)に対応しているか。
@@ -144,9 +141,7 @@ function PayslipPdfDialog({
             img.decode().catch(() => undefined)
           )
         );
-        const made = await captureElementToPdfBlob(el, {
-          orientation: "portrait",
-        });
+        const made = await captureSheetToPdfBlob(el);
         if (alive) setBlob(made);
       } catch (e) {
         // 原因を追えるよう、握りつぶさずエラー内容も出す
@@ -190,6 +185,21 @@ function PayslipPdfDialog({
   // ダイアログは body 直下に出す。表(overflow-x:auto の枠)の中に置いたままだと、
   // 祖先に transform 等が付いたときに position:fixed の基準がずれて隠れうるため
   return createPortal(
+    <>
+      {/* ⚠️ 明細書のCSSはここで**インラインの <style> として**入れる。
+          html2canvas はクローンした文書に描き直すため、Tailwind のような外部スタイルシート
+          頼みだとクローン側でCSSが当たらない環境がある(実際に発生。payslip-sheet-css.ts 参照)。
+          インラインならクローンにもそのまま複製されるので確実に当たる。 */}
+      <style>{PAYSLIP_SHEET_CSS}</style>
+
+      {/* PDFに撮るノード。プレビューとは別に**原寸(210mm)のまま**画面外に置く。
+          ダイアログの中(Tailwindで色を付けた枠の中)には入れないこと ―
+          本家 html2canvas は oklch を解釈できないため、撮る対象の周りに
+          Tailwind の色を持ち込まない。 */}
+      <div ref={captureRef} aria-hidden="true" className="pslip-capture">
+        <PayslipSheet data={data} issuer={issuer} />
+      </div>
+
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
@@ -215,9 +225,8 @@ function PayslipPdfDialog({
           >
             <div
               ref={innerRef}
+              className="w-max"
               style={{
-                width: SHEET_W,
-                minHeight: SHEET_MIN_H,
                 transform: `scale(${scale})`,
                 transformOrigin: "top left",
               }}
@@ -262,23 +271,15 @@ function PayslipPdfDialog({
         </div>
       </div>
 
-      {/* PDFに撮るノード。プレビューとは別に**原寸のまま**画面外に置く
-          (一覧表のPDF = globals.css の .pdf-capture-target と同じ方式)。
-          display:none だとレイアウトされずキャプチャできないので、必ず画面外配置にすること。 */}
-      <div
-        ref={captureRef}
-        aria-hidden="true"
-        className="pointer-events-none fixed left-[-10000px] top-0 -z-10 bg-white"
-        style={{ width: SHEET_W, minHeight: SHEET_MIN_H }}
-      >
-        <PayslipSheet data={data} issuer={issuer} />
-      </div>
-    </div>,
+    </div>
+    </>,
     document.body
   );
 }
 
-/** 給与明細書(A4縦)の中身。プレビューとPDFキャプチャの両方で同じものを使う */
+/** 給与明細書(A4縦)の中身。プレビューとPDFキャプチャの両方で同じものを使う。
+ *  ⚠️ スタイルは Tailwind ではなく PAYSLIP_SHEET_CSS の `pslip-*` クラスだけで当てること
+ *  (理由は payslip-sheet-css.ts の先頭コメント)。 */
 function PayslipSheet({
   data,
   issuer,
@@ -289,38 +290,43 @@ function PayslipSheet({
   const r = data.result;
 
   return (
-    <div className="px-10 py-8 text-[13px] leading-relaxed text-gray-900">
+    <div className="pslip-sheet">
       {/* 見出しと支払元。支払元(2行)と印は要望どおり右上に置く */}
-      <div className="flex items-start justify-between gap-6">
+      <div className="pslip-head">
         <div>
-          <h1 className="text-2xl font-bold tracking-widest">給与明細書</h1>
-          <p className="mt-1 text-sm text-gray-600">{data.periodLabel}</p>
+          <h1 className="pslip-title">給与明細書</h1>
+          <p className="pslip-period">{data.periodLabel}</p>
         </div>
-        <div className="flex items-start gap-3">
-          <div className="text-right text-sm">
+        <div className="pslip-issuer">
+          <div className="pslip-issuer-lines">
             <div>{issuer.line1}</div>
             <div>{issuer.line2}</div>
           </div>
           {issuer.sealDataUrl && (
-            // 印。data URL なので外部読み込み(CORS)は発生しない
+            // 印。data URL なので外部読み込み(CORS)は発生しない。
+            // 寸法は設定画面で選んだ mm をそのまま指定する(16.5mm=認印 / 18mm=社印)
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={issuer.sealDataUrl}
               alt="印"
-              className="h-16 w-16 object-contain"
+              className="pslip-seal"
+              style={{
+                width: `${issuer.sealSizeMm}mm`,
+                height: `${issuer.sealSizeMm}mm`,
+              }}
             />
           )}
         </div>
       </div>
 
-      <div className="mt-6 border-b border-gray-300 pb-3">
-        <div className="text-lg font-bold">{data.name} 様</div>
-        <div className="mt-1 text-xs text-gray-600">
+      <div className="pslip-to">
+        <div className="pslip-to-name">{data.name} 様</div>
+        <div className="pslip-to-sub">
           対象期間 {slash(data.start)} 〜 {slash(data.end)}　／　支払日{" "}
           {slash(data.paymentDate)}
         </div>
         {data.draft && (
-          <div className="mt-1 text-xs text-amber-700">
+          <div className="pslip-draft">
             ※ この明細は締め前の計算結果です(確定額ではありません)
           </div>
         )}
@@ -385,22 +391,18 @@ function PayslipSheet({
         />
       )}
 
-      <div className="mt-4 flex items-baseline justify-between border-t-2 border-gray-800 pt-3">
-        <span className="text-base font-bold">差引支給額</span>
-        <span className="text-2xl font-bold tabular-nums">{yen(r.net_pay)}</span>
+      <div className="pslip-total">
+        <span className="pslip-total-label">差引支給額</span>
+        <span className="pslip-total-value">{yen(r.net_pay)}</span>
       </div>
 
-      <p className="mt-6 text-[11px] text-gray-500">* 交通費は課税対象外です。</p>
+      <p className="pslip-note">* 交通費は課税対象外です。</p>
     </div>
   );
 }
 
 function SheetSection({ title }: { title: string }) {
-  return (
-    <div className="mt-5 border-b border-gray-300 pb-1 text-xs font-bold tracking-widest text-gray-600">
-      {title}
-    </div>
-  );
+  return <div className="pslip-section">{title}</div>;
 }
 
 function SheetRow({
@@ -413,13 +415,9 @@ function SheetRow({
   bold?: boolean;
 }) {
   return (
-    <div
-      className={`flex items-baseline justify-between border-b border-gray-100 py-1.5 ${
-        bold ? "font-bold" : ""
-      }`}
-    >
-      <span className="text-gray-700">{label}</span>
-      <span className="tabular-nums">{value}</span>
+    <div className={`pslip-row${bold ? " pslip-row--bold" : ""}`}>
+      <span className="pslip-row-label">{label}</span>
+      <span className="pslip-row-value">{value}</span>
     </div>
   );
 }

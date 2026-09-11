@@ -6,7 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/log";
 import { normalizeSlotTime } from "@/lib/shifts";
-import { SEAL_ALLOWED_TYPES, SEAL_MAX_SIZE } from "@/lib/payslip-issuer";
+import {
+  normalizeSealSizeMm,
+  SEAL_ALLOWED_TYPES,
+  SEAL_MAX_SIZE,
+} from "@/lib/payslip-issuer";
 import type { ActionResult } from "../employees/actions";
 
 const emailSettingsSchema = z.object({
@@ -458,6 +462,8 @@ export async function uploadWorkRules(formData: FormData): Promise<ActionResult>
 const payslipIssuerSchema = z.object({
   payslip_payer_line1: z.string().max(100),
   payslip_payer_line2: z.string().max(100),
+  /** 印の印字サイズ(mm)。許可値以外は normalizeSealSizeMm が既定値に丸める */
+  payslip_seal_size_mm: z.string().optional(),
   // 「印を削除する」チェックボックス。チェック時のみ "on" が送られる
   remove_seal: z.string().optional(),
 });
@@ -476,6 +482,7 @@ export async function updatePayslipIssuer(
   const parsed = payslipIssuerSchema.safeParse({
     payslip_payer_line1: formData.get("payslip_payer_line1") ?? "",
     payslip_payer_line2: formData.get("payslip_payer_line2") ?? "",
+    payslip_seal_size_mm: formData.get("payslip_seal_size_mm") ?? undefined,
     remove_seal: formData.get("remove_seal") ?? undefined,
   });
   if (!parsed.success) {
@@ -486,6 +493,10 @@ export async function updatePayslipIssuer(
   const rows: { key: string; value: string }[] = [
     { key: "payslip_payer_line1", value: d.payslip_payer_line1.trim() },
     { key: "payslip_payer_line2", value: d.payslip_payer_line2.trim() },
+    {
+      key: "payslip_seal_size_mm",
+      value: String(normalizeSealSizeMm(d.payslip_seal_size_mm)),
+    },
   ];
 
   const seal = formData.get("seal");

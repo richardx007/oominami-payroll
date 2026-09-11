@@ -2244,15 +2244,31 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
 - ダイアログは `createPortal` で **body 直下**に出す。表（`overflow-x:auto` の枠）の中に置いたままだと、
   祖先に `transform` 等が付いたときに `position:fixed` の基準がずれて隠れうるため。
 
-### 20.3 PDFの作り方
+### 20.3 PDFの作り方（🔴 2026-09-11 に方式を変更。理由は下記）
 
-- キャプチャ対象は**画面外**（`fixed; left:-10000px`）に原寸で置いた明細書専用のDOM（`PayslipSheet`）。
-  `captureElementToPdfBlob(el, { orientation: "portrait" })` でキャプチャする。ダイアログを開くまで
-  DOMを作らないので、従業員が何人いても通常時の画面は重くならない。
-- `captureElementToPdfBlob`（`src/lib/pdf-capture.ts`）に `orientation` オプションを追加した（既定は従来どおり
-  横向き＝一覧表用。個別明細は縦向き）。ページ分割ロジックは一覧表と共通。
-- ⚠️ キャプチャは **`html2canvas-pro`**（`captureElementToPdfBlob` 内で使用）。Tailwind v4 の `oklch` を
-  本家 `html2canvas` は解釈できず失敗する。
+- キャプチャ対象は**画面外**（`.pslip-capture` = `fixed; left:-10000px`）に原寸（210mm幅）で置いた
+  明細書専用のDOM（`PayslipSheet`）。`captureSheetToPdfBlob(el)`（`src/lib/pdf-capture.ts`）で撮る。
+  ダイアログを開くまでDOMを作らないので、従業員が何人いても通常時の画面は重くならない。
+- 🔴 **明細書のCSSは Tailwind を使わず、`PAYSLIP_SHEET_CSS`（`src/lib/payslip-sheet-css.ts`）に
+  書いた素のCSSをインラインの `<style>` として取り込み対象のすぐ隣に置く。**
+  html2canvas は対象をクローンした文書に描き直すため、**Tailwind のような外部スタイルシート頼みだと
+  クローン側でCSSが当たらない環境がある**。2026-09-11にオーナー環境で実際に発生し、
+  フォント・枠線・右揃え・印のサイズ指定がすべて消えた「ブラウザ既定のスタイルだけのPDF」が
+  出力された（ヘッドレスChromiumでは再現せず、ブラウザ差がある）。インラインの `<style>` は
+  クローンにそのまま複製されるため、ネットワーク取得なしで確実に当たる。
+  biz-management の請求書（`DocActions.tsx` の `DOC_CSS`）と同じ考え方。
+- ⚠️ この帳票は **本家 `html2canvas`** を使う（`html2canvas-pro` にしないこと）。pro(v2) は mm 指定の
+  レイアウトを崩す実績がある（QRシートで発生。`clock.tsx` のコメント参照）。`PAYSLIP_SHEET_CSS` は
+  16進数の色だけで `oklch` を含まないので本家で問題ない。
+  （一覧表のPDF＝`captureElementToPdfBlob` は Tailwind の oklch を含むので引き続き pro。用途で使い分ける。）
+- **寸法はすべて mm で書く。** シートを 210mm 幅で作り、PDFには用紙いっぱい（`addImage(...,0,0,210,…)`）に
+  貼るので、CSSの mm がそのまま印刷寸法になる。余白はシート側の padding（14mm）で作る。
+  印の 16.5mm / 18mm 指定が正確に効くのはこのため。
+- ⚠️ **JPEG（0.95）で埋め込む。** PNG を渡すと jsPDF が展開して無圧縮で埋め込むため、
+  A4 1枚で **9.4MB** になった（2026-09-11実測。メール・LINEでの共有に耐えない）。JPEGなら約0.3MB。
+- ⚠️ **ページ分割は1mm未満の端数を切り捨てる**（`epsilon = Math.ceil(pxPerMm)`）。シートは
+  `min-height:297mm` ちょうどで作るが、mm→px→キャンバス（scale倍）の丸めで数pxはみ出ることがあり、
+  素直に `y < canvas.height` で回すと**真っ白な2ページ目**が付く（2026-09-11実測）。
 - 印の画像（data URL）は `<img>` の読み込み完了（`img.decode()`）を待ってからキャプチャする。待たないと
   印が抜けたPDFになる。
 
@@ -2267,11 +2283,16 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
 
 ### 20.5 支払元・印の登録（設定画面）
 
-- 設定画面（`/admin/settings`）に **「給与明細PDF（支払元・印）」** セクションを追加。支払元1行目・2行目の
-  テキストと、印の画像（png/jpg・150KBまで）をアップロードできる。「印を削除する」チェックで消せる。
-  ファイルを選ばずに保存した場合は現在の印を維持する。
+- 設定画面（`/admin/settings`）の **「テスト送信」の直下** に **「給与明細PDF（支払元・印）」** セクションを
+  置いている（2026-09-11、オーナー依頼で「メール設定＋テスト送信」の並びの直後へ移動）。支払元1行目・
+  2行目のテキストと、印の画像（png/jpg・150KBまで）をアップロードできる。「印を削除する」チェックで
+  消せる。ファイルを選ばずに保存した場合は現在の印を維持する。
+- **印の印字サイズ**を `16.5mm（認印）` / `18mm（社印）` のラジオで選べる（`SEAL_SIZES`）。選んだ mm が
+  `PayslipSheet` の `<img>` に `width/height` として入り、そのままPDFの実寸になる（§20.3 の「寸法は mm」）。
+- ファイル選択は Tailwind の `file:` ユーティリティで枠を付け、ボタンと分かるようにしている
+  （`fileInputClass`）。勤務ルールのアップロード欄は従来のまま。
 - 保存先は `app_settings`（キー: `payslip_payer_line1` / `payslip_payer_line2` / `payslip_seal_data_url` /
-  `payslip_seal_filename`）。**マイグレーション不要**（既存のキー・バリュー表）。
+  `payslip_seal_filename` / `payslip_seal_size_mm`）。**マイグレーション不要**（既存のキー・バリュー表）。
 - ⚠️ **印は Storage ではなく data URL のまま `app_settings` に持つ**。PDFは html2canvas で DOM を画像化して
   作るため、外部URLの画像だと CORS・署名付きURLの期限といった失敗要因が増える。data URL なら
   サーバーコンポーネントが渡した文字列をそのまま `<img>` に載せるだけで確実に写る。代わりに

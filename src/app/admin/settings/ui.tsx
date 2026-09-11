@@ -12,11 +12,15 @@ import {
 import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
 import type { SlotDef, SlotKey } from "@/lib/shifts";
 import { minutesToHHMM, type BreakWindow } from "@/lib/breaks";
-import type { PayslipIssuer } from "@/lib/payslip-issuer";
+import { SEAL_SIZES, type PayslipIssuer } from "@/lib/payslip-issuer";
 import type { ActionResult } from "../employees/actions";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+/** ファイル選択。ブラウザ既定の「ファイルを選択」はボタンに見えないので枠を付ける */
+const fileInputClass =
+  "text-sm text-gray-600 file:mr-3 file:cursor-pointer file:rounded-lg file:border file:border-gray-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50";
 
 /** シフト枠(A/B/C)のラベル・時刻を編集するフォーム */
 export function ShiftSlotsForm({
@@ -539,7 +543,7 @@ export function PayslipIssuerForm({ issuer }: { issuer: PayslipIssuer }) {
               type="file"
               name="seal"
               accept="image/png,image/jpeg"
-              className="text-sm"
+              className={fileInputClass}
             />
             {issuer.sealDataUrl && (
               // 登録済みの印。背景が白い画像でも分かるよう枠を付けて出す
@@ -556,6 +560,28 @@ export function PayslipIssuerForm({ issuer }: { issuer: PayslipIssuer }) {
               ? `現在の登録: ${issuer.sealFilename}(ファイルを選ばなければそのまま）`
               : "背景が透明のpngだと明細に自然に重なります"}
           </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            印の印字サイズ(PDFに出す実寸)
+          </label>
+          <div className="flex flex-wrap gap-4">
+            {SEAL_SIZES.map((size) => (
+              <label
+                key={size.mm}
+                className="flex items-center gap-2 text-sm text-gray-700"
+              >
+                <input
+                  type="radio"
+                  name="payslip_seal_size_mm"
+                  value={size.mm}
+                  defaultChecked={issuer.sealSizeMm === size.mm}
+                  className="h-4 w-4 shrink-0"
+                />
+                {size.label}
+              </label>
+            ))}
+          </div>
         </div>
         {issuer.sealDataUrl && (
           <label className="flex items-center gap-2 text-sm text-gray-700">
