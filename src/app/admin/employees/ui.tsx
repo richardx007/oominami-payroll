@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { SHIFT_COLORS, SHIFT_TEXT_COLOR } from "@/lib/shifts";
 import type { EmployeeRow } from "./page";
+import { zebraRowClass } from "@/lib/table";
 import {
   addEmployee,
   inviteEmployee,
@@ -389,11 +390,12 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
                 </td>
               </tr>
             )}
-            {filteredEmployees.map((emp) => {
+            {filteredEmployees.map((emp, rowIndex) => {
               return (
                 <EmployeeTableRow
                   key={emp.id}
                   emp={emp}
+                  zebra={zebraRowClass(rowIndex)}
                   editing={editing === emp.id}
                   pending={pending}
                   onEdit={() =>
@@ -1004,6 +1006,7 @@ function TaxHistory({
 
 function EmployeeTableRow({
   emp,
+  zebra,
   editing,
   pending,
   onEdit,
@@ -1011,6 +1014,8 @@ function EmployeeTableRow({
   onRunKeepOpen,
 }: {
   emp: EmployeeRow;
+  /** 一覧の縞模様の背景クラス(lib/table.ts)。展開中は選択色を優先する */
+  zebra: string;
   editing: boolean;
   pending: boolean;
   onEdit: () => void;
@@ -1065,7 +1070,7 @@ function EmployeeTableRow({
       <tr
         onClick={onEdit}
         className={`cursor-pointer border-b border-gray-50 transition hover:bg-blue-50/40 ${
-          editing ? "bg-blue-50/60" : ""
+          editing ? "bg-blue-50/60" : zebra
         } ${retired ? "opacity-50" : ""}`}
       >
         <td className="px-4 py-3">

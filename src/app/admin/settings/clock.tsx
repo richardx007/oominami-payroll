@@ -7,6 +7,8 @@ import QRCode from "qrcode";
 import type { Map as LeafletMap, CircleMarker, Circle } from "leaflet";
 import { updateClockSettings } from "./actions";
 import type { ActionResult } from "../employees/actions";
+import { PdfPreviewDialog } from "@/components/PdfPreviewDialog";
+import { toPreviewImage } from "@/lib/pdf-capture";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -240,7 +242,7 @@ function QrCodes({ companyName }: { companyName: string }) {
   const [outUrl, setOutUrl] = useState<string>("");
   const [installUrl, setInstallUrl] = useState<string>("");
   const [mounted, setMounted] = useState(false);
-  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false);
   // iPhone/iPad をホーム画面に追加した状態(PWA standalone表示)では window.print() が
   // 動作しないため、その環境では「印刷」ボタン自体を表示しない(PDFダウンロードのみ案内)。
   const [printSupported, setPrintSupported] = useState(true);
@@ -370,45 +372,43 @@ function QrCodes({ companyName }: { companyName: string }) {
    * jsPDF でA4 1枚のPDFに貼り付ける(日本語テキストはブラウザ側で描画されるため、
    * PDF側にフォントを埋め込む必要がない)。
    */
-  const handleDownloadPdf = async () => {
-    if (typeof document === "undefined" || !inUrl || !outUrl || !sheetRef.current) {
-      return;
-    }
-    setPdfBusy(true);
-    try {
-      // ⚠️ ここは「本家 html2canvas」を使うこと(html2canvas-pro に変えないこと)。
-      // pro(v2) に差し替えたところ、このQRシートのレイアウトが崩れた
-      // (.qr-print-codes の flex や img の 55mm 指定が効かず、QRが縦積みで巨大化。2026-07-31)。
-      // QRシートは globals.css に16進数で書いた独自クラスだけで作っており Tailwind の
-      // oklch を含まないため、本家でも問題なく描画できる。
-      // ※ 逆に給与明細(admin/report/ui.tsx)は Tailwind の oklch を含むため pro が必須。
-      //    用途ごとに使い分けている。
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf"),
-      ]);
+  /**
+   * QRシートのPDFを作る。押すと共通の `PdfPreviewDialog` が開き、
+   * プレビューを見てからダウンロード/共有を選ぶ(2026-09-11に全PDFボタンをこの方式に統一)。
+   */
+  const makeQrPdf = async () => {
+    const el = sheetRef.current;
+    if (!el) throw new Error("出力対象が見つかりません");
 
-      document.body.classList.add("qr-capture-mode");
+    // ⚠️ ここは「本家 html2canvas」を使うこと(html2canvas-pro に変えないこと)。
+    // pro(v2) に差し替えたところ、このQRシートのレイアウトが崩れた
+    // (.qr-print-codes の flex や img の 55mm 指定が効かず、QRが縦積みで巨大化。2026-07-31)。
+    // QRシートは globals.css に16進数で書いた独自クラスだけで作っており Tailwind の
+    // oklch を含まないため、本家でも問題なく描画できる。
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
+
+    document.body.classList.add("qr-capture-mode");
+    try {
       // レイアウト反映を待ってからキャプチャする
       await new Promise((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(resolve))
       );
 
-      const canvas = await html2canvas(sheetRef.current, {
+      const canvas = await html2canvas(el, {
         scale: 3,
         backgroundColor: "#ffffff",
         useCORS: true,
       });
 
       const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-      const imgData = canvas.toDataURL("image/png");
-      pdf.addImage(imgData, "PNG", 0, 0, 210, 297);
-      pdf.save("出退勤QRコード.pdf");
-    } catch {
-      alert("PDFの作成に失敗しました。時間をおいて再度お試しください。");
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 210, 297);
+      return { blob: pdf.output("blob"), pages: [toPreviewImage(canvas)] };
     } finally {
+      // 例外時も必ず画面表示を元に戻す
       document.body.classList.remove("qr-capture-mode");
-      setPdfBusy(false);
     }
   };
 
@@ -430,12 +430,20 @@ function QrCodes({ companyName }: { companyName: string }) {
           )}
           <button
             type="button"
-            onClick={handleDownloadPdf}
-            disabled={pdfBusy || !inUrl || !outUrl}
+            onClick={() => setPdfOpen(true)}
+            disabled={!inUrl || !outUrl}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
           >
-            {pdfBusy ? "作成中..." : "PDFダウンロード"}
+            PDF
           </button>
+          {pdfOpen && (
+            <PdfPreviewDialog
+              title="出退勤QRコード"
+              filename="出退勤QRコード.pdf"
+              make={makeQrPdf}
+              onClose={() => setPdfOpen(false)}
+            />
+          )}
         </div>
       </div>
       <p className="mt-1 text-sm text-gray-500">
@@ -443,10 +451,10 @@ function QrCodes({ companyName }: { companyName: string }) {
         {printSupported ? (
           <>
             「印刷」ではQRコードのみが印刷されます。iPhone/iPadでホーム画面に追加している場合は印刷が動作しないことが
-            あるため、その場合は「PDFダウンロード」をお使いください。
+            あるため、その場合は「PDF」をお使いください。
           </>
         ) : (
-          "この端末(ホーム画面に追加したiPhone/iPad)では印刷が動作しないため「PDFダウンロード」をお使いください。"
+          "この端末(ホーム画面に追加したiPhone/iPad)では印刷が動作しないため「PDF」をお使いください。"
         )}
       </p>
       {/* 画面プレビュー用 */}

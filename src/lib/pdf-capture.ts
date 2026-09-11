@@ -1,4 +1,32 @@
 /**
+ * PDFの生成結果。`blob` が実ファイル、`pages` はプレビュー表示用の各ページ画像。
+ *
+ * プレビューに**出来上がったPDFのページ画像そのもの**を使うのが要点。
+ * 元のDOMを縮小して見せる方式だと「プレビューでは正しいのにPDFは崩れている」
+ * という食い違いが起こりうる(2026-09-11に実際に発生)。画像なら必ず一致する。
+ */
+export type PdfResult = {
+  blob: Blob;
+  /** 1ページ=1枚。プレビュー用に軽くした JPEG の data URL */
+  pages: string[];
+};
+
+/** キャンバス1ページぶんを、プレビュー表示用に軽い画像へ落とす(幅1000px上限のJPEG) */
+export function toPreviewImage(source: HTMLCanvasElement): string {
+  const maxW = 1000;
+  if (source.width <= maxW) return source.toDataURL("image/jpeg", 0.8);
+  const scaled = document.createElement("canvas");
+  scaled.width = maxW;
+  scaled.height = Math.round((source.height * maxW) / source.width);
+  const ctx = scaled.getContext("2d");
+  if (!ctx) return source.toDataURL("image/jpeg", 0.8);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, scaled.width, scaled.height);
+  ctx.drawImage(source, 0, 0, scaled.width, scaled.height);
+  return scaled.toDataURL("image/jpeg", 0.8);
+}
+
+/**
  * DOM要素をPDF化する共通ロジック(ブラウザ専用)。
  *
  * `admin/report/ui.tsx` の `DownloadPdfButton`(表をそのままダウンロード)が使う。
@@ -12,7 +40,7 @@
 export async function captureElementToPdfBlob(
   el: HTMLElement,
   opts?: { sectionSelector?: string }
-): Promise<Blob> {
+): Promise<PdfResult> {
   // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと。
   // Tailwind v4 の標準カラーは oklch() で出力されるが、本家は oklch を解釈できず
   // 「Attempting to parse an unsupported color function」で失敗する(2026-07-31に発生)。
@@ -60,6 +88,7 @@ export async function captureElementToPdfBlob(
   const usableH = pageH - margin * 2;
   const sliceHpx = Math.floor(usableH * pxPerMm);
 
+  const pages: string[] = [];
   let y = 0;
   let firstPage = true;
   while (y < canvas.height) {
@@ -93,11 +122,12 @@ export async function captureElementToPdfBlob(
       imgW,
       h / pxPerMm
     );
+    pages.push(toPreviewImage(slice));
     firstPage = false;
     y = end;
   }
 
-  return pdf.output("blob");
+  return { blob: pdf.output("blob"), pages };
 }
 
 /**
@@ -115,7 +145,9 @@ export async function captureElementToPdfBlob(
  *    A4 1枚で 9MB を超える(2026-09-11に実測。メール・LINEでの共有に耐えない)。
  *    JPEG(0.95)なら 1MB 未満で、この解像度では文字・罫線は崩れない。
  */
-export async function captureSheetToPdfBlob(el: HTMLElement): Promise<Blob> {
+export async function captureSheetToPdfBlob(
+  el: HTMLElement
+): Promise<PdfResult> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas"),
     import("jspdf"),
@@ -144,6 +176,7 @@ export async function captureSheetToPdfBlob(el: HTMLElement): Promise<Blob> {
   // **真っ白な2ページ目**が付く(2026-09-11に実測。切れて困る内容はこの数px には無い)。
   const epsilon = Math.ceil(pxPerMm);
 
+  const pages: string[] = [];
   let y = 0;
   let firstPage = true;
   while (y < canvas.height - epsilon) {
@@ -167,9 +200,10 @@ export async function captureSheetToPdfBlob(el: HTMLElement): Promise<Blob> {
       pageW,
       h / pxPerMm
     );
+    pages.push(toPreviewImage(slice));
     firstPage = false;
     y += h;
   }
 
-  return pdf.output("blob");
+  return { blob: pdf.output("blob"), pages };
 }

@@ -16,6 +16,7 @@ function hhmm(minutes: number) {
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
 import { PAYSLIP_ISSUER_KEYS, parsePayslipIssuer } from "@/lib/payslip-issuer";
+import { zebraRowClass } from "@/lib/table";
 import { CloseActions } from "./ui";
 import { PayslipPdfButton } from "./payslip-pdf";
 
@@ -225,12 +226,18 @@ export default async function ClosePage({
               </tr>
             </thead>
             <tbody>
-              {payrolls.flatMap((p) => {
+              {payrolls.flatMap((p, pIndex) => {
                 const result = p.result;
+                // 縞は「行」ではなく「従業員」単位。時給分割で複数行になる人も同じ色にする
+                const zebra = zebraRowClass(pIndex);
                 if (!result) {
                   return (
-                    <tr key={p.employee_id} className="border-b border-gray-50">
-                      <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
+                    <tr
+                      key={p.employee_id}
+                      className={`border-b border-gray-50 ${zebra}`}
+                    >
+                      {/* 固定列は bg-inherit で行の縞の色を引き継ぐ(lib/table.ts 参照) */}
+                      <td className="sticky left-0 z-10 whitespace-nowrap bg-inherit px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
                         {p.name}
                       </td>
                       <td colSpan={16} className="px-4 py-3 text-red-600">
@@ -247,14 +254,15 @@ export default async function ClosePage({
                 return breakdown.map((b, i) => (
                   <tr
                     key={`${p.employee_id}-${i}`}
-                    className="border-b border-gray-50"
+                    className={`border-b border-gray-50 ${zebra}`}
                   >
                     {i === 0 && (
                       <td
                         rowSpan={rowSpan}
                         // 縦位置は align を付けず既定(中央)のまま。他の列と揃える
                         // (2026-09-11。「未確定」の注記で2行になる場合も中央でよい)
-                        className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]"
+                        // 固定列は bg-inherit で行の縞の色を引き継ぐ(lib/table.ts 参照)
+                        className="sticky left-0 z-10 whitespace-nowrap bg-inherit px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]"
                       >
                         {p.name}
                         {/* 仮計算で除外した日を氏名の下に小さく注記(退勤未入力=進行中の勤務など) */}

@@ -52,7 +52,8 @@ export const PAYSLIP_SHEET_CSS = `
   margin-top:5mm; padding-top:3mm; border-top:0.6mm solid #1f2937;
 }
 .pslip-total-label{ font-size:4.2mm; font-weight:700; }
-.pslip-total-value{ font-size:7mm; font-weight:700; font-variant-numeric:tabular-nums; }
+/* 金額は氏名(.pslip-to-name)と同じ大きさに揃える(2026-09-11、オーナー指定) */
+.pslip-total-value{ font-size:4.6mm; font-weight:700; font-variant-numeric:tabular-nums; }
 .pslip-note{ margin-top:8mm; font-size:2.8mm; color:#6b7280; }
 
 /* PDFに撮るノード。画面には見せず、原寸のまま画面外に置く

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { buildTaxReportCsv, previewTaxReportRows, sendTaxReport } from "./actions";
 import { captureElementToPdfBlob } from "@/lib/pdf-capture";
+import { PdfPreviewDialog } from "@/components/PdfPreviewDialog";
 
 // アイコンではなく文字(PDF / CSV)で見せるボタン。「税理士」ボタンと高さ・配色を揃える
 const textBtn =
@@ -27,10 +28,12 @@ function MailIcon({ className = "h-5 w-5" }: { className?: string }) {
 }
 
 /**
- * 給与明細の一覧をPDFでダウンロードする。
+ * 表(給与明細の一覧・日別実績)をPDFで出力するボタン。
+ * 押すと共通の `PdfPreviewDialog` を開き、プレビューを見てから
+ * ダウンロード/共有を選ぶ(2026-09-11に全PDFボタンをこの方式に統一)。
  *
  * スマホ(特に iOS の PWA)では window.print() が動作しないため、印刷ではなく
- * PDFダウンロードで内容を確認できるようにしている(QRコードのPDFと同じ方式)。
+ * PDF出力で内容を確認できるようにしている(QRコードのPDFと同じ方式)。
  * 画面の表をそのまま html2canvas で画像化し、jsPDF で A4横向きに貼り付ける。
  * 日本語はブラウザ側で描画されるため、PDFにフォントを埋め込む必要がない。
  * 縦に長い場合はページを分割する。
@@ -48,60 +51,48 @@ export function DownloadPdfButton({
   targetId,
   filename,
   sectionSelector,
+  label = "PDF",
 }: {
   targetId: string;
   filename: string;
   sectionSelector?: string;
+  /** ダイアログの見出し。省略時はファイル名から拡張子を落としたもの */
+  label?: string;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function run() {
-    const el = document.getElementById(targetId);
-    if (!el) {
-      setError("出力対象が見つかりません");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    // キャプチャ中だけ画面外で全幅描画にする(globals.css の pdf-capture-mode)
-    el.classList.add("pdf-capture-target");
-    document.body.classList.add("pdf-capture-mode");
-    try {
-      const blob = await captureElementToPdfBlob(el, { sectionSelector });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      // 原因を追えるよう、握りつぶさずエラー内容も出す
-      const detail = e instanceof Error ? e.message : String(e);
-      setError(`PDFの作成に失敗しました(${detail})`);
-    } finally {
-      // 例外時も必ず画面表示を元に戻す
-      document.body.classList.remove("pdf-capture-mode");
-      el.classList.remove("pdf-capture-target");
-      setBusy(false);
-    }
-  }
+  const [open, setOpen] = useState(false);
 
   return (
     <span className="inline-flex items-center gap-1">
       <button
         type="button"
-        disabled={busy}
-        onClick={run}
-        aria-label="PDFダウンロード"
-        title="PDFダウンロード"
+        onClick={() => setOpen(true)}
+        aria-label="PDF出力"
+        title="PDF出力"
         className={textBtn}
       >
-        {busy ? "作成中..." : "PDF"}
+        {label}
       </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {open && (
+        <PdfPreviewDialog
+          title={filename.replace(/\.pdf$/, "")}
+          filename={filename}
+          onClose={() => setOpen(false)}
+          make={async () => {
+            const el = document.getElementById(targetId);
+            if (!el) throw new Error("出力対象が見つかりません");
+            // キャプチャ中だけ画面外で全幅描画にする(globals.css の pdf-capture-mode)
+            el.classList.add("pdf-capture-target");
+            document.body.classList.add("pdf-capture-mode");
+            try {
+              return await captureElementToPdfBlob(el, { sectionSelector });
+            } finally {
+              // 例外時も必ず画面表示を元に戻す
+              document.body.classList.remove("pdf-capture-mode");
+              el.classList.remove("pdf-capture-target");
+            }
+          }}
+        />
+      )}
     </span>
   );
 }

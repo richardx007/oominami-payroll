@@ -8,6 +8,7 @@ import {
   LunchReasonBadge,
 } from "./ui";
 import { DownloadPdfButton } from "@/app/admin/report/ui";
+import { zebraRowClass } from "@/lib/table";
 
 /**
  * 分を「H:MM」表記にする。**0 は空白**にして、値のある行だけが目に入るようにする。
@@ -213,16 +214,19 @@ export function DailyReportView({
                 </tr>
               </thead>
               <tbody>
-                {emp.rows.map((r) => {
+                {emp.rows.map((r, rowIndex) => {
                   const wd = weekdayOf(r.workDate);
                   return (
                     <tr
                       key={r.workDate}
-                      className="whitespace-nowrap border-b border-gray-100 tabular-nums"
+                      className={`whitespace-nowrap border-b border-gray-100 tabular-nums ${zebraRowClass(
+                        rowIndex
+                      )}`}
                     >
+                      {/* 固定列は bg-inherit で行の縞の色を引き継ぐ(lib/table.ts 参照) */}
                       <th
                         scope="row"
-                        className={`sticky left-0 z-10 bg-white px-3 py-2 text-left font-medium shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)] ${
+                        className={`sticky left-0 z-10 bg-inherit px-3 py-2 text-left font-medium shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)] ${
                           wd === 0
                             ? "text-red-600"
                             : wd === 6

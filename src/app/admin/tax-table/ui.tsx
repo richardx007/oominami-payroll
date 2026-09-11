@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { importTaxTable } from "../settings/actions";
 import type { ActionResult } from "../employees/actions";
+import { zebraRowClass } from "@/lib/table";
 
 export type TaxTableRow = {
   year: number;
@@ -358,7 +359,10 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
                   </tr>
                 )}
                 {shownRows.map((r, i) => (
-                  <tr key={i} className="border-t border-gray-100">
+                  <tr
+                    key={i}
+                    className={`border-t border-gray-100 ${zebraRowClass(i)}`}
+                  >
                     <td className="px-2 py-1">{yen(r.min_amount)}</td>
                     <td className="px-2 py-1 text-gray-500">
                       {r.max_amount === null ? "以上" : yen(r.max_amount)}

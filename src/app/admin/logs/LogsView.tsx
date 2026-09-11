@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { zebraRowClass } from "@/lib/table";
 
 type LogRow = {
   created_at: string;
@@ -193,7 +194,10 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
                       <table className="text-sm">
                         <tbody>
                           {dayLogs.map((log, i) => (
-                            <tr key={i} className="border-t border-gray-100">
+                            <tr
+                              key={i}
+                              className={`border-t border-gray-100 ${zebraRowClass(i)}`}
+                            >
                               <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-gray-500">
                                 {formatTs(log.created_at)}
                               </td>
