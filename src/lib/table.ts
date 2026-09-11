@@ -10,5 +10,7 @@
  * 固定列だけ白のまま浮いて見える。
  */
 export function zebraRowClass(index: number): string {
-  return index % 2 === 1 ? "bg-gray-50" : "bg-white";
+  // bg-gray-50(#f9fafb)では薄すぎて縞が見えないという指摘があり、
+  // bg-gray-100(#f3f4f6)に一段濃くした(2026-09-11)。
+  return index % 2 === 1 ? "bg-gray-100" : "bg-white";
 }
