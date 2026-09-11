@@ -252,7 +252,9 @@ export default async function ClosePage({
                     {i === 0 && (
                       <td
                         rowSpan={rowSpan}
-                        className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 align-top shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]"
+                        // 縦位置は align を付けず既定(中央)のまま。他の列と揃える
+                        // (2026-09-11。「未確定」の注記で2行になる場合も中央でよい)
+                        className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]"
                       >
                         {p.name}
                         {/* 仮計算で除外した日を氏名の下に小さく注記(退勤未入力=進行中の勤務など) */}

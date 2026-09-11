@@ -28,8 +28,22 @@ const yen = (n: number) => `¥${n.toLocaleString()}`;
 const slash = (d: string) => d.replaceAll("-", "/");
 
 /**
+ * スマホ・タブレットか(= ダウンロードしても扱いにくい端末か)。
+ *
+ * ⚠️ 「共有できるか(`canSharePdf`)」で代用しないこと。**macOS の Safari/Chrome も
+ * `navigator.canShare({files})` が真になる**ため、それを「スマホ判定」に使うと
+ * PCでも「ダウンロード」が消えてしまう(2026-09-11に発生)。
+ * iPadOS は Mac を名乗るので、タッチ点数で見分ける(clock.tsx の印刷可否判定と同じ方法)。
+ */
+function isMobileDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return true;
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+
+/**
  * この端末がPDFファイルの共有(OSの共有シート)に対応しているか。
- * iPhone/iPad・Android の Safari/Chrome は対応、PCブラウザの多くは非対応。
+ * iPhone/iPad・Android のほか、macOS の Safari/Chrome も対応する。
  * 非対応の端末では「共有」ボタン自体を出さない。
  */
 function canSharePdf(): boolean {
@@ -105,6 +119,10 @@ function PayslipPdfDialog({
   // ダイアログはクリックで初めて描画されるため、サーバー側では描画されない。
   // よって判定を初期値に入れてもハイドレーションのずれは起きない
   const [shareable] = useState(canSharePdf);
+  const [mobile] = useState(isMobileDevice);
+  // スマホ・タブレットではダウンロードしても扱いにくいので「共有」に一本化する。
+  // PCは「ダウンロード」を主ボタンにし、共有できる端末なら「共有」も併せて出す。
+  const shareOnly = mobile && shareable;
 
   const filename = `給与明細_${data.periodKey}_${data.name}.pdf`;
 
@@ -249,18 +267,23 @@ function PayslipPdfDialog({
             >
               閉じる
             </button>
-            {/* スマホ(ファイル共有ができる端末)では「ダウンロード」は意味がないので出さず、
-                「共有」だけを主ボタンにする。PC は共有シートが無いのでダウンロードのみ。 */}
-            {shareable ? (
+            {/* 「共有」: スマホでは唯一の主ボタン(ブルー)、PCでは副ボタン(枠線) */}
+            {shareable && (
               <button
                 type="button"
                 onClick={share}
                 disabled={!blob}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className={
+                  shareOnly
+                    ? "rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    : "rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                }
               >
                 共有
               </button>
-            ) : (
+            )}
+            {/* 「ダウンロード」を隠すのはスマホのときだけ */}
+            {!shareOnly && (
               <button
                 type="button"
                 onClick={download}
