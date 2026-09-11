@@ -18,16 +18,18 @@
  */
 export const PAYSLIP_SHEET_CSS = `
 .pslip-sheet{
-  box-sizing:border-box; width:210mm; min-height:297mm; padding:14mm 14mm 12mm;
+  box-sizing:border-box; width:210mm; min-height:297mm; padding:14mm 24mm 12mm;
   background:#ffffff; color:#111827;
   font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
   font-size:3.4mm; line-height:1.7;
 }
 .pslip-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:8mm; }
 .pslip-title{ margin:0; font-size:7mm; font-weight:700; letter-spacing:0.1em; }
-.pslip-period{ margin:1mm 0 0; font-size:3.4mm; color:#4b5563; }
-.pslip-issuer{ display:flex; align-items:flex-start; gap:3mm; }
+.pslip-period{ margin:1.5mm 0 0; font-size:4.4mm; font-weight:700; color:#374151; }
+/* 見出しより1行ぶん下げて置く(オーナー指定) */
+.pslip-issuer{ display:flex; align-items:flex-start; gap:3mm; margin-top:6mm; }
 .pslip-issuer-lines{ text-align:right; font-size:3.6mm; line-height:1.6; white-space:pre-line; }
+.pslip-issuer-line1{ font-size:4.2mm; font-weight:700; }
 /* 印の寸法は要素側の style で mm 指定する(設定画面で 16.5mm / 18mm を選ぶ) */
 .pslip-seal{ object-fit:contain; flex:0 0 auto; }
 .pslip-to{ margin-top:8mm; padding-bottom:3mm; border-bottom:0.3mm solid #9ca3af; }

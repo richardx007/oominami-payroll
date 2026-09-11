@@ -304,35 +304,39 @@ export default async function ClosePage({
                     </td>
                     {i === 0 && (
                       <>
-                        <td rowSpan={rowSpan} className="px-4 py-3 text-right align-top">
+                        {/* ここから右は rowSpan で人単位にまとめる列。
+                            縦位置は align を付けず既定(中央)のままにして、左隣の
+                            日数〜残業手当の列と揃える(2026-09-11。PDFボタンで行が
+                            少し高くなり、align-top だと上にずれて見えたため) */}
+                        <td rowSpan={rowSpan} className="px-4 py-3 text-right">
                           ¥{result.transport_total.toLocaleString()}
                         </td>
-                        <td rowSpan={rowSpan} className="px-4 py-3 text-right align-top">
+                        <td rowSpan={rowSpan} className="px-4 py-3 text-right">
                           ¥{result.lunch_total.toLocaleString()}
                         </td>
                         <td
                           rowSpan={rowSpan}
-                          className="px-4 py-3 text-right align-top font-medium"
+                          className="px-4 py-3 text-right font-medium"
                         >
                           ¥{result.gross_pay.toLocaleString()}
                         </td>
                         {/* 交通費を除いた課税対象額。税額表と突き合わせて検算するための列(2026-08-21追加) */}
                         <td
                           rowSpan={rowSpan}
-                          className="whitespace-nowrap px-4 py-3 text-right align-top text-gray-600"
+                          className="whitespace-nowrap px-4 py-3 text-right text-gray-600"
                         >
                           ¥{result.taxable_amount.toLocaleString()}
                         </td>
                         <td
                           rowSpan={rowSpan}
-                          className="whitespace-nowrap px-4 py-3 text-right align-top text-red-600"
+                          className="whitespace-nowrap px-4 py-3 text-right text-red-600"
                         >
                           −¥{result.income_tax.toLocaleString()}
                         </td>
                         {/* 日当として先に現金で支払った分。差引支給からのみ控除する */}
                         <td
                           rowSpan={rowSpan}
-                          className="whitespace-nowrap px-4 py-3 text-right align-top text-red-600"
+                          className="whitespace-nowrap px-4 py-3 text-right text-red-600"
                         >
                           {result.advance_deduction > 0
                             ? `−¥${result.advance_deduction.toLocaleString()}`
@@ -340,14 +344,14 @@ export default async function ClosePage({
                         </td>
                         <td
                           rowSpan={rowSpan}
-                          className="px-4 py-3 text-right align-top font-bold"
+                          className="px-4 py-3 text-right font-bold"
                         >
                           ¥{result.net_pay.toLocaleString()}
                         </td>
                         {/* 右端: この従業員だけの給与明細をA4縦のPDFで出力する */}
                         <td
                           rowSpan={rowSpan}
-                          className="pdf-col whitespace-nowrap px-4 py-3 text-right align-top"
+                          className="pdf-col whitespace-nowrap px-4 py-3 text-right"
                         >
                           <PayslipPdfButton
                             issuer={issuer}

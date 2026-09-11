@@ -249,24 +249,27 @@ function PayslipPdfDialog({
             >
               閉じる
             </button>
-            {shareable && (
+            {/* スマホ(ファイル共有ができる端末)では「ダウンロード」は意味がないので出さず、
+                「共有」だけを主ボタンにする。PC は共有シートが無いのでダウンロードのみ。 */}
+            {shareable ? (
               <button
                 type="button"
                 onClick={share}
                 disabled={!blob}
-                className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 共有
               </button>
+            ) : (
+              <button
+                type="button"
+                onClick={download}
+                disabled={!blob}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                ダウンロード
+              </button>
             )}
-            <button
-              type="button"
-              onClick={download}
-              disabled={!blob}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              ダウンロード
-            </button>
           </div>
         </div>
       </div>
@@ -299,7 +302,7 @@ function PayslipSheet({
         </div>
         <div className="pslip-issuer">
           <div className="pslip-issuer-lines">
-            <div>{issuer.line1}</div>
+            <div className="pslip-issuer-line1">{issuer.line1}</div>
             <div>{issuer.line2}</div>
           </div>
           {issuer.sealDataUrl && (
