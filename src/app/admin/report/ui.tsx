@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { buildTaxReportCsv, previewTaxReportRows, sendTaxReport } from "./actions";
 import { captureElementToPdfBlob } from "@/lib/pdf-capture";
 
-// アイコンではなく文字(PDF / CSV)で見せるボタン。「税理士へ」ボタンと高さ・配色を揃える
+// アイコンではなく文字(PDF / CSV)で見せるボタン。「税理士」ボタンと高さ・配色を揃える
 const textBtn =
   "inline-flex h-10 items-center justify-center rounded-lg border border-blue-300 bg-white px-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50";
 
@@ -186,7 +186,7 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
         className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
       >
         <MailIcon className="h-5 w-5" />
-        税理士へ
+        税理士
       </button>
       {result && (
         <span

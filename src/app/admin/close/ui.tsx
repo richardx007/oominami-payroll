@@ -175,7 +175,8 @@ export function CloseActions({
         </div>
       )}
 
-      {/* 2行目: 明細をメール配信・税理士へ・PDF・CSV(締め済み以降) */}
+      {/* 2行目: 従業員・税理士・PDF・CSV(締め済み以降)。
+          ラベルは「〜へ」を付けず、モバイルでもCSVまで1行に収まる長さにしている */}
       {status !== "open" && (
         <div className="flex flex-wrap items-center justify-end gap-2">
           <button
@@ -188,7 +189,7 @@ export function CloseActions({
             <MailIcon className="h-5 w-5" />
             {emailProgress
               ? `送信中... ${emailProgress.sent}/${emailProgress.total}`
-              : "従業員へ"}
+              : "従業員"}
           </button>
           <SendReportButton periodKey={periodKey} />
           {/* スマホ(iOSのPWA)では window.print() が動かないため、印刷ではなくPDFダウンロード。
