@@ -2226,11 +2226,29 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
 - 計算できなかった従業員（`result` が null＝エラー行）にはボタンを出さない。エラー行の `colSpan` は
   15→16、「対象の従業員がいません」の `colSpan` は 16→17 に合わせて増やしてある（列追加のたびに要調整）。
 
-### 20.2 PDFの作り方
+### 20.2 プレビュー → ダウンロード / 共有（2026-09-11、直接ダウンロードから変更）
 
-- 押したときだけ明細書専用のDOM（`PayslipSheet`）を**画面外**（`fixed; left:-10000px`）に描画し、
-  `captureElementToPdfBlob(el, { orientation: "portrait" })` でキャプチャする。押すまでDOMを作らないので、
-  従業員が何人いても通常時の画面は重くならない。
+- 「PDF」を押すといきなりダウンロードするのではなく、**プレビューのダイアログを開き**、そこから
+  **「ダウンロード」「共有」**（＋「閉じる」）を選ぶ。実装の考え方は **biz-management の請求書プレビュー**
+  （`app/src/routes/InvoiceDoc.tsx` + `app/src/components/DocActions.tsx`）に倣った。
+- **見せるノードとPDFに撮るノードは別々に持つ**のが要点。プレビュー側だけ `transform: scale()` で
+  画面幅に縮める（`ResizeObserver` で `min(1, wrap.clientWidth / inner.offsetWidth)` を計算）。
+  撮る側は原寸（幅 `SHEET_W`=760px、最低高さはA4比の1075px）のまま画面外に置くので、
+  **プレビューの縮小はPDFの解像度に影響しない**。
+- ⚠️ **PDFはダイアログを開いた時点で先に作っておく**。「共有」を押してから作ると、iOS では
+  `navigator.share()` が「ユーザー操作から直接呼ばれていない」と見なされて弾かれる。
+  作り終わるまで2つのボタンは `disabled`（「PDFを作成しています...」を表示）。
+- 「共有」ボタンは **PDFファイルの共有に対応した端末でのみ表示**する（`navigator.canShare({files:[...]})`
+  でダミーのPDFファイルを渡して判定。iPhone/iPad・Android は対応、PCブラウザの多くは非対応）。
+  共有シートを閉じただけの `AbortError` はエラー扱いしない。
+- ダイアログは `createPortal` で **body 直下**に出す。表（`overflow-x:auto` の枠）の中に置いたままだと、
+  祖先に `transform` 等が付いたときに `position:fixed` の基準がずれて隠れうるため。
+
+### 20.3 PDFの作り方
+
+- キャプチャ対象は**画面外**（`fixed; left:-10000px`）に原寸で置いた明細書専用のDOM（`PayslipSheet`）。
+  `captureElementToPdfBlob(el, { orientation: "portrait" })` でキャプチャする。ダイアログを開くまで
+  DOMを作らないので、従業員が何人いても通常時の画面は重くならない。
 - `captureElementToPdfBlob`（`src/lib/pdf-capture.ts`）に `orientation` オプションを追加した（既定は従来どおり
   横向き＝一覧表用。個別明細は縦向き）。ページ分割ロジックは一覧表と共通。
 - ⚠️ キャプチャは **`html2canvas-pro`**（`captureElementToPdfBlob` 内で使用）。Tailwind v4 の `oklch` を
@@ -2238,7 +2256,7 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
 - 印の画像（data URL）は `<img>` の読み込み完了（`img.decode()`）を待ってからキャプチャする。待たないと
   印が抜けたPDFになる。
 
-### 20.3 明細書の内容
+### 20.4 明細書の内容
 
 - 右上に**支払元2行 + 印**（要望どおりの配置）。
 - 見出し「給与明細書」「◯年◯月度」、氏名（「様」付き）、対象期間・支払日。
@@ -2247,7 +2265,7 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
 - 締め前（`status === "open"`）に出力した場合は「※ この明細は締め前の計算結果です（確定額ではありません）」
   と注記する。プレビュー段階の金額に印を押した明細書が確定額として渡るのを防ぐため。
 
-### 20.4 支払元・印の登録（設定画面）
+### 20.5 支払元・印の登録（設定画面）
 
 - 設定画面（`/admin/settings`）に **「給与明細PDF（支払元・印）」** セクションを追加。支払元1行目・2行目の
   テキストと、印の画像（png/jpg・150KBまで）をアップロードできる。「印を削除する」チェックで消せる。

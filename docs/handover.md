@@ -2259,6 +2259,19 @@ Supabase pg_cron(5分ごと)
 - `captureElementToPdfBlob`（`src/lib/pdf-capture.ts`）に `orientation` オプションを追加（既定は従来どおり
   横向き＝一覧表用、個別明細は `portrait`）。ページ分割ロジックは一覧表と共通のまま。
 - DBマイグレーションは不要（`app_settings` のキー追加のみ）。
+- **プレビュー → ダウンロード/共有に変更（同日、オーナー依頼）**: 「PDF」を押すといきなり
+  ダウンロードするのではなく、**プレビューのダイアログ**を開き「ダウンロード」「共有」を選ぶ方式にした。
+  実装の考え方は **biz-management の請求書プレビュー**（`app/src/routes/InvoiceDoc.tsx` +
+  `app/src/components/DocActions.tsx`）に倣っている。踏みやすい点:
+  - **見せるノードと撮るノードを別に持つ**こと。プレビューだけ `transform: scale()` で縮め、
+    撮る側は原寸（760px幅）で画面外に置く。ここを1つにまとめるとPDFの解像度が落ちる。
+  - ⚠️ **PDFはダイアログを開いた時点で先に作る**。「共有」を押してから作ると、iOS では
+    `navigator.share()` が「ユーザー操作から直接呼ばれていない」と判定されて弾かれる。
+    `share()` の中で `await` を挟まないこと。
+  - 「共有」ボタンは `navigator.canShare({files:[ダミーのPDF]})` が真の端末だけに出す
+    （iPhone/iPad・Android は出る、PCブラウザは多くが出ない）。共有シートを閉じただけの
+    `AbortError` はエラー表示しない。
+  - ダイアログは `createPortal` で body 直下へ。表の `overflow-x:auto` の中に置いたままにしない。
 - ⚠️ **実機での見た目確認は未実施**。この環境ではブラウザ拡張が未接続で、`/admin/close` は管理者ログインが
   必要なため PDF を実際に開けていない。`npm run build` / `npx tsc --noEmit` / `npm test`（77件）は通過。
   初回は **印を登録した状態で1人分出力し、(1)1ページに収まるか (2)右上に支払元2行と印が出るか

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { captureElementToPdfBlob } from "@/lib/pdf-capture";
 import { formatMinutes } from "@/lib/period";
 import type { PayslipIssuer } from "@/lib/payslip-issuer";
@@ -25,16 +26,36 @@ export type PayslipPdfData = {
 const yen = (n: number) => `¥${n.toLocaleString()}`;
 const slash = (d: string) => d.replaceAll("-", "/");
 
+/** 明細書の原寸幅(px)と、A4縦の比率で決まる最低高さ。プレビューはこれを縮小して見せる */
+const SHEET_W = 760;
+const SHEET_MIN_H = Math.round((SHEET_W * 297) / 210);
+
 /**
- * 従業員1人分の給与明細をA4縦のPDFでダウンロードするボタン。
+ * この端末がPDFファイルの共有(OSの共有シート)に対応しているか。
+ * iPhone/iPad・Android の Safari/Chrome は対応、PCブラウザの多くは非対応。
+ * 非対応の端末では「共有」ボタン自体を出さない。
+ */
+function canSharePdf(): boolean {
+  if (typeof navigator === "undefined") return false;
+  if (typeof navigator.share !== "function") return false;
+  if (typeof navigator.canShare !== "function") return false;
+  try {
+    const probe = new File([new Uint8Array()], "dummy.pdf", {
+      type: "application/pdf",
+    });
+    return navigator.canShare({ files: [probe] });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 従業員1人分の給与明細を、まずプレビューで見せてから
+ * 「ダウンロード」か「共有」を選べるようにするボタン(給与明細画面の各行の右端)。
  *
- * 一覧表のPDF(admin/report/ui.tsx の DownloadPdfButton)と違い、画面に出ている表ではなく
- * 明細書専用のレイアウト(下の PayslipSheet)を画面外に描いてから html2canvas で撮る。
- * 押したときだけ描画するので、従業員が何人いても通常時のDOMは増えない。
- *
- * ⚠️ Tailwind v4 のユーティリティ(oklch)を使ったDOMなので、キャプチャは
- * html2canvas-pro を使う captureElementToPdfBlob 側に任せること(本家 html2canvas は
- * oklch を解釈できず失敗する。docs/handover.md 参照)。
+ * プレビューの作り方は biz-management の請求書プレビュー(app/src/routes/InvoiceDoc.tsx)に倣う。
+ * 画面に見せるノードと、PDFに撮るノードは**別々に持つ**のが要点で、
+ * 見せる側だけ `transform: scale()` で画面幅に縮めるため、縮小がPDFの解像度に影響しない。
  */
 export function PayslipPdfButton({
   data,
@@ -43,18 +64,79 @@ export function PayslipPdfButton({
   data: PayslipPdfData;
   issuer: PayslipIssuer;
 }) {
-  const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
 
-  // generating が true になった描画のあとに、実際にキャプチャする
-  // (明細書のDOMが存在してレイアウトされてからでないと撮れないため)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`${data.name}の給与明細をPDFで出力`}
+        title="この従業員の給与明細をPDFで出力"
+        className="inline-flex h-8 items-center justify-center rounded-lg border border-blue-300 bg-white px-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+      >
+        PDF
+      </button>
+      {open && (
+        <PayslipPdfDialog
+          data={data}
+          issuer={issuer}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+/** プレビュー + ダウンロード/共有のダイアログ */
+function PayslipPdfDialog({
+  data,
+  issuer,
+  onClose,
+}: {
+  data: PayslipPdfData;
+  issuer: PayslipIssuer;
+  onClose: () => void;
+}) {
+  const captureRef = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [previewHeight, setPreviewHeight] = useState<number | undefined>();
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // ダイアログはクリックで初めて描画されるため、サーバー側では描画されない。
+  // よって判定を初期値に入れてもハイドレーションのずれは起きない
+  const [shareable] = useState(canSharePdf);
+
+  const filename = `給与明細_${data.periodKey}_${data.name}.pdf`;
+
+  // プレビューを画面幅に合わせて縮小する。A4の原寸(760px)より狭い端末では1未満になる。
+  // ResizeObserver は監視を始めた時点で1回呼ばれるので、初回の測定もこれに任せる
+  // (effect本体で直接 setState しないため)
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const inner = innerRef.current;
+    if (!wrap || !inner) return;
+    const ro = new ResizeObserver(() => {
+      const k = Math.min(1, wrap.clientWidth / inner.offsetWidth);
+      setScale(k);
+      setPreviewHeight(inner.offsetHeight * k);
+    });
+    ro.observe(wrap);
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, []);
+
+  // ダイアログを開いた時点でPDFを作っておく。
+  // ⚠️ 「共有」を押してから作ると、iOS では navigator.share() が
+  // 「ユーザー操作から直接呼ばれていない」と見なされて弾かれる。
+  // 先に作っておき、共有ボタンでは待たずに share() を呼ぶ。
   useEffect(() => {
-    if (!generating) return;
     let alive = true;
     (async () => {
       try {
-        const el = sheetRef.current;
+        const el = captureRef.current;
         if (!el) throw new Error("出力対象が見つかりません");
         // 印の画像(data URL)が描画し終わる前に撮ると印が抜けるので、先に読み込みを待つ
         await Promise.all(
@@ -62,63 +144,141 @@ export function PayslipPdfButton({
             img.decode().catch(() => undefined)
           )
         );
-        const blob = await captureElementToPdfBlob(el, {
+        const made = await captureElementToPdfBlob(el, {
           orientation: "portrait",
         });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `給与明細_${data.periodKey}_${data.name}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        if (alive) setError(null);
+        if (alive) setBlob(made);
       } catch (e) {
         // 原因を追えるよう、握りつぶさずエラー内容も出す
         const detail = e instanceof Error ? e.message : String(e);
         if (alive) setError(`PDFの作成に失敗しました(${detail})`);
-      } finally {
-        if (alive) setGenerating(false);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [generating, data.periodKey, data.name]);
+  }, []);
 
-  return (
-    <span className="inline-flex items-center gap-1">
-      <button
-        type="button"
-        disabled={generating}
-        onClick={() => {
-          setError(null);
-          setGenerating(true);
-        }}
-        aria-label={`${data.name}の給与明細をPDFでダウンロード`}
-        title="この従業員の給与明細をPDFでダウンロード"
-        className="inline-flex h-8 items-center justify-center rounded-lg border border-blue-300 bg-white px-2.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-      >
-        {generating ? "作成中..." : "PDF"}
-      </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
-      {generating && (
-        // キャプチャ対象。一覧表のPDF(globals.css の .pdf-capture-target)と同じく
-        // 画面外(left:-10000px)に置いてから撮る。display:none だとレイアウトされず
-        // キャプチャできないので、必ず「画面外に配置」にすること。
-        <div
-          ref={sheetRef}
-          className="pointer-events-none fixed left-[-10000px] top-0 -z-10 w-[760px] bg-white"
-        >
-          <PayslipSheet data={data} issuer={issuer} />
+  function download() {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function share() {
+    if (!blob) return;
+    const file = new File([blob], filename, { type: "application/pdf" });
+    // await を挟まずそのまま呼ぶこと(上の useEffect のコメント参照)
+    navigator
+      .share({ files: [file], title: filename })
+      .catch((e: unknown) => {
+        // 共有シートを閉じただけ(キャンセル)はエラー扱いしない
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        const detail = e instanceof Error ? e.message : String(e);
+        setError(`共有できませんでした(${detail})`);
+      });
+  }
+
+  const busy = !blob && !error;
+
+  // ダイアログは body 直下に出す。表(overflow-x:auto の枠)の中に置いたままだと、
+  // 祖先に transform 等が付いたときに position:fixed の基準がずれて隠れうるため
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${data.name}の給与明細プレビュー`}
+    >
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl">
+        <div className="flex items-baseline justify-between gap-3 border-b border-gray-200 px-5 py-3">
+          <h3 className="text-base font-bold text-gray-900">
+            {data.name} さんの給与明細
+          </h3>
+          <span className="shrink-0 text-xs text-gray-500">
+            {data.periodLabel}
+          </span>
         </div>
-      )}
-    </span>
+
+        {/* プレビュー。原寸(760px幅)のまま transform で縮めて見せる */}
+        <div className="flex-1 overflow-y-auto bg-gray-100 p-4">
+          <div
+            ref={wrapRef}
+            style={{ height: previewHeight }}
+            className="overflow-hidden rounded border border-gray-300 bg-white shadow-sm"
+          >
+            <div
+              ref={innerRef}
+              style={{
+                width: SHEET_W,
+                minHeight: SHEET_MIN_H,
+                transform: `scale(${scale})`,
+                transformOrigin: "top left",
+              }}
+            >
+              <PayslipSheet data={data} issuer={issuer} />
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-200 px-5 py-3">
+          {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+          {busy && (
+            <p className="mb-2 text-sm text-gray-500">PDFを作成しています...</p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              閉じる
+            </button>
+            {shareable && (
+              <button
+                type="button"
+                onClick={share}
+                disabled={!blob}
+                className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+              >
+                共有
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={download}
+              disabled={!blob}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              ダウンロード
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* PDFに撮るノード。プレビューとは別に**原寸のまま**画面外に置く
+          (一覧表のPDF = globals.css の .pdf-capture-target と同じ方式)。
+          display:none だとレイアウトされずキャプチャできないので、必ず画面外配置にすること。 */}
+      <div
+        ref={captureRef}
+        aria-hidden="true"
+        className="pointer-events-none fixed left-[-10000px] top-0 -z-10 bg-white"
+        style={{ width: SHEET_W, minHeight: SHEET_MIN_H }}
+      >
+        <PayslipSheet data={data} issuer={issuer} />
+      </div>
+    </div>,
+    document.body
   );
 }
 
-/** 給与明細書(A4縦)の中身。画面には出さず、PDFキャプチャ専用 */
+/** 給与明細書(A4縦)の中身。プレビューとPDFキャプチャの両方で同じものを使う */
 function PayslipSheet({
   data,
   issuer,
