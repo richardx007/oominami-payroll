@@ -8,10 +8,12 @@
  *
  * @param sectionSelector 指定すると、ページ分割時にこのセレクタに一致する要素の
  *   「内部」では改ページしないようにする(el の子孫に対する querySelectorAll)。
+ * @param orientation 用紙の向き。既定は横向き(一覧表向け)。従業員1人分の給与明細書のような
+ *   縦長の帳票は "portrait" を渡す(admin/close/payslip-pdf.tsx)。
  */
 export async function captureElementToPdfBlob(
   el: HTMLElement,
-  opts?: { sectionSelector?: string }
+  opts?: { sectionSelector?: string; orientation?: "portrait" | "landscape" }
 ): Promise<Blob> {
   // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと。
   // Tailwind v4 の標準カラーは oklch() で出力されるが、本家は oklch を解釈できず
@@ -46,14 +48,11 @@ export async function captureElementToPdfBlob(
     useCORS: true,
   });
 
-  const pdf = new jsPDF({
-    unit: "mm",
-    format: "a4",
-    orientation: "landscape",
-  });
+  const orientation = opts?.orientation ?? "landscape";
+  const pdf = new jsPDF({ unit: "mm", format: "a4", orientation });
   const margin = 8;
-  const pageW = 297;
-  const pageH = 210;
+  const pageW = orientation === "portrait" ? 210 : 297;
+  const pageH = orientation === "portrait" ? 297 : 210;
   const imgW = pageW - margin * 2;
   // 画像の実寸(mm)。1mmあたりのピクセル数を出して、ページ高さで切り分ける
   const pxPerMm = canvas.width / imgW;

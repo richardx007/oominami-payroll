@@ -202,6 +202,11 @@ body.pdf-capture-mode .pdf-capture-target {
 body.pdf-capture-mode .pdf-capture-target .print-report {
   overflow: visible !important;
 }
+/* 従業員ごとのPDF出力ボタンの列は、一覧のPDFには不要なので隠す
+   (給与明細画面 admin/close/page.tsx の .pdf-col) */
+body.pdf-capture-mode .pdf-capture-target .pdf-col {
+  display: none !important;
+}
 /* 画面用の固定列(氏名など)の影は、PDFでは不要なので消す */
 body.pdf-capture-mode .pdf-capture-target .print-report th,
 body.pdf-capture-mode .pdf-capture-target .print-report td {
@@ -234,6 +239,10 @@ body.pdf-capture-mode .pdf-capture-target .print-report td {
   /* 表を囲む overflow コンテナが印刷で内容を切らないようにする */
   .print-report {
     overflow: visible !important;
+  }
+  /* 画面上の操作ボタン列(従業員ごとのPDF出力)は印刷しない */
+  .pdf-col {
+    display: none !important;
   }
   .print-report table {
     width: 100%;

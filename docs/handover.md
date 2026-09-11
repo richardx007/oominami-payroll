@@ -2232,6 +2232,41 @@ Supabase pg_cron(5分ごと)
 - なお、実績が1件も無い従業員は日別では行ごとスキップされる（`daily-report.ts:201`）ため、
   勤務実績を伴わないテストであれば退職にするだけで完全に見えなくなる。
 
+### 従業員個別の給与明細PDF（支払元・印）を追加（2026-09-11）
+
+オーナー依頼:「管理者が従業員個別の給与明細をPDF作成できるように。給与明細画面の従業員別明細の
+右端にPDF出力ボタン。PDFの右上に支払い元（2行打ち）と印を表記。支払元2行と印は管理者の設定画面から登録」。
+
+- **給与明細画面（`/admin/close`）の一覧表に最右列を追加**し、従業員ごとに「PDF」ボタンを置いた
+  （時給分割で複数行になる人も `rowSpan` で1ボタン）。押すとその人だけのA4縦の給与明細書PDFが
+  ダウンロードされる（ファイル名 `給与明細_YYYY-MM_氏名.pdf`）。
+- **この列は一覧表PDF・印刷には写らない**。`pdf-col` クラスを目印に `globals.css` で
+  `body.pdf-capture-mode .pdf-capture-target .pdf-col{display:none}` と `@media print` の同等指定を追加した。
+  ⚠️ **給与明細画面の列を増減するときは `colSpan` も直すこと**（エラー行=16、「対象の従業員がいません」=17）。
+- **設定画面に「給与明細PDF（支払元・印）」セクション**を追加。支払元1行目・2行目と印の画像
+  （png/jpg・150KBまで）を登録し、「印を削除する」で消せる。ファイルを選ばずに保存すると印はそのまま。
+- **印は Storage ではなく data URL で `app_settings` に保存している**（キー `payslip_seal_data_url`）。
+  PDFは html2canvas で DOM を画像化して作るため、外部URL画像は CORS・署名付きURLの期限が失敗要因になる。
+  data URL ならサーバーから渡した文字列を `<img>` に載せるだけで確実に写る。代わりに設定画面・給与明細画面の
+  転送量に乗るので上限150KB。**ここを「Storageに移して整理しよう」とすると、PDFに印が出ない事故に
+  戻りうるので注意**（`src/lib/payslip-issuer.ts` のコメント参照）。
+- 印の `<img>` は `img.decode()` の完了を待ってからキャプチャする。待たないと印が抜けたPDFになる。
+- base64化は `Buffer` ではなく `btoa`（Cloudflare Workers 上で動くため）。1バイトずつの連結は遅いので
+  0x8000 バイトずつ `String.fromCharCode` に渡している。
+- **締め前に出力すると明細書に「※ この明細は締め前の計算結果です（確定額ではありません）」と注記が入る。**
+  プレビュー段階の金額に印を押した明細書が確定額として渡ってしまうのを防ぐため（今回こちらの判断で追加。
+  不要ならこの1ブロックを消せばよい）。
+- `captureElementToPdfBlob`（`src/lib/pdf-capture.ts`）に `orientation` オプションを追加（既定は従来どおり
+  横向き＝一覧表用、個別明細は `portrait`）。ページ分割ロジックは一覧表と共通のまま。
+- DBマイグレーションは不要（`app_settings` のキー追加のみ）。
+- ⚠️ **実機での見た目確認は未実施**。この環境ではブラウザ拡張が未接続で、`/admin/close` は管理者ログインが
+  必要なため PDF を実際に開けていない。`npm run build` / `npx tsc --noEmit` / `npm test`（77件）は通過。
+  初回は **印を登録した状態で1人分出力し、(1)1ページに収まるか (2)右上に支払元2行と印が出るか
+  (3)日本語が化けないか** を必ず目視確認すること（`.claude/skills/print-and-pdf-download` の「Verify」参照）。
+- 実装ファイル: `src/lib/payslip-issuer.ts` / `src/app/admin/settings/{actions,ui,page}.tsx` /
+  `src/app/admin/close/{page.tsx,payslip-pdf.tsx}` / `src/lib/pdf-capture.ts` / `src/app/globals.css`。
+  設計書は `docs/design.md` §20。
+
 ## 6. 未実装・改善候補（バックログ）
 
 優先度は状況により再判断すること。

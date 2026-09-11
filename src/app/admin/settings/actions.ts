@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/log";
 import { normalizeSlotTime } from "@/lib/shifts";
+import { SEAL_ALLOWED_TYPES, SEAL_MAX_SIZE } from "@/lib/payslip-issuer";
 import type { ActionResult } from "../employees/actions";
 
 const emailSettingsSchema = z.object({
@@ -453,3 +454,78 @@ export async function uploadWorkRules(formData: FormData): Promise<ActionResult>
   return { ok: true, message: `勤務ルール(${file.name})を保存しました` };
 }
 
+
+const payslipIssuerSchema = z.object({
+  payslip_payer_line1: z.string().max(100),
+  payslip_payer_line2: z.string().max(100),
+  // 「印を削除する」チェックボックス。チェック時のみ "on" が送られる
+  remove_seal: z.string().optional(),
+});
+
+/**
+ * 給与明細PDFの右上に印字する「支払元(2行)」と「印」の画像を保存する。
+ * 印はファイルを選んだときだけ差し替え、選ばなければ現在の登録を保つ
+ * (「印を削除する」にチェックすると消す)。
+ * 画像は data URL にして app_settings に保持する(理由は lib/payslip-issuer.ts のコメント)。
+ */
+export async function updatePayslipIssuer(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = payslipIssuerSchema.safeParse({
+    payslip_payer_line1: formData.get("payslip_payer_line1") ?? "",
+    payslip_payer_line2: formData.get("payslip_payer_line2") ?? "",
+    remove_seal: formData.get("remove_seal") ?? undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+
+  const rows: { key: string; value: string }[] = [
+    { key: "payslip_payer_line1", value: d.payslip_payer_line1.trim() },
+    { key: "payslip_payer_line2", value: d.payslip_payer_line2.trim() },
+  ];
+
+  const seal = formData.get("seal");
+  if (seal instanceof File && seal.size > 0) {
+    if (!SEAL_ALLOWED_TYPES.includes(seal.type)) {
+      return { ok: false, message: "印の画像は png・jpg のみ登録できます" };
+    }
+    if (seal.size > SEAL_MAX_SIZE) {
+      return {
+        ok: false,
+        message: `印の画像は${Math.floor(SEAL_MAX_SIZE / 1024)}KB以下にしてください`,
+      };
+    }
+    // Node の Buffer は使わず Web標準の btoa で base64 化する(Cloudflare Workers 上で動くため)。
+    // 1バイトずつ文字列連結すると遅いので、まとめて String.fromCharCode に渡す。
+    const bytes = new Uint8Array(await seal.arrayBuffer());
+    let bin = "";
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
+    const base64 = btoa(bin);
+    rows.push(
+      { key: "payslip_seal_data_url", value: `data:${seal.type};base64,${base64}` },
+      { key: "payslip_seal_filename", value: seal.name }
+    );
+  } else if (d.remove_seal) {
+    rows.push(
+      { key: "payslip_seal_data_url", value: "" },
+      { key: "payslip_seal_filename", value: "" }
+    );
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(rows, { onConflict: "key" });
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/close");
+  return { ok: true, message: "給与明細PDFの支払元・印を保存しました" };
+}

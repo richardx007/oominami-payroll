@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import {
   BreakWindowsForm,
   EmailSettingsForm,
+  PayslipIssuerForm,
   ShiftSlotsForm,
   TestSendForm,
   TimesheetLockForm,
@@ -11,6 +12,7 @@ import {
 import { ClockSettingsForm } from "./clock";
 import { parseSlots } from "@/lib/shifts";
 import { parseBreakWindows } from "@/lib/breaks";
+import { parsePayslipIssuer } from "@/lib/payslip-issuer";
 
 export default async function SettingsPage() {
   const admin = await requireAdmin();
@@ -23,6 +25,7 @@ export default async function SettingsPage() {
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
   const slots = parseSlots(settings ?? []);
   const breakWindows = parseBreakWindows(settings ?? []);
+  const issuer = parsePayslipIssuer(settings ?? []);
 
   // 勤務ルール文書のプレビュー用署名付きURL(登録済みの場合のみ)
   const workRulesPath = settingsMap.get("work_rules_path");
@@ -69,6 +72,7 @@ export default async function SettingsPage() {
         policy={settingsMap.get("clock_out_of_range") ?? "warn"}
         roundMin={settingsMap.get("clock_round_min") ?? "0"}
       />
+      <PayslipIssuerForm issuer={issuer} />
       <WorkRulesForm
         currentFilename={settingsMap.get("work_rules_filename") ?? null}
         previewUrl={workRulesPreviewUrl}

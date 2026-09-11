@@ -15,7 +15,9 @@ function hhmm(minutes: number) {
 }
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
+import { PAYSLIP_ISSUER_KEYS, parsePayslipIssuer } from "@/lib/payslip-issuer";
 import { CloseActions } from "./ui";
+import { PayslipPdfButton } from "./payslip-pdf";
 
 export default async function ClosePage({
   searchParams,
@@ -68,6 +70,15 @@ export default async function ClosePage({
       .map((r) => r.employee_id)
   );
   const anyMismatch = payrolls.some((p) => mismatchIds.has(p.employee_id));
+
+  // 従業員別の給与明細PDF(各行の右端の「PDF」ボタン)の右上に印字する支払元(2行)と印。
+  // 設定画面の「給与明細PDF(支払元・印)」で登録する。
+  const { data: issuerRows } = await supabase
+    .from("app_settings")
+    .select("key, value")
+    .in("key", PAYSLIP_ISSUER_KEYS);
+  const issuer = parsePayslipIssuer(issuerRows ?? []);
+
   // 未締め(=金額が未確定)は表をイエロー系にする。
   // 配色の意味づけは「確定=グリーン系 / 未確定=イエロー系 / それ以外=ブルー系」で統一しており、
   // イエローはシフト表の「調整中」モード(bg-yellow-200)と同じ色に揃えている。
@@ -206,6 +217,11 @@ export default async function ClosePage({
                 <th className="px-4 py-2 text-right">所得税</th>
                 <th className="px-4 py-2 text-right">前払金</th>
                 <th className="px-4 py-2 text-right">差引支給</th>
+                {/* 従業員ごとの給与明細PDF出力ボタンの列(見出しは不要)。
+                    pdf-col は一覧のPDF出力時にこの列を隠すための目印(globals.css) */}
+                <th className="pdf-col px-4 py-2 text-right">
+                  <span className="sr-only">PDF出力</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -217,7 +233,7 @@ export default async function ClosePage({
                       <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
                         {p.name}
                       </td>
-                      <td colSpan={15} className="px-4 py-3 text-red-600">
+                      <td colSpan={16} className="px-4 py-3 text-red-600">
                         {p.error}
                       </td>
                     </tr>
@@ -328,6 +344,25 @@ export default async function ClosePage({
                         >
                           ¥{result.net_pay.toLocaleString()}
                         </td>
+                        {/* 右端: この従業員だけの給与明細をA4縦のPDFで出力する */}
+                        <td
+                          rowSpan={rowSpan}
+                          className="pdf-col whitespace-nowrap px-4 py-3 text-right align-top"
+                        >
+                          <PayslipPdfButton
+                            issuer={issuer}
+                            data={{
+                              name: p.name,
+                              periodLabel: period.label,
+                              periodKey: period.key,
+                              start: period.start,
+                              end: period.end,
+                              paymentDate: period.paymentDate,
+                              draft,
+                              result,
+                            }}
+                          />
+                        </td>
                       </>
                     )}
                   </tr>
@@ -336,7 +371,7 @@ export default async function ClosePage({
               {payrolls.length === 0 && (
                 <tr>
                   <td
-                    colSpan={16}
+                    colSpan={17}
                     className="px-4 py-8 text-center text-gray-400"
                   >
                     対象の従業員がいません

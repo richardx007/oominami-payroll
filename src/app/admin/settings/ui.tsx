@@ -5,12 +5,14 @@ import {
   updateBreakWindows,
   updateEmailSettings,
   updateShiftSlots,
+  updatePayslipIssuer,
   updateTimesheetLock,
   uploadWorkRules,
 } from "./actions";
 import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
 import type { SlotDef, SlotKey } from "@/lib/shifts";
 import { minutesToHHMM, type BreakWindow } from "@/lib/breaks";
+import type { PayslipIssuer } from "@/lib/payslip-issuer";
 import type { ActionResult } from "../employees/actions";
 
 const inputClass =
@@ -477,6 +479,104 @@ export function WorkRulesForm({
           className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {pending ? "アップロード中..." : "アップロードする"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+/**
+ * 給与明細PDF(給与明細画面の従業員別「PDF」ボタン)の右上に印字する
+ * 「支払元」2行と「印」の画像を登録するフォーム。
+ * 印はファイルを選んだときだけ差し替わる(何も選ばなければ現在の登録を維持)。
+ */
+export function PayslipIssuerForm({ issuer }: { issuer: PayslipIssuer }) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
+        給与明細PDF(支払元・印)
+      </h2>
+      <p className="mt-1 text-sm text-gray-500">
+        給与明細画面で従業員ごとに出力するPDFの右上に印字する、支払元(2行)と印を登録します。
+      </p>
+      <form
+        action={(fd) =>
+          startTransition(async () => setResult(await updatePayslipIssuer(fd)))
+        }
+        className="mt-4 max-w-xl space-y-3"
+      >
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            支払元 1行目
+          </label>
+          <input
+            name="payslip_payer_line1"
+            defaultValue={issuer.line1}
+            placeholder="株式会社オオミナミ"
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            支払元 2行目
+          </label>
+          <input
+            name="payslip_payer_line2"
+            defaultValue={issuer.line2}
+            placeholder="代表取締役 ○○ ○○"
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            印の画像(png・jpg / 150KB以下)
+          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="file"
+              name="seal"
+              accept="image/png,image/jpeg"
+              className="text-sm"
+            />
+            {issuer.sealDataUrl && (
+              // 登録済みの印。背景が白い画像でも分かるよう枠を付けて出す
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={issuer.sealDataUrl}
+                alt="登録済みの印"
+                className="h-16 w-16 rounded border border-gray-200 object-contain"
+              />
+            )}
+          </div>
+          <p className="mt-1 text-xs text-gray-400">
+            {issuer.sealFilename
+              ? `現在の登録: ${issuer.sealFilename}(ファイルを選ばなければそのまま）`
+              : "背景が透明のpngだと明細に自然に重なります"}
+          </p>
+        </div>
+        {issuer.sealDataUrl && (
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              name="remove_seal"
+              className="h-4 w-4 shrink-0"
+            />
+            印を削除する(PDFに印を出さない)
+          </label>
+        )}
+        {result && (
+          <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
         </button>
       </form>
     </section>

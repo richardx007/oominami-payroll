@@ -2209,3 +2209,57 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
 - 不一致がある月は表の左上に凡例「⚠️：勤務予定と不一致あり」を出す（既存の右肩「*印は課税対象外」はそのまま）。
 - あわせて、氏名の下の未確定日の注記の文言を「`mm/ddは退勤未入力のため除外`」→「`mm/ddは未確定`」に変更（§11.7）。
 - 実装ファイル: `src/app/admin/close/page.tsx`。
+
+---
+
+## 20. 従業員個別の給与明細PDF（支払元・印）（2026-09-11追加）
+
+給与明細画面（`/admin/close`）から、**従業員1人分の給与明細をA4縦のPDFとして出力**できるようにした。
+従来のPDF（ヘッダの「PDF」ボタン）は全員分の一覧表であり、個人に渡す明細書としては使えなかった。
+
+### 20.1 出力ボタン（給与明細画面）
+
+- 一覧表に**最右列を1列追加**し、従業員ごとに「PDF」ボタンを置く（`rowSpan` で人単位に1つ。時給分割で
+  行が複数になっても1ボタン）。列見出しは空（`sr-only` で「PDF出力」）。
+- この列は**一覧表PDF・印刷には出さない**。`pdf-col` クラスを目印に `globals.css` の
+  `body.pdf-capture-mode .pdf-capture-target .pdf-col` と `@media print` で `display:none`。
+- 計算できなかった従業員（`result` が null＝エラー行）にはボタンを出さない。エラー行の `colSpan` は
+  15→16、「対象の従業員がいません」の `colSpan` は 16→17 に合わせて増やしてある（列追加のたびに要調整）。
+
+### 20.2 PDFの作り方
+
+- 押したときだけ明細書専用のDOM（`PayslipSheet`）を**画面外**（`fixed; left:-10000px`）に描画し、
+  `captureElementToPdfBlob(el, { orientation: "portrait" })` でキャプチャする。押すまでDOMを作らないので、
+  従業員が何人いても通常時の画面は重くならない。
+- `captureElementToPdfBlob`（`src/lib/pdf-capture.ts`）に `orientation` オプションを追加した（既定は従来どおり
+  横向き＝一覧表用。個別明細は縦向き）。ページ分割ロジックは一覧表と共通。
+- ⚠️ キャプチャは **`html2canvas-pro`**（`captureElementToPdfBlob` 内で使用）。Tailwind v4 の `oklch` を
+  本家 `html2canvas` は解釈できず失敗する。
+- 印の画像（data URL）は `<img>` の読み込み完了（`img.decode()`）を待ってからキャプチャする。待たないと
+  印が抜けたPDFになる。
+
+### 20.3 明細書の内容
+
+- 右上に**支払元2行 + 印**（要望どおりの配置）。
+- 見出し「給与明細書」「◯年◯月度」、氏名（「様」付き）、対象期間・支払日。
+- 「勤務」（日数・勤務時間・うち深夜・うち残業）/「支給」（時給ごとの基本給・深夜手当・残業手当・交通費・
+  昼食補助・総支給額）/「控除」（課税対象額・源泉所得税・前払金）/ 最後に**差引支給額**。
+- 締め前（`status === "open"`）に出力した場合は「※ この明細は締め前の計算結果です（確定額ではありません）」
+  と注記する。プレビュー段階の金額に印を押した明細書が確定額として渡るのを防ぐため。
+
+### 20.4 支払元・印の登録（設定画面）
+
+- 設定画面（`/admin/settings`）に **「給与明細PDF（支払元・印）」** セクションを追加。支払元1行目・2行目の
+  テキストと、印の画像（png/jpg・150KBまで）をアップロードできる。「印を削除する」チェックで消せる。
+  ファイルを選ばずに保存した場合は現在の印を維持する。
+- 保存先は `app_settings`（キー: `payslip_payer_line1` / `payslip_payer_line2` / `payslip_seal_data_url` /
+  `payslip_seal_filename`）。**マイグレーション不要**（既存のキー・バリュー表）。
+- ⚠️ **印は Storage ではなく data URL のまま `app_settings` に持つ**。PDFは html2canvas で DOM を画像化して
+  作るため、外部URLの画像だと CORS・署名付きURLの期限といった失敗要因が増える。data URL なら
+  サーバーコンポーネントが渡した文字列をそのまま `<img>` に載せるだけで確実に写る。代わりに
+  設定画面と給与明細画面の転送量に直接乗るので、上限を 150KB に抑えている（印は小さな画像なので十分）。
+- base64化は Node の `Buffer` ではなく Web標準の `btoa`（Cloudflare Workers 上で動くため）。1バイトずつの
+  文字列連結は遅いので 0x8000 バイトずつ `String.fromCharCode` に渡す。
+- 実装ファイル: `src/lib/payslip-issuer.ts`（キー・上限・パーサ）/ `src/app/admin/settings/{actions,ui,page}.tsx`
+  （`updatePayslipIssuer` / `PayslipIssuerForm`）/ `src/app/admin/close/{page.tsx,payslip-pdf.tsx}` /
+  `src/lib/pdf-capture.ts` / `src/app/globals.css`。
