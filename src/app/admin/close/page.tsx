@@ -91,6 +91,14 @@ export default async function ClosePage({
     ? "border-yellow-300 bg-yellow-200"
     : "border-result-200 bg-result-100";
   const headCellClass = draft ? "bg-yellow-200" : "bg-result-100";
+  // ⚠️ 縞模様は「payrolls の添字」ではなく「実際に行が出る従業員の通し番号」で決める。
+  // その期間に勤務実績が1日も無い従業員は wage_breakdown が空で**1行も描画されない**ため、
+  // 添字で数えると飛ばされたぶん前後の行が同じ色になってしまう
+  // (2026-09-11に発生。勤務0件の原田さんが岸田さんと鈴木さんの間にいた)。
+  const rendered = payrolls.filter(
+    (p) => !p.result || p.result.wage_breakdown.length > 0
+  );
+
   const totals = payrolls.reduce(
     (acc, p) => {
       if (p.result) {
@@ -226,7 +234,7 @@ export default async function ClosePage({
               </tr>
             </thead>
             <tbody>
-              {payrolls.flatMap((p, pIndex) => {
+              {rendered.flatMap((p, pIndex) => {
                 const result = p.result;
                 // 縞は「行」ではなく「従業員」単位。時給分割で複数行になる人も同じ色にする
                 const zebra = zebraRowClass(pIndex);
@@ -382,7 +390,7 @@ export default async function ClosePage({
                   </tr>
                 ));
               })}
-              {payrolls.length === 0 && (
+              {rendered.length === 0 && (
                 <tr>
                   <td
                     colSpan={17}
