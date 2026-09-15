@@ -682,8 +682,11 @@ function EntryForm({
   // 打刻で出勤のみ登録され退勤が未入力の場合、退勤欄を警告表示にする
   const endMissing = !!entry && !entry.end_time;
   // 新規入力時はシフト予定の時刻をデフォルト表示する(既存レコードがあればそれを優先)。
+  // ただし管理者の新規代理入力は出勤も空欄スタート。未出勤の日を開いただけで
+  // シフト時刻が入っていると「出勤を手動入力済み」と誤認しやすいため。
   const startDefault =
-    entry?.start_time ?? shift?.startInput ?? init?.start_time ?? "10:00";
+    entry?.start_time ??
+    (adminMode ? "" : shift?.startInput ?? init?.start_time ?? "10:00");
   const endDefault = entry?.end_time
     ? entry.end_time
     : endMissing
@@ -697,6 +700,11 @@ function EntryForm({
   // 空欄化しづらいため「空欄にする」ボタンを用意し、値を state で制御する。
   const [endTime, setEndTime] = useState(endDefault);
   const endBlank = !endTime;
+  // 出勤欄も空欄スタートがあり得るため(管理者の新規代理入力)、同様に未入力を警告表示する
+  const [startTime, setStartTime] = useState(startDefault);
+  const startBlank = !startTime;
+  // 既存記録の出勤を空欄にして保存 = 誤って入力した出勤の取り消し(記録ごと削除)
+  const cancelling = !!entry && startBlank;
 
   const formRef = useRef<HTMLFormElement>(null);
   const modeRef = useRef<HTMLSelectElement>(null);
@@ -779,6 +787,18 @@ function EntryForm({
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // 取り消し: start_time は NOT NULL で給与計算も出勤時刻ありきのため、空欄のレコードを
+    // 残さず勤務記録ごと削除する(前払金がある日は削除ボタンと同様に拒否される)。
+    if (cancelling) {
+      if (
+        window.confirm(
+          `出勤が空欄のため、${formatDateJa(date)}の勤務記録を取り消します(退勤・交通費・メモ等も削除されます)。よろしいですか？`
+        )
+      ) {
+        onDelete(date);
+      }
+      return;
+    }
     if (!validateTransport()) return;
     onSave(new FormData(e.currentTarget));
   }
@@ -807,7 +827,7 @@ function EntryForm({
           <p className="-mt-1 rounded-lg bg-blue-50 px-2 py-1 text-xs text-blue-700">
             シフト予定: <span className="font-bold">{shift.label}</span>{" "}
             {shift.start}〜{shift.end}
-            {!entry && "（この時刻を初期表示しています）"}
+            {!entry && !adminMode && "（この時刻を初期表示しています）"}
           </p>
         )}
 
@@ -816,17 +836,37 @@ function EntryForm({
             min-w-0、入力は横パディングを詰めてはみ出し・重なりを防ぐ。 */}
         <div className="grid grid-cols-2 gap-3">
           <div className="min-w-0">
-            <label className="mb-1 block text-sm font-medium text-gray-600">
-              出勤
-            </label>
+            <div className="mb-1 flex items-baseline justify-between gap-1">
+              <label className="block text-sm font-medium text-gray-600">
+                出勤
+                {startBlank && (
+                  <span className="ml-1 text-amber-600">未入力</span>
+                )}
+              </label>
+              {!timeLocked && entry && !startBlank && (
+                <button
+                  type="button"
+                  onClick={() => setStartTime("")}
+                  className="shrink-0 text-xs font-medium text-blue-600 hover:underline"
+                >
+                  空欄にする
+                </button>
+              )}
+            </div>
             <input
               name="start_time"
               type="time"
               step={900}
-              required
+              // 新規日は出勤必須。既存記録は空欄のまま保存でき、取り消し(削除)になる
+              required={!entry}
               disabled={timeLocked}
-              defaultValue={startDefault}
-              className={`${timeInputClass} ${timeLocked ? "opacity-60" : ""}`}
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className={`${timeInputClass} ${
+                startBlank
+                  ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300"
+                  : ""
+              } ${timeLocked ? "opacity-60" : ""}`}
             />
           </div>
           <div className="min-w-0">
@@ -879,6 +919,11 @@ function EntryForm({
             {adminMode && (
               <p>
                 ※ 出勤だけ先に代理入力する場合は、退勤を空欄のまま登録できます(退勤未入力扱い)。
+              </p>
+            )}
+            {cancelling && (
+              <p className="text-amber-700">
+                ※ 出勤を空欄のまま「取り消し」を押すと、この日の勤務記録を削除します(誤って入力した出勤の取り消し)。
               </p>
             )}
           </div>
@@ -1128,12 +1173,23 @@ function EntryForm({
                 <TrashIcon className="h-5 w-5" />
               </button>
             )}
+            {/* 出勤を空欄にした既存記録は「取り消し」(=削除)になることをボタンで明示する */}
             <button
               type="submit"
               disabled={pending}
-              className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className={`shrink-0 rounded-lg px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50 ${
+                cancelling
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
             >
-              {pending ? "保存中..." : entry ? "更新" : "登録"}
+              {pending
+                ? "保存中..."
+                : cancelling
+                  ? "取り消し"
+                  : entry
+                    ? "更新"
+                    : "登録"}
             </button>
           </div>
         </div>
