@@ -202,6 +202,7 @@ psql "<新プロジェクトの接続文字列>" -f data.sql
       最終確認: 2026-07-29（別アカウント `oominami2026@gmail.com` で GitHub 連携 → デプロイ →
       ログイン画面表示まで確認済み。§5-2 の「workers.dev トグルは既定オフ」をこの回で発見・追記。
       メール送信機能は `GMAIL_APP_PASSWORD` を設定しなかったため未検証）
+      **テストが終わったら、必ず §7.5 の待機状態（Git 連携を外す・`workers.dev` をオフ）に戻すこと。**
 - [ ] バックアップの Actions が失敗していないか（失敗時はメールが届き、操作ログにも `エラー` が残る）
 - [ ] 操作ログに `バックアップ警告` が出ていないか（トークンの期限が近い。§2.2 で再発行）
 - [ ] Supabase の無料プロジェクトは **7日間アクセスが無いと一時停止**する。
@@ -219,6 +220,28 @@ psql "<新プロジェクトの接続文字列>" -f data.sql
 | Cloudflare デプロイ先 | 別アカウント `oominami2026@gmail.com`、Worker `oominami-payroll`（`oominami-payroll.oominami2026.workers.dev`） |
 
 いずれも本番とは別の環境で、本番の Site URL / Redirect URLs 等は変更していない。
+
+### Cloudflare 別アカウントの待機状態（2026-09-15〜）
+
+何かあった時にすぐ使えるよう Worker は**削除せず残す**が、平常時は次の状態にしておく。
+
+- **Git 連携は外す**（Settings > Build で Disconnect。2026-09-15 に解除済み）。
+  つないだままだと main への push のたびにこちらでもビルド・デプロイが走り、
+  本番 Supabase につながったコピーが公開され続ける（2026-07-29〜09-15 はこの状態だった）。
+- **`workers.dev` は Production・Preview とも オフ**（Worker の **Domains タブ > Worker URL** の
+  2つのトグル。Settings の中ではない）。外からは見えないが、
+  Worker 本体・vars・Secret はそのまま残る。
+- ⚠️ GitHub 側で Cloudflare アプリのリポジトリ権限を外してはいけない。GitHub App の
+  インストールは本番アカウントと共通なので、本番の自動デプロイまで止まる。
+
+**非常時に使うとき**（本番の Cloudflare アカウントが使えなくなった場合など）
+
+1. 最新のコードにしたい場合は Settings > Build で `richardx007/oominami-payroll` を再接続して
+   デプロイする（待機中の Worker のコードは連携を外した時点＝2026-09-15 のまま）
+2. **Domains タブ > Worker URL** で Production のトグルをオンにする
+3. Supabase の Site URL / Redirect URLs に `oominami-payroll.oominami2026.workers.dev` を追加する（§4-1）
+4. メール送信を使うなら Secret `GMAIL_APP_PASSWORD` を登録する（§5-3）
+5. Supabase も作り直した場合は、`wrangler.jsonc` の vars を新しい URL・キーに変えてからデプロイする（§4-5）
 
 ---
 
