@@ -4,8 +4,12 @@
 //  - この SW は fetch イベントを一切持たない。したがってナビゲーション/RSC を横取りせず、
 //    App Router のメニュー遷移を壊さない(Cloudflare Workers + opennext でも安全)。
 //  - 役割は「更新の検知」と「SKIP_WAITING による有効化」だけ。オフラインキャッシュは行わない。
-//  - SW_VERSION がデプロイごとに変わることで、ブラウザが新版を検知し ReloadPrompt がバナーを出す。
+//  - SW_VERSION が変わることで、ブラウザが新版を検知し ReloadPrompt がバナーを出す。
+//  - ただし「アプリの中身が変わったとき」だけ変える。ドキュメント(docs/, README 等)だけの
+//    コミットでも本番ビルドは走るが、利用者に関係しない更新でバナーを出さないため、
+//    バージョンは HEAD の SHA ではなく **アプリ関連ファイルの内容ハッシュ** から作る。
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,12 +17,39 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outPath = resolve(__dirname, "../public/sw.js");
 
-// デプロイごとに一意になるバージョン。git SHA を優先し、無ければビルド時刻。
-let version;
-try {
-  version = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+// バージョンの対象にするファイル(= 変わったら利用者に更新を知らせるべきもの)。
+// docs/ README.md CLAUDE.md .github/ .claude/ supabase/ は対象外(アプリの動作に影響しない)。
+// public/sw.js 自身は .gitignore 済みなので、ここに含めても自己参照にはならない。
+const APP_PATHS = [
+  "src",
+  "public",
+  "scripts",
+  "package.json",
+  "package-lock.json",
+  "next.config.ts",
+  "open-next.config.ts",
+  "postcss.config.mjs",
+  "tsconfig.json",
+  "wrangler.jsonc",
+  ".env",
+];
+
+// git ls-files -s は各ファイルの blob ハッシュを並べて返す。履歴を使わないので、
+// Cloudflare のビルドのように履歴が浅いクローンでも同じ結果になる。
+const git = (cmd) =>
+  execSync(cmd, { stdio: ["ignore", "pipe", "ignore"], cwd: resolve(__dirname, "..") })
     .toString()
     .trim();
+
+let version;
+try {
+  const paths = APP_PATHS.join(" ");
+  const listing = git(`git ls-files -s -- ${paths}`);
+  if (!listing) throw new Error("git ls-files が空(リポジトリ外?)");
+  version = createHash("sha256").update(listing).digest("hex").slice(0, 12);
+  // 手元の未コミット変更を含むビルド(npm run preview 等)は内容ハッシュに現れないため、
+  // 毎回別バージョンにして更新検知が効くようにする。
+  if (git(`git status --porcelain -- ${paths}`)) version += `-dirty${Date.now()}`;
 } catch {
   version = String(Date.now());
 }
