@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { ReloadPrompt } from "./pwa/ReloadPrompt";
+import { AppReloadPrompt } from "./pwa/AppReloadPrompt";
 
 export const metadata: Metadata = {
   title: "給与管理システム",
@@ -23,7 +23,7 @@ export default function RootLayout({
     <html lang="ja">
       <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
         {children}
-        <ReloadPrompt accentColor="#152449" position="top" />
+        <AppReloadPrompt accentColor="#152449" position="top" />
       </body>
     </html>
   );
