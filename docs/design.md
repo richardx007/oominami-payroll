@@ -253,7 +253,8 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 - **印刷時は `@media print` で `.app-shell` の `position` / 高さ / overflow を必ず解除する。**
   解除しないと**印刷が1画面ぶんで切れる**（日別実績・給与明細の表の続きが出ない）。
   `position: static` に戻す指定を消さないこと。
-- **md 以上（管理画面のサイドバー表示）は通常のページスクロールへ戻す**（`.app-shell--sidebar`）。
+- **md 以上（管理画面・従業員画面のサイドバー表示）は通常のページスクロールへ戻す**（`.app-shell--sidebar`）。
+  従業員画面も2026-09-17から同じ `.app-shell--sidebar` を使う。
   この幅では下部タブナビ自体が `md:hidden` で出ないため、シェルの固定も内部スクロールも不要。
 - **管理画面の横幅制限は `layout.tsx` ではなく各ページ側で持つ**（2026-08-05変更）。
   `admin/layout.tsx` の `<main>` は `max-w` を付けずパディングのみ。表の列を多く見せたい
@@ -265,7 +266,8 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 ### ディレクトリ（`src/`）
 ```
 app/
-  (employee)/            従業員向け（スマホ基本+PC/iPadは2カラム、下部タブナビ）
+  (employee)/            従業員向け（md以上=左サイドバー/スマホ=上部ヘッダー+下部タブナビ。2026-09-17に管理画面と統一。
+                         PC/iPadの2カラムは各ページ側の lg: 指定）
     layout.tsx           スマホ:max-w-lg / lg以上:max-w-5xl（ヘッダーはネイビー+ロゴ）。ヘッダー右肩は
                          ニックネーム(未設定は氏名)。最新お知らせの sent_at と get_contact_settings()
                          (会社名・送信元メール)を取得し EmployeeNav に渡す（未読バッジ・管理者メール用）。
@@ -2345,3 +2347,44 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
 - 従業員一覧は行に選択色（`bg-blue-50/60`）とホバーがあるため、**展開中の行は選択色を優先**し、
   それ以外の行に縞を当てている。
 - 縞はPDF出力にもそのまま出る（一覧表のPDFは画面の表をキャプチャしているため）。
+
+## 22. シフトのカレンダー購読フィード（ICS / webcal）（2026-09-17追加）
+
+従業員要望「自分のシフトをカレンダーアプリで見たい」への対応。Yahoo!カレンダーは外部からの取り込み口が
+全て閉じている（インポート無し・CalDAV終了・API非公開）ため対象外とし、iPhone標準カレンダー／
+Googleカレンダー等で購読できる **従業員ごとの ICS 購読フィード** とした（経緯は handover.md）。
+
+### 22.1 仕組み
+- URL: `<NEXT_PUBLIC_SITE_URL>/api/ics/<token>.ics`（`/api` は middleware で公開）。登録ボタンは `webcal://` に置換して使う。
+- トークン: `calendar_feeds`（`employee_id` PK / `token` 64桁hex unique）。RLS有効・ポリシー無し・anon/authenticated の
+  テーブル権限revoke。**直接は読み書きできず、関数経由のみ**。
+  - `my_calendar_token(p_rotate)`（authenticated）: 本人のトークンを返す。未発行なら発行、`true`で作り直し（古いURLは即無効）。
+    アカウント設定画面を開いた時点で未発行なら自動発行される（`src/lib/calendar-feed-url.ts`）。
+  - `calendar_feed(p_token)`（**anon可**・SECURITY DEFINER）: 無効トークン・退職者は null（→404）。シフト枠設定・会社名・
+    本人のシフト（62日前以降）＋各日の `is_shift_draft()` を返す。service_roleキーを持たない方針のための構成。
+- ICS生成: `src/lib/ics.ts`（`buildShiftIcs`、テスト `ics.test.ts`）。
+  - 時刻・日跨ぎは `buildShiftMap()`／`scheduleWindow()` を流用（深夜番0〜5時始まりは翌日、変則時刻は枠既定を上書き）。
+  - 時刻は UTC（`...Z`）で出力し VTIMEZONE を持たない。UID は `shift-<日付>-<employee_id>@oominami-payroll`。
+  - 件名は枠名（例「早番」）。**調整中の月は「仮:早番」＋`STATUS:TENTATIVE`**（確定すると「仮:」が外れる）。
+  - カレンダー名 `X-WR-CALNAME` =「<会社名> シフト」。氏名は含めない（URLを知る人は誰でも見られるため）。
+  - 75オクテット折り返し（日本語はUTF-8バイト数で数え、文字の途中で切らない）。
+
+### 22.2 画面（アカウント設定「カレンダー連携」。管理者・従業員共通の `AccountSettingsView`）
+- 常時表示: 説明 → 登録ボタン2つ → iPhone手順枠 → Google手順枠。
+- 「▶︎ 詳細情報」トグル（既定で閉）: 注記（調整中の表示・変更反映の遅れ・URLを教えない）→ 購読URL（コピー）・QR →
+  URLを作り直す（2段階確認・操作ログ「カレンダーURL再発行」）。
+- iPhone: ボタン → 「照会カレンダーを追加」で画面下「検索」→ 右上のチェック（✓）で完了。**初回表示まで少し時間がかかる**。
+- Google: **パソコンのブラウザで**操作（スマホアプリからは購読追加不可）。`calendar.google.com/calendar/render?cid=<webcal URL>`。
+  - 🔴 **`cid` は `webcal://` を渡すこと**。https を渡すと「登録できません。URLを確認してください」で拒否される。
+  - 登録直後は名前が「webcal://…」だが、Google の初回同期後に `X-WR-CALNAME` へ自動で変わる。登録直後から予定は表示される。
+- 変更の反映はクライアントの再取得間隔次第（`REFRESH-INTERVAL`/`X-PUBLISHED-TTL` は PT1H を指定するが、Googleは数時間〜1日）。
+
+## 23. 従業員画面のPC表示を左サイドバーに統一（2026-09-17追加）
+- 旧: 従業員画面は全幅で上部ヘッダー（`max-w-lg` 中央寄せ）＋下部タブ（`lg:` で横並び展開）。Macではヘッダーと本文の
+  幅が揃わずロゴ・氏名の位置がずれて見えた。
+- 新: 管理画面と同じ構成。`(employee)/layout.tsx` が `.app-shell--sidebar` を使い、**md以上=左サイドバー**
+  （ロゴ／`EmployeeSidebarNav`＝シフト・勤務表・日別・給与明細・出退勤・お知らせ（未読ドット）・管理者へ✉️・
+  「関連情報」グループ（勤務ルール・営業カレンダー・ホームページ）／最下部に氏名（アイコン左）・管理画面リンク（管理者のみ）・
+  ログアウト・ver.）、**スマホ=上部ヘッダー＋下部タブ `EmployeeNav`（`md:hidden`）** は従来どおり。
+- 未読判定 `useNoticeUnread`・打刻確認シート `ClockSheet` は両ナビで共用（`(employee)/nav.tsx`）。
+- 切替幅は `lg`(1024px) → `md`(768px)。iPad縦もサイドバー表示。オーナーがスマホ・Macで表示確認済み。
