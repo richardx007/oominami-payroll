@@ -381,7 +381,7 @@ app/
                          （next.config）。源泉徴収税額表は2026-08-22に`admin/tax-table/`へ独立（下記）。
                          昼食補助（全社共通定額）の設定は2026-09-02に廃止し`employees/`の従業員別履歴に
                          一本化（§17）
-    calendar/            営業カレンダー(§24。2026-09-17)。page/ui/actions=月の作成・日の3択編集・イベント。
+    calendar/            営業カレンダー(§24。2026-09-17)。自動作成通知の送信口は api/notify/business-calendar(§24.5)。page/ui/actions=月の作成・日の3択編集・イベント。
                          patterns/=営業時間の定義、preview/=ホームページでの見え方(/calendar/embed を iframe 表示)
     settings/event-types.tsx  イベントの種類と色（営業カレンダー。§24）
     tax-table/           源泉徴収税額表(月額表)専用ページ(メニュー「税額表」。2026-08-22、設定画面から独立)。
@@ -470,6 +470,7 @@ lib/
   log.ts                 操作ログ記録ヘルパー（`log_activity` RPC を best-effort 実行。失敗は握りつぶす）
   holidays.ts            日本の祝日取得（holidays-jp）
   business-calendar-view.ts  営業カレンダーの表示整形（通し営業の帯・週割り付け・区分判定・月の状態。§24.2）
+  business-calendar-notify.ts  営業カレンダー自動作成通知の文面（§24.5）
 components/business-calendar/  MonthCalendar.tsx(管理画面の月グリッド) / PublicCalendar.tsx(HP埋め込みの見た目)
 middleware.ts            未認証は /login へ（/calendar/embed 等の公開パスを除く）。認証済みで"/"（PWAのstart_url）のときは
                          is_adminを判定し /admin または /timesheet へ直接振り分ける（2026-08-26追加。
@@ -2397,12 +2398,11 @@ Googleカレンダー等で購読できる **従業員ごとの ICS 購読フィ
 - 未読判定 `useNoticeUnread`・打刻確認シート `ClockSheet` は両ナビで共用（`(employee)/nav.tsx`）。
 - 切替幅は `lg`(1024px) → `md`(768px)。iPad縦もサイドバー表示。オーナーがスマホ・Macで表示確認済み。
 
-## 24. 営業カレンダー（2026-09-17追加・フェーズ1〜4）
+## 24. 営業カレンダー（2026-09-17追加・フェーズ1〜5）
 
 Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-calendar` で運用していた営業カレンダーを、
 このアプリ内で管理する。**区分ごとの営業時間の定義から月を作り、いつもと違う日だけを直す**方式。
-当初計画・オーナー決定事項は `docs/business-calendar-plan.md`。未実装はフェーズ5（15日の自動作成・通知）、
-フェーズ6（ポスターPDF）、フェーズ7（移行・切替）。
+当初計画・オーナー決定事項は `docs/business-calendar-plan.md`。未実装はフェーズ6（ポスターPDF）、フェーズ7（移行・切替）。
 
 ### 24.1 データベース（`supabase/migrations/20260917100000_business_calendar.sql`、本番適用済み）
 時刻は**その日の0:00からの分**（600=10:00、1440=24:00、1740=翌5:00）。
@@ -2474,3 +2474,32 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   再読み込み）。iframe 内でメディアクエリが効くので実際の幅での見え方になる。埋め込みコードのコピー（旧アプリと同じ
   `<iframe … style="width:100%; border:0; min-height:760px; background:transparent;">`、`src` のみ `…/calendar/embed`）。
 - 旧アプリへのリンク（§10.3・サイドバー「関連情報」）は切替（フェーズ7）まで残している。
+
+### 24.5 毎月15日の自動作成と通知（2026-09-18追加・フェーズ5）
+`supabase/migrations/20260918000000_business_calendar_auto_generate.sql`。未打刻通知と同じく、**判定・作成・送信先の解決はDB、
+APIは Web Push の暗号化と送信だけ**（service_role キーを持たない方針）。
+
+```
+pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日中に受けるため）
+  → create_business_month_if_due(p_today default JST今日)
+      15日より前 → not_due
+      翌々月が未作成 → generate_business_month()（自動作成。操作ログ「システム(自動)／営業カレンダー作成」）
+        失敗（祝日データ無し等）→ kind=failed（操作ログ「営業カレンダー自動作成失敗」）。翌日また試す
+      通知: 今回の作成・失敗、または「自動作成済み(generated_by null)で notified_at null」の月（Vault未設定時の再試行）
+        スイッチ notify_business_calendar=false → 送らず notified_at を記録（後でオンにしても送らない）
+        管理者の購読が0件 → 送らず notified_at を記録
+        Vault notify_secret / notify_business_calendar_url が無い → 送らず（翌日再試行）
+        → net.http_post(/api/notify/business-calendar, {kind, ym, subscriptions})、created は notified_at を記録
+```
+- **管理者が「今すぐ作成」した月（`generated_by` あり）には通知しない**。15日時点で作成済みなら何もしない（冪等）。
+- **失敗（`failed`）の通知は成功するまで毎日届く**（祝日データが取れない状態を放置しないため）。
+- `p_today` はテスト用。関数は public/anon/authenticated から実行不可（cron・SQLからのみ）。
+- 送信API `src/app/api/notify/business-calendar/route.ts`（`x-notify-secret` 認証）。文面は `src/lib/business-calendar-notify.ts`
+  （テスト `business-calendar-notify.test.ts`）:
+  - created: 「11月の営業カレンダーを作成しました」「9月30日までに、臨時休業・営業時間の変更・イベントを設定してください。
+    10月1日からホームページに表示されます。」。締切・公開日は対象月から計算（作成日に依存しない）。
+  - failed: 「営業カレンダーを作成できませんでした」「祝日データを取得できていないため、○月分の自動作成を中止しました。明日また自動で試します。」
+  - タップで `/admin/calendar?ym=YYYY-MM`。tag `business-calendar-YYYY-MM`。
+- アカウント設定 > 通知 > 通知対象（管理者向け）に「営業カレンダーの作成」スイッチ（`notify_business_calendar`、既定オン）。
+- 2026-09-18 本番DBで `p_today` を変えたロールバック付きテスト済み: 14日=not_due／9/17=none（11月は手動作成済み）／
+  10/15=12月を自動作成＋送信キュー1件／翌日=none／スイッチOFF=作成のみ／祝日無しの年=failed＋送信（翌日も再送）。

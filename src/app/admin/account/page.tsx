@@ -21,6 +21,7 @@ export default async function AdminAccountPage() {
         "notify_missing_punch_in",
         "notify_missing_punch_out",
         "notify_first_login",
+        "notify_business_calendar",
       ]),
     getMyCalendarFeedUrl(),
   ]);
@@ -41,6 +42,7 @@ export default async function AdminAccountPage() {
         notifyInEnabled={settingsMap.get("notify_missing_punch_in") !== "false"}
         notifyOutEnabled={settingsMap.get("notify_missing_punch_out") !== "false"}
         notifyFirstLoginEnabled={settingsMap.get("notify_first_login") !== "false"}
+        notifyBusinessCalendarEnabled={settingsMap.get("notify_business_calendar") !== "false"}
       />
     </div>
   );

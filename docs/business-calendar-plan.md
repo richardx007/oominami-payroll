@@ -4,7 +4,7 @@
 対象リポジトリ: `richardx007/oominami-payroll`
 関連: `oominami-calendar`（移行元。移行完了後に廃止予定）
 
-> 状態: **フェーズ1〜4 実装・本番デプロイ済み（2026-09-17）**。フェーズ5〜7は未着手。実装の仕様は `docs/design.md` §24、
+> 状態: **フェーズ1〜4 実装・本番デプロイ済み（2026-09-17）、フェーズ5 実装（2026-09-18）**。フェーズ6・7は未着手。実装の仕様は `docs/design.md` §24、
 > 計画からの変更点（月タブ廃止・過去の月も作成可など）は `docs/handover.md`「営業カレンダー機能」。
 > 画面モックアップは Artifact「営業カレンダー機能 モックアップ」
 > （https://claude.ai/artifact/XaMWLV4Q2T1gVXy5ZzbCAS）を参照。
@@ -86,7 +86,7 @@ Google カレンダーでは「時刻あり＝営業」「終日＝イベント�
 ## 4. 業務の流れ（月次サイクル）
 
 ```
- 15日 03:00  システム: 翌々月分を定義から自動作成
+ 15日 12:00  システム: 翌々月分を定義から自動作成（当初 03:00 → 2026-09-17 に日中へ変更）
              → 管理者へ Web Push「11月の営業カレンダーを作成しました。9月30日までに…」
     │        （タップで該当月の営業カレンダーが開く）
     ▼  〜月末
@@ -192,7 +192,7 @@ Google カレンダーでは「時刻あり＝営業」「終日＝イベント�
 
 ### 6.3 自動作成と通知
 ```
-pg_cron（毎日 03:00 JST）→ create_business_month_if_due()
+pg_cron（毎日 12:00 JST）→ create_business_month_if_due()
   └ JSTで15日以降 かつ 翌々月が未作成 → generate_business_month()
       └ notify_business_calendar が true かつ notified_at が null
           → 管理者の push_subscriptions を集め pg_net で POST /api/notify/business-calendar

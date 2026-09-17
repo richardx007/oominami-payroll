@@ -169,6 +169,8 @@ psql "<新プロジェクトの接続文字列>" -f data.sql
    - 営業カレンダーの祝日同期 `jp-holidays-request` / `jp-holidays-apply`: `20260917100000_business_calendar.sql` の
      `cron.schedule(...)` 2行を実行（シークレット不要）。復元直後は `select public.request_jp_holidays_sync();` →
      数秒後に `select public.apply_jp_holidays_sync();` で祝日を取り込む（祝日が無いと営業カレンダーの月を作成できない）
+   - 営業カレンダーの自動作成 `business-calendar-auto`: `20260918000000_business_calendar_auto_generate.sql` 末尾の復元手順
+     （Vault に `notify_business_calendar_url` を登録してから cron 登録）
 
 ---
 

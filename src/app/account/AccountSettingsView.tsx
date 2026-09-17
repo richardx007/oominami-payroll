@@ -32,6 +32,7 @@ export function AccountSettingsView({
   notifyInEnabled,
   notifyOutEnabled,
   notifyFirstLoginEnabled,
+  notifyBusinessCalendarEnabled,
   calendarFeedUrl,
 }: {
   name: string;
@@ -45,6 +46,7 @@ export function AccountSettingsView({
   notifyInEnabled?: boolean;
   notifyOutEnabled?: boolean;
   notifyFirstLoginEnabled?: boolean;
+  notifyBusinessCalendarEnabled?: boolean;
   /** シフトのカレンダー購読URL(https)。取得失敗時は null */
   calendarFeedUrl: string | null;
 }) {
@@ -60,6 +62,7 @@ export function AccountSettingsView({
               notifyInEnabled={notifyInEnabled ?? true}
               notifyOutEnabled={notifyOutEnabled ?? true}
               notifyFirstLoginEnabled={notifyFirstLoginEnabled ?? true}
+              notifyBusinessCalendarEnabled={notifyBusinessCalendarEnabled ?? true}
             />
           ) : null
         }
@@ -349,10 +352,12 @@ function NotifyTypeForm({
   notifyInEnabled,
   notifyOutEnabled,
   notifyFirstLoginEnabled,
+  notifyBusinessCalendarEnabled,
 }: {
   notifyInEnabled: boolean;
   notifyOutEnabled: boolean;
   notifyFirstLoginEnabled: boolean;
+  notifyBusinessCalendarEnabled: boolean;
 }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -401,6 +406,18 @@ function NotifyTypeForm({
           新規従業員の初回ログイン
           <span className="font-normal text-gray-500">
             （初回パスワード設定の完了時に通知）
+          </span>
+        </label>
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            name="notify_business_calendar"
+            defaultChecked={notifyBusinessCalendarEnabled}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          営業カレンダーの作成
+          <span className="font-normal text-gray-500">
+            （毎月15日に翌々月分を自動作成したときに、設定を促す通知）
           </span>
         </label>
         {result && (

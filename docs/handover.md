@@ -3364,9 +3364,19 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - **未確認**: 日の保存・イベント登録などの書き込み操作の実機テスト（オーナーが実施中）、実際のHPに iframe を差し替えた表示。
 - 開発サーバーで出る「1 Issue」（`<html>` の hydration 属性不一致）は今回の変更前から出ているもの（ブラウザ拡張由来と思われる）。
 
+**フェーズ5: 毎月15日の自動作成と通知（2026-09-18）** — 仕様は設計書 §24.5
+- DB（`20260918000000_business_calendar_auto_generate.sql`、本番適用済み）: `create_business_month_if_due(p_today)`、
+  pg_cron `business-calendar-auto`（**毎日 12:00 JST**。オーナー要望で当初の03:00から変更）。**Vault に `notify_business_calendar_url` を本番URLで登録済み**
+  （`notify_secret` は共用）。
+- 送信API `api/notify/business-calendar`、文面 `lib/business-calendar-notify.ts`（テスト3件）、アカウント設定の「営業カレンダーの作成」スイッチ。
+- 決めたこと: 手動で「今すぐ作成」した月には通知しない／スイッチOFF中に作成した月は後から通知しない／
+  祝日データが無く作成に失敗した場合は、成功するまで毎日「作成できませんでした」を通知する。
+- 確認: 本番DBで日付を変えたロールバック付きテスト（設計書 §24.5 末尾）、`vitest` 104件、スイッチの表示（Chrome）。
+- **初回の実機確認のため、2026-09-17 に11月分（手修正・イベント無し）をDBから削除**（オーナー依頼）。
+  **9/18 12:00 の定期実行で11月分が自動作成され、管理者端末に通知が届く予定**。届いたか・11月の内容・`business_months.notified_at` を確認すること。
+
 **次にやること**
-1. フェーズ5: 毎月15日の自動作成（pg_cron → `create_business_month_if_due()`）と管理者への Web Push、
-   アカウント設定の通知スイッチ「営業カレンダーの作成」、Vault `notify_business_calendar_url`、送信API `api/notify/business-calendar`。
+1. フェーズ5の実機確認（9/18 12:00 に11月分の作成と通知が届いたか。以後は毎月15日 12:00）。
 2. フェーズ6: ポスター（A4 PDF/画像）の移植（スキル `printable-calendar` / `print-and-pdf-download`）。
 3. 移行テスト（計画書 §9.1）→ HP の iframe `src` を `https://oominami-payroll.shinsekai.workers.dev/calendar/embed` に差し替え、
    サイドバー「関連情報 > 営業カレンダー」（管理者・従業員）のリンク先を変更、旧アプリを1ヶ月後に停止。
