@@ -7,6 +7,7 @@ import {
   EVENT_COLORS,
   layoutWeek,
   monthGridKeys,
+  weekdayHeaderBg,
   type BusinessDayRow,
   type CalendarEventRow,
   type EventTypeRow,
@@ -18,6 +19,9 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const chip =
   "block w-full truncate rounded-sm border px-0.5 text-[9px] leading-tight sm:px-1 sm:text-[11px]";
 const openChip = `${chip} border-green-500 bg-green-50 font-medium text-green-800`;
+// 「泊まり可能」は営業時間の補足なので、枠を付けず濃いグレーの文字だけで出す
+const stayNote =
+  "block w-full truncate px-0.5 text-[9px] font-semibold leading-tight text-gray-700 sm:px-1 sm:text-[11px]";
 
 function EventChip({ ev }: { ev: EventView }) {
   const c = EVENT_COLORS[ev.color];
@@ -49,7 +53,6 @@ export function MonthCalendar({
   showManual = false,
   blank = false,
   attach,
-  headerClassName = "bg-gray-100",
 }: {
   ym: string;
   days: BusinessDayRow[];
@@ -65,7 +68,6 @@ export function MonthCalendar({
   /** スワイプで月を移動中は中身を出さない */
   blank?: boolean;
   attach?: (el: HTMLDivElement | null) => void;
-  headerClassName?: string;
 }) {
   const view = useMemo(() => buildCalendarView(days, events, types), [days, events, types]);
   const keys = useMemo(() => monthGridKeys(ym), [ym]);
@@ -74,8 +76,10 @@ export function MonthCalendar({
 
   return (
     <div ref={attach} className="rounded-xl border-2 border-gray-400 bg-white p-0.5 sm:p-2">
+      {/* 曜日の行は公開カレンダーと同じ月ごとの巡回色 */}
       <div
-        className={`mb-0.5 grid grid-cols-7 rounded-lg text-center text-sm font-semibold text-gray-600 sm:mb-1 ${headerClassName}`}
+        className="mb-0.5 grid grid-cols-7 rounded-lg text-center text-base font-bold text-gray-700 sm:mb-1 sm:text-lg"
+        style={{ backgroundColor: weekdayHeaderBg(ym) }}
       >
         {WEEKDAYS.map((w, i) => (
           <div key={w} className={`py-1.5 ${i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""}`}>
@@ -116,7 +120,7 @@ export function MonthCalendar({
             }
             if (d.stay) {
               items.push(
-                <span key="s" className={`${chip} border-green-300 bg-white text-green-700`}>
+                <span key="s" className={stayNote}>
                   泊まり可能
                 </span>
               );

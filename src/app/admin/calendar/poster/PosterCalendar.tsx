@@ -116,7 +116,8 @@ export function PosterCalendar({
         if (d.stay) {
           items.push({
             key: "s",
-            node: <span className={`${boxBase} rounded-[1.2mm] border-[0.35mm] border-[#d3a94e] bg-[#fbf1d9] text-[#a9760a]`}>泊まり可能</span>,
+            // 「泊まり可能」は営業時間の補足なので、枠を付けず濃いグレーの文字だけで出す
+            node: <span className={`${boxBase} text-[#374151]`}>泊まり可能</span>,
           });
         }
         d.events.forEach((ev) => {

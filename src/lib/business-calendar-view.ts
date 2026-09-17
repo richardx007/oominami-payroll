@@ -81,6 +81,13 @@ export function monthGridKeys(ym: string): string[] {
   return keys;
 }
 
+/** 曜日見出し行の背景色を月ごとに 青→黄→緑→桃 で巡回（旧アプリと同じ。公開カレンダーと管理画面で共用） */
+const WEEKDAY_HEADER_BG = ["#e6f0fb", "#fbf4dc", "#e8f5ea", "#fceaf0"];
+
+export function weekdayHeaderBg(ym: string): string {
+  return WEEKDAY_HEADER_BG[(Number(ym.slice(5, 7)) - 1) % WEEKDAY_HEADER_BG.length];
+}
+
 // ---------------------------------------------------------------------------
 // 区分の判定
 // ※DB側 business_day_type() が同じ規則を持つ。**片方だけ変えないこと。**

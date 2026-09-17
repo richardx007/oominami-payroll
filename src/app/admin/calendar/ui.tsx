@@ -41,11 +41,6 @@ const STATE_BADGE: Record<MonthState, string> = {
   draft: "bg-yellow-200 text-yellow-900",
   public: "bg-green-100 text-green-800",
 };
-const STATE_HEADER: Record<MonthState, string> = {
-  none: "bg-gray-100",
-  draft: "bg-yellow-100",
-  public: "bg-green-100",
-};
 
 function ymLabel(ym: string) {
   return `${ym.slice(0, 4)}年${Number(ym.slice(5, 7))}月`;
@@ -203,7 +198,6 @@ export function CalendarManager({
             showManual
             blank={blank}
             attach={attach}
-            headerClassName={STATE_HEADER[state]}
           />
         </div>
         <CalendarLegend types={types} />
