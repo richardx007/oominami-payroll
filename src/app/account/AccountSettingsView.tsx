@@ -457,7 +457,9 @@ function CalendarFeedSection({ url }: { url: string | null }) {
     );
   }
 
-  const googleUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
+  // cid には https の URL を渡す(webcal:// を渡すとGoogleカレンダーでカレンダー名が「webcal://…」のURLに
+  // なった。2026-09-17 オーナー確認)。
+  const googleUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(url)}`;
 
   async function copy() {
     try {
@@ -503,9 +505,20 @@ function CalendarFeedSection({ url }: { url: string | null }) {
             <span className="font-bold">「検索」</span>を押す
           </li>
           <li>
-            次の画面で<span className="font-bold">「追加」</span>を押すと完了
+            次の画面で右上の<span className="font-bold">チェック（✓）ボタン</span>を押すと完了
           </li>
         </ol>
+        <p className="mt-3 font-medium">Googleカレンダーでの登録手順（パソコンのブラウザで）</p>
+        <ol className="mt-1 list-decimal space-y-1 pl-5">
+          <li>上の「Googleカレンダーに登録」を押し、開いた画面で「登録」を押す</li>
+          <li>
+            カレンダー名がURLのまま表示された場合は、左の「他のカレンダー」でそのカレンダーの
+            「︙」→<span className="font-bold">「設定」</span>を開き、名前を「シフト」などに変更する
+          </li>
+        </ol>
+        <p className="mt-1 text-xs">
+          ※スマホのGoogleカレンダーアプリからは登録できません。パソコンで登録すると、スマホのアプリにも表示されます。
+        </p>
       </div>
 
       <div className="mt-3">
@@ -547,10 +560,6 @@ function CalendarFeedSection({ url }: { url: string | null }) {
           カレンダーへの反映は、アプリ側の更新間隔により
           <span className="font-medium">数時間〜1日ほど遅れる</span>
           ことがあります。直前の変更はこのアプリのシフト画面で確認してください。
-        </li>
-        <li>
-          Googleカレンダーは<span className="font-medium">パソコンのブラウザ</span>
-          から登録してください（スマホのGoogleカレンダーアプリからは登録できません）。
         </li>
         <li>
           このURLを知っている人は誰でもあなたのシフトを見られます。他人に教えないでください。
