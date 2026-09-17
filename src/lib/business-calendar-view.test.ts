@@ -92,7 +92,7 @@ describe("2026年9月（HP画像との照合）", () => {
     expect(view.days.get("2026-09-23")!.timeLabel).toBeNull();
   });
 
-  it("泊まり可能は通しの夜（最終日には付かない）", () => {
+  it("泊まり可は通しの夜（最終日には付かない）", () => {
     const stay = [...view.days.values()].filter((d) => d.stay).map((d) => d.date.slice(8));
     expect(stay).toEqual(["04", "05", "11", "12", "18", "19", "20", "21", "22", "25", "26"]);
   });

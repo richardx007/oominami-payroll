@@ -7,6 +7,7 @@ import {
   EVENT_COLORS,
   layoutWeek,
   monthGridKeys,
+  STAY_LABEL,
   type BusinessDayRow,
   type CalendarEventRow,
   type EventTypeRow,
@@ -116,8 +117,8 @@ export function PosterCalendar({
         if (d.stay) {
           items.push({
             key: "s",
-            // 「泊まり可能」は営業時間の補足なので、枠を付けず濃いグレーの文字だけで出す
-            node: <span className={`${boxBase} text-[#374151]`}>泊まり可能</span>,
+            // 「泊まり可」は営業時間の補足なので、枠を付けず濃いグレーの文字だけで出す
+            node: <span className={`${boxBase} text-[#374151]`}>{STAY_LABEL}</span>,
           });
         }
         d.events.forEach((ev) => {

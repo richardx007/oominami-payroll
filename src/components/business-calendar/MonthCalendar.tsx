@@ -7,6 +7,7 @@ import {
   EVENT_COLORS,
   layoutWeek,
   monthGridKeys,
+  STAY_LABEL,
   weekdayHeaderBg,
   type BusinessDayRow,
   type CalendarEventRow,
@@ -19,7 +20,7 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const chip =
   "block w-full truncate rounded-sm border px-0.5 text-[9px] leading-tight sm:px-1 sm:text-[11px]";
 const openChip = `${chip} border-green-500 bg-green-50 font-medium text-green-800`;
-// 「泊まり可能」は営業時間の補足なので、枠を付けず濃いグレーの文字だけで出す
+// 「泊まり可」は営業時間の補足なので、枠を付けず濃いグレーの文字だけで出す
 const stayNote =
   "block w-full truncate px-0.5 text-[9px] font-semibold leading-tight text-gray-700 sm:px-1 sm:text-[11px]";
 
@@ -121,7 +122,7 @@ export function MonthCalendar({
             if (d.stay) {
               items.push(
                 <span key="s" className={stayNote}>
-                  泊まり可能
+                  {STAY_LABEL}
                 </span>
               );
             }

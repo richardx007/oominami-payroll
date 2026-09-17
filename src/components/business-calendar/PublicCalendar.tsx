@@ -11,6 +11,7 @@ import {
   jstTodayKey,
   layoutWeek,
   monthGridKeys,
+  STAY_LABEL,
   weekdayHeaderBg,
   type BusinessDayRow,
   type CalendarEventRow,
@@ -59,7 +60,7 @@ const chipBase =
   "pointer-events-none block mx-px truncate rounded border px-0.5 py-px text-[8px] leading-tight sm:mx-0.5 sm:px-1 sm:text-[13px]";
 const openChip = `${chipBase} border-[var(--c-open-line)] bg-[var(--c-open-soft)] font-medium text-[var(--c-open)]`;
 const closedChip = `${chipBase} border-[var(--c-brand)] bg-[var(--c-event-soft)] font-semibold text-[var(--c-brand)]`;
-// 「泊まり可能」は営業時間の補足なので、枠を付けず濃いグレーの文字だけで出す
+// 「泊まり可」は営業時間の補足なので、枠を付けず濃いグレーの文字だけで出す
 const stayNote =
   "pointer-events-none mx-px block truncate px-0.5 py-px text-[8px] font-semibold leading-tight text-[var(--c-note)] sm:mx-0.5 sm:px-1 sm:text-[13px]";
 
@@ -228,7 +229,7 @@ function Grid({
             if (d.status === "closed")
               items.push(<span className="pointer-events-none px-1 text-[9px] text-[var(--c-faint)] sm:text-[11px]">休業</span>);
             if (d.timeLabel) items.push(<span className={openChip}>{d.timeLabel}</span>);
-            if (d.stay) items.push(<span className={stayNote}>泊まり可能</span>);
+            if (d.stay) items.push(<span className={stayNote}>{STAY_LABEL}</span>);
             d.events.forEach((ev) => {
               const c = EVENT_COLORS[ev.color];
               items.push(
@@ -399,7 +400,7 @@ function DayBubble({ dateKey, col, view, onClose }: { dateKey: string; col: numb
             </li>
           )}
           {d?.stay && (
-            <li className="px-2 py-1 text-xs font-semibold text-[var(--c-note)]">泊まり可能</li>
+            <li className="px-2 py-1 text-xs font-semibold text-[var(--c-note)]">{STAY_LABEL}</li>
           )}
           {closed && (
             <li className="rounded-lg border border-[var(--c-brand)] bg-[var(--c-event-soft)] px-2 py-1 text-xs font-semibold text-[var(--c-brand)]">
