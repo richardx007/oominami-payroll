@@ -45,41 +45,158 @@ function markSeen(value: string) {
   window.dispatchEvent(new Event(SEEN_EVENT));
 }
 
-export function EmployeeNav({
-  latestNoticeAt,
-  adminEmail,
-  companyName,
-  employeeName,
-}: {
+type NavProps = {
   latestNoticeAt: string | null;
   adminEmail: string;
   companyName: string;
   employeeName: string;
-}) {
+};
+
+/** お知らせの未読判定。お知らせ画面を開いたら既読にする(最新受信時刻を localStorage に保存) */
+function useNoticeUnread(latestNoticeAt: string | null): boolean {
   const pathname = usePathname();
   const seenAt = useSyncExternalStore(subscribeSeen, getSeen, () => null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  // 「出退勤の記録」を選んだときに出す 出勤/退勤/キャンセル の確認ダイアログ
-  const [clockOpen, setClockOpen] = useState(false);
-
-  // お知らせ画面を開いたら既読にする(最新受信時刻を localStorage に保存)
   useEffect(() => {
     if (pathname.startsWith("/notices") && latestNoticeAt) {
       markSeen(latestNoticeAt);
     }
   }, [pathname, latestNoticeAt]);
+  return !!latestNoticeAt && (!seenAt || latestNoticeAt > seenAt);
+}
 
-  const hasUnread = !!latestNoticeAt && (!seenAt || latestNoticeAt > seenAt);
-
-  // 「管理者へメール」の mailto:。件名・本文(会社名 管理者様 / 氏名です。)を自動で埋める。
-  const mailtoHref = `mailto:${adminEmail}?subject=${encodeURIComponent(
+/** 「管理者へメール」の mailto:。件名・本文(会社名 管理者様 / 氏名です。)を自動で埋める。 */
+function buildMailtoHref(adminEmail: string, companyName: string, employeeName: string) {
+  return `mailto:${adminEmail}?subject=${encodeURIComponent(
     "給与管理システムより"
   )}&body=${encodeURIComponent(`${companyName} 管理者様\n${employeeName}です。\n`)}`;
+}
 
-  // QRを読まなくてもアプリから打刻できるようにする導線。打刻後・キャンセル時に
-  // 元の画面へ戻れるよう、現在のパスを from で渡す(打刻画面側で検証してから使う)。
-  const clockHref = (type: "in" | "out") =>
-    `/clock?type=${type}&from=${encodeURIComponent(pathname)}`;
+const sidebarItemClass =
+  "flex w-full touch-manipulation items-center gap-3 rounded-lg px-3 py-1.5 text-lg font-medium transition-colors active:opacity-70";
+const sidebarIdleClass = "text-blue-50 hover:bg-white/10 hover:text-white";
+const sidebarActiveClass = "bg-white text-[#152449]";
+
+/**
+ * タブレット・PC(md以上)用の左サイドバーのメニュー。管理画面の AdminSidebarNav と同じ書式。
+ * スマホは従来どおり下部タブ(EmployeeNav)。
+ */
+export function EmployeeSidebarNav({
+  latestNoticeAt,
+  adminEmail,
+  companyName,
+  employeeName,
+}: NavProps) {
+  const pathname = usePathname();
+  const hasUnread = useNoticeUnread(latestNoticeAt);
+  const [clockOpen, setClockOpen] = useState(false);
+  const [relatedOpen, setRelatedOpen] = useState(false);
+  const mailtoHref = buildMailtoHref(adminEmail, companyName, employeeName);
+
+  return (
+    <>
+      <nav className="flex flex-col gap-0.5">
+        {mainItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`${sidebarItemClass} ${
+                pathname.startsWith(item.href) ? sidebarActiveClass : sidebarIdleClass
+              }`}
+            >
+              <Icon className="h-6 w-6 shrink-0" />
+              {item.label}
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setClockOpen(true)}
+          className={`${sidebarItemClass} ${sidebarIdleClass}`}
+        >
+          <ClockIcon className="h-6 w-6 shrink-0" />
+          出退勤
+        </button>
+        <Link
+          href="/notices"
+          className={`${sidebarItemClass} ${
+            pathname.startsWith("/notices") ? sidebarActiveClass : sidebarIdleClass
+          }`}
+        >
+          <span className="relative shrink-0">
+            <BellIcon className="h-6 w-6" />
+            {hasUnread && <UnreadDot />}
+          </span>
+          お知らせ
+        </Link>
+        <a href={mailtoHref} className={`${sidebarItemClass} ${sidebarIdleClass}`}>
+          <MailIcon className="h-6 w-6 shrink-0" />
+          管理者へ✉️
+        </a>
+
+        {/* 関連情報グループ(勤務ルール・営業カレンダー・ホームページ)。管理画面と同じ */}
+        <button
+          type="button"
+          onClick={() => setRelatedOpen((v) => !v)}
+          aria-expanded={relatedOpen}
+          className={`${sidebarItemClass} mt-1 justify-between text-blue-100 hover:bg-white/10 hover:text-white`}
+        >
+          <span>関連情報</span>
+          <ChevronIcon
+            className={`h-5 w-5 shrink-0 transition-transform ${relatedOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        {relatedOpen && (
+          <>
+            <a
+              href="/work-rules"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${sidebarItemClass} pl-6 ${sidebarIdleClass}`}
+            >
+              <DocumentIcon className="h-6 w-6 shrink-0" />
+              勤務ルール
+            </a>
+            <a
+              href={CALENDAR_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${sidebarItemClass} pl-6 ${sidebarIdleClass}`}
+            >
+              <PosterIcon className="h-6 w-6 shrink-0" />
+              営業カレンダー
+            </a>
+            <a
+              href={HOMEPAGE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${sidebarItemClass} pl-6 ${sidebarIdleClass}`}
+            >
+              <GlobeIcon className="h-6 w-6 shrink-0" />
+              ホームページ
+            </a>
+          </>
+        )}
+      </nav>
+      {clockOpen && <ClockSheet onClose={() => setClockOpen(false)} />}
+    </>
+  );
+}
+
+/** スマホ(md未満)用の下部タブ。4メニュー＋「その他」(ハンバーガー) */
+export function EmployeeNav({
+  latestNoticeAt,
+  adminEmail,
+  companyName,
+  employeeName,
+}: NavProps) {
+  const pathname = usePathname();
+  const hasUnread = useNoticeUnread(latestNoticeAt);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // 「出退勤の記録」を選んだときに出す 出勤/退勤/キャンセル の確認ダイアログ
+  const [clockOpen, setClockOpen] = useState(false);
+  const mailtoHref = buildMailtoHref(adminEmail, companyName, employeeName);
 
   function openClock() {
     setMenuOpen(false);
@@ -90,8 +207,8 @@ export function EmployeeNav({
   // (iOS でスクロール中に画面途中へ取り残される不具合があるため。
   //  詳細は globals.css の .app-shell のコメント参照)
   return (
-    <nav className="z-10 shrink-0 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white print:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-5 lg:max-w-3xl lg:grid-cols-10">
+    <nav className="z-10 shrink-0 border-t border-white/15 bg-[#152449] pb-[env(safe-area-inset-bottom)] text-white md:hidden print:hidden">
+      <div className="mx-auto grid max-w-lg grid-cols-5">
         {mainItems.map((item) => {
           const active = pathname.startsWith(item.href);
           const Icon = item.icon;
@@ -110,71 +227,13 @@ export function EmployeeNav({
           );
         })}
 
-        {/* iPad/PC: ハンバーガーに閉じず、出退勤・お知らせ・管理者へ✉️・ログアウトをそのまま列挙 */}
-        <button
-          type="button"
-          onClick={openClock}
-          className="hidden flex-col items-center gap-1 py-2.5 text-xs font-medium text-blue-100 transition hover:text-white lg:flex"
-        >
-          <ClockIcon className="h-6 w-6" />
-          出退勤
-        </button>
-        <Link
-          href="/notices"
-          className={`hidden flex-col items-center gap-1 py-2.5 text-xs font-medium transition lg:flex ${
-            pathname.startsWith("/notices")
-              ? "text-white"
-              : "text-blue-100 hover:text-white"
-          }`}
-        >
-          <span className="relative">
-            <BellIcon className="h-6 w-6" />
-            {hasUnread && <UnreadDot />}
-          </span>
-          お知らせ
-        </Link>
-        <a
-          href={mailtoHref}
-          className="hidden flex-col items-center gap-1 py-2.5 text-xs font-medium text-blue-100 transition hover:text-white lg:flex"
-        >
-          <MailIcon className="h-6 w-6" />
-          管理者へ✉️
-        </a>
-        <a
-          href="/work-rules"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hidden flex-col items-center gap-1 py-2.5 text-xs font-medium text-blue-100 transition hover:text-white lg:flex"
-        >
-          <DocumentIcon className="h-6 w-6" />
-          勤務ルール
-        </a>
-        <a
-          href={CALENDAR_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hidden flex-col items-center gap-1 py-2.5 text-xs font-medium text-blue-100 transition hover:text-white lg:flex"
-        >
-          <PosterIcon className="h-6 w-6" />
-          営業カレンダー
-        </a>
-        <form action={signOut} className="hidden lg:block">
-          <button
-            type="submit"
-            className="flex w-full flex-col items-center gap-1 py-2.5 text-xs font-medium text-blue-100 transition hover:text-white"
-          >
-            <LogoutIcon className="h-6 w-6" />
-            ログアウト
-          </button>
-        </form>
-
-        {/* スマホ: 4つ目はハンバーガー(その他)。タップでメニューを開く */}
+        {/* 5つ目はハンバーガー(その他)。タップでメニューを開く */}
         <button
           type="button"
           onClick={() => setMenuOpen((v) => !v)}
           aria-label="その他のメニュー"
           aria-expanded={menuOpen}
-          className={`flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition lg:hidden ${
+          className={`flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition ${
             menuOpen ? "text-white" : "text-blue-100 hover:text-white"
           }`}
         >
@@ -185,11 +244,10 @@ export function EmployeeNav({
           その他
         </button>
       </div>
-
       {/* スマホ用のポップアップ(管理者ナビと同じ書式=右寄せ・フッタと同じ背景色) */}
       {menuOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/30"
           onClick={() => setMenuOpen(false)}
         >
           <div
@@ -270,50 +328,58 @@ export function EmployeeNav({
         </div>
       )}
 
-      {/* 「出退勤の記録」を選んだときの確認シート。出勤/退勤で打刻画面へ、キャンセルで閉じる。
-          ヘッダー(z-30)と重ならないよう、ハンバーガーのシートと同じく画面下部に出す。 */}
-      {clockOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/40"
-          onClick={() => setClockOpen(false)}
-        >
-          <div
-            className="absolute inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] mx-auto max-w-sm rounded-2xl bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-center text-base font-bold text-gray-900">
-              出退勤の記録
-            </p>
-            <p className="mt-1 text-center text-sm text-gray-500">
-              どちらを記録しますか？
-            </p>
-            <div className="mt-4 flex flex-col gap-2">
-              <Link
-                href={clockHref("in")}
-                onClick={() => setClockOpen(false)}
-                className="rounded-xl bg-green-600 py-3.5 text-center text-lg font-bold text-white active:opacity-80"
-              >
-                出勤
-              </Link>
-              <Link
-                href={clockHref("out")}
-                onClick={() => setClockOpen(false)}
-                className="rounded-xl bg-orange-500 py-3.5 text-center text-lg font-bold text-white active:opacity-80"
-              >
-                退勤
-              </Link>
-              <button
-                type="button"
-                onClick={() => setClockOpen(false)}
-                className="rounded-xl border border-gray-300 py-3 text-center text-base font-medium text-gray-600 active:opacity-70"
-              >
-                キャンセル
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {clockOpen && <ClockSheet onClose={() => setClockOpen(false)} />}
     </nav>
+  );
+}
+
+/**
+ * 「出退勤の記録」を選んだときの確認シート。出勤/退勤で打刻画面へ、キャンセルで閉じる。
+ * ヘッダー(z-30)と重ならないよう、ハンバーガーのシートと同じく画面下部に出す。
+ * 打刻後・キャンセル時に元の画面へ戻れるよう、現在のパスを from で渡す(打刻画面側で検証してから使う)。
+ */
+function ClockSheet({ onClose }: { onClose: () => void }) {
+  const pathname = usePathname();
+  const clockHref = (type: "in" | "out") =>
+    `/clock?type=${type}&from=${encodeURIComponent(pathname)}`;
+
+  return (
+    <div className="fixed inset-0 z-30 bg-black/40" onClick={onClose}>
+      <div
+        className="absolute inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] mx-auto max-w-sm md:bottom-auto md:top-1/3 rounded-2xl bg-white p-4 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-center text-base font-bold text-gray-900">
+          出退勤の記録
+        </p>
+        <p className="mt-1 text-center text-sm text-gray-500">
+          どちらを記録しますか？
+        </p>
+        <div className="mt-4 flex flex-col gap-2">
+          <Link
+            href={clockHref("in")}
+            onClick={onClose}
+            className="rounded-xl bg-green-600 py-3.5 text-center text-lg font-bold text-white active:opacity-80"
+          >
+            出勤
+          </Link>
+          <Link
+            href={clockHref("out")}
+            onClick={onClose}
+            className="rounded-xl bg-orange-500 py-3.5 text-center text-lg font-bold text-white active:opacity-80"
+          >
+            退勤
+          </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-gray-300 py-3 text-center text-base font-medium text-gray-600 active:opacity-70"
+          >
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -545,6 +611,23 @@ function MenuIcon({ className }: { className?: string }) {
       aria-hidden="true"
     >
       <path d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6" />
     </svg>
   );
 }

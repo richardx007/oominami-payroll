@@ -510,7 +510,17 @@ function CalendarFeedSection({ url }: { url: string | null }) {
             次の画面で右上の<span className="font-bold">チェック（✓）ボタン</span>を押すと完了
           </li>
         </ol>
-        <p className="mt-3 font-medium">Googleカレンダーでの登録手順（パソコンのブラウザで）</p>
+        <p className="mt-1 text-xs">
+          ※登録してから<span className="font-bold">最初にシフトが表示されるまで、少し時間がかかる</span>
+          ことがあります。すぐに表示されなくても、しばらく待つと自動で表示されます。
+        </p>
+      </div>
+
+      <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+        <p className="font-medium">
+          Googleカレンダーでの登録手順
+          <span className="ml-1 font-bold text-red-700">★パソコンでの操作が必要です</span>
+        </p>
         <ol className="mt-1 list-decimal space-y-1 pl-5">
           <li>上の「Googleカレンダーに登録」を押し、開いた画面で「登録」（または「追加」）を押す</li>
           <li>
@@ -519,7 +529,8 @@ function CalendarFeedSection({ url }: { url: string | null }) {
           </li>
         </ol>
         <p className="mt-1 text-xs">
-          ※スマホのGoogleカレンダーアプリからは登録できません。パソコンで登録すると、スマホのアプリにも表示されます。
+          ※登録するとすぐにシフトが表示されます。
+          スマホのGoogleカレンダーアプリからは登録できませんが、パソコンで登録すると、スマホのアプリにも表示されます。
         </p>
       </div>
 
@@ -559,7 +570,7 @@ function CalendarFeedSection({ url }: { url: string | null }) {
           表示されます（確定すると「仮:」が外れます）。
         </li>
         <li>
-          カレンダーへの反映は、アプリ側の更新間隔により
+          登録後にシフトが変更された場合、カレンダーへの反映は、カレンダーアプリ側の更新間隔により
           <span className="font-medium">数時間〜1日ほど遅れる</span>
           ことがあります。直前の変更はこのアプリのシフト画面で確認してください。
         </li>
