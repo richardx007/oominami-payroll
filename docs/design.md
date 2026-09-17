@@ -2476,12 +2476,21 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   （HP閲覧で Worker の処理を増やさないため）。今月＋翌月まで。背景は透明。
   - `next.config.ts`: 全体の `X-Frame-Options: DENY` から `/calendar/embed` を除外し、`Content-Security-Policy: frame-ancestors *`
     を付ける（公開情報だけのページのため埋め込み元は限定しない）。
+  - **高さの自動調整**（2026-09-18追加）: 中身が iframe より高いとHP側に内側のスクロールバーが出る
+    （760px 固定に対し、泊まり可能の行が入る月は 900px を超える）。埋め込みページが body の高さを
+    `postMessage`（`{ type: "oominami-calendar-height", height }`。`src/lib/embed-height.ts`）で親へ送り、
+    親に貼ったスクリプトが iframe の `height` を合わせる。日をタップして吹き出しが出たときも追従する。
+    埋め込み先のスクリプトの読み込みが遅れて最初の1通を取りこぼす場合に備え、1秒後・3秒後にも送り直す。
+    🔴 **ホームページには iframe と script の両方を貼ること**（管理画面の埋め込みコードに両方入っている）。
+    スクリプトを置けないページでは iframe の `min-height` を大きくするしかない。
   - `?preview=1`: 管理画面のプレビュー用。サーバーアクション `loadPreviewCalendar()`（`requireAdmin`）で準備中の月（翌々月）まで表示。
   - アプリの更新バナー（`ReloadPrompt`）は埋め込みページでは出さない（`pwa/AppReloadPrompt.tsx`）。アプリ利用者の端末で
     HPを見ると iframe 内にバナーが出ていたため（2026-09-17 本番で発見・修正）。
 - `/admin/calendar/preview` ホームページでの見え方: 上記ページを iframe で表示（パソコン／スマホ幅、公開中の月だけ／準備中の月も、
-  再読み込み）。iframe 内でメディアクエリが効くので実際の幅での見え方になる。埋め込みコードのコピー（旧アプリと同じ
-  `<iframe … style="width:100%; border:0; min-height:760px; background:transparent;">`、`src` のみ `…/calendar/embed`）。
+  再読み込み）。iframe 内でメディアクエリが効くので実際の幅での見え方になる。プレビューの iframe も本番と同じ
+  高さ自動調整で伸縮する。埋め込みコードのコピー（旧アプリと同じ
+  `<iframe … style="width:100%; border:0; min-height:760px; background:transparent;">` に `id="oominami-calendar"` と
+  高さ調整の `<script>`（`e.origin` を本番URLで照合）を足した形）。
 - 旧アプリへのリンク（§10.3・サイドバー「関連情報」）は切替（フェーズ7）まで残している。
 
 ### 24.5 毎月15日の自動作成と通知（2026-09-18追加・フェーズ5）

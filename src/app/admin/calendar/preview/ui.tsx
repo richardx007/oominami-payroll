@@ -1,16 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { EMBED_HEIGHT_MESSAGE, isEmbedHeightMessage } from "@/lib/embed-height";
 
-// 旧 oominami-calendar の埋め込みコードと同じ形（src だけ差し替える）
+// 旧 oominami-calendar の埋め込みコードに、高さを合わせるスクリプトを足した形。
+// カレンダーの中身が iframe より高いとHP側に内側のスクロールバーが出るため、
+// 埋め込みページから届く高さで iframe を伸縮させる（スクリプトが動かなくても min-height で表示はできる）。
 function embedCode(url: string) {
   return `<iframe
+  id="oominami-calendar"
   src="${url}"
   title="営業カレンダー"
   loading="lazy"
   style="width:100%; border:0; min-height:760px; background:transparent;"
-></iframe>`;
+></iframe>
+<script>
+  window.addEventListener("message", function (e) {
+    if (e.origin !== "${new URL(url).origin}") return;
+    var d = e.data;
+    if (!d || d.type !== "${EMBED_HEIGHT_MESSAGE}" || !d.height) return;
+    var f = document.getElementById("oominami-calendar");
+    if (!f) return;
+    f.style.height = d.height + "px";
+    f.style.minHeight = "0";
+  });
+</script>`;
 }
 
 const WIDTHS = [
@@ -23,8 +38,19 @@ export function PreviewView({ embedUrl }: { embedUrl: string }) {
   const [withDraft, setWithDraft] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState(false);
+  // 埋め込みページから届く高さ（実際のHPと同じように iframe を伸縮させる）
+  const [height, setHeight] = useState<number | null>(null);
   const code = embedCode(embedUrl);
   const w = WIDTHS.find((x) => x.key === width)!;
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (isEmbedHeightMessage(e.data)) setHeight(e.data.height);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   async function copy() {
     try {
@@ -52,6 +78,7 @@ export function PreviewView({ embedUrl }: { embedUrl: string }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
+        {/* 幅を変えても iframe は貼り替えないので、高さは中身から次の通知が来るまで保つ */}
         <div className="flex overflow-hidden rounded-lg border border-gray-300">
           {WIDTHS.map((x) => (
             <button key={x.key} onClick={() => setWidth(x.key)} className={toggle(width === x.key)}>
@@ -60,15 +87,30 @@ export function PreviewView({ embedUrl }: { embedUrl: string }) {
           ))}
         </div>
         <div className="flex overflow-hidden rounded-lg border border-gray-300">
-          <button onClick={() => setWithDraft(false)} className={toggle(!withDraft)}>
+          <button
+            onClick={() => {
+              setWithDraft(false);
+              setHeight(null);
+            }}
+            className={toggle(!withDraft)}
+          >
             公開中の月だけ
           </button>
-          <button onClick={() => setWithDraft(true)} className={toggle(withDraft)}>
+          <button
+            onClick={() => {
+              setWithDraft(true);
+              setHeight(null);
+            }}
+            className={toggle(withDraft)}
+          >
             準備中の月も
           </button>
         </div>
         <button
-          onClick={() => setReloadKey((k) => k + 1)}
+          onClick={() => {
+            setReloadKey((k) => k + 1);
+            setHeight(null);
+          }}
           className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           再読み込み
@@ -87,7 +129,14 @@ export function PreviewView({ embedUrl }: { embedUrl: string }) {
             key={`${reloadKey}-${withDraft}`}
             src={withDraft ? "/calendar/embed?preview=1" : "/calendar/embed"}
             title="営業カレンダー（プレビュー）"
-            style={{ width: "100%", border: 0, minHeight: 760, background: "transparent" }}
+            style={{
+              display: "block",
+              width: "100%",
+              border: 0,
+              height: height ?? undefined,
+              minHeight: height ? 0 : 760,
+              background: "transparent",
+            }}
           />
         </div>
       </div>
@@ -95,7 +144,11 @@ export function PreviewView({ embedUrl }: { embedUrl: string }) {
       <section className="rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">ホームページ埋め込み用コード</h2>
         <p className="mt-1 text-sm text-gray-500">
-          現在のホームページのコードと同じ形です。差し替えるときは <code className="rounded bg-gray-100 px-1">src=&quot;…&quot;</code> の部分だけが変わります。
+          <code className="rounded bg-gray-100 px-1">&lt;iframe&gt;</code> の下の
+          <code className="rounded bg-gray-100 px-1">&lt;script&gt;</code> は、カレンダーの高さに合わせて枠を伸縮させ、
+          ホームページ側に内側のスクロールバーが出ないようにするものです。<strong>iframe と script の両方</strong>を貼り付けてください
+          （スクリプトが使えないページでは、iframe の <code className="rounded bg-gray-100 px-1">min-height</code> を
+          1200px 程度に増やしてください）。
         </p>
         <pre className="mt-3 overflow-x-auto rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-gray-100">{code}</pre>
         <button

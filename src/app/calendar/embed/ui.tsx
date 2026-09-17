@@ -1,12 +1,16 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { addMonthsYm } from "@/lib/business-calendar-view";
+import { reportEmbedHeight } from "@/lib/embed-height";
 import { PublicCalendar, type CalendarData } from "@/components/business-calendar/PublicCalendar";
 import { loadPreviewCalendar } from "./actions";
 
 export function EmbedCalendar({ preview }: { preview: boolean }) {
+  // 中身の高さを埋め込み元へ知らせる（HPで内側のスクロールバーを出さないため）
+  useEffect(() => reportEmbedHeight(), []);
+
   const loader = useCallback(
     async (from: string, to: string): Promise<CalendarData> => {
       if (preview) return loadPreviewCalendar(from, to);
