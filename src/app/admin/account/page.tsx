@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { AccountSettingsView } from "@/app/account/AccountSettingsView";
+import { getMyCalendarFeedUrl } from "@/lib/calendar-feed-url";
 
 /**
  * 管理者用アカウント設定画面。プロフィール編集・この端末での通知登録に加え、
@@ -10,7 +11,7 @@ export default async function AdminAccountPage() {
   const me = await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: profile }, { data: subs }, { data: settings }] = await Promise.all([
+  const [{ data: profile }, { data: subs }, { data: settings }, calendarFeedUrl] = await Promise.all([
     supabase.from("employees").select("furigana").eq("id", me.id).maybeSingle(),
     supabase.from("push_subscriptions").select("endpoint").eq("employee_id", me.id),
     supabase
@@ -21,6 +22,7 @@ export default async function AdminAccountPage() {
         "notify_missing_punch_out",
         "notify_first_login",
       ]),
+    getMyCalendarFeedUrl(),
   ]);
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
@@ -35,6 +37,7 @@ export default async function AdminAccountPage() {
         isAdmin
         vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null}
         registeredEndpoints={(subs ?? []).map((r) => r.endpoint)}
+        calendarFeedUrl={calendarFeedUrl}
         notifyInEnabled={settingsMap.get("notify_missing_punch_in") !== "false"}
         notifyOutEnabled={settingsMap.get("notify_missing_punch_out") !== "false"}
         notifyFirstLoginEnabled={settingsMap.get("notify_first_login") !== "false"}

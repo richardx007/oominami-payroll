@@ -6,7 +6,9 @@ import {
   saveMyPushSubscription,
   deleteMyPushSubscription,
   updateNotifyTypeSettings,
+  rotateMyCalendarToken,
 } from "./actions";
+import QRCode from "qrcode";
 import {
   checkPushSupport,
   getSubscription,
@@ -30,6 +32,7 @@ export function AccountSettingsView({
   notifyInEnabled,
   notifyOutEnabled,
   notifyFirstLoginEnabled,
+  calendarFeedUrl,
 }: {
   name: string;
   nickname: string | null;
@@ -42,6 +45,8 @@ export function AccountSettingsView({
   notifyInEnabled?: boolean;
   notifyOutEnabled?: boolean;
   notifyFirstLoginEnabled?: boolean;
+  /** シフトのカレンダー購読URL(https)。取得失敗時は null */
+  calendarFeedUrl: string | null;
 }) {
   return (
     <div className="space-y-6">
@@ -59,6 +64,7 @@ export function AccountSettingsView({
           ) : null
         }
       />
+      <CalendarFeedSection url={calendarFeedUrl} />
     </div>
   );
 }
@@ -410,5 +416,182 @@ function NotifyTypeForm({
         </button>
       </form>
     </div>
+  );
+}
+
+/**
+ * シフトのカレンダー購読(管理者・従業員共通)。
+ * 本人専用の URL を iPhone標準カレンダー / Googleカレンダー等に登録すると、シフトが自動で表示される。
+ * URL を知る人は誰でもシフトを見られるため、漏れた場合に備えて「作り直す」を用意している。
+ */
+function CalendarFeedSection({ url }: { url: string | null }) {
+  const [qr, setQr] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const webcalUrl = url ? url.replace(/^https:/, "webcal:") : null;
+
+  useEffect(() => {
+    if (!webcalUrl || !showQr) return;
+    let cancelled = false;
+    QRCode.toDataURL(webcalUrl, { width: 240, margin: 1 }).then(
+      (d) => !cancelled && setQr(d),
+      () => !cancelled && setQr(null)
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [webcalUrl, showQr]);
+
+  if (!url || !webcalUrl) {
+    return (
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">カレンダー連携</h2>
+        <p className="mt-3 text-sm text-red-600">
+          購読URLを取得できませんでした。時間をおいて再読み込みしてください。
+        </p>
+      </section>
+    );
+  }
+
+  const googleUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url!);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">カレンダー連携</h2>
+      <p className="mt-1 text-sm text-gray-500">
+        自分のシフトを、スマホやパソコンのカレンダーに自動で表示できます。登録は1回だけで、
+        以後シフトが変わると自動で反映されます。
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <a
+          href={webcalUrl}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          iPhone・Macのカレンダーに登録
+        </a>
+        <a
+          href={googleUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+        >
+          Googleカレンダーに登録
+        </a>
+      </div>
+
+      <div className="mt-3">
+        <label className="mb-1 block text-sm font-medium text-gray-700">購読URL</label>
+        <div className="flex gap-2">
+          <input
+            readOnly
+            value={url}
+            onFocus={(e) => e.currentTarget.select()}
+            className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-700"
+          />
+          <button
+            type="button"
+            onClick={copy}
+            className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
+          >
+            {copied ? "コピー済み" : "コピー"}
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowQr((v) => !v)}
+          className="mt-2 text-sm text-blue-700 underline"
+        >
+          {showQr ? "QRコードを閉じる" : "QRコードを表示（パソコンで開いている場合）"}
+        </button>
+        {showQr && qr && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={qr} alt="購読URLのQRコード" width={200} height={200} className="mt-2" />
+        )}
+      </div>
+
+      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-gray-600">
+        <li>
+          「調整中」の月は、自分の希望が「<span className="font-medium">仮:早番</span>」のように
+          表示されます（確定すると「仮:」が外れます）。
+        </li>
+        <li>
+          カレンダーへの反映は、アプリ側の更新間隔により
+          <span className="font-medium">数時間〜1日ほど遅れる</span>
+          ことがあります。直前の変更はこのアプリのシフト画面で確認してください。
+        </li>
+        <li>
+          Googleカレンダーは<span className="font-medium">パソコンのブラウザ</span>
+          から登録してください（スマホのGoogleカレンダーアプリからは登録できません）。
+        </li>
+        <li>
+          このURLを知っている人は誰でもあなたのシフトを見られます。他人に教えないでください。
+        </li>
+      </ul>
+
+      <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+        <p className="text-sm text-gray-600">
+          URLを他人に知られた場合は作り直してください。古いURLは使えなくなり、登録済みの
+          カレンダーには新しいURLで登録し直す必要があります。
+        </p>
+        {confirmRotate ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-red-700">本当に作り直しますか？</span>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  setResult(await rotateMyCalendarToken());
+                  setConfirmRotate(false);
+                  setQr(null);
+                })
+              }
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {pending ? "処理中..." : "作り直す"}
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setConfirmRotate(false)}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-white"
+            >
+              やめる
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setResult(null);
+              setConfirmRotate(true);
+            }}
+            className="mt-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100"
+          >
+            URLを作り直す
+          </button>
+        )}
+        {result && (
+          <p className={`mt-2 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
+            {result.message}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }

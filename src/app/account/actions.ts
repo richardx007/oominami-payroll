@@ -137,3 +137,24 @@ export async function updateNotifyTypeSettings(formData: FormData): Promise<Acti
   revalidatePath("/admin/account");
   return { ok: true, message: "通知設定を更新しました" };
 }
+
+/**
+ * シフトのカレンダー購読URLを作り直す(管理者・従業員共通)。古いURLは無効になり、
+ * 登録済みのカレンダーアプリには以後シフトが届かなくなる(新しいURLで登録し直してもらう)。
+ */
+export async function rotateMyCalendarToken(): Promise<ActionResult> {
+  await requireEmployee();
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("my_calendar_token", { p_rotate: true });
+  if (error) return { ok: false, message: "URLの作り直しに失敗しました" };
+
+  await logActivity("カレンダーURL再発行", "本人がシフトのカレンダー購読URLを作り直した");
+
+  revalidatePath("/account");
+  revalidatePath("/admin/account");
+  return {
+    ok: true,
+    message: "URLを作り直しました。カレンダーアプリには新しいURLで登録し直してください。",
+  };
+}
