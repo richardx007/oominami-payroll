@@ -457,9 +457,11 @@ function CalendarFeedSection({ url }: { url: string | null }) {
     );
   }
 
-  // cid には https の URL を渡す(webcal:// を渡すとGoogleカレンダーでカレンダー名が「webcal://…」のURLに
-  // なった。2026-09-17 オーナー確認)。
-  const googleUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(url)}`;
+  // 🔴 cid には webcal:// の URL を渡すこと。https の URL を渡すとGoogleカレンダーが
+  //    「登録できません。URLを確認してください」で拒否する(2026-09-17 オーナー確認)。
+  //    webcal:// だと登録直後の名前は「webcal://…」だが、Google側の初回同期後に
+  //    X-WR-CALNAME(「<会社名> シフト」)に自動で変わる。
+  const googleUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
 
   async function copy() {
     try {
@@ -512,8 +514,8 @@ function CalendarFeedSection({ url }: { url: string | null }) {
         <ol className="mt-1 list-decimal space-y-1 pl-5">
           <li>上の「Googleカレンダーに登録」を押し、開いた画面で「登録」を押す</li>
           <li>
-            カレンダー名がURLのまま表示された場合は、左の「他のカレンダー」でそのカレンダーの
-            「︙」→<span className="font-bold">「設定」</span>を開き、名前を「シフト」などに変更する
+            登録直後はカレンダー名が「webcal://…」と表示されますが、
+            <span className="font-bold">しばらくすると自動で「シフト」の名前に変わります</span>
           </li>
         </ol>
         <p className="mt-1 text-xs">
