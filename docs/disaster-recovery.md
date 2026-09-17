@@ -164,6 +164,11 @@ psql "<新プロジェクトの接続文字列>" -f data.sql
 4. **Storage**: `work-rules` バケットを作成（`schema.sql` に含まれるが、**中のファイルは含まれない**）。
    勤務ルール文書は管理画面から再アップロードする
 5. 新しい URL・キーを Cloudflare 側（`wrangler.jsonc` の vars）に反映する
+6. **pg_cron の定期ジョブ**（`cron` スキーマはダンプに含まれないことがあるため `select jobname from cron.job;` で確認し、無ければ登録）
+   - 未打刻通知 `punch-alerts`: `supabase/migrations/20260804070000_punch_alert_cron.sql` 末尾の復元手順（Vault 登録が必要）
+   - 営業カレンダーの祝日同期 `jp-holidays-request` / `jp-holidays-apply`: `20260917100000_business_calendar.sql` の
+     `cron.schedule(...)` 2行を実行（シークレット不要）。復元直後は `select public.request_jp_holidays_sync();` →
+     数秒後に `select public.apply_jp_holidays_sync();` で祝日を取り込む（祝日が無いと営業カレンダーの月を作成できない）
 
 ---
 

@@ -381,6 +381,9 @@ app/
                          （next.config）。源泉徴収税額表は2026-08-22に`admin/tax-table/`へ独立（下記）。
                          昼食補助（全社共通定額）の設定は2026-09-02に廃止し`employees/`の従業員別履歴に
                          一本化（§17）
+    calendar/            営業カレンダー(§24。2026-09-17)。page/ui/actions=月の作成・日の3択編集・イベント。
+                         patterns/=営業時間の定義、preview/=ホームページでの見え方(/calendar/embed を iframe 表示)
+    settings/event-types.tsx  イベントの種類と色（営業カレンダー。§24）
     tax-table/           源泉徴収税額表(月額表)専用ページ(メニュー「税額表」。2026-08-22、設定画面から独立)。
                          Excelファイル(.xls/.xlsx)を選択するだけで取り込める主経路(`lib/tax-table-excel.ts`
                          の`parseTaxTableExcel()`をクライアント側で動的import→年・区分数・範囲をプレビュー→
@@ -430,9 +433,11 @@ app/
                          よう公開（middlewareの publicPaths に追加）。`AddToHomeScreenBanner`（下記）を
                          表示するだけの薄いラッパー。設定画面「出勤・退勤QRコード」の下部・QR印刷ポスター/PDF
                          にこのページへのQRを掲載する（上記`settings/clock.tsx`参照）。
+  calendar/embed/        ホームページ埋め込み用の営業カレンダー（未ログインで公開・iframe許可。§24.4）
   manifest.ts            PWA マニフェスト（/manifest.webmanifest）
   pwa/
     ReloadPrompt.tsx     更新バナー（新版検知→ワンタップ更新）
+    AppReloadPrompt.tsx  ルートで使うラッパー。/calendar/embed ではバナーを出さない
     reloadApp.ts         ロゴ1タップ最新化（LogoButtonから使用）
     AddToHomeScreenBanner.tsx  ホーム画面追加の手順を端末判定して案内するバナー。iOS/Android/LINE内蔵
                          ブラウザを判定し、Android+通常ブラウザは`beforeinstallprompt`を使ったワンタップ
@@ -447,7 +452,7 @@ app/
                          正式リリースでのUI微調整の可能性を踏まえ、あえてUA判定で分岐しない設計にした
                          （オーナーとの合意事項）。共有アイコン自体（四角＋上向き矢印）はiOS26でも変わって
                          いないため、同アイコンを模したインラインSVG（`ShareIcon`）を案内文に併記している。
-  layout.tsx             ルート（ReloadPrompt常設・viewport-fit=cover）, page.tsx, globals.css
+  layout.tsx             ルート（AppReloadPrompt常設・viewport-fit=cover）, page.tsx, globals.css
   loading.tsx             起動直後（ログイン判定・初回データ取得中）のスプラッシュ。中身は`Splash.tsx`
   Splash.tsx              起動時ロゴの共通部品（ロゴ+スピナー、ネイビー全画面固定）。
                          root用loading.tsxのみが使う（admin/(employee)のloading.tsxは軽量スピナー。下記参照）
@@ -464,7 +469,9 @@ lib/
   smtp.ts                Gmail SMTP 最小実装（cloudflare:sockets）・multipart添付
   log.ts                 操作ログ記録ヘルパー（`log_activity` RPC を best-effort 実行。失敗は握りつぶす）
   holidays.ts            日本の祝日取得（holidays-jp）
-middleware.ts            未認証は /login へ。認証済みで"/"（PWAのstart_url）のときは
+  business-calendar-view.ts  営業カレンダーの表示整形（通し営業の帯・週割り付け・区分判定・月の状態。§24.2）
+components/business-calendar/  MonthCalendar.tsx(管理画面の月グリッド) / PublicCalendar.tsx(HP埋め込みの見た目)
+middleware.ts            未認証は /login へ（/calendar/embed 等の公開パスを除く）。認証済みで"/"（PWAのstart_url）のときは
                          is_adminを判定し /admin または /timesheet へ直接振り分ける（2026-08-26追加。
                          下記「起動時スプラッシュ」参照）
 ```
@@ -1425,6 +1432,7 @@ middleware.ts            未認証は /login へ。認証済みで"/"（PWAのst
   ハンバーガーシートとPCサイドバー双方に配置）。
 
 ### 10.3 営業カレンダー(外部サービス・参照のみ)への導線（2026-07-24追加）
+> 2026-09-17: アプリ内の営業カレンダー（§24）へ移行中。切替時にこのリンク先を差し替える。
 - 別セッションで構築・本番稼働中の「オオミナミ営業カレンダー」(Cloudflare Workers、
   `https://oominami-calendar.shinsekai.workers.dev`)への**参照リンクのみ**を追加。**方式A(参照)**:
   給与システム側にカレンダー描画コード・Google APIキーは一切持たせない。データはカレンダー側が
@@ -2388,3 +2396,81 @@ Googleカレンダー等で購読できる **従業員ごとの ICS 購読フィ
   ログアウト・ver.）、**スマホ=上部ヘッダー＋下部タブ `EmployeeNav`（`md:hidden`）** は従来どおり。
 - 未読判定 `useNoticeUnread`・打刻確認シート `ClockSheet` は両ナビで共用（`(employee)/nav.tsx`）。
 - 切替幅は `lg`(1024px) → `md`(768px)。iPad縦もサイドバー表示。オーナーがスマホ・Macで表示確認済み。
+
+## 24. 営業カレンダー（2026-09-17追加・フェーズ1〜4）
+
+Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-calendar` で運用していた営業カレンダーを、
+このアプリ内で管理する。**区分ごとの営業時間の定義から月を作り、いつもと違う日だけを直す**方式。
+当初計画・オーナー決定事項は `docs/business-calendar-plan.md`。未実装はフェーズ5（15日の自動作成・通知）、
+フェーズ6（ポスターPDF）、フェーズ7（移行・切替）。
+
+### 24.1 データベース（`supabase/migrations/20260917100000_business_calendar.sql`、本番適用済み）
+時刻は**その日の0:00からの分**（600=10:00、1440=24:00、1740=翌5:00）。
+
+| テーブル | 内容 |
+|---|---|
+| `business_hour_patterns` | 定義。`day_type` PK（`weekday`/`fri`/`sat`/`sun`/`holiday`/`pre_holiday`）・`is_open`・`open_min`・`close_min`・`overnight`（翌日まで通し＝お泊まり可。このとき `close_min` は null） |
+| `business_months` | 作成済みの月（`ym`＝月初日）。`generated_by` null＝自動作成。`notified_at` はフェーズ5用 |
+| `business_days` | 1日1行。`day_type`・`holiday_name`・`status`（`open`/`closed`＝定休/`temp_closed`＝臨時休業）・時刻・`is_manual`（手で変更＝作り直しで上書きしない）・`note`（非公開メモ） |
+| `calendar_event_types` | イベントの種類と色（`gold`/`blue`/`purple`/`pink`/`orange`/`gray`。緑・赤は営業時間・臨時休業と紛らわしいため無し）。`is_default` の種類は削除不可（トリガー）。初期データ「イベント（金）」「お知らせ（青）」 |
+| `calendar_events` | イベント・お知らせ。`start_date`〜`end_date`（複数日は帯）・`type_id`（削除時 null＝既定の種類で表示）・`is_public` |
+| `jp_holidays` / `jp_holiday_sync` | 祝日マスタと同期状態（1行。`request_id`・`synced_at`・`last_error`） |
+
+- RLS: すべて**管理者のみ**（`is_admin()`）。`business_months`・`jp_holidays`・`jp_holiday_sync` は参照のみ（書き込みは関数）。anon のテーブル権限は revoke。
+- `app_settings.notify_business_calendar`（既定 `true`。フェーズ5の通知スイッチ用に先行追加）。
+
+**区分の判定**（`business_day_type()`。TS側 `classifyDayType()` と同じ規則。**片方だけ変えないこと**）
+1. 翌日が祝日 → 祝前日
+2. その日が祝日 → 祝（**金・土の祝日は除く**＝金・土の区分で通し営業。`holiday_name` は残るので日付は赤字）
+3. それ以外 → 曜日
+
+**関数**
+- `request_jp_holidays_sync()` / `apply_jp_holidays_sync()`: holidays-jp の `date.json`（前年〜翌年）を pg_net で取得し、
+  30分後に取り込む。応答の年の範囲内で無くなった日は削除。失敗時は `last_error` に記録し前日までのデータを残す。
+  pg_cron `jp-holidays-request`（毎日 02:00 JST＝`0 17 * * *`）・`jp-holidays-apply`（02:30 JST）。
+- `generate_business_month(p_ym, p_regenerate=false)`: 定義から1ヶ月分を作る。`is_manual=false` の行だけ置き換え
+  （手修正の日は `holiday_name` だけ更新）。**対象月の年・翌月1日の年の祝日が0件なら中止**。作成済みの月は
+  `p_regenerate=true` のときだけ。authenticated は管理者のみ（操作ログ記録）、`auth.uid()` null（cron）は自動作成扱い。
+  **過去の月も作成できる**（実績登録のため。オーナー要望）。
+- `public_business_calendar(p_from, p_to)`（**anon可**・SECURITY DEFINER）: HP埋め込み用。`p_to` を **JSTの翌月末で頭打ち**
+  （準備中の月は返さない）、範囲は最大約14ヶ月。営業情報・公開イベント・種類だけを返す（メモ・手修正フラグ・更新者は返さない）。
+
+### 24.2 表示整形（`src/lib/business-calendar-view.ts`、テスト `business-calendar-view.test.ts`）
+- `buildCalendarView(days, events, types)`: 営業日で `overnight` が続く限り翌日（営業日）へ伸ばして**通し営業の帯**にする。
+  帯の先頭「初日10〜通し」、末尾「〜最終24」。通しの末尾で翌日が営業していない場合は「〜最終翌朝」（`OVERNIGHT_END_LABEL`。
+  オーナーが実データを見て表記を判断予定）。帯に含まれない営業日は単日チップ「10〜24」。`overnight` の日は「泊まり可能」。
+- `layoutWeek(weekStart, spans)`: 週ごとに帯を分割し段に割り付け（営業の帯が上段、複数日イベントが下段）。
+- `formatMinutes`: 分00は時のみ、24〜29時はそのまま、30時以降は「翌H」。
+- `generateMonthRows()`: DBの作成処理と同じ結果をTSで作る（定義画面の結果例・テスト用）。
+- `monthState()`: 未作成＝`none`、**過去・今月・翌月＝公開中**、翌々月以降＝準備中。`draftDeadline()`: 準備中の月は
+  **前月1日に公開**（例: 11月分は10/1）、締切はその前日（9/30）。
+- 🔴 **月をまたぐ帯を正しく出すため、表示する月のグリッドの前後14日分も読み込むこと**（前日から通しかを判定するため）。
+
+### 24.3 管理画面
+- `/admin/calendar`（サイドバー「管理」→「営業カレンダー」）: `admin/calendar/page.tsx`・`ui.tsx`・`actions.ts`。
+  - ヘッダー: ＜ 年月 ＞＋状態バッジ（準備中=黄・公開中=緑・未作成=グレー）。右上にアイコン
+    👁 ホームページでの見え方 / ⚙ 営業時間の定義 / 🎨 イベントの種類と色（設定画面 `#event-types`）。
+  - 未作成の月は「○月分を今すぐ作成」。準備中の月は「9月30日（あと13日）までに直してください。10月1日から…」。
+  - 月グリッド `components/business-calendar/MonthCalendar.tsx`（管理画面用。手修正の日に●、左右スワイプで月移動）。
+  - 日をタップ → PC右／スマホ下のパネル: 「いつもどおり／時間を変える／臨時休業」＋管理用メモ、イベントの追加・編集・削除。
+    「いつもどおり」は今の祝日データで区分を判定し直し、定義から戻す（`is_manual=false`、メモ消去）。
+  - 変更はすべて操作ログ（「営業カレンダー変更」「営業カレンダーのイベント追加」等）。
+- `/admin/calendar/patterns` 営業時間の定義: 区分ごとに1行（区分｜営業/定休｜開店｜閉店｜通し）。時刻は「10:00」形式の
+  テキスト入力（深夜の閉店は「26:00」）。保存時に「準備中の月にも反映する（手で直した日はそのまま）」を選べる。
+  下部に区分の決まり方と、入力中の定義で計算した結果例（2026年9月の連休）。
+- 設定画面「イベントの種類と色（営業カレンダー）」: `admin/settings/event-types.tsx`。
+
+### 24.4 HP埋め込みとプレビュー
+- `/calendar/embed`（ログイン不要。middleware の公開パスに追加）: `app/calendar/embed/`。旧 `oominami-calendar` の
+  見た目を移植した `components/business-calendar/PublicCalendar.tsx`（店名・丸い月送り・今日・土日祝赤・前後月グレー・
+  日をタップで吹き出し・凡例は種類ごと）。**データはブラウザから Supabase の `public_business_calendar()` を直接呼ぶ**
+  （HP閲覧で Worker の処理を増やさないため）。今月＋翌月まで。背景は透明。
+  - `next.config.ts`: 全体の `X-Frame-Options: DENY` から `/calendar/embed` を除外し、`Content-Security-Policy: frame-ancestors *`
+    を付ける（公開情報だけのページのため埋め込み元は限定しない）。
+  - `?preview=1`: 管理画面のプレビュー用。サーバーアクション `loadPreviewCalendar()`（`requireAdmin`）で準備中の月（翌々月）まで表示。
+  - アプリの更新バナー（`ReloadPrompt`）は埋め込みページでは出さない（`pwa/AppReloadPrompt.tsx`）。アプリ利用者の端末で
+    HPを見ると iframe 内にバナーが出ていたため（2026-09-17 本番で発見・修正）。
+- `/admin/calendar/preview` ホームページでの見え方: 上記ページを iframe で表示（パソコン／スマホ幅、公開中の月だけ／準備中の月も、
+  再読み込み）。iframe 内でメディアクエリが効くので実際の幅での見え方になる。埋め込みコードのコピー（旧アプリと同じ
+  `<iframe … style="width:100%; border:0; min-height:760px; background:transparent;">`、`src` のみ `…/calendar/embed`）。
+- 旧アプリへのリンク（§10.3・サイドバー「関連情報」）は切替（フェーズ7）まで残している。
