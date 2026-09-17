@@ -137,6 +137,9 @@ export function CalendarManager({
             <HeaderIconLink href="/admin/calendar/preview" label="ホームページでの見え方">
               <EyeIcon />
             </HeaderIconLink>
+            <HeaderIconLink href={`/admin/calendar/poster?ym=${ym}`} label="ポスター（PDF・画像）">
+              <PosterIcon />
+            </HeaderIconLink>
             <HeaderIconLink href="/admin/calendar/patterns" label="営業時間の定義">
               <GearIcon />
             </HeaderIconLink>
@@ -260,6 +263,15 @@ function EyeIcon() {
     <svg {...iconProps}>
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
       <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function PosterIcon() {
+  return (
+    <svg {...iconProps}>
+      <rect x="5" y="3" width="14" height="18" rx="1.5" />
+      <path d="M8 8h8M8 12h8M8 16h5" />
     </svg>
   );
 }

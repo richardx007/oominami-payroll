@@ -381,7 +381,8 @@ app/
                          （next.config）。源泉徴収税額表は2026-08-22に`admin/tax-table/`へ独立（下記）。
                          昼食補助（全社共通定額）の設定は2026-09-02に廃止し`employees/`の従業員別履歴に
                          一本化（§17）
-    calendar/            営業カレンダー(§24。2026-09-17)。自動作成通知の送信口は api/notify/business-calendar(§24.5)。page/ui/actions=月の作成・日の3択編集・イベント。
+    calendar/            営業カレンダー(§24。2026-09-17)。自動作成通知の送信口は api/notify/business-calendar(§24.5)。
+                         poster/=A4ポスター(季節背景・PDF/画像出力。§24.6)page/ui/actions=月の作成・日の3択編集・イベント。
                          patterns/=営業時間の定義、preview/=ホームページでの見え方(/calendar/embed を iframe 表示)
     settings/event-types.tsx  イベントの種類と色（営業カレンダー。§24）
     tax-table/           源泉徴収税額表(月額表)専用ページ(メニュー「税額表」。2026-08-22、設定画面から独立)。
@@ -471,6 +472,7 @@ lib/
   holidays.ts            日本の祝日取得（holidays-jp）
   business-calendar-view.ts  営業カレンダーの表示整形（通し営業の帯・週割り付け・区分判定・月の状態。§24.2）
   business-calendar-notify.ts  営業カレンダー自動作成通知の文面（§24.5）
+  poster-export.ts       営業カレンダーのポスターの画像化・PDF自前生成（§24.6。pdf-capture.ts とは別方式）
 components/business-calendar/  MonthCalendar.tsx(管理画面の月グリッド) / PublicCalendar.tsx(HP埋め込みの見た目)
 middleware.ts            未認証は /login へ（/calendar/embed 等の公開パスを除く）。認証済みで"/"（PWAのstart_url）のときは
                          is_adminを判定し /admin または /timesheet へ直接振り分ける（2026-08-26追加。
@@ -2398,11 +2400,11 @@ Googleカレンダー等で購読できる **従業員ごとの ICS 購読フィ
 - 未読判定 `useNoticeUnread`・打刻確認シート `ClockSheet` は両ナビで共用（`(employee)/nav.tsx`）。
 - 切替幅は `lg`(1024px) → `md`(768px)。iPad縦もサイドバー表示。オーナーがスマホ・Macで表示確認済み。
 
-## 24. 営業カレンダー（2026-09-17追加・フェーズ1〜5）
+## 24. 営業カレンダー（2026-09-17追加・フェーズ1〜6）
 
 Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-calendar` で運用していた営業カレンダーを、
 このアプリ内で管理する。**区分ごとの営業時間の定義から月を作り、いつもと違う日だけを直す**方式。
-当初計画・オーナー決定事項は `docs/business-calendar-plan.md`。未実装はフェーズ6（ポスターPDF）、フェーズ7（移行・切替）。
+当初計画・オーナー決定事項は `docs/business-calendar-plan.md`。未実装はフェーズ7（移行・切替）。
 
 ### 24.1 データベース（`supabase/migrations/20260917100000_business_calendar.sql`、本番適用済み）
 時刻は**その日の0:00からの分**（600=10:00、1440=24:00、1740=翌5:00）。
@@ -2503,3 +2505,28 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
 - アカウント設定 > 通知 > 通知対象（管理者向け）に「営業カレンダーの作成」スイッチ（`notify_business_calendar`、既定オン）。
 - 2026-09-18 本番DBで `p_today` を変えたロールバック付きテスト済み: 14日=not_due／9/17=none（11月は手動作成済み）／
   10/15=12月を自動作成＋送信キュー1件／翌日=none／スイッチOFF=作成のみ／祝日無しの年=failed＋送信（翌日も再送）。
+
+### 24.6 A4ポスター（PDF・画像）（2026-09-18追加・フェーズ6）
+旧 `oominami-calendar` の `?poster`（iPad/iPhone/Mac Safari で連続出力まで検証済み）を移植。スキル `printable-calendar` の方式。
+- `/admin/calendar/poster?ym=YYYY-MM`（営業カレンダー右上のポスターアイコン）: `admin/calendar/poster/`
+  - `seasons.tsx`: 月ごとの風物詩SVGと配色（**旧アプリから無変更で移植**）。
+  - `PosterCalendar.tsx`: 本体。新しいデータ（`buildCalendarView`/`layoutWeek`）に合わせて移植。**公開イベントだけ**載せる。
+    臨時休業=赤枠、「休」=定休（当月のみ）、泊まり可能=金色、イベントは種類の色。
+  - `ui.tsx`: 210mm×297mm のシートを台紙の上に `transform: scale` で縮小表示。「PDF」「画像」ボタン →
+    共通の `PdfPreviewDialog`（§20.2。画像用に `kindLabel` を追加し、共有時の MIME を blob の型から取るよう拡張）。
+- 🔴 **寸法の決め方（崩さないこと）**: 週エリア 212.4mm を週数で割り、日付行10mm・間隔1.2mm を引いた残りから
+  **全週共通のチップ高さ**（7〜14mm）を算出 → A4 1枚に必ず収まる。`grid-template-rows: repeat(n, <mm>) 1fr`
+  （`auto` にすると帯が伸びる。末尾 `1fr` が無いと縦の区切り線が途中で切れる）。行間は `gap × rows` で計算。
+- 営業時間のラベル（`data-fit`）は `fitTextSize` で**1行に収まる最大サイズ（13pt→8pt、0.25pt刻み）**に個別に詰める
+  （1行判定は `Range.getClientRects().length`）。`leading-none` は使わない（画像化で字形の下が切れる）。凡例の●は文字。
+- 書き出し `src/lib/poster-export.ts`（**他帳票の `pdf-capture.ts` とまとめないこと**）:
+  - html2canvas-pro。🔴 **計算済みスタイルを複製先へ焼き込む**（`data-snap` で対応付け。SVG内部は除外）。
+    端末によってスタイルシートが複製先に間に合わず「縦1列」に崩れる問題の対策。
+  - `transform` を外して等倍で撮り、`windowWidth/Height` をシート寸法に固定。`document.fonts.ready` を待つ。
+  - scale 2 で失敗したら 1.4 で1回再試行。canvas は使い終わり次第 `width=height=0` で解放（iOS の2回目失敗対策）。
+  - PDF は **jsPDF を使わず `buildPdfFromJpeg` で自前生成**（JPEG をそのまま DCTDecode で埋め込む。Safari の分割チャンク
+    読み込み失敗対策）。テスト `poster-export.test.ts`（xref オフセット・Length）。画像は PNG。
+- 確認（2026-09-18、ローカル Chrome）: 2026年9月でシート 210×297mm・はみ出し0・チップ高さ14mmで統一・文字切れ0・
+  縦罫線が週の下端まで到達・日付とチップの間隔1.2mm。PDF→PDF→画像の連続出力でプレビュー崩れなし。
+  `buildPdfFromJpeg` の出力をスキルの `verify-pdf.mjs` と macOS CoreGraphics（qlmanage）で検証。
+  **iPad/iPhone 実機での出力は未確認**。

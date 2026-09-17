@@ -56,9 +56,12 @@ export function PdfPreviewDialog({
   filename,
   make,
   onClose,
+  kindLabel = "PDF",
 }: {
   title: string;
   subtitle?: string;
+  /** 出力物の呼び名（「PDFを作成しています」等の文言）。画像を出す場合は "画像"（営業カレンダーのポスター） */
+  kindLabel?: string;
   /** 保存・共有するときのファイル名(拡張子込み) */
   filename: string;
   make: () => Promise<PdfResult>;
@@ -83,7 +86,7 @@ export function PdfPreviewDialog({
       } catch (e) {
         // 原因を追えるよう、握りつぶさずエラー内容も出す
         const detail = e instanceof Error ? e.message : String(e);
-        if (alive) setError(`PDFの作成に失敗しました(${detail})`);
+        if (alive) setError(`${kindLabel}の作成に失敗しました(${detail})`);
       }
     })();
     return () => {
@@ -108,7 +111,7 @@ export function PdfPreviewDialog({
   function share() {
     if (!result) return;
     const file = new File([result.blob], filename, {
-      type: "application/pdf",
+      type: result.blob.type || "application/pdf",
     });
     // await を挟まずそのまま呼ぶこと(上の useEffect のコメント参照)
     navigator.share({ files: [file], title: filename }).catch((e: unknown) => {
@@ -140,7 +143,7 @@ export function PdfPreviewDialog({
         <div className="flex-1 space-y-3 overflow-y-auto bg-gray-100 p-4">
           {busy && (
             <p className="py-10 text-center text-sm text-gray-500">
-              PDFを作成しています...
+              {kindLabel}を作成しています...
             </p>
           )}
           {result?.pages.map((src, i) => (
