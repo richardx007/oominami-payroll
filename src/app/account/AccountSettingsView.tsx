@@ -512,9 +512,9 @@ function CalendarFeedSection({ url }: { url: string | null }) {
         </ol>
         <p className="mt-3 font-medium">Googleカレンダーでの登録手順（パソコンのブラウザで）</p>
         <ol className="mt-1 list-decimal space-y-1 pl-5">
-          <li>上の「Googleカレンダーに登録」を押し、開いた画面で「登録」を押す</li>
+          <li>上の「Googleカレンダーに登録」を押し、開いた画面で「登録」（または「追加」）を押す</li>
           <li>
-            登録直後はカレンダー名が「webcal://…」と表示されますが、
+            登録直後にカレンダー名が「webcal://…」と表示されることがありますが、
             <span className="font-bold">しばらくすると自動で「シフト」の名前に変わります</span>
           </li>
         </ol>
