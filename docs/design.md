@@ -268,8 +268,8 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 app/
   (employee)/            従業員向け（md以上=左サイドバー/スマホ=上部ヘッダー+下部タブナビ。2026-09-17に管理画面と統一。
                          PC/iPadの2カラムは各ページ側の lg: 指定）
-    layout.tsx           スマホ:max-w-lg / lg以上:max-w-5xl（ヘッダーはネイビー+ロゴ）。ヘッダー右肩は
-                         ニックネーム(未設定は氏名)。最新お知らせの sent_at と get_contact_settings()
+    layout.tsx           本文 スマホ:max-w-lg / lg以上:max-w-5xl。md以上=左サイドバー(EmployeeSidebarNav・最下部に
+                         氏名/ログアウト/ver.)、スマホ=ネイビーの上部ヘッダー(右肩にニックネーム・未設定は氏名)。§23参照。最新お知らせの sent_at と get_contact_settings()
                          (会社名・送信元メール)を取得し EmployeeNav に渡す（未読バッジ・管理者メール用）。
     loading.tsx          画面遷移中のローディング（軽量スピナーのみ、ロゴなし。§後述「起動時スプラッシュ」参照）
     actions.ts           signOut サーバーアクション（クライアントnavから form action で呼ぶ）
