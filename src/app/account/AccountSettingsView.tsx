@@ -427,6 +427,7 @@ function NotifyTypeForm({
 function CalendarFeedSection({ url }: { url: string | null }) {
   const [qr, setQr] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -534,98 +535,114 @@ function CalendarFeedSection({ url }: { url: string | null }) {
         </p>
       </div>
 
-      <div className="mt-3">
-        <label className="mb-1 block text-sm font-medium text-gray-700">購読URL</label>
-        <div className="flex gap-2">
-          <input
-            readOnly
-            value={url}
-            onFocus={(e) => e.currentTarget.select()}
-            className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-700"
-          />
-          <button
-            type="button"
-            onClick={copy}
-            className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
-          >
-            {copied ? "コピー済み" : "コピー"}
-          </button>
-        </div>
+      <div className="mt-4 border-t border-gray-200 pt-3">
         <button
           type="button"
-          onClick={() => setShowQr((v) => !v)}
-          className="mt-2 text-sm text-blue-700 underline"
+          onClick={() => setDetailsOpen((v) => !v)}
+          aria-expanded={detailsOpen}
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900"
         >
-          {showQr ? "QRコードを閉じる" : "QRコードを表示（パソコンで開いている場合）"}
+          <span className="w-3 text-xs">{detailsOpen ? "▼" : "▶︎"}</span>
+          詳細情報
         </button>
-        {showQr && qr && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={qr} alt="購読URLのQRコード" width={200} height={200} className="mt-2" />
-        )}
-      </div>
+        {/* 手順を見やすくするため、補足・URL・作り直しは既定で閉じる(オーナー依頼) */}
+        {detailsOpen && (
+          <div className="mt-3">
+            <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
+              <li>
+                「調整中」の月は、自分の希望が「<span className="font-medium">仮:早番</span>」のように
+                表示されます（確定すると「仮:」が外れます）。
+              </li>
+              <li>
+                登録後にシフトが変更された場合、カレンダーへの反映は、カレンダーアプリ側の更新間隔により
+                <span className="font-medium">数時間〜1日ほど遅れる</span>
+                ことがあります。直前の変更はこのアプリのシフト画面で確認してください。
+              </li>
+              <li>
+                このURLを知っている人は誰でもあなたのシフトを見られます。他人に教えないでください。
+              </li>
+            </ul>
 
-      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-gray-600">
-        <li>
-          「調整中」の月は、自分の希望が「<span className="font-medium">仮:早番</span>」のように
-          表示されます（確定すると「仮:」が外れます）。
-        </li>
-        <li>
-          登録後にシフトが変更された場合、カレンダーへの反映は、カレンダーアプリ側の更新間隔により
-          <span className="font-medium">数時間〜1日ほど遅れる</span>
-          ことがあります。直前の変更はこのアプリのシフト画面で確認してください。
-        </li>
-        <li>
-          このURLを知っている人は誰でもあなたのシフトを見られます。他人に教えないでください。
-        </li>
-      </ul>
+            <div className="mt-4">
+              <label className="mb-1 block text-sm font-medium text-gray-700">購読URL</label>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={url}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-700"
+                />
+                <button
+                  type="button"
+                  onClick={copy}
+                  className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
+                >
+                  {copied ? "コピー済み" : "コピー"}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQr((v) => !v)}
+                className="mt-2 text-sm text-blue-700 underline"
+              >
+                {showQr ? "QRコードを閉じる" : "QRコードを表示（パソコンで開いている場合）"}
+              </button>
+              {showQr && qr && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={qr} alt="購読URLのQRコード" width={200} height={200} className="mt-2" />
+              )}
+            </div>
 
-      <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
-        <p className="text-sm text-gray-600">
-          URLを他人に知られた場合は作り直してください。古いURLは使えなくなり、登録済みの
-          カレンダーには新しいURLで登録し直す必要があります。
-        </p>
-        {confirmRotate ? (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-red-700">本当に作り直しますか？</span>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  setResult(await rotateMyCalendarToken());
-                  setConfirmRotate(false);
-                  setQr(null);
-                })
-              }
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {pending ? "処理中..." : "作り直す"}
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => setConfirmRotate(false)}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-white"
-            >
-              やめる
-            </button>
+            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <p className="text-sm text-gray-600">
+                URLを他人に知られた場合は作り直してください。古いURLは使えなくなり、登録済みの
+                カレンダーには新しいURLで登録し直す必要があります。
+              </p>
+              {confirmRotate ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-red-700">本当に作り直しますか？</span>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        setResult(await rotateMyCalendarToken());
+                        setConfirmRotate(false);
+                        setQr(null);
+                      })
+                    }
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {pending ? "処理中..." : "作り直す"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => setConfirmRotate(false)}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-white"
+                  >
+                    やめる
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResult(null);
+                    setConfirmRotate(true);
+                  }}
+                  className="mt-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100"
+                >
+                  URLを作り直す
+                </button>
+              )}
+              {result && (
+                <p className={`mt-2 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
+                  {result.message}
+                </p>
+              )}
+            </div>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setResult(null);
-              setConfirmRotate(true);
-            }}
-            className="mt-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100"
-          >
-            URLを作り直す
-          </button>
-        )}
-        {result && (
-          <p className={`mt-2 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
-            {result.message}
-          </p>
         )}
       </div>
     </section>
