@@ -3288,7 +3288,8 @@ https://calendar.yahoo.co.jp/?v=60&TITLE=早番&ST=20260920T080000&ET=20260920T1
   時刻はUTC出力（VTIMEZONE不要）。UIDは `shift-<日付>-<employee_id>@oominami-payroll`。75バイト折り返し対応。
   テスト `src/lib/ics.test.ts`。
 - 画面: アカウント設定（従業員 `/account`・管理者 `/admin/account` 共通の `AccountSettingsView`）に
-  「カレンダー連携」セクション。webcal登録ボタン（iPhone/Mac）・Googleカレンダー登録ボタン（`?cid=webcal://…`、
+  「カレンダー連携」セクション。webcal登録ボタン（iPhone/Mac。押した先のiOS画面で「検索」→「追加」と押す手順を
+  ボタンの下に案内。2026-09-17オーナー実機確認時の要望）・Googleカレンダー登録ボタン（`?cid=webcal://…`、
   PCブラウザから）・URLコピー・QR・「URLを作り直す」（2段階確認・操作ログ記録）。
   URLは `src/lib/calendar-feed-url.ts`（`NEXT_PUBLIC_SITE_URL` 基準）。**画面を開いた時点で未発行なら自動発行**。
 
@@ -3297,7 +3298,8 @@ https://calendar.yahoo.co.jp/?v=60&TITLE=早番&ST=20260920T080000&ET=20260920T1
   既存の通知セクションに `set-state-in-effect` が1件あるが、今回の変更前から存在）。
 - ローカル `next start` で本番DBに一時トークンを入れて実フィードを取得し、200・262件・「仮:早番」・
   無効トークン404を確認（一時トークンは削除済み）。
-- **未確認**: アカウント画面の見た目・ボタン動作、iPhone標準カレンダー／Googleカレンダーでの実際の購読
+- **iPhone標準カレンダーでの購読はオーナーが実機確認済み**（2026-09-17。登録ボタン→照会カレンダー追加画面→「検索」で同期）。
+- **未確認**: Googleカレンダーでの実際の購読
   （ログイン情報が無いため）。次に触る際は実機確認を推奨。
 
 ## 7. すぐ使えるコマンド集

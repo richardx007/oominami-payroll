@@ -494,6 +494,20 @@ function CalendarFeedSection({ url }: { url: string | null }) {
         </a>
       </div>
 
+      <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+        <p className="font-medium">iPhoneでの登録手順</p>
+        <ol className="mt-1 list-decimal space-y-1 pl-5">
+          <li>上の「iPhone・Macのカレンダーに登録」を押す</li>
+          <li>
+            「照会カレンダーを追加」画面が開くので、画面下の
+            <span className="font-bold">「検索」</span>を押す
+          </li>
+          <li>
+            次の画面で<span className="font-bold">「追加」</span>を押すと完了
+          </li>
+        </ol>
+      </div>
+
       <div className="mt-3">
         <label className="mb-1 block text-sm font-medium text-gray-700">購読URL</label>
         <div className="flex gap-2">
