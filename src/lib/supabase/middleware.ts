@@ -33,7 +33,9 @@ export async function updateSession(request: NextRequest) {
   // /api: 外部(Supabase の pg_cron)から呼ばれる。ログインセッションを持たないため、
   //       ここで /login へリダイレクトすると通知が一切動かなくなる。
   //       各 API ルートは共有シークレットのヘッダーで自前に認証すること。
-  const publicPaths = ["/login", "/register", "/auth", "/install", "/api"];
+  // /calendar/embed: ホームページに iframe で埋め込む営業カレンダー(公開情報のみ。?preview=1 の
+  //                  準備中の月の表示は管理者だけに許可する)
+  const publicPaths = ["/login", "/register", "/auth", "/install", "/api", "/calendar/embed"];
   const isPublic = publicPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
   );

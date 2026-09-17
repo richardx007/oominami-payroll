@@ -19,6 +19,7 @@ const primaryLinks = [
 // 「従業員」は PC サイドバーでは給与明細の直後に並ぶ(primaryLinks の後 = moreLinks 先頭)。
 const moreLinks = [
   { href: "/admin/employees", label: "従業員", icon: PeopleIcon },
+  { href: "/admin/calendar", label: "営業カレンダー", icon: CalendarIcon },
   { href: "/admin/notices", label: "配信", icon: SendIcon },
   { href: "/admin/settings", label: "設定", icon: GearIcon },
   { href: "/admin/tax-table", label: "税額表", icon: TableIcon },
@@ -142,7 +143,10 @@ export function AdminSidebarNav() {
                 }`}
               >
                 <Icon className="h-6 w-6 shrink-0" />
-                {l.label}
+                {/* 「営業カレンダー」がサイドバー幅でぎりぎり折り返すため、長い名前は字間を詰めて1行に収める */}
+                <span className={`whitespace-nowrap ${l.label.length >= 7 ? "tracking-tighter" : ""}`}>
+                  {l.label}
+                </span>
               </Link>
             );
           })}

@@ -29,7 +29,8 @@ const nextConfig: NextConfig = {
       {
         // クリックジャッキング・MIMEスニッフィング対策等の基本的なセキュリティヘッダー。
         // 給与・個人情報を扱う画面のため全パスに適用する。
-        source: "/:path*",
+        // ただしホームページに iframe で埋め込む営業カレンダー(/calendar/embed)は除く(下の設定)。
+        source: "/:path((?!calendar/embed).*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
@@ -43,6 +44,21 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "geolocation=(self), camera=(), microphone=()",
           },
+        ],
+      },
+      {
+        // 営業カレンダーの埋め込み用ページ。ホームページ(別ドメイン)の iframe から表示できるようにする。
+        // 公開情報(営業時間・公開イベント)だけを表示するページのため埋め込み元は限定しない。
+        source: "/calendar/embed",
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors *" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
+          { key: "Permissions-Policy", value: "geolocation=(), camera=(), microphone=()" },
         ],
       },
     ];

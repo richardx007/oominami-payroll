@@ -10,6 +10,8 @@ import {
   WorkRulesForm,
 } from "./ui";
 import { ClockSettingsForm } from "./clock";
+import { EventTypesForm } from "./event-types";
+import type { EventTypeRow } from "@/lib/business-calendar-view";
 import { parseSlots } from "@/lib/shifts";
 import { parseBreakWindows } from "@/lib/breaks";
 import { parsePayslipIssuer } from "@/lib/payslip-issuer";
@@ -21,6 +23,11 @@ export default async function SettingsPage() {
   const { data: settings } = await supabase
     .from("app_settings")
     .select("key, value");
+
+  const { data: eventTypes } = await supabase
+    .from("calendar_event_types")
+    .select("id, name, color, sort_order, is_default")
+    .order("sort_order");
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
   const slots = parseSlots(settings ?? []);
@@ -73,6 +80,7 @@ export default async function SettingsPage() {
         policy={settingsMap.get("clock_out_of_range") ?? "warn"}
         roundMin={settingsMap.get("clock_round_min") ?? "0"}
       />
+      <EventTypesForm types={(eventTypes ?? []) as EventTypeRow[]} />
       <WorkRulesForm
         currentFilename={settingsMap.get("work_rules_filename") ?? null}
         previewUrl={workRulesPreviewUrl}
