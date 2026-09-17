@@ -3380,12 +3380,11 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   画像化の崩れ対策をそのまま移植。PDF/画像は共通の `PdfPreviewDialog` を通す（画像用に `kindLabel` を追加）。
 - 載せるイベントは公開のものだけ。凡例は「営業時間／種類ごと／「休」＝定休日」。
 - 確認: ローカル Chrome で寸法計測（A4ちょうど・はみ出し0・チップ高さ統一・文字切れ0）、PDF→PDF→画像の連続出力、
-  自前PDFの構造テストと macOS での描画。**iPad/iPhone 実機での出力は未確認（オーナーに依頼）**。
+  自前PDFの構造テストと macOS での描画。**本番でオーナーが実機確認済み（2026-09-18。問題なし）**。
 
 **次にやること**
 1. フェーズ5の実機確認（9/18 12:00 に11月分の作成と通知が届いたか。以後は毎月15日 12:00）。
-2. フェーズ6の実機確認（iPad/iPhone/Mac Safari で PDF・画像を連続出力し、A4 1枚・崩れなし）。
-3. 移行テスト（計画書 §9.1）→ HP の iframe `src` を `https://oominami-payroll.shinsekai.workers.dev/calendar/embed` に差し替え、
+2. 移行テスト（計画書 §9.1）→ HP の iframe `src` を `https://oominami-payroll.shinsekai.workers.dev/calendar/embed` に差し替え、
    サイドバー「関連情報 > 営業カレンダー」（管理者・従業員）のリンク先を変更、旧アプリを1ヶ月後に停止。
 
 ## 7. すぐ使えるコマンド集

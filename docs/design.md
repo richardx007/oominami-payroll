@@ -2529,4 +2529,4 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
 - 確認（2026-09-18、ローカル Chrome）: 2026年9月でシート 210×297mm・はみ出し0・チップ高さ14mmで統一・文字切れ0・
   縦罫線が週の下端まで到達・日付とチップの間隔1.2mm。PDF→PDF→画像の連続出力でプレビュー崩れなし。
   `buildPdfFromJpeg` の出力をスキルの `verify-pdf.mjs` と macOS CoreGraphics（qlmanage）で検証。
-  **iPad/iPhone 実機での出力は未確認**。
+  本番でオーナーが実機確認済み（2026-09-18。問題なし）。
