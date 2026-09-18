@@ -248,22 +248,23 @@ export function MonthCalendar({
   );
 }
 
-/** 凡例（営業時間＋イベントの種類ごとの色） */
+/** 凡例（営業時間＋イベントの種類ごとの色）。
+ * 印は■。●は「手で変更した日」のマークに使っているので重ねない。 */
 export function CalendarLegend({ types }: { types: EventTypeRow[] }) {
   const sorted = [...types].sort((a, b) => a.sort_order - b.sort_order);
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
       <span className="inline-flex items-center gap-1">
-        <span className="h-2.5 w-2.5 rounded-full bg-green-600" />
+        <span className="h-2.5 w-2.5 rounded-sm bg-green-600" />
         営業時間
       </span>
       <span className="inline-flex items-center gap-1">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+        <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
         臨時休業
       </span>
       {sorted.map((t) => (
         <span key={t.id} className="inline-flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: EVENT_COLORS[t.color].line }} />
+          <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: EVENT_COLORS[t.color].line }} />
           {t.name}
         </span>
       ))}

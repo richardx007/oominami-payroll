@@ -117,7 +117,9 @@ export function CalendarManager({
           >
             ＜
           </button>
-          <span className="text-lg font-extrabold tracking-tight text-blue-800">{ymLabel(ym)}</span>
+          <span className="whitespace-nowrap text-lg font-extrabold tracking-tight text-blue-800">
+            {ymLabel(ym)}
+          </span>
           <button
             onClick={() => go(addMonthsYm(ym, 1))}
             aria-label="翌月"
@@ -125,9 +127,6 @@ export function CalendarManager({
           >
             ＞
           </button>
-          <span className={`shrink-0 rounded-lg px-2.5 py-1 text-base font-bold ${STATE_BADGE[state]}`}>
-            {MONTH_STATE_LABELS[state]}
-          </span>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <HeaderIconLink href="/admin/calendar/preview" label="ホームページでの見え方">
               <EyeIcon />
@@ -144,7 +143,14 @@ export function CalendarManager({
           </div>
         </div>
 
-        {/* 状態の説明 */}
+        {/* 状態バッジ。年月と同じ行に置くとスマホで年月が折り返すため2行目に出す */}
+        <div>
+          <span className={`inline-block rounded-lg px-2.5 py-1 text-base font-bold ${STATE_BADGE[state]}`}>
+            {MONTH_STATE_LABELS[state]}
+          </span>
+        </div>
+
+        {/* 状態の説明（公開中は状態バッジで分かるので文章は出さない） */}
         {state === "draft" &&
           (() => {
             const { publishFrom, deadline, daysLeft } = draftDeadline(ym, today);
@@ -158,13 +164,6 @@ export function CalendarManager({
               </p>
             );
           })()}
-        {state === "public" && (
-          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-900">
-            {ym < today.slice(0, 7)
-              ? "過去の月です。実績に合わせて変更できます。"
-              : "ホームページに表示中です。変更はすぐに反映されます。"}
-          </p>
-        )}
         {state === "none" && (
           <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-700">
             <p>

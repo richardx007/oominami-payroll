@@ -26,9 +26,6 @@ const moreLinks = [
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },
 ];
 
-// 営業カレンダー(このアプリの公開ページ。ホームページに埋め込んでいるものと同じ。別タブで開く)
-// 2026-09-18に旧アプリ oominami-calendar の ?poster から切り替え(フェーズ7)
-const CALENDAR_URL = "/calendar/embed";
 // 会社ホームページ(別タブで開く)
 const HOMEPAGE_URL = "https://www.oominami.com";
 
@@ -152,7 +149,8 @@ export function AdminSidebarNav() {
             );
           })}
 
-        {/* 関連情報グループ(勤務ルール・営業カレンダー・ホームページ) */}
+        {/* 関連情報グループ(勤務ルール・ホームページ)。営業カレンダーは「管理」グループにあるので置かない
+            (2026-09-18: 同じ名前の項目が2つ並んで紛らわしいとオーナー指摘。従業員ナビには残す) */}
         <GroupToggle
           label="関連情報"
           open={relatedOpen}
@@ -170,15 +168,6 @@ export function AdminSidebarNav() {
               <DocumentIcon className="h-6 w-6 shrink-0" />
               勤務ルール
             </button>
-            <a
-              href={CALENDAR_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${sidebarItemClass} pl-6 text-blue-50 hover:bg-white/10 hover:text-white`}
-            >
-              <PosterIcon className="h-6 w-6 shrink-0" />
-              営業カレンダー
-            </a>
             <a
               href={HOMEPAGE_URL}
               target="_blank"
@@ -334,16 +323,6 @@ export function AdminBottomNav() {
             >
               <DocumentIcon className="h-5 w-5 shrink-0" />
               勤務ルール
-            </a>
-            <a
-              href={CALENDAR_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setMenuOpen(false)}
-              className="flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
-            >
-              <PosterIcon className="h-5 w-5 shrink-0" />
-              営業カレンダー
             </a>
             <a
               href={HOMEPAGE_URL}
@@ -669,22 +648,3 @@ function GlobeIcon({ className }: { className?: string }) {
   );
 }
 
-/** 営業カレンダーへのリンク用アイコン */
-function PosterIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="4" y="3" width="16" height="18" rx="2" />
-      <circle cx="9" cy="9" r="1.6" />
-      <path d="M4 16l4.5-4.5a1.5 1.5 0 0 1 2.1 0L14 15l1-1a1.5 1.5 0 0 1 2.1 0L20 17" />
-    </svg>
-  );
-}
