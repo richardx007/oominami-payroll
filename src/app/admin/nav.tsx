@@ -26,8 +26,9 @@ const moreLinks = [
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },
 ];
 
-// オオミナミ営業カレンダー(別サービス。参照のみ・別タブで開く)のポスター表示URL
-const CALENDAR_URL = "https://oominami-calendar.shinsekai.workers.dev/?poster";
+// 営業カレンダー(このアプリの公開ページ。ホームページに埋め込んでいるものと同じ。別タブで開く)
+// 2026-09-18に旧アプリ oominami-calendar の ?poster から切り替え(フェーズ7)
+const CALENDAR_URL = "/calendar/embed";
 // 会社ホームページ(別タブで開く)
 const HOMEPAGE_URL = "https://www.oominami.com";
 
@@ -668,7 +669,7 @@ function GlobeIcon({ className }: { className?: string }) {
   );
 }
 
-/** 営業カレンダー(ポスター表示)へのリンク用アイコン */
+/** 営業カレンダーへのリンク用アイコン */
 function PosterIcon({ className }: { className?: string }) {
   return (
     <svg

@@ -12,8 +12,9 @@ const mainItems = [
   { href: "/payslips", label: "給与明細", icon: YenIcon },
 ];
 
-// オオミナミ営業カレンダー(別サービス。参照のみ・別タブで開く)のポスター表示URL
-const CALENDAR_URL = "https://oominami-calendar.shinsekai.workers.dev/?poster";
+// 営業カレンダー(このアプリの公開ページ。ホームページに埋め込んでいるものと同じ。別タブで開く)
+// 2026-09-18に旧アプリ oominami-calendar の ?poster から切り替え(フェーズ7)
+const CALENDAR_URL = "/calendar/embed";
 // 会社ホームページ(別タブで開く)
 const HOMEPAGE_URL = "https://www.oominami.com";
 
