@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin, requireEmployee } from "@/lib/auth";
 import { logActivity } from "@/lib/log";
+import { sendPush } from "@/lib/web-push";
 import type { ActionResult } from "../admin/employees/actions";
 
 const profileSchema = z.object({
@@ -102,6 +103,72 @@ export async function deleteMyPushSubscription(endpoint: string): Promise<Action
   revalidatePath("/account");
   revalidatePath("/admin/account");
   return { ok: true, message: "この端末への通知を解除しました" };
+}
+
+/**
+ * この端末にテスト通知を送る(管理者・従業員共通)。
+ * 「通知が来ない」ときに、その端末の購読が生きているかを本人がその場で確かめるための機能
+ * (2026-09-18に、古い購読が無効化していて通知が届かない事象があったため追加)。
+ *
+ * 🔴 **送信が成功しても通知が出るとは限らない**。Apple の Web Push は、購読が実質無効に
+ * なっていても 2xx を返し続けることがあり(404/410 も返らない)、アプリ側からは成功に見える。
+ * 最終的な判断は「端末に通知が見えたか」なので、文面でも登録し直しを案内する。
+ */
+export async function sendTestPushToThisDevice(endpoint: string): Promise<ActionResult> {
+  const me = await requireEmployee();
+
+  const parsed = z.url().max(1000).safeParse(endpoint);
+  if (!parsed.success) return { ok: false, message: "端末の情報が正しくありません" };
+
+  const supabase = await createClient();
+  // RLS により自分の購読しか読めない(他人の端末には送れない)
+  const { data: sub, error } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("endpoint", parsed.data)
+    .maybeSingle();
+
+  if (error) return { ok: false, message: "端末の情報を取得できませんでした" };
+  if (!sub) {
+    return {
+      ok: false,
+      message: "この端末はまだ登録されていません。「この端末で通知を受け取る」を押してからお試しください。",
+    };
+  }
+
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const subject = (process.env.VAPID_SUBJECT || "mailto:admin@example.com").trim();
+  if (!publicKey || !privateKey) {
+    return { ok: false, message: "通知用の鍵（VAPID）が未設定のため送れません。" };
+  }
+
+  const message = JSON.stringify({
+    title: "テスト通知",
+    body: "この端末で通知を受け取れています。",
+    tag: "test-notification",
+    url: me.is_admin ? "/admin/account" : "/account",
+  });
+  const res = await sendPush(sub, message, { publicKey, privateKey, subject });
+
+  if (res.expired) {
+    // 失効が分かった購読は残しておいても届かないので消す(登録し直してもらう)
+    await supabase.from("push_subscriptions").delete().eq("endpoint", parsed.data);
+    revalidatePath("/account");
+    revalidatePath("/admin/account");
+    return {
+      ok: false,
+      message: "この端末の登録は無効になっていました。登録を消したので、「この端末で通知を受け取る」でもう一度登録してください。",
+    };
+  }
+  if (!res.ok) {
+    return { ok: false, message: `送信に失敗しました（${res.error ?? `状態コード ${res.status}`}）` };
+  }
+  return {
+    ok: true,
+    message:
+      "テスト通知を送りました。数秒待っても届かない場合は、「この端末への通知を解除する」→「この端末で通知を受け取る」で登録し直してください。",
+  };
 }
 
 /**

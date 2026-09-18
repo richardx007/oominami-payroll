@@ -5,6 +5,7 @@ import {
   updateOwnProfile,
   saveMyPushSubscription,
   deleteMyPushSubscription,
+  sendTestPushToThisDevice,
   updateNotifyTypeSettings,
   rotateMyCalendarToken,
 } from "./actions";
@@ -163,6 +164,9 @@ function DeviceNotificationSection({
   const [deviceBusy, setDeviceBusy] = useState(false);
   const [deviceMsg, setDeviceMsg] = useState<ActionResult | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  // テスト通知の送信先(この端末の購読)。登録済みのときだけ入る
+  const [endpoint, setEndpoint] = useState<string | null>(null);
+  const [testBusy, setTestBusy] = useState(false);
 
   useEffect(() => {
     const support = checkPushSupport();
@@ -182,6 +186,7 @@ function DeviceNotificationSection({
         }
         if (registeredEndpoints.includes(sub.endpoint)) {
           setDeviceOn(true);
+          setEndpoint(sub.endpoint);
           return;
         }
         const json = sub.toJSON();
@@ -196,6 +201,7 @@ function DeviceNotificationSection({
           userAgent: navigator.userAgent,
         });
         setDeviceOn(res.ok);
+        if (res.ok) setEndpoint(sub.endpoint);
         // 🔴 これは画面を開いた時に裏で自動的に行う突き合わせ(本人の操作ではない)。
         // 初回訪問(まだ一度も登録していない)でも通りうる経路なので、ここで赤いエラーを
         // 出すと「初回は未登録で当然なのに」不安を煽ってしまう(実際にオーナー報告あり)。
@@ -221,9 +227,10 @@ function DeviceNotificationSection({
     setDeviceMsg(null);
     try {
       if (deviceOn) {
-        const endpoint = await unsubscribeThisDevice();
-        if (endpoint) setDeviceMsg(await deleteMyPushSubscription(endpoint));
+        const current = await unsubscribeThisDevice();
+        if (current) setDeviceMsg(await deleteMyPushSubscription(current));
         setDeviceOn(false);
+        setEndpoint(null);
       } else {
         const sub = await subscribeThisDevice(vapidPublicKey);
         const saved = await Promise.race([
@@ -237,6 +244,7 @@ function DeviceNotificationSection({
         ]);
         setDeviceMsg(saved);
         setDeviceOn(saved.ok);
+        setEndpoint(saved.ok ? sub.endpoint : null);
       }
     } catch (e) {
       const raw = e instanceof Error ? e.message : "処理に失敗しました";
@@ -250,6 +258,26 @@ function DeviceNotificationSection({
     } finally {
       if (typeof Notification !== "undefined") setPermission(Notification.permission);
       setDeviceBusy(false);
+    }
+  }
+
+  /** この端末に実際に通知を1通送ってみる(届くかどうかは端末で見て判断してもらう) */
+  async function sendTest() {
+    if (!endpoint) return;
+    setTestBusy(true);
+    setDeviceMsg(null);
+    try {
+      const res = await sendTestPushToThisDevice(endpoint);
+      setDeviceMsg(res);
+      // 失効していた場合はサーバー側で購読を消しているので、表示も未登録に戻す
+      if (!res.ok && res.message.includes("無効")) {
+        setDeviceOn(false);
+        setEndpoint(null);
+      }
+    } catch (e) {
+      setDeviceMsg({ ok: false, message: e instanceof Error ? e.message : "送信に失敗しました" });
+    } finally {
+      setTestBusy(false);
     }
   }
 
@@ -324,7 +352,22 @@ function DeviceNotificationSection({
           <span className="text-sm text-gray-500">
             {deviceOn === null ? "" : deviceOn ? "登録済み" : "未登録"}
           </span>
+          {deviceOn && endpoint && (
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={testBusy || deviceBusy}
+              className="rounded-lg border border-blue-600 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+            >
+              {testBusy ? "送信中..." : "この端末にテスト通知を送る"}
+            </button>
+          )}
         </div>
+      )}
+      {deviceOn && endpoint && (
+        <p className="mt-2 text-sm text-gray-500">
+          テスト通知は、押した端末にだけ届きます（他の端末や他の人には送られません）。
+        </p>
       )}
 
       {deviceMsg && (

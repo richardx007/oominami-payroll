@@ -3383,6 +3383,9 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   `update business_months set notified_at = null where ym = '<対象月>';` の後に
   `select public.create_business_month_if_due('<YYYY-MM-DD>'::date);` で再送（月は作り直されない）。
   2026-09-18 15:53 にこの手順で再送し、iPhone・Mac とも受信を確認済み。
+- この事象を機に、アカウント設定 > 通知 に **「この端末にテスト通知を送る」ボタン**を追加した（管理者・従業員共通。
+  設計書「Web Push」節）。端末を買い替えた・PWAを入れ直した後に、その場で1タップ確認できる。
+  ただし**送信成功でも通知が出ない場合がある**（上記のとおりAppleが2xxを返すため）ので、届かなければ登録し直す。
 
 **フェーズ6: A4ポスター（2026-09-18）** — 仕様は設計書 §24.6
 - `/admin/calendar/poster`（営業カレンダー右上のポスターアイコン）。旧アプリの季節背景・寸法計算・文字サイズ自動調整・
