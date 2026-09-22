@@ -7,13 +7,15 @@ import { EMBED_HEIGHT_MESSAGE, isEmbedHeightMessage } from "@/lib/embed-height";
 // 旧 oominami-calendar の埋め込みコードに、高さを合わせるスクリプトを足した形。
 // カレンダーの中身が iframe より高いとHP側に内側のスクロールバーが出るため、
 // 埋め込みページから届く高さで iframe を伸縮させる（スクリプトが動かなくても min-height で表示はできる）。
+// 先頭の style は埋め込み先（Wix の HTML 埋め込み）が付ける body の余白を消すため（Wix の枠は高さ固定なので、少しでも低くする）。
 function embedCode(url: string) {
-  return `<iframe
+  return `<style>html,body{margin:0;padding:0;background:transparent;}</style>
+<iframe
   id="oominami-calendar"
   src="${url}"
   title="営業カレンダー"
   loading="lazy"
-  style="width:100%; border:0; min-height:760px; background:transparent;"
+  style="display:block; width:100%; border:0; min-height:760px; background:transparent;"
 ></iframe>
 <script>
   window.addEventListener("message", function (e) {
@@ -149,6 +151,9 @@ export function PreviewView({ embedUrl }: { embedUrl: string }) {
           ホームページ側に内側のスクロールバーが出ないようにするものです。<strong>iframe と script の両方</strong>を貼り付けてください
           （スクリプトが使えないページでは、iframe の <code className="rounded bg-gray-100 px-1">min-height</code> を
           1200px 程度に増やしてください）。
+          先頭の <code className="rounded bg-gray-100 px-1">&lt;style&gt;</code> も含めて全部貼り付けてください。
+          <strong>Wix の「HTML埋め込み」の枠は高さが固定</strong>のため、枠の高さは 1000px 程度にしてください
+          （カレンダーがそれより高くなると、枠の右にスクロールバーが出ます）。
         </p>
         <pre className="mt-3 overflow-x-auto rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-gray-100">{code}</pre>
         <button

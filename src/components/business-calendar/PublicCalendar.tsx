@@ -114,7 +114,8 @@ export function PublicCalendar({
   };
 
   return (
-    <div style={TOKENS} className="flex justify-center p-1 text-[var(--c-text)] sm:p-6">
+    // 上下の余白は最小限（HPのWixの埋め込み枠は高さ固定のため、高さを抑える。2026-09-23）
+    <div style={TOKENS} className="flex justify-center p-1 text-[var(--c-text)] sm:px-6">
       <div className="flex w-full max-w-3xl flex-col gap-3 rounded-xl border border-[var(--c-border)] bg-[var(--c-card)] p-2 shadow-sm sm:gap-4 sm:rounded-2xl sm:p-6">
         {/* ヘッダー */}
         <div className="flex flex-wrap items-center justify-between gap-3">
