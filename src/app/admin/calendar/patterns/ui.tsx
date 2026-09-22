@@ -22,6 +22,8 @@ import type { ActionResult } from "../../employees/actions";
 
 const ORDER: DayType[] = ["weekday", "fri", "sat", "sun", "holiday", "pre_holiday"];
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+/** 一覧の「適用開始日を追加」の値 */
+const NEW_VERSION = "new";
 
 // iOS の日付ピッカーが縮まないよう幅を確保する（mobile-date-time-inputs）
 const dateClass =
@@ -188,29 +190,25 @@ export function PatternsForm({
 
       {/* 適用開始日ごとの定義 */}
       <section className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {versions.map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => open(v)}
-              className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
-                selected === v ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300 bg-white text-gray-700"
-              }`}
-            >
-              {versionLabel(v)}
-              {v === current && <span className={`ml-1 text-xs ${selected === v ? "text-blue-100" : "text-green-700"}`}>適用中</span>}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={startNew}
-            className={`rounded-full border border-dashed px-3 py-1.5 text-sm font-semibold ${
-              selected == null ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-400 bg-white text-gray-600"
-            }`}
+        {/* 適用開始日：[一覧]。既定は今日使われている定義。末尾が「適用開始日を追加」 */}
+        <div className="flex items-center gap-2">
+          <label htmlFor="effective-from" className="shrink-0 text-sm font-bold text-gray-800">
+            適用開始日：
+          </label>
+          <select
+            id="effective-from"
+            value={selected ?? NEW_VERSION}
+            onChange={(e) => (e.target.value === NEW_VERSION ? startNew() : open(e.target.value))}
+            className="min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-2 text-base font-semibold focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
           >
-            ＋ 適用開始日を追加
-          </button>
+            {versions.map((v) => (
+              <option key={v} value={v}>
+                {versionLabel(v)}
+                {v === current ? "（適用中）" : ""}
+              </option>
+            ))}
+            <option value={NEW_VERSION}>＋ 適用開始日を追加</option>
+          </select>
         </div>
 
         {selected == null ? (
@@ -230,7 +228,7 @@ export function PatternsForm({
             </div>
             <p className={`text-xs ${duplicate ? "text-red-600" : "text-gray-600"}`}>
               {duplicate
-                ? "この適用開始日の定義はすでにあります。上のボタンから開いて直してください。"
+                ? "この適用開始日の定義はすでにあります。上の一覧から選んで直してください。"
                 : "いま下に表示している定義を写して始めます。変わる区分だけ直して保存してください。"}
             </p>
           </div>
