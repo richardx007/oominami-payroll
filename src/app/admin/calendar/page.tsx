@@ -40,7 +40,7 @@ export default async function BusinessCalendarPage({
       .gte("end_date", from)
       .order("start_date"),
     supabase.from("calendar_event_types").select("id, name, color, sort_order, is_default").order("sort_order"),
-    supabase.from("business_months").select("ym, footnote1, footnote2"),
+    supabase.from("business_months").select("ym, footnote"),
     supabase.from("jp_holidays").select("date, name").gte("date", grid[0]).lte("date", grid[grid.length - 1]),
     supabase.from("jp_holiday_sync").select("synced_at, last_error").maybeSingle(),
   ]);
@@ -61,7 +61,7 @@ export default async function BusinessCalendarPage({
         events={events}
         types={types}
         generatedMonths={generatedMonths}
-        footnotes={[month?.footnote1 ?? "", month?.footnote2 ?? ""]}
+        footnote={month?.footnote ?? ""}
         holidays={holidays}
         holidaySyncError={syncRes.data?.last_error ?? null}
       />

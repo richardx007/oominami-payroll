@@ -8,7 +8,8 @@ import {
   dayOfWeek,
   diffDays,
   EVENT_COLORS,
-  footnoteLines,
+  FOOTNOTE_TEXT_CLASS,
+  footnoteOf,
   jstTodayKey,
   layoutWeek,
   monthGridKeys,
@@ -164,23 +165,17 @@ export function PublicCalendar({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Legend types={data && data !== "error" ? data.types : []} />
         </div>
-        {data && data !== "error" && <Footnotes lines={footnoteLines(data.notes, ym)} />}
+        {data && data !== "error" && <Footnote text={footnoteOf(data.notes, ym)} />}
         {note}
       </div>
     </div>
   );
 }
 
-/** 月ごとの注釈（2行まで） */
-function Footnotes({ lines }: { lines: string[] }) {
-  if (lines.length === 0) return null;
-  return (
-    <div className="space-y-0.5 text-sm leading-snug text-[var(--c-note)] sm:text-base">
-      {lines.map((l, i) => (
-        <p key={i}>{l}</p>
-      ))}
-    </div>
-  );
+/** 月ごとの注釈 */
+function Footnote({ text }: { text: string | null }) {
+  if (!text) return null;
+  return <p className={`whitespace-pre-line text-sm leading-snug sm:text-base ${FOOTNOTE_TEXT_CLASS}`}>{text}</p>;
 }
 
 function Legend({ types }: { types: EventTypeRow[] }) {

@@ -12,7 +12,7 @@ import {
   jstTodayKey,
   parseTimeInput,
   patternForDate,
-  footnoteLines,
+  footnoteOf,
   regenerateTargetMonths,
   type BusinessDayRow,
   type HourPattern,
@@ -280,13 +280,13 @@ describe("定義の変更で作り直す月", () => {
 
 describe("月の注釈", () => {
   const notes = [
-    { ym: "2026-10", footnote1: "1行目", footnote2: null },
-    { ym: "2026-11", footnote1: " ", footnote2: "2行目だけ" },
+    { ym: "2026-10", footnote: "10月より平日は23時まで" },
+    { ym: "2026-11", footnote: "  " },
   ];
-  it("その月の行だけを返し、空の行は詰める", () => {
-    expect(footnoteLines(notes, "2026-10")).toEqual(["1行目"]);
-    expect(footnoteLines(notes, "2026-11")).toEqual(["2行目だけ"]);
-    expect(footnoteLines(notes, "2026-12")).toEqual([]);
-    expect(footnoteLines(undefined, "2026-10")).toEqual([]);
+  it("その月の注釈を返し、空なら null", () => {
+    expect(footnoteOf(notes, "2026-10")).toBe("10月より平日は23時まで");
+    expect(footnoteOf(notes, "2026-11")).toBeNull();
+    expect(footnoteOf(notes, "2026-12")).toBeNull();
+    expect(footnoteOf(undefined, "2026-10")).toBeNull();
   });
 });

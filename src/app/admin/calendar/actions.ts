@@ -185,21 +185,20 @@ export async function generateMonth(ym: string): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------------------
-// 月の注釈（カレンダー下部の2行）
+// 月の注釈（カレンダー下部）
 // ---------------------------------------------------------------------------
 
-const footnoteSchema = z.string().max(FOOTNOTE_MAX, `注釈は1行${FOOTNOTE_MAX}文字までです`);
+const footnoteSchema = z.string().trim().max(FOOTNOTE_MAX, `注釈は${FOOTNOTE_MAX}文字までです`);
 
-export async function saveFootnotes(ym: string, footnote1: string, footnote2: string): Promise<ActionResult> {
+export async function saveFootnote(ym: string, footnote: string): Promise<ActionResult> {
   await requireAdmin();
   if (!/^\d{4}-\d{2}$/.test(ym)) return { ok: false, message: "月の指定が正しくありません" };
-  const parsed = z.tuple([footnoteSchema, footnoteSchema]).safeParse([footnote1.trim(), footnote2.trim()]);
+  const parsed = footnoteSchema.safeParse(footnote);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
   const supabase = await createClient();
-  const { error } = await supabase.rpc("set_business_month_footnotes", {
+  const { error } = await supabase.rpc("set_business_month_footnote", {
     p_ym: `${ym}-01`,
-    p_footnote1: parsed.data[0],
-    p_footnote2: parsed.data[1],
+    p_footnote: parsed.data,
   });
   if (error) return { ok: false, message: error.message };
   revalidateCalendar();

@@ -8,6 +8,7 @@ import { capturePosterImage, capturePosterPdf } from "@/lib/poster-export";
 import {
   addMonthsYm,
   EVENT_COLORS,
+  FOOTNOTE_TEXT_CLASS,
   type BusinessDayRow,
   type CalendarEventRow,
   type EventTypeRow,
@@ -26,15 +27,15 @@ export function PosterView({
   events,
   types,
   holidays,
-  footnotes,
+  footnote,
 }: {
   ym: string;
   days: BusinessDayRow[];
   events: CalendarEventRow[];
   types: EventTypeRow[];
   holidays: Record<string, string>;
-  /** 月の注釈（空の行は除いたもの。2行まで） */
-  footnotes: string[];
+  /** 月の注釈 */
+  footnote: string | null;
 }) {
   const router = useRouter();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -163,12 +164,8 @@ export function PosterView({
 
             {/* フッター（凡例）。●は図形ではなく文字にする（画像化時に図形とテキストで縦位置の基準がずれるため） */}
             <footer className="shrink-0 px-[9mm] pb-[5mm] pt-[2mm]">
-              {footnotes.length > 0 && (
-                <div className="mb-[1.5mm] text-[10.5pt] font-medium leading-[1.4] text-[#374151]">
-                  {footnotes.map((l, i) => (
-                    <p key={i}>{l}</p>
-                  ))}
-                </div>
+              {footnote && (
+                <p className={`mb-[1.5mm] whitespace-pre-line text-[10.5pt] leading-[1.4] ${FOOTNOTE_TEXT_CLASS}`}>{footnote}</p>
               )}
               <div className="flex items-center justify-between border-t border-black/10 pt-[2mm] text-[8.5pt] leading-[1.3] text-[#6b7280]">
                 <div className="flex items-center gap-[5mm]">

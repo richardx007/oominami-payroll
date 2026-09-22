@@ -12,6 +12,7 @@ import {
   draftDeadline,
   EVENT_COLORS,
   FOOTNOTE_MAX,
+  FOOTNOTE_TEXT_CLASS,
   formatMinutes,
   minutesToInput,
   MONTH_STATE_LABELS,
@@ -23,7 +24,7 @@ import {
   type EventTypeRow,
   type MonthState,
 } from "@/lib/business-calendar-view";
-import { deleteEvent, generateMonth, saveDay, saveEvent, saveFootnotes } from "./actions";
+import { deleteEvent, generateMonth, saveDay, saveEvent, saveFootnote } from "./actions";
 import type { ActionResult } from "../employees/actions";
 
 export type DayDetailRow = { day_type: DayType; note: string | null };
@@ -63,7 +64,7 @@ export function CalendarManager({
   events,
   types,
   generatedMonths,
-  footnotes,
+  footnote,
   holidays,
   holidaySyncError,
 }: {
@@ -73,8 +74,8 @@ export function CalendarManager({
   events: EventRow[];
   types: EventTypeRow[];
   generatedMonths: string[];
-  /** この月の注釈（1行目・2行目） */
-  footnotes: [string, string];
+  /** この月の注釈 */
+  footnote: string;
   holidays: Record<string, string>;
   holidaySyncError: string | null;
 }) {
@@ -148,9 +149,12 @@ export function CalendarManager({
         </div>
 
         {/* 状態バッジ。年月と同じ行に置くとスマホで年月が折り返すため2行目に出す */}
-        <div>
-          <span className={`inline-block rounded-lg px-2.5 py-1 text-base font-bold ${STATE_BADGE[state]}`}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className={`inline-block shrink-0 rounded-lg px-2.5 py-1 text-base font-bold ${STATE_BADGE[state]}`}>
             {MONTH_STATE_LABELS[state]}
+          </span>
+          <span className="text-xs text-gray-500">
+            日をタップすると変更できます。<span className="text-orange-500">●</span>：変更のある日
           </span>
         </div>
 
@@ -203,18 +207,8 @@ export function CalendarManager({
             attach={attach}
           />
         </div>
+        {state !== "none" && <FootnoteForm key={`${ym}-${footnote}`} ym={ym} initial={footnote} />}
         <CalendarLegend types={types} />
-        {footnotes.some((l) => l.trim()) && (
-          <div className="space-y-0.5 text-sm text-gray-700">
-            {footnotes.filter((l) => l.trim()).map((l, i) => (
-              <p key={i}>{l}</p>
-            ))}
-          </div>
-        )}
-        <p className="text-xs text-gray-500">
-          <span className="text-orange-500">●</span>＝手で変更した日。日をタップすると変更できます。
-        </p>
-        {state !== "none" && <FootnotesForm key={`${ym}-${footnotes.join("\n")}`} ym={ym} initial={footnotes} />}
       </div>
 
       {/* 右カラム(スマホでは下): 選択日の編集 */}
@@ -238,17 +232,16 @@ export function CalendarManager({
   );
 }
 
-/** 月の注釈（カレンダー下部の2行。HP・ポスターにも出る） */
-function FootnotesForm({ ym, initial }: { ym: string; initial: [string, string] }) {
+/** 月の注釈（カレンダーの真下。HP・ポスターにも同じ赤の太字で出る） */
+function FootnoteForm({ ym, initial }: { ym: string; initial: string }) {
   const router = useRouter();
-  const [lines, setLines] = useState<[string, string]>(initial);
+  const [text, setText] = useState(initial);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
-  const changed = lines[0] !== initial[0] || lines[1] !== initial[1];
 
   function save() {
     startTransition(async () => {
-      const r = await saveFootnotes(ym, lines[0], lines[1]);
+      const r = await saveFootnote(ym, text);
       setResult(r);
       if (r.ok) router.refresh();
     });
@@ -256,31 +249,22 @@ function FootnotesForm({ ym, initial }: { ym: string; initial: [string, string] 
 
   return (
     <section className="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
-      <div>
-        <h2 className="border-l-4 border-blue-600 pl-2 text-sm font-semibold">{Number(ym.slice(5, 7))}月の注釈</h2>
-        <p className="mt-1 text-xs text-gray-500">
-          カレンダーの下に2行まで表示されます（ホームページ・ポスターにも出ます）。空欄の行は表示しません。
-        </p>
-      </div>
-      {([0, 1] as const).map((i) => (
-        <input
-          key={i}
-          value={lines[i]}
-          onChange={(e) => {
-            const v = e.target.value;
-            setLines((ls) => (i === 0 ? [v, ls[1]] : [ls[0], v]));
-            setResult(null);
-          }}
-          maxLength={FOOTNOTE_MAX}
-          placeholder={i === 0 ? "1行目（例: 年末年始の営業時間は後日お知らせします）" : "2行目"}
-          aria-label={`注釈の${i + 1}行目`}
-          className={inputClass}
-        />
-      ))}
+      <h2 className="border-l-4 border-blue-600 pl-2 text-sm font-semibold">{Number(ym.slice(5, 7))}月の注釈</h2>
+      <textarea
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          setResult(null);
+        }}
+        rows={2}
+        maxLength={FOOTNOTE_MAX}
+        aria-label={`${Number(ym.slice(5, 7))}月の注釈`}
+        className={`${inputClass} resize-none leading-snug ${FOOTNOTE_TEXT_CLASS}`}
+      />
       <Message result={result} />
       <button
         onClick={save}
-        disabled={pending || !changed}
+        disabled={pending || text === initial}
         className="w-full rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
       >
         {pending ? "保存中..." : "注釈を保存する"}

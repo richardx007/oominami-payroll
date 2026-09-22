@@ -31,7 +31,7 @@ export async function loadPreviewCalendar(from: string, to: string): Promise<Cal
     supabase.from("calendar_event_types").select("id, name, color, sort_order, is_default").order("sort_order"),
     supabase
       .from("business_months")
-      .select("ym, footnote1, footnote2")
+      .select("ym, footnote")
       .gte("ym", `${from.slice(0, 7)}-01`)
       .lte("ym", to),
   ]);
