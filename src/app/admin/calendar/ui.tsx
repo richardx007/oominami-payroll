@@ -149,12 +149,12 @@ export function CalendarManager({
         </div>
 
         {/* 状態バッジ。年月と同じ行に置くとスマホで年月が折り返すため2行目に出す */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className={`inline-block shrink-0 rounded-lg px-2.5 py-1 text-base font-bold ${STATE_BADGE[state]}`}>
             {MONTH_STATE_LABELS[state]}
           </span>
           <span className="text-xs text-gray-500">
-            日をタップすると変更できます。<span className="text-orange-500">●</span>：変更のある日
+            日をタップすると変更できます。<span className="text-orange-500">●</span>：変更あり
           </span>
         </div>
 
