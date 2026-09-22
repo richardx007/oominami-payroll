@@ -36,6 +36,21 @@ export type CalendarEventRow = {
   type_id: string | null;
 };
 
+/** 月ごとの注釈（カレンダー下部に2行まで。business_months.footnote1/2） */
+export type MonthFootnote = {
+  ym: string; // YYYY-MM
+  footnote1: string | null;
+  footnote2: string | null;
+};
+
+export const FOOTNOTE_MAX = 80;
+
+/** その月の注釈の行（空の行は詰める） */
+export function footnoteLines(notes: MonthFootnote[] | undefined, ym: string): string[] {
+  const n = notes?.find((x) => x.ym === ym);
+  return n ? [n.footnote1, n.footnote2].filter((l): l is string => !!l && l.trim() !== "") : [];
+}
+
 export const DAY_TYPE_LABELS: Record<DayType, string> = {
   weekday: "月〜木",
   fri: "金",

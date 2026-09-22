@@ -25,7 +25,7 @@ export default async function CalendarPosterPage({
   const to = addDaysKey(grid[grid.length - 1], 14);
 
   const supabase = await createClient();
-  const [daysRes, eventsRes, typesRes, holidaysRes] = await Promise.all([
+  const [daysRes, eventsRes, typesRes, holidaysRes, monthRes] = await Promise.all([
     supabase
       .from("business_days")
       .select("date, holiday_name, status, open_min, close_min, overnight")
@@ -42,6 +42,7 @@ export default async function CalendarPosterPage({
       .order("start_date"),
     supabase.from("calendar_event_types").select("id, name, color, sort_order, is_default").order("sort_order"),
     supabase.from("jp_holidays").select("date, name").gte("date", grid[0]).lte("date", grid[grid.length - 1]),
+    supabase.from("business_months").select("footnote1, footnote2").eq("ym", `${ym}-01`).maybeSingle(),
   ]);
 
   return (
@@ -51,6 +52,7 @@ export default async function CalendarPosterPage({
       events={(eventsRes.data ?? []) as CalendarEventRow[]}
       types={(typesRes.data ?? []) as EventTypeRow[]}
       holidays={Object.fromEntries((holidaysRes.data ?? []).map((h) => [h.date, h.name]))}
+      footnotes={[monthRes.data?.footnote1, monthRes.data?.footnote2].filter((l): l is string => !!l)}
     />
   );
 }

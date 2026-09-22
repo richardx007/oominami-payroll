@@ -8,6 +8,7 @@ import {
   dayOfWeek,
   diffDays,
   EVENT_COLORS,
+  footnoteLines,
   jstTodayKey,
   layoutWeek,
   monthGridKeys,
@@ -17,6 +18,7 @@ import {
   type CalendarEventRow,
   type CalendarView,
   type EventTypeRow,
+  type MonthFootnote,
 } from "@/lib/business-calendar-view";
 
 /**
@@ -29,6 +31,8 @@ export type CalendarData = {
   days: BusinessDayRow[];
   events: CalendarEventRow[];
   types: EventTypeRow[];
+  /** 月ごとの注釈（古いAPI応答には無い） */
+  notes?: MonthFootnote[];
 };
 
 export type CalendarLoader = (from: string, to: string) => Promise<CalendarData>;
@@ -160,8 +164,21 @@ export function PublicCalendar({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Legend types={data && data !== "error" ? data.types : []} />
         </div>
+        {data && data !== "error" && <Footnotes lines={footnoteLines(data.notes, ym)} />}
         {note}
       </div>
+    </div>
+  );
+}
+
+/** 月ごとの注釈（2行まで） */
+function Footnotes({ lines }: { lines: string[] }) {
+  if (lines.length === 0) return null;
+  return (
+    <div className="space-y-0.5 text-sm leading-snug text-[var(--c-note)] sm:text-base">
+      {lines.map((l, i) => (
+        <p key={i}>{l}</p>
+      ))}
     </div>
   );
 }

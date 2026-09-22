@@ -11,6 +11,7 @@ import {
   DAY_TYPE_LABELS,
   draftDeadline,
   EVENT_COLORS,
+  FOOTNOTE_MAX,
   formatMinutes,
   minutesToInput,
   MONTH_STATE_LABELS,
@@ -22,7 +23,7 @@ import {
   type EventTypeRow,
   type MonthState,
 } from "@/lib/business-calendar-view";
-import { deleteEvent, generateMonth, saveDay, saveEvent } from "./actions";
+import { deleteEvent, generateMonth, saveDay, saveEvent, saveFootnotes } from "./actions";
 import type { ActionResult } from "../employees/actions";
 
 export type DayDetailRow = { day_type: DayType; note: string | null };
@@ -62,6 +63,7 @@ export function CalendarManager({
   events,
   types,
   generatedMonths,
+  footnotes,
   holidays,
   holidaySyncError,
 }: {
@@ -71,6 +73,8 @@ export function CalendarManager({
   events: EventRow[];
   types: EventTypeRow[];
   generatedMonths: string[];
+  /** この月の注釈（1行目・2行目） */
+  footnotes: [string, string];
   holidays: Record<string, string>;
   holidaySyncError: string | null;
 }) {
@@ -200,9 +204,17 @@ export function CalendarManager({
           />
         </div>
         <CalendarLegend types={types} />
+        {footnotes.some((l) => l.trim()) && (
+          <div className="space-y-0.5 text-sm text-gray-700">
+            {footnotes.filter((l) => l.trim()).map((l, i) => (
+              <p key={i}>{l}</p>
+            ))}
+          </div>
+        )}
         <p className="text-xs text-gray-500">
           <span className="text-orange-500">●</span>＝手で変更した日。日をタップすると変更できます。
         </p>
+        {state !== "none" && <FootnotesForm key={`${ym}-${footnotes.join("\n")}`} ym={ym} initial={footnotes} />}
       </div>
 
       {/* 右カラム(スマホでは下): 選択日の編集 */}
@@ -223,6 +235,57 @@ export function CalendarManager({
         )}
       </div>
     </div>
+  );
+}
+
+/** 月の注釈（カレンダー下部の2行。HP・ポスターにも出る） */
+function FootnotesForm({ ym, initial }: { ym: string; initial: [string, string] }) {
+  const router = useRouter();
+  const [lines, setLines] = useState<[string, string]>(initial);
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+  const changed = lines[0] !== initial[0] || lines[1] !== initial[1];
+
+  function save() {
+    startTransition(async () => {
+      const r = await saveFootnotes(ym, lines[0], lines[1]);
+      setResult(r);
+      if (r.ok) router.refresh();
+    });
+  }
+
+  return (
+    <section className="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
+      <div>
+        <h2 className="border-l-4 border-blue-600 pl-2 text-sm font-semibold">{Number(ym.slice(5, 7))}月の注釈</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          カレンダーの下に2行まで表示されます（ホームページ・ポスターにも出ます）。空欄の行は表示しません。
+        </p>
+      </div>
+      {([0, 1] as const).map((i) => (
+        <input
+          key={i}
+          value={lines[i]}
+          onChange={(e) => {
+            const v = e.target.value;
+            setLines((ls) => (i === 0 ? [v, ls[1]] : [ls[0], v]));
+            setResult(null);
+          }}
+          maxLength={FOOTNOTE_MAX}
+          placeholder={i === 0 ? "1行目（例: 年末年始の営業時間は後日お知らせします）" : "2行目"}
+          aria-label={`注釈の${i + 1}行目`}
+          className={inputClass}
+        />
+      ))}
+      <Message result={result} />
+      <button
+        onClick={save}
+        disabled={pending || !changed}
+        className="w-full rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+      >
+        {pending ? "保存中..." : "注釈を保存する"}
+      </button>
+    </section>
   );
 }
 

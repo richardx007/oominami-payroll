@@ -14,7 +14,7 @@ export async function loadPreviewCalendar(from: string, to: string): Promise<Cal
   await requireAdmin();
   if (!dateKey.test(from) || !dateKey.test(to)) throw new Error("invalid range");
   const supabase = await createClient();
-  const [days, events, types] = await Promise.all([
+  const [days, events, types, notes] = await Promise.all([
     supabase
       .from("business_days")
       .select("date, holiday_name, status, open_min, close_min, overnight")
@@ -29,7 +29,17 @@ export async function loadPreviewCalendar(from: string, to: string): Promise<Cal
       .gte("end_date", from)
       .order("start_date"),
     supabase.from("calendar_event_types").select("id, name, color, sort_order, is_default").order("sort_order"),
+    supabase
+      .from("business_months")
+      .select("ym, footnote1, footnote2")
+      .gte("ym", `${from.slice(0, 7)}-01`)
+      .lte("ym", to),
   ]);
-  if (days.error || events.error || types.error) throw new Error("load failed");
-  return { days: days.data, events: events.data, types: types.data } as CalendarData;
+  if (days.error || events.error || types.error || notes.error) throw new Error("load failed");
+  return {
+    days: days.data,
+    events: events.data,
+    types: types.data,
+    notes: notes.data.map((n) => ({ ...n, ym: String(n.ym).slice(0, 7) })),
+  } as CalendarData;
 }
