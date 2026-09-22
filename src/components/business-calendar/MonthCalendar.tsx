@@ -24,11 +24,14 @@ const openChip = `${chip} border-green-500 bg-green-50 font-medium text-green-80
 const stayNote =
   "block w-full truncate px-0.5 text-[9px] font-semibold leading-tight text-gray-700 sm:px-1 sm:text-[11px]";
 
+// イベント枠は隣の日の枠と区切りが見えるよう、左右を少し詰める（外側の mx-px と合わせて片側2px）
+const eventChip = chip.replace("w-full", "mx-px");
+
 function EventChip({ ev }: { ev: EventView }) {
   const c = EVENT_COLORS[ev.color];
   return (
     <span
-      className={`${chip} font-semibold`}
+      className={`${eventChip} font-semibold`}
       style={{ borderColor: c.line, backgroundColor: c.soft, color: c.text }}
       title={`${ev.typeName}: ${ev.title}`}
     >
@@ -210,10 +213,10 @@ export function MonthCalendar({
                       gridRow: s.level + 2,
                       ...(c ? { borderColor: c.line, backgroundColor: c.soft, color: c.text } : {}),
                     }}
-                    className={`pointer-events-none z-[11] mx-px flex items-center justify-between gap-1 self-start overflow-hidden border px-0.5 text-[9px] leading-tight sm:px-1 sm:text-[11px] ${
+                    className={`pointer-events-none z-[11] flex items-center justify-between gap-1 self-start overflow-hidden border px-0.5 text-[9px] leading-tight sm:px-1 sm:text-[11px] ${
                       c ? "font-semibold" : "border-green-500 bg-green-50 font-medium text-green-800"
-                    } ${s.continuesLeft ? "-ml-px rounded-l-none border-l-0" : "rounded-l-sm"} ${
-                      s.continuesRight ? "-mr-px rounded-r-none border-r-0" : "rounded-r-sm"
+                    } ${s.continuesLeft ? "-ml-px rounded-l-none border-l-0" : `${c ? "ml-0.5" : "ml-px"} rounded-l-sm`} ${
+                      s.continuesRight ? "-mr-px rounded-r-none border-r-0" : `${c ? "mr-0.5" : "mr-px"} rounded-r-sm`
                     }`}
                   >
                     {s.event ? (
