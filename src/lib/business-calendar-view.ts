@@ -110,10 +110,29 @@ export type HourPattern = {
   open_min: number | null;
   close_min: number | null;
   overnight: boolean;
+  /** 適用開始日（YYYY-MM-DD）。省略時は最初の定義（PATTERN_BASE_DATE）扱い */
+  effective_from?: string;
 };
 
+/** 最初の定義の適用開始日（＝「最初から」。画面では日付を出さない。DBの列の既定値と同じ） */
+export const PATTERN_BASE_DATE = "2000-01-01";
+
 /**
- * 定義から1ヶ月分の日を作る（手修正なしの状態）。
+ * その日に使う定義（区分が同じで、その日以前で最も新しい適用開始日のもの）。
+ * ※DB側 generate_business_month() と同じ規則。**片方だけ変えないこと。**
+ */
+export function patternForDate(patterns: HourPattern[], dayType: DayType, key: string): HourPattern | undefined {
+  let best: HourPattern | undefined;
+  for (const p of patterns) {
+    const from = p.effective_from ?? PATTERN_BASE_DATE;
+    if (p.day_type !== dayType || from > key) continue;
+    if (!best || from > (best.effective_from ?? PATTERN_BASE_DATE)) best = p;
+  }
+  return best;
+}
+
+/**
+ * 定義から1ヶ月分の日を作る（手修正なしの状態）。patterns は複数の適用開始日の定義を混ぜてよい。
  * ※DB側 generate_business_month() と同じ結果になること。定義画面の結果例・テストに使う。
  */
 export function generateMonthRows(
@@ -121,10 +140,9 @@ export function generateMonthRows(
   holidays: Record<string, string>,
   patterns: HourPattern[]
 ): BusinessDayRow[] {
-  const byType = new Map(patterns.map((p) => [p.day_type, p]));
   const rows: BusinessDayRow[] = [];
   for (let k = `${ym}-01`; k.startsWith(ym); k = addDaysKey(k, 1)) {
-    const p = byType.get(classifyDayType(k, holidays));
+    const p = patternForDate(patterns, classifyDayType(k, holidays), k);
     const open = !!p?.is_open;
     rows.push({
       date: k,
@@ -401,6 +419,19 @@ export function monthState(ym: string, todayKey: string, generated: boolean): Mo
   const cur = todayKey.slice(0, 7);
   if (!generated) return "none";
   return ym <= addMonthsYm(cur, 1) ? "public" : "draft";
+}
+
+/**
+ * 定義を保存・削除したときに作り直す月（作成済みの月 "YYYY-MM" から選ぶ）。
+ * - 適用開始日より前の月は変わらないので対象外。
+ * - 適用開始日が明日以降（これからの変更）なら、今月・翌月の公開中の月も対象にする（10/1 からの変更を10月に反映するため）。
+ * - それ以外（最初の定義・過去から適用中の定義の修正）は従来どおり準備中の月だけ。公開中の月は日ごとに直す。
+ */
+export function regenerateTargetMonths(createdMonths: string[], effectiveFrom: string, todayKey: string): string[] {
+  const cur = todayKey.slice(0, 7);
+  const from = effectiveFrom > todayKey ? cur : addMonthsYm(cur, 2);
+  const min = effectiveFrom.slice(0, 7) > from ? effectiveFrom.slice(0, 7) : from;
+  return createdMonths.filter((m) => m >= min).sort();
 }
 
 /** 準備中の月がHPに出る日（前月1日＝「翌月」になる日）と、その前日＝締切・残り日数 */

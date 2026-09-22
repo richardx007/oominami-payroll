@@ -11,6 +11,8 @@ import {
   draftDeadline,
   jstTodayKey,
   parseTimeInput,
+  patternForDate,
+  regenerateTargetMonths,
   type BusinessDayRow,
   type HourPattern,
 } from "./business-calendar-view";
@@ -230,5 +232,47 @@ describe("入力と月の状態", () => {
 
   it("JSTの今日", () => {
     expect(jstTodayKey(new Date("2026-09-30T15:30:00Z"))).toBe("2026-10-01");
+  });
+});
+
+describe("適用開始日", () => {
+  // 10/1 から平日だけ 11〜23 に変わる例
+  const OCT: HourPattern[] = PATTERNS.map((p) =>
+    p.day_type === "weekday"
+      ? { ...p, open_min: 660, close_min: 1380, effective_from: "2026-10-01" }
+      : { ...p, effective_from: "2026-10-01" }
+  );
+  const ALL = [...PATTERNS, ...OCT];
+
+  it("その日以前で最も新しい適用開始日の定義を使う", () => {
+    expect(patternForDate(ALL, "weekday", "2026-09-30")!.open_min).toBe(600);
+    expect(patternForDate(ALL, "weekday", "2026-10-01")!.open_min).toBe(660);
+    expect(patternForDate(ALL, "weekday", "2027-01-05")!.open_min).toBe(660);
+  });
+
+  it("適用開始日より前しか無い日は定義なし", () => {
+    expect(patternForDate(OCT, "weekday", "2026-09-30")).toBeUndefined();
+  });
+
+  it("月の途中から切り替わる（9月末は旧定義、10月は新定義）", () => {
+    const sep = generateMonthRows("2026-09", HOLIDAYS, ALL);
+    expect(sep.find((r) => r.date === "2026-09-30")).toMatchObject({ open_min: 600, close_min: 1440 });
+    const oct = generateMonthRows("2026-10", HOLIDAYS, ALL);
+    expect(oct.find((r) => r.date === "2026-10-01")).toMatchObject({ open_min: 660, close_min: 1380 }); // 木
+    expect(oct.find((r) => r.date === "2026-10-02")).toMatchObject({ open_min: 600, overnight: true }); // 金
+  });
+});
+
+describe("定義の変更で作り直す月", () => {
+  const created = ["2026-07", "2026-08", "2026-09", "2026-10", "2026-11"];
+  it("最初の定義の修正は準備中の月だけ", () => {
+    expect(regenerateTargetMonths(created, "2000-01-01", "2026-09-23")).toEqual(["2026-11"]);
+  });
+  it("これからの変更（10/1〜）は適用開始日の月から、公開中の月も含む", () => {
+    expect(regenerateTargetMonths(created, "2026-10-01", "2026-09-23")).toEqual(["2026-10", "2026-11"]);
+    expect(regenerateTargetMonths(created, "2026-09-25", "2026-09-23")).toEqual(["2026-09", "2026-10", "2026-11"]);
+  });
+  it("適用開始日を過ぎた定義の修正は準備中の月だけ", () => {
+    expect(regenerateTargetMonths(created, "2026-09-01", "2026-09-23")).toEqual(["2026-11"]);
   });
 });

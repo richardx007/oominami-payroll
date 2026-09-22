@@ -7,12 +7,13 @@ import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/log";
 import {
   addDaysKey,
-  addMonthsYm,
   classifyDayType,
   DAY_TYPE_LABELS,
   EVENT_COLOR_KEYS,
   formatMinutes,
   jstTodayKey,
+  PATTERN_BASE_DATE,
+  regenerateTargetMonths,
   type DayType,
 } from "@/lib/business-calendar-view";
 import type { ActionResult } from "../employees/actions";
@@ -51,15 +52,50 @@ const patternSchema = z
     message: "閉店時刻は開店時刻より後にしてください（深夜は 26:00 のように書きます）",
   });
 
+/** 適用開始日の表記（最初の定義は日付を出さない） */
+function effectiveLabel(effectiveFrom: string): string {
+  return effectiveFrom === PATTERN_BASE_DATE
+    ? "最初の定義"
+    : `${Number(effectiveFrom.slice(0, 4))}/${md(effectiveFrom)}からの定義`;
+}
+
 /**
- * 営業時間の定義を保存する。regenerate=true なら準備中の月（翌々月以降の作成済みの月）を作り直す
- * （手で直した日はそのまま）。
+ * 作成済みの月のうち、この適用開始日の定義で変わりうる月を作り直す（手で直した日はそのまま）。
+ * 対象の決め方は regenerateTargetMonths()。
+ */
+async function regenerateMonthsFrom(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  effectiveFrom: string
+): Promise<{ done: string[]; error?: string }> {
+  const today = jstTodayKey();
+  const { data: months } = await supabase.from("business_months").select("ym").gte("ym", `${today.slice(0, 7)}-01`);
+  const targets = regenerateTargetMonths(
+    (months ?? []).map((m) => String(m.ym).slice(0, 7)),
+    effectiveFrom,
+    today
+  );
+  const done: string[] = [];
+  for (const ym of targets) {
+    const { error } = await supabase.rpc("generate_business_month", { p_ym: `${ym}-01`, p_regenerate: true });
+    if (error) return { done, error: error.message };
+    done.push(`${Number(ym.slice(5, 7))}月`);
+  }
+  return { done };
+}
+
+/**
+ * 営業時間の定義（1つの適用開始日の6区分）を保存する。新しい適用開始日ならその定義を追加する。
+ * regenerate=true なら、この定義で変わる作成済みの月を作り直す（手で直した日はそのまま）。
  */
 export async function saveHourPatterns(
+  effectiveFrom: string,
   patterns: z.input<typeof patternSchema>[],
   regenerate: boolean
 ): Promise<ActionResult> {
   const admin = await requireAdmin();
+  if (!dateKey.safeParse(effectiveFrom).success || effectiveFrom < PATTERN_BASE_DATE) {
+    return { ok: false, message: "適用開始日を入力してください" };
+  }
   const parsed = z.array(patternSchema).length(DAY_TYPES.length).safeParse(patterns);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -67,11 +103,15 @@ export async function saveHourPatterns(
     const label = idx >= 0 ? `「${DAY_TYPE_LABELS[patterns[idx].day_type as DayType]}」: ` : "";
     return { ok: false, message: label + issue.message };
   }
+  if (new Set(parsed.data.map((p) => p.day_type)).size !== DAY_TYPES.length) {
+    return { ok: false, message: "区分がそろっていません" };
+  }
 
   const supabase = await createClient();
   const now = new Date().toISOString();
   const rows = parsed.data.map((p) => ({
     day_type: p.day_type,
+    effective_from: effectiveFrom,
     is_open: p.is_open,
     open_min: p.is_open ? p.open_min : null,
     close_min: p.is_open && !p.overnight ? p.close_min : null,
@@ -79,32 +119,50 @@ export async function saveHourPatterns(
     updated_at: now,
     updated_by: admin.id,
   }));
-  const { error } = await supabase.from("business_hour_patterns").upsert(rows, { onConflict: "day_type" });
+  const { error } = await supabase
+    .from("business_hour_patterns")
+    .upsert(rows, { onConflict: "day_type,effective_from" });
   if (error) return { ok: false, message: "保存に失敗しました" };
 
   await logActivity(
     "営業時間の定義を変更",
-    rows
-      .map((r) => `${DAY_TYPE_LABELS[r.day_type]} ${r.is_open ? hoursLabel(r.open_min, r.close_min, r.overnight) : "定休"}`)
-      .join(" / ")
+    `${effectiveLabel(effectiveFrom)}: ` +
+      rows
+        .map((r) => `${DAY_TYPE_LABELS[r.day_type]} ${r.is_open ? hoursLabel(r.open_min, r.close_min, r.overnight) : "定休"}`)
+        .join(" / ")
   );
 
-  let message = "営業時間の定義を保存しました";
+  let message = `${effectiveLabel(effectiveFrom)}を保存しました`;
   if (regenerate) {
-    const firstDraft = `${addMonthsYm(jstTodayKey().slice(0, 7), 2)}-01`;
-    const { data: months } = await supabase.from("business_months").select("ym").gte("ym", firstDraft);
-    const done: string[] = [];
-    for (const m of months ?? []) {
-      const { error: genError } = await supabase.rpc("generate_business_month", {
-        p_ym: m.ym,
-        p_regenerate: true,
-      });
-      if (genError) return { ok: false, message: `定義は保存しましたが、作り直しに失敗しました（${genError.message}）` };
-      done.push(`${Number(String(m.ym).slice(5, 7))}月`);
-    }
-    message += done.length
-      ? `。準備中の月（${done.join("・")}）を作り直しました`
-      : "。作り直す準備中の月はありませんでした";
+    const { done, error: genError } = await regenerateMonthsFrom(supabase, effectiveFrom);
+    if (genError) return { ok: false, message: `定義は保存しましたが、作り直しに失敗しました（${genError}）` };
+    message += done.length ? `。${done.join("・")}を作り直しました` : "。作り直す月はありませんでした";
+  }
+
+  revalidateCalendar();
+  return { ok: true, message };
+}
+
+/** 適用開始日ごとの定義を削除する（最初の定義は削除できない）。regenerate は保存と同じ。 */
+export async function deleteHourPatterns(effectiveFrom: string, regenerate: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  if (!dateKey.safeParse(effectiveFrom).success || effectiveFrom <= PATTERN_BASE_DATE) {
+    return { ok: false, message: "最初の定義は削除できません" };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("business_hour_patterns")
+    .delete()
+    .eq("effective_from", effectiveFrom)
+    .select("day_type");
+  if (error || !data?.length) return { ok: false, message: "削除に失敗しました" };
+  await logActivity("営業時間の定義を削除", effectiveLabel(effectiveFrom));
+
+  let message = `${effectiveLabel(effectiveFrom)}を削除しました`;
+  if (regenerate) {
+    const { done, error: genError } = await regenerateMonthsFrom(supabase, effectiveFrom);
+    if (genError) return { ok: false, message: `定義は削除しましたが、作り直しに失敗しました（${genError}）` };
+    message += done.length ? `。${done.join("・")}を作り直しました` : "";
   }
 
   revalidateCalendar();
@@ -162,7 +220,14 @@ export async function saveDay(input: z.input<typeof dayEditSchema>): Promise<Act
       .in("date", [d.date, addDaysKey(d.date, 1)]);
     const holidays = Object.fromEntries((hol ?? []).map((h) => [h.date, h.name]));
     const dayType = classifyDayType(d.date, holidays);
-    const { data: p } = await supabase.from("business_hour_patterns").select("*").eq("day_type", dayType).single();
+    const { data: p } = await supabase
+      .from("business_hour_patterns")
+      .select("*")
+      .eq("day_type", dayType)
+      .lte("effective_from", d.date)
+      .order("effective_from", { ascending: false })
+      .limit(1)
+      .maybeSingle();
     if (!p) return { ok: false, message: "営業時間の定義が見つかりません" };
     const { error } = await supabase
       .from("business_days")

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { addMonthsYm, jstTodayKey, type HourPattern } from "@/lib/business-calendar-view";
+import { jstTodayKey, type HourPattern } from "@/lib/business-calendar-view";
 import { PatternsForm } from "./ui";
 
 export default async function HourPatternsPage() {
@@ -8,10 +8,14 @@ export default async function HourPatternsPage() {
   const supabase = await createClient();
   const today = jstTodayKey();
   const [patternsRes, holidaysRes, monthsRes] = await Promise.all([
-    supabase.from("business_hour_patterns").select("day_type, is_open, open_min, close_min, overnight"),
+    supabase
+      .from("business_hour_patterns")
+      .select("day_type, effective_from, is_open, open_min, close_min, overnight")
+      .order("effective_from"),
     // 結果例（2026年9月の連休）の判定用
     supabase.from("jp_holidays").select("date, name").gte("date", "2026-09-01").lte("date", "2026-10-01"),
-    supabase.from("business_months").select("ym").gte("ym", `${addMonthsYm(today.slice(0, 7), 2)}-01`),
+    // 作り直しの対象になりうる月（今月以降の作成済みの月）
+    supabase.from("business_months").select("ym").gte("ym", `${today.slice(0, 7)}-01`),
   ]);
 
   return (
@@ -19,7 +23,8 @@ export default async function HourPatternsPage() {
       <PatternsForm
         patterns={(patternsRes.data ?? []) as HourPattern[]}
         exampleHolidays={Object.fromEntries((holidaysRes.data ?? []).map((h) => [h.date, h.name]))}
-        draftMonths={(monthsRes.data ?? []).map((m) => String(m.ym).slice(0, 7))}
+        createdMonths={(monthsRes.data ?? []).map((m) => String(m.ym).slice(0, 7))}
+        today={today}
       />
     </div>
   );

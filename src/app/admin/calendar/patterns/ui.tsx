@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  addMonthsYm,
   buildCalendarView,
   classifyDayType,
   dayOfWeek,
@@ -11,14 +12,20 @@ import {
   generateMonthRows,
   minutesToInput,
   parseTimeInput,
+  PATTERN_BASE_DATE,
+  regenerateTargetMonths,
   type DayType,
   type HourPattern,
 } from "@/lib/business-calendar-view";
-import { saveHourPatterns } from "../actions";
+import { deleteHourPatterns, saveHourPatterns } from "../actions";
 import type { ActionResult } from "../../employees/actions";
 
 const ORDER: DayType[] = ["weekday", "fri", "sat", "sun", "holiday", "pre_holiday"];
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+// iOS の日付ピッカーが縮まないよう幅を確保する（mobile-date-time-inputs）
+const dateClass =
+  "w-40 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm";
 
 const inputClass =
   "w-full min-w-0 rounded-lg border border-gray-300 px-1.5 py-2 text-base focus:border-blue-500 sm:px-2 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400 sm:text-sm";
@@ -35,6 +42,12 @@ function toRow(p: HourPattern | undefined, t: DayType): Row {
   };
 }
 
+/** "2026/10/1〜"（最初の定義は「最初から」） */
+function versionLabel(effectiveFrom: string): string {
+  if (effectiveFrom === PATTERN_BASE_DATE) return "最初から";
+  return `${Number(effectiveFrom.slice(0, 4))}/${Number(effectiveFrom.slice(5, 7))}/${Number(effectiveFrom.slice(8, 10))}〜`;
+}
+
 /** 入力中の行 → 定義（時刻が不正なら null） */
 function toPattern(r: Row): HourPattern | null {
   const open = parseTimeInput(r.open);
@@ -48,15 +61,28 @@ function toPattern(r: Row): HourPattern | null {
 export function PatternsForm({
   patterns,
   exampleHolidays,
-  draftMonths,
+  createdMonths,
+  today,
 }: {
   patterns: HourPattern[];
   exampleHolidays: Record<string, string>;
-  draftMonths: string[];
+  createdMonths: string[];
+  today: string;
 }) {
   const router = useRouter();
-  const byType = new Map(patterns.map((p) => [p.day_type, p]));
-  const [rows, setRows] = useState<Row[]>(ORDER.map((t) => toRow(byType.get(t), t)));
+  // 適用開始日ごとの定義（古い順）
+  const versions = [...new Set(patterns.map((p) => p.effective_from ?? PATTERN_BASE_DATE))].sort();
+  const rowsOf = (from: string) => {
+    const byType = new Map(patterns.filter((p) => (p.effective_from ?? PATTERN_BASE_DATE) === from).map((p) => [p.day_type, p]));
+    return ORDER.map((t) => toRow(byType.get(t), t));
+  };
+  // 今日使われている定義を最初に開く
+  const current = versions.filter((v) => v <= today).at(-1) ?? versions[0] ?? PATTERN_BASE_DATE;
+
+  // selected: 開いている定義の適用開始日。null は「適用開始日を追加」中
+  const [selected, setSelected] = useState<string | null>(current);
+  const [newFrom, setNewFrom] = useState(`${addMonthsYm(today.slice(0, 7), 1)}-01`);
+  const [rows, setRows] = useState<Row[]>(rowsOf(current));
   const [regenerate, setRegenerate] = useState(true);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -65,6 +91,28 @@ export function PatternsForm({
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
     setResult(null);
   };
+
+  const open = (from: string) => {
+    setSelected(from);
+    setRows(rowsOf(from));
+    setResult(null);
+  };
+
+  /** 今開いている定義を写して、新しい適用開始日の定義を作り始める */
+  const startNew = () => {
+    setSelected(null);
+    setResult(null);
+  };
+
+  const effectiveFrom = selected ?? newFrom;
+  const newFromValid = /^\d{4}-\d{2}-\d{2}$/.test(newFrom) && newFrom > PATTERN_BASE_DATE;
+  const duplicate = selected == null && versions.includes(newFrom);
+  const targets = selected == null && !newFromValid ? [] : regenerateTargetMonths(createdMonths, effectiveFrom, today);
+  const publicLimit = addMonthsYm(today.slice(0, 7), 1);
+  const publicTargets = targets.filter((m) => m <= publicLimit);
+  const monthNames = (ms: string[]) => ms.map((m) => `${Number(m.slice(5, 7))}月`).join("・");
+  // 次の定義（この定義が使われるのはその前日まで）
+  const nextVersion = versions.find((v) => v > effectiveFrom);
 
   const parsed = rows.map(toPattern);
   const valid = parsed.every((p) => p != null);
@@ -87,6 +135,10 @@ export function PatternsForm({
   })();
 
   function save() {
+    if (selected == null && (!newFromValid || duplicate)) {
+      setResult({ ok: false, message: duplicate ? "この適用開始日の定義はすでにあります" : "適用開始日を入力してください" });
+      return;
+    }
     const bad = rows.findIndex((_, i) => parsed[i] == null);
     if (bad >= 0) {
       setResult({
@@ -96,9 +148,28 @@ export function PatternsForm({
       return;
     }
     startTransition(async () => {
-      const r = await saveHourPatterns(parsed as HourPattern[], regenerate && draftMonths.length > 0);
+      const r = await saveHourPatterns(effectiveFrom, parsed as HourPattern[], regenerate && targets.length > 0);
       setResult(r);
-      if (r.ok) router.refresh();
+      if (r.ok) {
+        setSelected(effectiveFrom);
+        router.refresh();
+      }
+    });
+  }
+
+  function remove() {
+    if (selected == null || selected === PATTERN_BASE_DATE) return;
+    if (!window.confirm(`${versionLabel(selected)} の定義を削除します。よろしいですか？`)) return;
+    startTransition(async () => {
+      const r = await deleteHourPatterns(selected, regenerate && targets.length > 0);
+      setResult(r);
+      if (r.ok) {
+        const rest = versions.filter((v) => v !== selected);
+        const back = rest.filter((v) => v <= today).at(-1) ?? rest[0] ?? PATTERN_BASE_DATE;
+        setSelected(back);
+        setRows(rowsOf(back));
+        router.refresh();
+      }
     });
   }
 
@@ -111,8 +182,65 @@ export function PatternsForm({
         <h1 className="mt-1 text-xl font-bold">営業時間の定義</h1>
         <p className="mt-1 text-sm text-gray-500">
           区分ごとの「いつもの営業時間」です。毎月の営業カレンダーはこの定義から作られます。
+          営業時間が変わるときは「適用開始日を追加」して、その日からの定義を作ります。
         </p>
       </div>
+
+      {/* 適用開始日ごとの定義 */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {versions.map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => open(v)}
+              className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
+                selected === v ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300 bg-white text-gray-700"
+              }`}
+            >
+              {versionLabel(v)}
+              {v === current && <span className={`ml-1 text-xs ${selected === v ? "text-blue-100" : "text-green-700"}`}>適用中</span>}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={startNew}
+            className={`rounded-full border border-dashed px-3 py-1.5 text-sm font-semibold ${
+              selected == null ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-400 bg-white text-gray-600"
+            }`}
+          >
+            ＋ 適用開始日を追加
+          </button>
+        </div>
+
+        {selected == null ? (
+          <div className="space-y-1 rounded-xl border border-blue-200 bg-blue-50 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                value={newFrom}
+                onChange={(e) => {
+                  setNewFrom(e.target.value);
+                  setResult(null);
+                }}
+                aria-label="適用開始日"
+                className={`${dateClass} bg-white ${duplicate ? "border-red-400" : ""}`}
+              />
+              <span className="text-sm text-gray-700">から使う営業時間</span>
+            </div>
+            <p className={`text-xs ${duplicate ? "text-red-600" : "text-gray-600"}`}>
+              {duplicate
+                ? "この適用開始日の定義はすでにあります。上のボタンから開いて直してください。"
+                : "いま下に表示している定義を写して始めます。変わる区分だけ直して保存してください。"}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">
+            {selected === PATTERN_BASE_DATE ? "最初の定義" : `${versionLabel(selected)} の定義`}
+            {nextVersion ? `（${versionLabel(nextVersion).replace("〜", "")} の前日まで使われます）` : ""}
+          </p>
+        )}
+      </section>
 
       <div className="space-y-6">
         {/* 区分ごとに1行（区分｜営業/定休｜開店｜閉店｜通し）。画面の横幅いっぱいを使う */}
@@ -187,15 +315,16 @@ export function PatternsForm({
             前の日から通しで続いている日は、開店時刻は使われません。
           </p>
 
-          {draftMonths.length > 0 && (
+          {targets.length > 0 && (
             <label className="flex items-start gap-2 rounded-lg bg-yellow-50 p-3 text-sm">
               <input type="checkbox" checked={regenerate} onChange={(e) => setRegenerate(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                <span className="font-medium text-gray-800">
-                  準備中の月（{draftMonths.map((m) => `${Number(m.slice(5, 7))}月`).join("・")}）にも反映する
-                </span>
+                <span className="font-medium text-gray-800">作成済みの月（{monthNames(targets)}）にも反映する</span>
                 <span className="mt-0.5 block text-xs text-gray-600">
-                  手で直した日はそのまま残ります。公開中の月は変わりません（必要なら日ごとに直してください）。
+                  手で直した日はそのまま残ります。
+                  {publicTargets.length > 0
+                    ? `${monthNames(publicTargets)}は公開中のため、ホームページの表示もすぐ変わります。`
+                    : "公開中の月は変わりません（必要なら日ごとに直してください）。"}
                 </span>
               </span>
             </label>
@@ -207,8 +336,17 @@ export function PatternsForm({
             disabled={pending}
             className="w-full rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {pending ? "保存中..." : "保存する"}
+            {pending ? "保存中..." : selected == null ? "この適用開始日で追加する" : "保存する"}
           </button>
+          {selected != null && selected !== PATTERN_BASE_DATE && (
+            <button
+              onClick={remove}
+              disabled={pending}
+              className="w-full rounded-lg border border-red-300 bg-white px-6 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              この定義を削除する
+            </button>
+          )}
         </section>
 
         <section className="space-y-4">
