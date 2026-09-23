@@ -2411,19 +2411,22 @@ Googleカレンダー等で購読できる **従業員ごとの ICS 購読フィ
 - 未読判定 `useNoticeUnread`・打刻確認シート `ClockSheet` は両ナビで共用（`(employee)/nav.tsx`）。
 - 切替幅は `lg`(1024px) → `md`(768px)。iPad縦もサイドバー表示。オーナーがスマホ・Macで表示確認済み。
 
-## 24. 営業カレンダー（2026-09-17追加・フェーズ1〜6）
+## 24. 営業カレンダー（2026-09-17追加・フェーズ1〜6。2026-09-23 適用開始日・月の注釈を追加）
 
 Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-calendar` で運用していた営業カレンダーを、
 このアプリ内で管理する。**区分ごとの営業時間の定義から月を作り、いつもと違う日だけを直す**方式。
 当初計画・オーナー決定事項は `docs/business-calendar-plan.md`。未実装はフェーズ7（移行・切替）。
 
-### 24.1 データベース（`supabase/migrations/20260917100000_business_calendar.sql`、本番適用済み）
+### 24.1 データベース（`supabase/migrations/20260917100000_business_calendar.sql` ほか、本番適用済み）
+追加マイグレーション: `20260923000000_business_hour_patterns_effective_from.sql`（適用開始日）、
+`20260923010000_business_month_footnotes.sql`（注釈2欄。同日に廃止）→ `20260923020000_business_month_footnote_single.sql`（注釈1欄）。
+
 時刻は**その日の0:00からの分**（600=10:00、1440=24:00、1740=翌5:00）。
 
 | テーブル | 内容 |
 |---|---|
-| `business_hour_patterns` | 定義。`day_type` PK（`weekday`/`fri`/`sat`/`sun`/`holiday`/`pre_holiday`）・`is_open`・`open_min`・`close_min`・`overnight`（翌日まで通し＝お泊まり可。このとき `close_min` は null） |
-| `business_months` | 作成済みの月（`ym`＝月初日）。`generated_by` null＝自動作成。`notified_at` はフェーズ5用 |
+| `business_hour_patterns` | 定義。PK `(day_type, effective_from)`。`day_type`（`weekday`/`fri`/`sat`/`sun`/`holiday`/`pre_holiday`）・`effective_from`（**適用開始日**。その日以前で最も新しい行を使う。`2000-01-01`＝最初の定義で削除不可。2026-09-23追加）・`is_open`・`open_min`・`close_min`・`overnight`（翌日まで通し＝お泊まり可。このとき `close_min` は null） |
+| `business_months` | 作成済みの月（`ym`＝月初日）。`generated_by` null＝自動作成。`notified_at` はフェーズ5用。`footnote`（**月の注釈**。200文字まで・改行可・公開。2026-09-23追加） |
 | `business_days` | 1日1行。`day_type`・`holiday_name`・`status`（`open`/`closed`＝定休/`temp_closed`＝臨時休業）・時刻・`is_manual`（手で変更＝作り直しで上書きしない）・`note`（非公開メモ） |
 | `calendar_event_types` | イベントの種類と色（`gold`/`blue`/`purple`/`pink`/`orange`/`gray`。緑・赤は営業時間・臨時休業と紛らわしいため無し）。`is_default` の種類は削除不可（トリガー）。初期データ「イベント（金）」「お知らせ（青）」 |
 | `calendar_events` | イベント・お知らせ。`start_date`〜`end_date`（複数日は帯）・`type_id`（削除時 null＝既定の種類で表示）・`is_public` |
@@ -2445,8 +2448,13 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   （手修正の日は `holiday_name` だけ更新）。**対象月の年・翌月1日の年の祝日が0件なら中止**。作成済みの月は
   `p_regenerate=true` のときだけ。authenticated は管理者のみ（操作ログ記録）、`auth.uid()` null（cron）は自動作成扱い。
   **過去の月も作成できる**（実績登録のため。オーナー要望）。
+  **日ごとに「その日以前で最も新しい適用開始日」の定義を当てはめる**（`join lateral … order by effective_from desc limit 1`。
+  TS側 `patternForDate()` と同じ規則。**片方だけ変えないこと**）。
+- `set_business_month_footnote(p_ym, p_footnote)`: 月の注釈を保存（管理者のみ・空欄は null・操作ログ「営業カレンダーの注釈を変更」）。
+  未作成の月はエラー（作成済みの月だけ設定できる）。
 - `public_business_calendar(p_from, p_to)`（**anon可**・SECURITY DEFINER）: HP埋め込み用。`p_to` を **JSTの翌月末で頭打ち**
-  （準備中の月は返さない）、範囲は最大約14ヶ月。営業情報・公開イベント・種類だけを返す（メモ・手修正フラグ・更新者は返さない）。
+  （準備中の月は返さない）、範囲は最大約14ヶ月。営業情報・公開イベント・種類・月の注釈（`notes: [{ym, footnote}]`）だけを返す
+  （メモ・手修正フラグ・更新者は返さない。準備中の月の注釈も返さない）。
 
 ### 24.2 表示整形（`src/lib/business-calendar-view.ts`、テスト `business-calendar-view.test.ts`）
 - `buildCalendarView(days, events, types)`: 営業日で `overnight` が続く限り翌日（営業日）へ伸ばして**通し営業の帯**にする。
@@ -2454,7 +2462,13 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   オーナーが実データを見て表記を判断予定）。帯に含まれない営業日は単日チップ「10〜24」。`overnight` の日は「泊まり可」（`STAY_LABEL`。スマホで文字が切れないよう 2026-09-18 に「泊まり可能」から短縮。表示3か所で共用）。
 - `layoutWeek(weekStart, spans)`: 週ごとに帯を分割し段に割り付け（営業の帯が上段、複数日イベントが下段）。
 - `formatMinutes`: 分00は時のみ、24〜29時はそのまま、30時以降は「翌H」。
-- `generateMonthRows()`: DBの作成処理と同じ結果をTSで作る（定義画面の結果例・テスト用）。
+- `generateMonthRows()`: DBの作成処理と同じ結果をTSで作る（定義画面の結果例・テスト用）。複数の適用開始日の定義を混ぜて渡してよい
+  （`patternForDate()` で日ごとに選ぶ）。
+- `regenerateTargetMonths(createdMonths, effectiveFrom, today)`: 定義の保存・削除で作り直す月。適用開始日の月以降のうち、
+  **適用開始日が明日以降なら公開中の月（今月・翌月）も含む**（10/1からの変更を公開中の10月に反映するため）。
+  最初の定義・適用済みの定義の修正は従来どおり準備中の月だけ。
+- `footnoteOf(notes, ym)` / `FOOTNOTE_TEXT_CLASS`: 月の注釈。**文字は赤（`#d81f2a`）の太字**で、HP・プレビュー・ポスター・
+  管理画面の入力欄で共用（2026-09-23 オーナー指示）。表示側は `whitespace-pre-line` を足して改行を残す（入力欄には付けない）。
 - `weekdayHeaderBg(ym)`: 曜日見出し行の背景色。月ごとに 青→黄→緑→桃 で巡回（旧アプリと同じ）。
   **公開カレンダーと管理画面の月グリッドで共用**するので、同じ月なら同じ色になる（2026-09-18、オーナー指示）。
 - **「泊まり可」は営業時間の補足事項なので、枠・背景を付けず濃いグレー（`#374151`）の文字だけで出す**
@@ -2467,12 +2481,16 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
 - `/admin/calendar`（サイドバー「管理」→「営業カレンダー」）: `admin/calendar/page.tsx`・`ui.tsx`・`actions.ts`。
   - ヘッダー: 1行目に ＜ 年月 ＞ と右寄せのアイコン
     👁 ホームページでの見え方 / 🖼 ポスター / ⚙ 営業時間の定義 / 🎨 イベントの種類と色（設定画面 `#event-types`）、
-    **2行目に状態バッジ**（準備中=黄・公開中=緑・未作成=グレー）。
+    **2行目に状態バッジ**（準備中=黄・公開中=緑・未作成=グレー）と、その右に説明文
+    「日をタップすると変更できます。●：変更あり」（`text-xs`。**iPhoneでバッジと同じ1行に収めるため短くしている**。2026-09-23）。
     🔴 **状態バッジを年月と同じ行に置かないこと**（スマホで「2026 年10 月」と折り返す。2026-09-18にオーナー指摘で2行に分離。
     年月自体も `whitespace-nowrap`）。
   - 未作成の月は「○月分を今すぐ作成」。準備中の月は「9月30日（あと13日）までに直してください。10月1日から…」。
     **公開中の月は説明文を出さない**（状態バッジで分かるため。2026-09-18にオーナー指示で削除）。
+  - 並びはヘッダー → 月グリッド → **月の注釈の入力欄**（「○月の注釈」。2行分の高さの textarea・赤の太字・作成済みの月だけ）→ 凡例
+    （2026-09-23 オーナー指示。凡例の下の説明文は削除）。
   - 月グリッド `components/business-calendar/MonthCalendar.tsx`（管理画面用。手修正の日に●、左右スワイプで月移動）。
+    **イベント枠（単日・複数日）は左右を片側2px空ける**（営業時間の枠は1px。隣の枠との区切りを見やすくするため。2026-09-23）。
     🔴 **凡例（営業時間・臨時休業・イベントの種類）の印は■**。●は「手で変更した日」のマークなので重ねない
     （2026-09-18にオーナー指摘で ● → ■）。公開カレンダーの凡例は●のまま（手修正のマークが無いため）。
     曜日の行は**公開カレンダーと同じ月ごとの巡回色**（`weekdayHeaderBg()`）、曜日の文字は日付と同じ大きさ
@@ -2481,16 +2499,21 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   - 日をタップ → PC右／スマホ下のパネル: 「いつもどおり／時間を変える／臨時休業」＋管理用メモ、イベントの追加・編集・削除。
     「いつもどおり」は今の祝日データで区分を判定し直し、定義から戻す（`is_manual=false`、メモ消去）。
   - 変更はすべて操作ログ（「営業カレンダー変更」「営業カレンダーのイベント追加」等）。
-- `/admin/calendar/patterns` 営業時間の定義: 区分ごとに1行（区分｜営業/定休｜開店｜閉店｜通し）。時刻は「10:00」形式の
-  テキスト入力（深夜の閉店は「26:00」）。保存時に「準備中の月にも反映する（手で直した日はそのまま）」を選べる。
+- `/admin/calendar/patterns` 営業時間の定義: 上部に「**適用開始日：［一覧］**」（select。既定は今日使われている定義で
+  「（適用中）」付き。末尾が「＋ 適用開始日を追加」＝日付を入れ、開いている定義を写して始める。同じ日付は追加不可）。
+  区分ごとに1行（区分｜営業/定休｜開店｜閉店｜通し）。時刻は「10:00」形式のテキスト入力（深夜の閉店は「26:00」）。
+  保存時に「作成済みの月（○月・○月）にも反映する（手で直した日はそのまま）」を選べる（対象は `regenerateTargetMonths()`。
+  公開中の月が含まれるときは「ホームページの表示もすぐ変わります」と表示）。最初の定義以外は削除できる。
   下部に区分の決まり方と、入力中の定義で計算した結果例（2026年9月の連休）。
+  日の「いつもどおり」もその日の適用開始日の定義を使う。
 - 設定画面「イベントの種類と色（営業カレンダー）」: `admin/settings/event-types.tsx`。
 
 ### 24.4 HP埋め込みとプレビュー
 - `/calendar/embed`（ログイン不要。middleware の公開パスに追加）: `app/calendar/embed/`。旧 `oominami-calendar` の
   見た目を移植した `components/business-calendar/PublicCalendar.tsx`（店名・丸い月送り・今日・土日祝赤・前後月グレー・
-  日をタップで吹き出し・凡例は種類ごと）。**データはブラウザから Supabase の `public_business_calendar()` を直接呼ぶ**
+  日をタップで吹き出し・凡例は種類ごと・凡例の下に月の注釈）。**データはブラウザから Supabase の `public_business_calendar()` を直接呼ぶ**
   （HP閲覧で Worker の処理を増やさないため）。今月＋翌月まで。背景は透明。
+  外側の上下の余白は付けない（`sm:px-6` のみ。Wix の枠が高さ固定のため少しでも低くする。2026-09-23）。
   - `next.config.ts`: 全体の `X-Frame-Options: DENY` から `/calendar/embed` を除外し、`Content-Security-Policy: frame-ancestors *`
     を付ける（公開情報だけのページのため埋め込み元は限定しない）。
   - **高さの自動調整**（2026-09-18追加）: 中身が iframe より高いとHP側に内側のスクロールバーが出る
@@ -2500,6 +2523,11 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
     埋め込み先のスクリプトの読み込みが遅れて最初の1通を取りこぼす場合に備え、1秒後・3秒後にも送り直す。
     🔴 **ホームページには iframe と script の両方を貼ること**（管理画面の埋め込みコードに両方入っている）。
     スクリプトを置けないページでは iframe の `min-height` を大きくするしかない。
+    🔴 **実際のHPは Wix で、埋め込みコードは Wix の「HTML埋め込み」要素（`www-oominami-com.filesusr.com` の iframe）の中にある。
+    その枠は高さ固定（当初 882px）で、こちらの script では伸ばせない**。中身がそれを超えると Wix の枠にスクロールバーが出る
+    （2026-09-23、注釈のある月でオーナー報告。Chrome 実測: 9月 750px・10月 790px（余白削減後）、吹き出し表示で＋約120px）。
+    対策: Wix の枠を 1000px 程度にする（オーナー作業）＋埋め込みコード先頭の
+    `<style>html,body{margin:0;padding:0;background:transparent;}</style>`（Wix の body 余白16pxを消す）＋ iframe に `display:block`。
   - `?preview=1`: 管理画面のプレビュー用。サーバーアクション `loadPreviewCalendar()`（`requireAdmin`）で準備中の月（翌々月）まで表示。
   - アプリの更新バナー（`ReloadPrompt`）は埋め込みページでは出さない（`pwa/AppReloadPrompt.tsx`）。アプリ利用者の端末で
     HPを見ると iframe 内にバナーが出ていたため（2026-09-17 本番で発見・修正）。
@@ -2507,7 +2535,8 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   再読み込み）。iframe 内でメディアクエリが効くので実際の幅での見え方になる。プレビューの iframe も本番と同じ
   高さ自動調整で伸縮する。埋め込みコードのコピー（旧アプリと同じ
   `<iframe … style="width:100%; border:0; min-height:760px; background:transparent;">` に `id="oominami-calendar"` と
-  高さ調整の `<script>`（`e.origin` を本番URLで照合）を足した形）。
+  高さ調整の `<script>`（`e.origin` を本番URLで照合）を足した形。2026-09-23 に先頭の `<style>` と `display:block` を追加）。
+  プレビューのデータ（`loadPreviewCalendar()`）も月の注釈を含む。
 - サイドバー「関連情報 > 営業カレンダー」は **2026-09-18 にこのページ（`/calendar/embed`、別タブ）へ切り替え済み**
   （旧アプリのポスター表示URLから変更。§10.3）。**同日、管理者ナビからは重複のため削除し、従業員ナビにのみ残した。**
   管理者の「管理 > 営業カレンダー」は従来どおり `/admin/calendar`。
@@ -2547,6 +2576,7 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
   - `seasons.tsx`: 月ごとの風物詩SVGと配色（**旧アプリから無変更で移植**）。
   - `PosterCalendar.tsx`: 本体。新しいデータ（`buildCalendarView`/`layoutWeek`）に合わせて移植。**公開イベントだけ**載せる。
     臨時休業=赤枠、「休」=定休（当月のみ）、泊まり可=枠なしの濃いグレー文字（補足事項のため）、イベントは種類の色。
+  - 月の注釈はフッターの凡例の上に赤の太字（10.5pt）。カレンダー部分は `flex-1` なので、その分だけ縦に縮む（2026-09-23）。
   - `ui.tsx`: 210mm×297mm のシートを台紙の上に `transform: scale` で縮小表示。「PDF」「画像」ボタン →
     共通の `PdfPreviewDialog`（§20.2。画像用に `kindLabel` を追加し、共有時の MIME を blob の型から取るよう拡張）。
 - 🔴 **寸法の決め方（崩さないこと）**: 週エリア 212.4mm を週数で割り、日付行10mm・間隔1.2mm を引いた残りから
