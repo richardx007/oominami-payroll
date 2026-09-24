@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { durationLabel, type ShiftRule, type TimeRange } from "@/lib/work-rules";
+import { durationLabel, type ShiftRule, type ShiftVariant, type TimeRange } from "@/lib/work-rules";
 import type { SlotKey } from "@/lib/shifts";
 
 /**
@@ -9,6 +9,22 @@ import type { SlotKey } from "@/lib/shifts";
  */
 
 const range = (r: TimeRange) => `${r.start}〜${r.end}`;
+
+/** 通しでない日の時間帯を、通しの日との違いだけで書く（開始が同じなら「〜23:00」） */
+function diffRange(base: TimeRange, other: TimeRange): string {
+  return base.start === other.start ? `〜${other.end}` : range(other);
+}
+
+/** 通しでない日の深夜勤務時間（通しの日と同じなら null） */
+function nightDiffLabel(base: ShiftVariant, other: ShiftVariant): string | null {
+  if (other.night.length === 0) return "なし";
+  const same =
+    other.nightMinutes === base.nightMinutes &&
+    other.night.map(range).join() === base.night.map(range).join();
+  if (same) return null;
+  const parts = other.night.map((n, i) => (base.night[i] ? diffRange(base.night[i], n) : range(n)));
+  return `${parts.join("、")}（${durationLabel(other.nightMinutes)}）`;
+}
 
 /** 番ごとの色（元の資料: 早番=緑・遅番=オレンジ・深夜番=紺） */
 const THEME: Record<SlotKey, { head: string; line: string; box: string; icon: "sun" | "sunset" | "moon" }> = {
@@ -75,16 +91,20 @@ export function WorkRulesView({
                   <span className="text-2xl font-black tracking-widest">{r.label}</span>
                   <ShiftIcon kind={t.icon} />
                 </div>
-                {/* 内訳ごと(遅番は「翌日まで通しの日」「それ以外の日」の2つになりうる) */}
-                <div className="divide-y-2 divide-gray-200">
-                  {r.variants.map((v) => (
-                    <div key={v.note ?? "all"} className="space-y-2 p-3 text-center">
-                      {v.note && (
-                        <p className={`mx-auto w-fit rounded-full px-3 py-0.5 text-xs font-bold text-white ${t.head}`}>{v.note}</p>
-                      )}
+                {/* 遅番は「翌日まで通しの日」を本体に出し、通しでない日は違うところだけ小さく添える */}
+                {(() => {
+                  const [v, alt] = r.variants;
+                  const nightDiff = alt && nightDiffLabel(v, alt);
+                  return (
+                    <div className="space-y-2 p-3 text-center">
                       <div>
                         <p className="text-sm font-bold text-gray-700">勤務時間</p>
                         <p className="text-2xl font-black tabular-nums text-gray-900">{range(v.work)}</p>
+                        {alt && (
+                          <p className="text-sm font-bold tabular-nums text-gray-600 sm:text-xs">
+                            通しでない日: <span className="whitespace-nowrap">{diffRange(v.work, alt.work)}</span>
+                          </p>
+                        )}
                       </div>
                       <div className={`border-t-2 border-dotted ${t.line}`} />
                       <div>
@@ -104,25 +124,34 @@ export function WorkRulesView({
                       {v.night.length > 0 ? (
                         <div>
                           <p className="text-sm font-bold text-gray-700">深夜勤務時間</p>
-                          {v.night.map((n) => (
+                          {v.night.map((n, i) => (
                             <p
                               key={n.start}
-                              className={`mt-1 flex items-center justify-center gap-1 rounded-lg border-2 py-1 font-black tabular-nums ${
+                              className={`mt-1 flex flex-wrap items-center justify-center gap-x-1 rounded-lg border-2 px-1 py-1 font-black tabular-nums ${
                                 r.key === "C" ? "border-[#152449] text-[#152449]" : "border-red-600 text-red-700"
                               }`}
                             >
-                              <MoonIcon className="h-5 w-5 shrink-0" />
-                              <span className="text-lg">{range(n)}</span>
+                              <span className="flex items-center gap-1 whitespace-nowrap">
+                                <MoonIcon className="h-5 w-5 shrink-0" />
+                                <span className="text-lg">{range(n)}</span>
+                              </span>
+                              {i === v.night.length - 1 && (
+                                <span className="whitespace-nowrap text-xs font-bold">（{durationLabel(v.nightMinutes)}）</span>
+                              )}
                             </p>
                           ))}
-                          <p className="mt-0.5 text-xs font-bold text-gray-700">（{durationLabel(v.nightMinutes)}）</p>
+                          {nightDiff && (
+                            <p className="mt-0.5 text-sm font-bold tabular-nums text-gray-600 sm:text-xs">
+                              通しでない日: <span className="whitespace-nowrap">{nightDiff}</span>
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <p className="pt-1 text-sm text-gray-600">※深夜勤務はありません</p>
                       )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
               </div>
             );
           })}
