@@ -24,6 +24,8 @@ export type CalendarFeedData = {
     custom_start: string | null;
     custom_end: string | null;
     draft: boolean;
+    /** 「翌日まで通し」の日か(遅番の終了が変わる) */
+    overnight?: boolean;
   }[];
 };
 
@@ -69,7 +71,10 @@ export function foldLine(line: string): string {
 export function buildShiftIcs(data: CalendarFeedData, now: Date = new Date()): string {
   // 枠の定義は適用開始日ごと(slot_versions)。旧形式(slots)しか無ければそれを使う
   const slots = data.slot_versions
-    ? slotsResolver(data.slot_versions)
+    ? slotsResolver(
+        data.slot_versions,
+        data.shifts.filter((s) => s.overnight).map((s) => s.work_date)
+      )
     : parseSlots(data.slots);
   const calName = `${data.company_name?.trim() || ""} シフト`.trim();
   const dtstamp = utcStamp(now);

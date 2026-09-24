@@ -10,7 +10,7 @@
  */
 import type { createClient } from "@/lib/supabase/server";
 import { parseBreakWindows, type BreakWindow } from "./breaks";
-import { parseSlots, type SlotDef, type SlotKey } from "./shifts";
+import { parseSlots, slotsForDay, type SlotDef, type SlotKey } from "./shifts";
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
@@ -45,19 +45,35 @@ export function breakWindowsResolver(
   };
 }
 
-/** 日付 → その日のシフト枠。同じ日付は1回だけ組み立てる */
+/**
+ * 日付 → その日のシフト枠。同じ日付は1回だけ組み立てる。
+ * overnightDates は「翌日まで通し」の日(営業カレンダー。DB関数 overnight_days() で取る)。
+ * その日は遅番の終了が「翌日まで通しの日」の終了になる(slotsForDay)。
+ */
 export function slotsResolver(
-  rows: WorkTimeSettingRow[] | null | undefined
+  rows: WorkTimeSettingRow[] | null | undefined,
+  overnightDates: Iterable<string> = []
 ): (date: string) => Record<SlotKey, SlotDef> {
+  const overnight = new Set(overnightDates);
   const cache = new Map<string, Record<SlotKey, SlotDef>>();
   return (date) => {
     let s = cache.get(date);
     if (!s) {
-      s = parseSlots(workSettingsAt(rows, date));
+      s = slotsForDay(parseSlots(workSettingsAt(rows, date)), overnight.has(date));
       cache.set(date, s);
     }
     return s;
   };
+}
+
+/** 期間内の「翌日まで通し」の日("YYYY-MM-DD" の配列) */
+export async function fetchOvernightDates(
+  supabase: SupabaseServer,
+  start: string,
+  end: string
+): Promise<string[]> {
+  const { data } = await supabase.rpc("overnight_days", { p_start: start, p_end: end });
+  return ((data ?? []) as string[]).map((d) => String(d).slice(0, 10));
 }
 
 /** 全ての適用開始日の定義を読む（数十行なので毎回全部読む） */

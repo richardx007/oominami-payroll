@@ -5,7 +5,7 @@ import { buildShiftRules, durationLabel } from "./work-rules";
 
 describe("buildShiftRules", () => {
   it("既定の3枠は勤務ルール資料と同じ内容になる", () => {
-    const [a, b, c] = buildShiftRules(DEFAULT_SLOTS, DEFAULT_BREAK_WINDOWS);
+    const [a, b, c] = buildShiftRules(DEFAULT_SLOTS, DEFAULT_BREAK_WINDOWS).map((r) => r.variants[0]);
     expect(a.work).toEqual({ start: "8:00", end: "17:00" });
     expect(a.breaks).toEqual([{ start: "12:00", end: "13:00" }]);
     expect(a.night).toEqual([]);
@@ -24,7 +24,7 @@ describe("buildShiftRules", () => {
 
   it("勤務時間が変わると休憩・深夜も追従する", () => {
     const slots = { ...DEFAULT_SLOTS, B: { ...DEFAULT_SLOTS.B, start: "14:00", end: "23:00" } };
-    const b = buildShiftRules(slots, DEFAULT_BREAK_WINDOWS)[1];
+    const b = buildShiftRules(slots, DEFAULT_BREAK_WINDOWS)[1].variants[0];
     expect(b.breaks).toEqual([{ start: "19:00", end: "20:00" }]);
     expect(b.night).toEqual([{ start: "22:00", end: "23:00" }]);
     expect(b.nightMinutes).toBe(60);
@@ -32,12 +32,30 @@ describe("buildShiftRules", () => {
 
   it("休憩帯が複数重なる番は全て出す", () => {
     const slots = { ...DEFAULT_SLOTS, A: { ...DEFAULT_SLOTS.A, start: "10:00", end: "22:00" } };
-    const a = buildShiftRules(slots, DEFAULT_BREAK_WINDOWS)[0];
+    const a = buildShiftRules(slots, DEFAULT_BREAK_WINDOWS)[0].variants[0];
     expect(a.breaks).toEqual([
       { start: "12:00", end: "13:00" },
       { start: "19:00", end: "20:00" },
     ]);
     expect(a.breakMinutes).toBe(120);
+  });
+});
+
+describe("遅番の終了（翌日まで通しの日／それ以外の日）", () => {
+  it("終了が違えば2つの内訳になる", () => {
+    const slots = { ...DEFAULT_SLOTS, B: { ...DEFAULT_SLOTS.B, end: "23:00", endOvernight: "0:00" } };
+    const b = buildShiftRules(slots, DEFAULT_BREAK_WINDOWS)[1];
+    expect(b.variants.map((v) => v.note)).toEqual(["翌日まで通しの日", "それ以外の日"]);
+    expect(b.variants[0].work).toEqual({ start: "15:00", end: "0:00" });
+    expect(b.variants[0].nightMinutes).toBe(120);
+    expect(b.variants[1].work).toEqual({ start: "15:00", end: "23:00" });
+    expect(b.variants[1].night).toEqual([{ start: "22:00", end: "23:00" }]);
+    expect(b.variants[1].nightMinutes).toBe(60);
+  });
+
+  it("同じなら内訳は1つ", () => {
+    const slots = { ...DEFAULT_SLOTS, B: { ...DEFAULT_SLOTS.B, endOvernight: "0:00" } };
+    expect(buildShiftRules(slots, DEFAULT_BREAK_WINDOWS)[1].variants).toHaveLength(1);
   });
 });
 

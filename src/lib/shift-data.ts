@@ -48,6 +48,7 @@ export async function loadShiftData(
     { data: statusRows },
     { data: modeRow },
     { data: slotVersionRows },
+    { data: overnightRows },
   ] = await Promise.all([
       supabase.rpc("get_shift_roster"),
       supabase
@@ -76,6 +77,8 @@ export async function loadShiftData(
         .from("work_time_settings")
         .select("effective_from, key, value")
         .like("key", "shift_slot_%"),
+      // 「翌日まで通し」の日(遅番の終了が変わる)
+      supabase.rpc("overnight_days", { p_start: period.start, p_end: period.end }),
     ]);
 
   // 既定モードの判定に使う「今の期間」のキー(1日始まり設定を反映)
@@ -85,6 +88,7 @@ export async function loadShiftData(
     defaultShiftMode(period.key, currentKey);
 
   const slotVersions = (slotVersionRows ?? []) as WorkTimeSettingRow[];
+  const overnightDates = ((overnightRows ?? []) as string[]).map((d) => String(d).slice(0, 10));
   const roster = (rosterRows ?? []) as RosterMember[];
   const assignments = (assignRows ?? []) as Assignment[];
   const locks = (lockRows ?? []) as ShiftLock[];
@@ -113,6 +117,7 @@ export async function loadShiftData(
   return {
     period,
     slotVersions,
+    overnightDates,
     roster,
     assignments,
     locks,

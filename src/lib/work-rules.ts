@@ -9,9 +9,10 @@ import { normalizeSlotTime, SLOT_KEYS, type SlotDef, type SlotKey } from "./shif
 
 export type TimeRange = { start: string; end: string };
 
-export type ShiftRule = {
-  key: SlotKey;
-  label: string;
+/** 勤務時間ごとの内訳（遅番は「翌日まで通しの日」と「それ以外の日」で2つになりうる） */
+export type ShiftVariant = {
+  /** "翌日まで通しの日" / "それ以外の日"。内訳が1つなら null */
+  note: string | null;
   /** 勤務時間（"8:00"〜"17:00"。深夜0時は "0:00"） */
   work: TimeRange;
   /** 勤務時間に重なる休憩時間帯（基準） */
@@ -21,6 +22,12 @@ export type ShiftRule = {
   night: TimeRange[];
   /** 深夜勤務手当の対象分数（深夜帯に取る休憩を除く） */
   nightMinutes: number;
+};
+
+export type ShiftRule = {
+  key: SlotKey;
+  label: string;
+  variants: ShiftVariant[];
 };
 
 /** 0時からの分（24時間を超えてもよい）→ "H:MM"（深夜0時は "0:00"） */
@@ -48,27 +55,41 @@ export function durationLabel(min: number): string {
   return m === 0 ? `${h}時間` : `${h}時間${m}分`;
 }
 
+function variantOf(note: string | null, start: string, end: string, windows: BreakWindow[]): ShiftVariant {
+  const [s, e] = shiftRange(start, end);
+  // 休憩帯は開始時刻順に並べる（深夜番の 4:00〜5:00 のように前日・翌日側で重なるものも含む）
+  const breaks = windows
+    .flatMap(([w0, w1]) =>
+      [-1, 0, 1]
+        .map((d) => [Math.max(s, w0 + d * 1440), Math.min(e, w1 + d * 1440)] as const)
+        .filter(([lo, hi]) => hi > lo)
+    )
+    .sort((a, b) => a[0] - b[0])
+    .map(([lo, hi]) => ({ start: minToLabel(lo), end: minToLabel(hi) }));
+  return {
+    note,
+    work: { start, end },
+    breaks,
+    breakMinutes: standardBreakMinutes(start, end, windows),
+    night: clip(s, e, NIGHT_BAND[0], NIGHT_BAND[1]),
+    nightMinutes: nightMinutes(start, end, windows),
+  };
+}
+
+/**
+ * slots は parseSlots() の結果（その日の slotsForDay() を通す前）。
+ * 遅番の「翌日まで通しの日」の終了が違えば、2つの内訳（通しの日 → それ以外の日）にする。
+ */
 export function buildShiftRules(slots: Record<SlotKey, SlotDef>, windows: BreakWindow[]): ShiftRule[] {
   return SLOT_KEYS.map((k) => {
     const slot = slots[k];
-    const [s, e] = shiftRange(slot.start, slot.end);
-    // 休憩帯は開始時刻順に並べる（深夜番の 4:00〜5:00 のように前日・翌日側で重なるものも含む）
-    const breaks = windows
-      .flatMap(([w0, w1]) =>
-        [-1, 0, 1]
-          .map((d) => [Math.max(s, w0 + d * 1440), Math.min(e, w1 + d * 1440)] as const)
-          .filter(([lo, hi]) => hi > lo)
-      )
-      .sort((a, b) => a[0] - b[0])
-      .map(([lo, hi]) => ({ start: minToLabel(lo), end: minToLabel(hi) }));
-    return {
-      key: k,
-      label: slot.label,
-      work: { start: slot.start, end: slot.end },
-      breaks,
-      breakMinutes: standardBreakMinutes(slot.start, slot.end, windows),
-      night: clip(s, e, NIGHT_BAND[0], NIGHT_BAND[1]),
-      nightMinutes: nightMinutes(slot.start, slot.end, windows),
-    };
+    const variants =
+      slot.endOvernight && slot.endOvernight !== slot.end
+        ? [
+            variantOf("翌日まで通しの日", slot.start, slot.endOvernight, windows),
+            variantOf("それ以外の日", slot.start, slot.end, windows),
+          ]
+        : [variantOf(null, slot.start, slot.end, windows)];
+    return { key: k, label: slot.label, variants };
   });
 }

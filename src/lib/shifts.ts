@@ -12,7 +12,13 @@ export type SlotDef = {
   key: SlotKey;
   label: string;
   start: string; // 表示用の生の値("8:00" や "24:00" もそのまま)
+  /** 終了。遅番(B)は「翌日まで通しの日」以外の日の終了 */
   end: string;
+  /**
+   * 「翌日まで通しの日」(営業カレンダー)の終了。遅番(B)だけが持つ(2026-09-24〜)。
+   * その日の枠は slotsForDay() で end に反映してから使うこと。
+   */
+  endOvernight?: string;
 };
 
 /** 未設定時の既定(要件: 早番 8:00-17:00 / 遅番 15:00-0:00 / 深夜 0:00-9:00) */
@@ -48,12 +54,34 @@ export function parseSlots(
   const out = {} as Record<SlotKey, SlotDef>;
   for (const k of SLOT_KEYS) {
     const d = DEFAULT_SLOTS[k];
+    const end = normalizeSlotTime(get(k, "end", d.end));
     out[k] = {
       key: k,
       label: get(k, "label", d.label),
       start: normalizeSlotTime(get(k, "start", d.start)),
-      end: normalizeSlotTime(get(k, "end", d.end)),
+      end,
     };
+    if (k === "B") {
+      const v = map.get("shift_slot_b_end_overnight");
+      out[k].endOvernight = v && v.trim() !== "" ? normalizeSlotTime(v) : end;
+    }
+  }
+  return out;
+}
+
+/**
+ * その日の枠。遅番は「翌日まで通しの日」なら endOvernight を終了にする。
+ * ※DB側の slot_end_at() と同じ規則。**片方だけ変えないこと。**
+ */
+export function slotsForDay(
+  slots: Record<SlotKey, SlotDef>,
+  overnight: boolean
+): Record<SlotKey, SlotDef> {
+  if (!overnight) return slots;
+  const out = { ...slots };
+  for (const k of SLOT_KEYS) {
+    const e = slots[k].endOvernight;
+    if (e) out[k] = { ...slots[k], end: e };
   }
   return out;
 }

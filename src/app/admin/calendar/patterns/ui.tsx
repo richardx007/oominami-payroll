@@ -47,7 +47,8 @@ function toRow(p: HourPattern | undefined, t: DayType): Row {
   };
 }
 
-type SlotRow = { key: SlotKey; label: string; start: string; end: string };
+/** end は遅番では「翌日まで通しの日」以外の日の終了。endOvernight は遅番だけ */
+type SlotRow = { key: SlotKey; label: string; start: string; end: string; endOvernight?: string };
 type BreakRow = { start: string; end: string };
 
 /** 適用開始日のシフト枠・休憩時間（その日に有効な値。ない項目は既定値） */
@@ -55,7 +56,13 @@ function workTimeOf(settings: WorkTimeSettingRow[], from: string): { slots: Slot
   const kv = workSettingsAt(settings, from);
   const slots = parseSlots(kv);
   return {
-    slots: SLOT_KEYS.map((k) => ({ key: k, label: slots[k].label, start: slots[k].start, end: slots[k].end })),
+    slots: SLOT_KEYS.map((k) => ({
+      key: k,
+      label: slots[k].label,
+      start: slots[k].start,
+      end: slots[k].end,
+      endOvernight: slots[k].endOvernight,
+    })),
     breaks: parseBreakWindows(kv).map(([s, e]) => ({
       start: normalizeSlotTime(minutesToHHMM(s)),
       end: normalizeSlotTime(minutesToHHMM(e)),
@@ -73,7 +80,11 @@ function hmToMin(t: string): number | null {
   return h * 60 + mi;
 }
 
-const slotValid = (r: SlotRow) => r.label.trim().length <= 10 && hmToMin(r.start) != null && hmToMin(r.end) != null;
+const slotValid = (r: SlotRow) =>
+  r.label.trim().length <= 10 &&
+  hmToMin(r.start) != null &&
+  hmToMin(r.end) != null &&
+  (r.endOvernight == null || hmToMin(r.endOvernight) != null);
 const breakValid = (b: BreakRow) => {
   const s = hmToMin(b.start);
   const e = hmToMin(b.end);
@@ -212,10 +223,9 @@ export function PatternsForm({
       return;
     }
     const workTime = {
-      slots: Object.fromEntries(slots.map((r) => [r.key, { label: r.label, start: r.start, end: r.end }])) as Record<
-        SlotKey,
-        { label: string; start: string; end: string }
-      >,
+      slots: Object.fromEntries(
+        slots.map((r) => [r.key, { label: r.label, start: r.start, end: r.end, endOvernight: r.endOvernight }])
+      ) as Record<SlotKey, { label: string; start: string; end: string; endOvernight?: string }>,
       breaks,
     };
     startTransition(async () => {
@@ -411,20 +421,46 @@ export function PatternsForm({
                     aria-label={`${r.label || r.key}の開始`}
                     className={`${inputClass} ${bad ? "border-red-400" : ""}`}
                   />
-                  <input
-                    value={r.end}
-                    onChange={(e) => updateSlot(i, { end: e.target.value })}
-                    placeholder="17:00"
-                    inputMode="numeric"
-                    aria-label={`${r.label || r.key}の終了`}
-                    className={`${inputClass} ${bad ? "border-red-400" : ""}`}
-                  />
+                  {r.endOvernight == null ? (
+                    <input
+                      value={r.end}
+                      onChange={(e) => updateSlot(i, { end: e.target.value })}
+                      placeholder="17:00"
+                      inputMode="numeric"
+                      aria-label={`${r.label || r.key}の終了`}
+                      className={`${inputClass} ${bad ? "border-red-400" : ""}`}
+                    />
+                  ) : (
+                    // 遅番: 営業カレンダーで「翌日まで通し」の日と、それ以外の日で終了を分ける
+                    <div className="grid grid-cols-[auto_1fr] items-center gap-x-1 gap-y-1">
+                      <span className="text-[11px] leading-tight text-gray-600">通しの日</span>
+                      <input
+                        value={r.endOvernight}
+                        onChange={(e) => updateSlot(i, { endOvernight: e.target.value })}
+                        placeholder="0:00"
+                        inputMode="numeric"
+                        aria-label={`${r.label || r.key}の終了（翌日まで通しの日）`}
+                        className={`${inputClass} ${bad ? "border-red-400" : ""}`}
+                      />
+                      <span className="text-[11px] leading-tight text-gray-600">それ以外</span>
+                      <input
+                        value={r.end}
+                        onChange={(e) => updateSlot(i, { end: e.target.value })}
+                        placeholder="23:00"
+                        inputMode="numeric"
+                        aria-label={`${r.label || r.key}の終了（それ以外の日）`}
+                        className={`${inputClass} ${bad ? "border-red-400" : ""}`}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
           <p className="text-xs text-gray-500">
             シフト予定表で使う3枠の名前と時刻です。深夜0時は 0:00 と書きます（翌日にまたぐ枠は終了が開始より前になります）。
+            {slots[1]?.label || "遅番"}の終了は、営業カレンダーで「翌日まで通し」の日と、それ以外の日で別々に決めます
+            （手で直した日も含め、その日の営業カレンダーで判定。まだ作っていない月は上の営業時間で判定）。
           </p>
         </section>
 

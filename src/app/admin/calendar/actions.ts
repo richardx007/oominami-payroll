@@ -75,7 +75,10 @@ const hm = z.string().refine((t) => hmToMin(t) != null, { message: "時刻は 8:
 const slotSchema = z.object({
   label: z.string().trim().max(10, "枠の名前は10文字までにしてください"),
   start: hm,
+  /** 遅番は「翌日まで通しの日」以外の日の終了 */
   end: hm,
+  /** 遅番の「翌日まで通しの日」の終了(遅番のみ) */
+  endOvernight: hm.optional(),
 });
 
 /** 休憩時間帯（3枠）。0:00〜23:59 の範囲で 開始 < 終了（日をまたぐ枠は持たない） */
@@ -102,6 +105,7 @@ function workTimeKeyValues(w: z.output<typeof workTimeSchema>): Record<string, s
     out[`shift_slot_${lk}_start`] = normalizeSlotTime(s.start);
     out[`shift_slot_${lk}_end`] = normalizeSlotTime(s.end);
   }
+  out.shift_slot_b_end_overnight = normalizeSlotTime(w.slots.B.endOvernight ?? w.slots.B.end);
   w.breaks.forEach((b, i) => {
     out[`break_window_${i + 1}_start`] = normalizeSlotTime(b.start);
     out[`break_window_${i + 1}_end`] = normalizeSlotTime(b.end);
@@ -194,7 +198,11 @@ export async function saveHourPatterns(
   if (error) return { ok: false, message: "保存に失敗しました" };
 
   const slotText = (["a", "b", "c"] as const)
-    .map((k) => `${settings[`shift_slot_${k}_label`]} ${settings[`shift_slot_${k}_start`]}〜${settings[`shift_slot_${k}_end`]}`)
+    .map(
+      (k) =>
+        `${settings[`shift_slot_${k}_label`]} ${settings[`shift_slot_${k}_start`]}〜${settings[`shift_slot_${k}_end`]}` +
+        (k === "b" ? `(通しの日〜${settings.shift_slot_b_end_overnight})` : "")
+    )
     .join(" / ");
   const breakText = [1, 2, 3]
     .map((n) => `${settings[`break_window_${n}_start`]}〜${settings[`break_window_${n}_end`]}`)

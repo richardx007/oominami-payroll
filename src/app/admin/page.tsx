@@ -30,6 +30,7 @@ export default async function AdminHomePage({
       <ShiftSchedule
         period={period}
         slotVersions={shiftData.slotVersions}
+        overnightDates={shiftData.overnightDates}
         roster={shiftData.roster}
         assignments={shiftData.assignments}
         locks={shiftData.locks}

@@ -3,7 +3,7 @@ import { requireEmployee } from "@/lib/auth";
 import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
 import { buildShiftMap, type SlotKey } from "@/lib/shifts";
-import { slotsResolver, type WorkTimeSettingRow } from "@/lib/work-time";
+import { fetchOvernightDates, slotsResolver, type WorkTimeSettingRow } from "@/lib/work-time";
 import { TimesheetCalendar } from "./ui";
 import { upsertWorkEntry, deleteWorkEntry } from "./actions";
 
@@ -97,6 +97,8 @@ export default async function TimesheetPage({
     ]);
 
   const workTimeSettings = (workTimeRows ?? []) as WorkTimeSettingRow[];
+  // 「翌日まで通し」の日は遅番の終了が変わる(営業カレンダー)
+  const overnightDates = await fetchOvernightDates(supabase, period.start, period.end);
   const shifts = buildShiftMap(
     (shiftRows ?? []) as {
       work_date: string;
@@ -104,7 +106,7 @@ export default async function TimesheetPage({
       custom_start: string | null;
       custom_end: string | null;
     }[],
-    slotsResolver(workTimeSettings)
+    slotsResolver(workTimeSettings, overnightDates)
   );
 
   // 登録・修正ユーザの表示名を解決(自分以外の担当者名もRLSを介さず引ける専用関数を使う)

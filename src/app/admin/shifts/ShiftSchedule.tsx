@@ -118,6 +118,7 @@ function nicknameColor(style: NicknameStyle): string | undefined {
 export function ShiftSchedule({
   period,
   slotVersions,
+  overnightDates,
   roster,
   assignments,
   locks = [],
@@ -141,6 +142,8 @@ export function ShiftSchedule({
   period: Period;
   /** シフト枠の定義(適用開始日ごと)。日付ごとに slotsResolver で引く */
   slotVersions: WorkTimeSettingRow[];
+  /** 期間内の「翌日まで通し」の日。遅番の終了が「翌日まで通しの日」の終了になる */
+  overnightDates: string[];
   roster: RosterMember[];
   assignments: Assignment[];
   /** 本人がかけた「変更不可」ロック */
@@ -234,7 +237,10 @@ export function ShiftSchedule({
   );
 
   // 日付 → その日のシフト枠(適用開始日で変わる)
-  const slotsOf = useMemo(() => slotsResolver(slotVersions), [slotVersions]);
+  const slotsOf = useMemo(
+    () => slotsResolver(slotVersions, overnightDates),
+    [slotVersions, overnightDates]
+  );
 
 
   /**

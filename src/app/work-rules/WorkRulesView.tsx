@@ -75,45 +75,53 @@ export function WorkRulesView({
                   <span className="text-2xl font-black tracking-widest">{r.label}</span>
                   <ShiftIcon kind={t.icon} />
                 </div>
-                <div className="space-y-2 p-3 text-center">
-                  <div>
-                    <p className="text-sm font-bold text-gray-700">勤務時間</p>
-                    <p className="text-2xl font-black tabular-nums text-gray-900">{range(r.work)}</p>
-                  </div>
-                  <div className={`border-t-2 border-dotted ${t.line}`} />
-                  <div>
-                    <p className="text-sm font-bold text-gray-700">休憩時間（基準）</p>
-                    {r.breaks.length > 0 ? (
-                      <div className="mt-1 space-y-1">
-                        {r.breaks.map((b) => (
-                          <p key={b.start} className={`rounded-lg border-2 py-1 text-xl font-black tabular-nums ${t.box}`}>
-                            {range(b)}
-                          </p>
-                        ))}
+                {/* 内訳ごと(遅番は「翌日まで通しの日」「それ以外の日」の2つになりうる) */}
+                <div className="divide-y-2 divide-gray-200">
+                  {r.variants.map((v) => (
+                    <div key={v.note ?? "all"} className="space-y-2 p-3 text-center">
+                      {v.note && (
+                        <p className={`mx-auto w-fit rounded-full px-3 py-0.5 text-xs font-bold text-white ${t.head}`}>{v.note}</p>
+                      )}
+                      <div>
+                        <p className="text-sm font-bold text-gray-700">勤務時間</p>
+                        <p className="text-2xl font-black tabular-nums text-gray-900">{range(v.work)}</p>
                       </div>
-                    ) : (
-                      <p className="mt-1 text-sm text-gray-600">※休憩はありません</p>
-                    )}
-                  </div>
-                  {r.night.length > 0 ? (
-                    <div>
-                      <p className="text-sm font-bold text-gray-700">深夜勤務時間</p>
-                      {r.night.map((n) => (
-                        <p
-                          key={n.start}
-                          className={`mt-1 flex items-center justify-center gap-1 rounded-lg border-2 py-1 font-black tabular-nums ${
-                            r.key === "C" ? "border-[#152449] text-[#152449]" : "border-red-600 text-red-700"
-                          }`}
-                        >
-                          <MoonIcon className="h-5 w-5 shrink-0" />
-                          <span className="text-lg">{range(n)}</span>
-                        </p>
-                      ))}
-                      <p className="mt-0.5 text-xs font-bold text-gray-700">（{durationLabel(r.nightMinutes)}）</p>
+                      <div className={`border-t-2 border-dotted ${t.line}`} />
+                      <div>
+                        <p className="text-sm font-bold text-gray-700">休憩時間（基準）</p>
+                        {v.breaks.length > 0 ? (
+                          <div className="mt-1 space-y-1">
+                            {v.breaks.map((b) => (
+                              <p key={b.start} className={`rounded-lg border-2 py-1 text-xl font-black tabular-nums ${t.box}`}>
+                                {range(b)}
+                              </p>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-1 text-sm text-gray-600">※休憩はありません</p>
+                        )}
+                      </div>
+                      {v.night.length > 0 ? (
+                        <div>
+                          <p className="text-sm font-bold text-gray-700">深夜勤務時間</p>
+                          {v.night.map((n) => (
+                            <p
+                              key={n.start}
+                              className={`mt-1 flex items-center justify-center gap-1 rounded-lg border-2 py-1 font-black tabular-nums ${
+                                r.key === "C" ? "border-[#152449] text-[#152449]" : "border-red-600 text-red-700"
+                              }`}
+                            >
+                              <MoonIcon className="h-5 w-5 shrink-0" />
+                              <span className="text-lg">{range(n)}</span>
+                            </p>
+                          ))}
+                          <p className="mt-0.5 text-xs font-bold text-gray-700">（{durationLabel(v.nightMinutes)}）</p>
+                        </div>
+                      ) : (
+                        <p className="pt-1 text-sm text-gray-600">※深夜勤務はありません</p>
+                      )}
                     </div>
-                  ) : (
-                    <p className="pt-1 text-sm text-gray-600">※深夜勤務はありません</p>
-                  )}
+                  ))}
                 </div>
               </div>
             );

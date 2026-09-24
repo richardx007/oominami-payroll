@@ -39,6 +39,25 @@ describe("slotsResolver", () => {
   });
 });
 
+describe("遅番の終了（翌日まで通しの日）", () => {
+  it("通しの日だけ shift_slot_b_end_overnight を使う", () => {
+    const r: WorkTimeSettingRow[] = [
+      { effective_from: "2026-10-01", key: "shift_slot_b_end", value: "23:00" },
+      { effective_from: "2026-10-01", key: "shift_slot_b_end_overnight", value: "0:00" },
+    ];
+    const slots = slotsResolver(r, ["2026-10-02"]);
+    expect(slots("2026-10-01").B.end).toBe("23:00");
+    expect(slots("2026-10-02").B.end).toBe("0:00");
+    // 他の枠は変わらない
+    expect(slots("2026-10-02").A.end).toBe("17:00");
+  });
+
+  it("通しの日の終了が未設定なら通常の終了", () => {
+    const slots = slotsResolver([{ effective_from: "2000-01-01", key: "shift_slot_b_end", value: "23:00" }], ["2026-10-02"]);
+    expect(slots("2026-10-02").B.end).toBe("23:00");
+  });
+});
+
 describe("breakWindowsResolver", () => {
   it("給与計算は勤務日に有効な休憩時間帯を使う", () => {
     const windows = breakWindowsResolver(rows);
