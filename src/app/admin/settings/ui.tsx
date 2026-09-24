@@ -1,17 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import {
-  updateBreakWindows,
   updateEmailSettings,
-  updateShiftSlots,
+  updateShiftMonthStart,
   updatePayslipIssuer,
   updateTimesheetLock,
   uploadWorkRules,
 } from "./actions";
 import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
-import type { SlotDef, SlotKey } from "@/lib/shifts";
-import { minutesToHHMM, type BreakWindow } from "@/lib/breaks";
 import { SEAL_SIZES, type PayslipIssuer } from "@/lib/payslip-issuer";
 import type { ActionResult } from "../employees/actions";
 
@@ -22,69 +20,32 @@ const inputClass =
 const fileInputClass =
   "text-sm text-gray-600 file:mr-3 file:cursor-pointer file:rounded-lg file:border file:border-gray-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50";
 
-/** シフト枠(A/B/C)のラベル・時刻を編集するフォーム */
-export function ShiftSlotsForm({
-  slots,
-  monthStart,
-}: {
-  slots: Record<SlotKey, SlotDef>;
-  monthStart: boolean;
-}) {
+/**
+ * シフト予定表の表示設定(1日始まり)。
+ * シフト枠・休憩時間は適用開始日ごとに変わるため「営業と勤務時間」画面へ移した(2026-09-24)。
+ */
+export function ShiftMonthStartForm({ monthStart }: { monthStart: boolean }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
-  const keys: SlotKey[] = ["A", "B", "C"];
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-        シフト枠
+        シフト予定表
       </h2>
       <p className="mt-1 text-sm text-gray-500">
-        シフト予定表で使う3枠の名前と時刻を設定します。深夜0時は「0:00」で表記します。
+        シフト枠・休憩時間は
+        <Link href="/admin/calendar/patterns" className="text-blue-700 hover:underline">
+          「営業と勤務時間」
+        </Link>
+        で、営業時間と一緒に適用開始日ごとに設定します。
       </p>
       <form
         action={(fd) =>
-          startTransition(async () => setResult(await updateShiftSlots(fd)))
+          startTransition(async () => setResult(await updateShiftMonthStart(fd)))
         }
         className="mt-4 max-w-xl space-y-3"
       >
-        {keys.map((k) => (
-          <div key={k} className="grid grid-cols-[auto_1fr_1fr_1fr] items-end gap-2">
-            <div className="w-14">
-              <label className="mb-1 block text-xs font-medium text-gray-500">
-                名前
-              </label>
-              <input
-                name={`${k.toLowerCase()}_label`}
-                defaultValue={slots[k].label}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">
-                開始
-              </label>
-              <input
-                name={`${k.toLowerCase()}_start`}
-                defaultValue={slots[k].start}
-                placeholder="8:00"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">
-                終了
-              </label>
-              <input
-                name={`${k.toLowerCase()}_end`}
-                defaultValue={slots[k].end}
-                placeholder="17:00"
-                className={inputClass}
-              />
-            </div>
-            <div className="pb-2 text-xs text-gray-400">枠{slots[k].label}</div>
-          </div>
-        ))}
         {/* シフト予定表の月の区切り。勤務表(給与計算)は26日始まりのまま。 */}
         <label className="flex items-start gap-2 rounded-lg bg-gray-50 p-3 text-sm">
           <input
@@ -102,71 +63,6 @@ export function ShiftSlotsForm({
             </span>
           </span>
         </label>
-        {result && (
-          <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
-            {result.message}
-          </p>
-        )}
-        <button
-          disabled={pending}
-          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {pending ? "保存中..." : "保存する"}
-        </button>
-      </form>
-    </section>
-  );
-}
-
-/** 標準休憩時間帯(3枠)を編集するフォーム。深夜勤務で休憩をいつ取るかにより深夜割増が
- *  変わってしまう問題を避けるため、休憩はこの3枠に取る前提で勤務時間・深夜勤務手当を計算する。 */
-export function BreakWindowsForm({ windows }: { windows: BreakWindow[] }) {
-  const [result, setResult] = useState<ActionResult | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-        休憩時間
-      </h2>
-      <p className="mt-1 text-sm text-gray-500">
-        休憩は原則この3つの時間帯に取るものとして、勤務時間・深夜勤務手当を計算します
-        (深夜の休憩をいつ取るかで支給額が変わらないようにするため、都度申告はしません)。
-      </p>
-      <form
-        action={(fd) =>
-          startTransition(async () => setResult(await updateBreakWindows(fd)))
-        }
-        className="mt-4 max-w-md space-y-3"
-      >
-        {[1, 2, 3].map((n, i) => (
-          <div key={n} className="grid grid-cols-[auto_1fr_auto_1fr] items-end gap-2">
-            <div className="pb-2 text-xs text-gray-400">枠{n}</div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">
-                開始
-              </label>
-              <input
-                name={`break_${n}_start`}
-                defaultValue={minutesToHHMM(windows[i][0])}
-                placeholder="12:00"
-                className={inputClass}
-              />
-            </div>
-            <div className="pb-2 text-center text-xs text-gray-400">〜</div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">
-                終了
-              </label>
-              <input
-                name={`break_${n}_end`}
-                defaultValue={minutesToHHMM(windows[i][1])}
-                placeholder="13:00"
-                className={inputClass}
-              />
-            </div>
-          </div>
-        ))}
         {result && (
           <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
             {result.message}

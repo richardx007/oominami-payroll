@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
 import { standardBreakMinutes } from "@/lib/period";
-import { parseBreakWindows } from "@/lib/breaks";
+import { breakWindowsResolver, fetchWorkTimeSettings } from "@/lib/work-time";
 import { entrySchema, deleteEntryErrorMessage } from "./schema";
 
 export type ActionResult = { ok: boolean; message: string };
@@ -21,11 +21,11 @@ export async function upsertWorkEntry(
   const d = parsed.data;
   const supabase = await createClient();
 
-  const [{ data: locked }, { data: breakSettings }] = await Promise.all([
+  const [{ data: locked }, workTimeSettings] = await Promise.all([
     supabase.rpc("get_timesheet_lock"),
-    supabase.rpc("get_break_settings"),
+    fetchWorkTimeSettings(supabase),
   ]);
-  const breakWindows = parseBreakWindows(breakSettings);
+  const breakWindows = breakWindowsResolver(workTimeSettings)(d.work_date);
 
   let start_time = d.start_time;
   let end_time = d.end_time || null;

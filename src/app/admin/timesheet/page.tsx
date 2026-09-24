@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
-import { buildShiftMap, parseSlots, type SlotKey } from "@/lib/shifts";
-import { BREAK_SETTING_KEYS, parseBreakWindows } from "@/lib/breaks";
+import { buildShiftMap, type SlotKey } from "@/lib/shifts";
+import { slotsResolver, type WorkTimeSettingRow } from "@/lib/work-time";
 import { TimesheetCalendar } from "@/app/(employee)/timesheet/ui";
 import type { WorkEntry } from "@/app/(employee)/timesheet/page";
 import { adminUpsertWorkEntry, adminDeleteWorkEntry } from "./actions";
@@ -51,8 +51,7 @@ export default async function AdminTimesheetPage({
     { data: entries },
     { data: pastEntries },
     { data: shiftRows },
-    { data: slotRows },
-    { data: breakSettings },
+    { data: workTimeRows },
     { data: lunchRates },
   ] = await Promise.all([
     supabase
@@ -76,17 +75,15 @@ export default async function AdminTimesheetPage({
       .eq("employee_id", selectedId)
       .gte("work_date", period.start)
       .lte("work_date", period.end),
-    supabase.rpc("get_shift_settings"),
-    supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
+    // シフト枠・休憩時間(適用開始日ごと)
+    supabase.from("work_time_settings").select("effective_from, key, value"),
     supabase
       .from("lunch_allowance_rates")
       .select("lunch_allowance, effective_from")
       .eq("employee_id", selectedId),
   ]);
 
-  const breakWindows = parseBreakWindows(breakSettings);
-
-  const slots = parseSlots(slotRows as { key: string; value: string }[]);
+  const workTimeSettings = (workTimeRows ?? []) as WorkTimeSettingRow[];
   const shifts = buildShiftMap(
     (shiftRows ?? []) as {
       work_date: string;
@@ -94,7 +91,7 @@ export default async function AdminTimesheetPage({
       custom_start: string | null;
       custom_end: string | null;
     }[],
-    slots
+    slotsResolver(workTimeSettings)
   );
 
   // 登録・修正ユーザの表示名を解決(自分以外の担当者名もRLSを介さず引ける専用関数を使う)
@@ -153,7 +150,7 @@ export default async function AdminTimesheetPage({
         employees={list}
         selectedEmployeeId={selectedId}
         shifts={shifts}
-        breakWindows={breakWindows}
+        workTimeSettings={workTimeSettings}
         lunchRates={lunchRates ?? []}
         initialDate={initialDate}
       />

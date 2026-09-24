@@ -24,6 +24,7 @@ import {
   type SlotKey,
   type ShiftStatus,
 } from "@/lib/shifts";
+import { slotsResolver, type WorkTimeSettingRow } from "@/lib/work-time";
 import type { ActionResult } from "./actions";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -117,7 +118,7 @@ function nicknameColor(style: NicknameStyle): string | undefined {
 
 export function ShiftSchedule({
   period,
-  slots,
+  slotVersions,
   roster,
   assignments,
   locks = [],
@@ -139,7 +140,8 @@ export function ShiftSchedule({
   timesheetSelfOnly = false,
 }: {
   period: Period;
-  slots: Record<SlotKey, SlotDef>;
+  /** シフト枠の定義(適用開始日ごと)。日付ごとに slotsResolver で引く */
+  slotVersions: WorkTimeSettingRow[];
   roster: RosterMember[];
   assignments: Assignment[];
   /** 本人がかけた「変更不可」ロック */
@@ -231,6 +233,24 @@ export function ShiftSchedule({
     () => new Map(roster.map((m) => [m.id, m] as const)),
     [roster]
   );
+
+  // 日付 → その日のシフト枠(適用開始日で変わる)
+  const slotsOf = useMemo(() => slotsResolver(slotVersions), [slotVersions]);
+
+  // 枠の時刻一覧に出す定義の区切り(期間の途中で定義が変わる場合は複数)
+  const legendRanges = useMemo(() => {
+    const starts = [
+      period.start,
+      ...[...new Set(slotVersions.map((v) => v.effective_from))]
+        .filter((d) => d > period.start && d <= period.end)
+        .sort(),
+    ];
+    const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+    return starts.map((from, i) => ({
+      from,
+      label: i === 0 ? `〜${md(previousDate(starts[1]))}` : `${md(from)}〜`,
+    }));
+  }, [slotVersions, period.start, period.end]);
 
   /**
    * その従業員・その日の勤務表(該当日を選択済み)へのリンク。
@@ -601,7 +621,7 @@ export function ShiftSchedule({
                                     backgroundColor: m.color ?? "#eef2f7",
                                     color: nicknameColor(style),
                                   }}
-                                  title={`${slots[k].label}: ${m.name}${note ? ` ${note}` : ""}`}
+                                  title={`${slotsOf(date)[k].label}: ${m.name}${note ? ` ${note}` : ""}`}
                                 >
                                   {displayName(m)}
                                   {note && (
@@ -624,15 +644,24 @@ export function ShiftSchedule({
         </div>
         </div>
 
-        {/* シフト枠の時刻一覧(1行) + 補足説明。従業員・管理者どちらの画面にも表示する */}
-        <p className="text-xs text-gray-600">
-          {SLOT_KEYS.map((k, i) => (
-            <span key={k}>
-              {i > 0 && "、"}
-              {slots[k].label} {slotHourRangeLabel(slots[k])}
-            </span>
-          ))}
-        </p>
+        {/* シフト枠の時刻一覧(定義ごとに1行) + 補足説明。従業員・管理者どちらの画面にも表示する。
+            期間の途中で定義が変わる場合は「〜9/30」「10/1〜」のように分けて出す */}
+        {legendRanges.map((r) => {
+          const def = slotsOf(r.from);
+          return (
+            <p key={r.from} className="text-xs text-gray-600">
+              {legendRanges.length > 1 && (
+                <span className="font-semibold">{r.label} </span>
+              )}
+              {SLOT_KEYS.map((k, i) => (
+                <span key={k}>
+                  {i > 0 && "、"}
+                  {def[k].label} {slotHourRangeLabel(def[k])}
+                </span>
+              ))}
+            </p>
+          );
+        })}
         <p className="text-xs font-medium">
           <span className="text-gray-800">太字＝実績入力済み。</span>
           <span className="text-red-600">赤太字＝予定と実績が相違。</span>
@@ -647,7 +676,7 @@ export function ShiftSchedule({
         {selected ? (
           <DayPanel
             date={selected}
-            slots={slots}
+            slots={slotsOf(selected)}
             roster={roster}
             slotByKey={slotByKey}
             customByKey={customByKey}

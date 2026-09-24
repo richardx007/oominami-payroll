@@ -17,6 +17,7 @@ import {
   regenerateTargetMonths,
   type DayType,
 } from "@/lib/business-calendar-view";
+import { normalizeSlotTime } from "@/lib/shifts";
 import type { ActionResult } from "../employees/actions";
 
 const DAY_TYPES = Object.keys(DAY_TYPE_LABELS) as DayType[];
@@ -24,6 +25,11 @@ const dateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 function revalidateCalendar() {
   revalidatePath("/admin/calendar", "layout");
+}
+
+/** シフト枠・休憩時間はシフト表・勤務表・給与など多くの画面で使うため全体を更新する */
+function revalidateWorkTime() {
+  revalidatePath("/", "layout");
 }
 
 /** "11/13" */
@@ -37,7 +43,7 @@ function hoursLabel(open: number | null, close: number | null, overnight: boolea
 }
 
 // ---------------------------------------------------------------------------
-// 営業時間の定義
+// 営業と勤務時間（営業時間・シフト枠・休憩時間を1つの適用開始日でまとめて管理）
 // ---------------------------------------------------------------------------
 
 const patternSchema = z
@@ -52,6 +58,56 @@ const patternSchema = z
   .refine((p) => !p.is_open || p.overnight || (p.close_min != null && p.open_min != null && p.close_min > p.open_min), {
     message: "閉店時刻は開店時刻より後にしてください（深夜は 26:00 のように書きます）",
   });
+
+/** "8:00" / "24:00" 等（0:00〜24:00）→ 分。不正なら null */
+function hmToMin(t: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mi = Number(m[2]);
+  if (h > 24 || mi > 59 || (h === 24 && mi > 0)) return null;
+  return h * 60 + mi;
+}
+
+const hm = z.string().refine((t) => hmToMin(t) != null, { message: "時刻は 8:00 のように入力してください" });
+
+/** シフト枠（A/B/C）。時刻は深夜0時=0:00 に正規化して保存する */
+const slotSchema = z.object({
+  label: z.string().trim().max(10, "枠の名前は10文字までにしてください"),
+  start: hm,
+  end: hm,
+});
+
+/** 休憩時間帯（3枠）。0:00〜23:59 の範囲で 開始 < 終了（日をまたぐ枠は持たない） */
+const breakSchema = z
+  .object({ start: hm, end: hm })
+  .refine((b) => (hmToMin(b.start) as number) < (hmToMin(b.end) as number) && (hmToMin(b.end) as number) < 1440, {
+    message: "休憩時間は 開始 < 終了 で、日をまたがないように入力してください",
+  });
+
+const workTimeSchema = z.object({
+  slots: z.object({ A: slotSchema, B: slotSchema, C: slotSchema }),
+  breaks: z.array(breakSchema).length(3),
+});
+
+export type WorkTimeInput = z.input<typeof workTimeSchema>;
+
+/** 入力 → work_time_settings のキーと値 */
+function workTimeKeyValues(w: z.output<typeof workTimeSchema>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const k of ["A", "B", "C"] as const) {
+    const s = w.slots[k];
+    const lk = k.toLowerCase();
+    out[`shift_slot_${lk}_label`] = s.label || k;
+    out[`shift_slot_${lk}_start`] = normalizeSlotTime(s.start);
+    out[`shift_slot_${lk}_end`] = normalizeSlotTime(s.end);
+  }
+  w.breaks.forEach((b, i) => {
+    out[`break_window_${i + 1}_start`] = normalizeSlotTime(b.start);
+    out[`break_window_${i + 1}_end`] = normalizeSlotTime(b.end);
+  });
+  return out;
+}
 
 /** 適用開始日の表記（最初の定義は日付を出さない） */
 function effectiveLabel(effectiveFrom: string): string {
@@ -85,15 +141,17 @@ async function regenerateMonthsFrom(
 }
 
 /**
- * 営業時間の定義（1つの適用開始日の6区分）を保存する。新しい適用開始日ならその定義を追加する。
+ * 1つの適用開始日の「営業時間（6区分）・シフト枠・休憩時間」をまとめて保存する。
+ * 新しい適用開始日ならその定義を追加する。DB関数 save_hours_version で1トランザクションで書く。
  * regenerate=true なら、この定義で変わる作成済みの月を作り直す（手で直した日はそのまま）。
  */
 export async function saveHourPatterns(
   effectiveFrom: string,
   patterns: z.input<typeof patternSchema>[],
+  workTime: WorkTimeInput,
   regenerate: boolean
 ): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  await requireAdmin();
   if (!dateKey.safeParse(effectiveFrom).success || effectiveFrom < PATTERN_BASE_DATE) {
     return { ok: false, message: "適用開始日を入力してください" };
   }
@@ -107,30 +165,47 @@ export async function saveHourPatterns(
   if (new Set(parsed.data.map((p) => p.day_type)).size !== DAY_TYPES.length) {
     return { ok: false, message: "区分がそろっていません" };
   }
+  const wt = workTimeSchema.safeParse(workTime);
+  if (!wt.success) {
+    const issue = wt.error.issues[0];
+    const where =
+      issue.path[0] === "slots"
+        ? `シフト枠「${workTime.slots[issue.path[1] as "A" | "B" | "C"]?.label || String(issue.path[1])}」: `
+        : issue.path[0] === "breaks" && typeof issue.path[1] === "number"
+          ? `休憩時間 枠${issue.path[1] + 1}: `
+          : "";
+    return { ok: false, message: where + issue.message };
+  }
 
   const supabase = await createClient();
-  const now = new Date().toISOString();
   const rows = parsed.data.map((p) => ({
     day_type: p.day_type,
-    effective_from: effectiveFrom,
     is_open: p.is_open,
     open_min: p.is_open ? p.open_min : null,
     close_min: p.is_open && !p.overnight ? p.close_min : null,
     overnight: p.is_open && p.overnight,
-    updated_at: now,
-    updated_by: admin.id,
   }));
-  const { error } = await supabase
-    .from("business_hour_patterns")
-    .upsert(rows, { onConflict: "day_type,effective_from" });
+  const settings = workTimeKeyValues(wt.data);
+  const { error } = await supabase.rpc("save_hours_version", {
+    p_from: effectiveFrom,
+    p_patterns: rows,
+    p_settings: settings,
+  });
   if (error) return { ok: false, message: "保存に失敗しました" };
 
+  const slotText = (["a", "b", "c"] as const)
+    .map((k) => `${settings[`shift_slot_${k}_label`]} ${settings[`shift_slot_${k}_start`]}〜${settings[`shift_slot_${k}_end`]}`)
+    .join(" / ");
+  const breakText = [1, 2, 3]
+    .map((n) => `${settings[`break_window_${n}_start`]}〜${settings[`break_window_${n}_end`]}`)
+    .join(" / ");
   await logActivity(
-    "営業時間の定義を変更",
+    "営業と勤務時間を変更",
     `${effectiveLabel(effectiveFrom)}: ` +
       rows
         .map((r) => `${DAY_TYPE_LABELS[r.day_type]} ${r.is_open ? hoursLabel(r.open_min, r.close_min, r.overnight) : "定休"}`)
-        .join(" / ")
+        .join(" / ") +
+      `｜シフト枠: ${slotText}｜休憩: ${breakText}`
   );
 
   let message = `${effectiveLabel(effectiveFrom)}を保存しました`;
@@ -141,6 +216,7 @@ export async function saveHourPatterns(
   }
 
   revalidateCalendar();
+  revalidateWorkTime();
   return { ok: true, message };
 }
 
@@ -151,13 +227,10 @@ export async function deleteHourPatterns(effectiveFrom: string, regenerate: bool
     return { ok: false, message: "最初の定義は削除できません" };
   }
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("business_hour_patterns")
-    .delete()
-    .eq("effective_from", effectiveFrom)
-    .select("day_type");
-  if (error || !data?.length) return { ok: false, message: "削除に失敗しました" };
-  await logActivity("営業時間の定義を削除", effectiveLabel(effectiveFrom));
+  // 営業時間・シフト枠・休憩時間をまとめて削除する
+  const { data, error } = await supabase.rpc("delete_hours_version", { p_from: effectiveFrom });
+  if (error || !data) return { ok: false, message: "削除に失敗しました" };
+  await logActivity("営業と勤務時間を削除", effectiveLabel(effectiveFrom));
 
   let message = `${effectiveLabel(effectiveFrom)}を削除しました`;
   if (regenerate) {
@@ -167,6 +240,7 @@ export async function deleteHourPatterns(effectiveFrom: string, regenerate: bool
   }
 
   revalidateCalendar();
+  revalidateWorkTime();
   return { ok: true, message };
 }
 

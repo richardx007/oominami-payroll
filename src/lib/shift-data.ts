@@ -2,7 +2,6 @@ import type { createClient } from "@/lib/supabase/server";
 import { shiftPeriodFor } from "@/lib/period";
 import {
   defaultShiftMode,
-  parseSlots,
   type ShiftMode,
   type ShiftStatus,
   type ShiftTimes,
@@ -13,6 +12,7 @@ import type {
   RosterMember,
   ShiftLock,
 } from "@/app/admin/shifts/ShiftSchedule";
+import type { WorkTimeSettingRow } from "@/lib/work-time";
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
@@ -34,7 +34,7 @@ export async function loadShiftData(
   supabase: SupabaseServer,
   p: string | undefined
 ) {
-  // 期間を決めるため、まず枠設定(1日始まりフラグを含む)を読む
+  // 期間を決めるため、まず「1日始まり」フラグを読む
   const { data: settingRows } = await supabase.rpc("get_shift_settings");
   const monthStart = isShiftMonthStart(
     settingRows as { key: string; value: string }[]
@@ -47,6 +47,7 @@ export async function loadShiftData(
     { data: lockRows },
     { data: statusRows },
     { data: modeRow },
+    { data: slotVersionRows },
   ] = await Promise.all([
       supabase.rpc("get_shift_roster"),
       supabase
@@ -70,6 +71,11 @@ export async function loadShiftData(
         .select("status")
         .eq("period_key", period.key)
         .maybeSingle(),
+      // シフト枠の定義(適用開始日ごと。「営業と勤務時間」で編集)
+      supabase
+        .from("work_time_settings")
+        .select("effective_from, key, value")
+        .like("key", "shift_slot_%"),
     ]);
 
   // 既定モードの判定に使う「今の期間」のキー(1日始まり設定を反映)
@@ -78,7 +84,7 @@ export async function loadShiftData(
     (modeRow?.status as ShiftMode | undefined) ??
     defaultShiftMode(period.key, currentKey);
 
-  const slots = parseSlots(settingRows as { key: string; value: string }[]);
+  const slotVersions = (slotVersionRows ?? []) as WorkTimeSettingRow[];
   const roster = (rosterRows ?? []) as RosterMember[];
   const assignments = (assignRows ?? []) as Assignment[];
   const locks = (lockRows ?? []) as ShiftLock[];
@@ -106,7 +112,7 @@ export async function loadShiftData(
 
   return {
     period,
-    slots,
+    slotVersions,
     roster,
     assignments,
     locks,

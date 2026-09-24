@@ -3,7 +3,7 @@
  * 変わってしまう問題を避けるため、休憩はこの3つの時間帯に取る前提で計算する
  * (勤務時間・深夜勤務手当とも `lib/period.ts` の standardBreakMinutes()/nightMinutes()
  * がこの枠を使う)。既定値は 12:00-13:00 / 19:00-20:00 / 4:00-5:00 だが、
- * 設定画面(「シフト枠」の下の「休憩時間」)から変更できる。
+ * 管理画面「営業と勤務時間」から適用開始日ごとに変更できる(`lib/work-time.ts`)。
  */
 
 /** [開始, 終了) を0時からの分数で表す休憩時間帯 */
@@ -15,11 +15,16 @@ export const DEFAULT_BREAK_WINDOWS: BreakWindow[] = [
   [4 * 60, 5 * 60],
 ];
 
-/** app_settings のキー一覧(page から SELECT する用) */
-export const BREAK_SETTING_KEYS = [1, 2, 3].flatMap((n) => [
-  `break_window_${n}_start`,
-  `break_window_${n}_end`,
-]);
+/**
+ * 休憩時間帯の指定。固定の3枠か、勤務日 → その日の3枠(適用開始日で変わるため)。
+ * 期間をまたいで計算する側(給与・日報など)は関数で渡す。
+ */
+export type BreakWindowsSource = BreakWindow[] | ((workDate: string) => BreakWindow[]);
+
+/** 勤務日の休憩時間帯を取り出す */
+export function windowsOn(src: BreakWindowsSource, workDate: string): BreakWindow[] {
+  return typeof src === "function" ? src(workDate) : src;
+}
 
 function parseHHMM(v: string | undefined): number | null {
   if (!v) return null;
@@ -31,7 +36,7 @@ function parseHHMM(v: string | undefined): number | null {
   return h * 60 + mi;
 }
 
-/** app_settings の key/value 配列から休憩時間帯3枠を組み立てる(未設定/不正値は既定にフォールバック) */
+/** key/value 配列(その日に有効な work_time_settings)から休憩時間帯3枠を組み立てる(未設定/不正値は既定にフォールバック) */
 export function parseBreakWindows(
   rows: { key: string; value: string }[] | null | undefined
 ): BreakWindow[] {

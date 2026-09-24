@@ -12,7 +12,8 @@ import {
   overtimeMinutes,
 } from "@/lib/period";
 import { useSwipeNav } from "@/lib/useSwipeNav";
-import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "@/lib/breaks";
+import type { BreakWindow } from "@/lib/breaks";
+import { breakWindowsResolver, type WorkTimeSettingRow } from "@/lib/work-time";
 import { effectiveAt } from "@/lib/payroll";
 import type { ShiftInfo } from "@/lib/shifts";
 import type { WorkEntry } from "./page";
@@ -53,7 +54,7 @@ export function TimesheetCalendar({
   employeeName,
   shifts = {},
   timeLocked = false,
-  breakWindows = DEFAULT_BREAK_WINDOWS,
+  workTimeSettings = [],
   lunchRates = [],
   initialDate,
 }: {
@@ -67,8 +68,8 @@ export function TimesheetCalendar({
   shifts?: Record<string, ShiftInfo>;
   /** 管理者が設定でロックした場合、従業員は出勤/退勤時刻・休憩時間を編集できない(管理者画面では常にfalse) */
   timeLocked?: boolean;
-  /** 標準休憩時間帯(設定画面「休憩時間」で変更可)。勤務時間の表示計算に使う(保存時の実際の値はサーバー側で確定) */
-  breakWindows?: BreakWindow[];
+  /** 適用開始日ごとの標準休憩時間帯(「営業と勤務時間」で変更可)。勤務時間の表示計算に使う(保存時の実際の値はサーバー側で確定) */
+  workTimeSettings?: WorkTimeSettingRow[];
   /** 従業員別の昼食補助額の履歴(当日の「本来の」金額の表示用) */
   lunchRates?: LunchRate[];
   /** 勤務記録の保存アクション(従業員=自分, 管理者=対象従業員にバインド済み) */
@@ -111,6 +112,12 @@ export function TimesheetCalendar({
   );
 
   const dates = useMemo(() => datesInPeriod(period), [period]);
+
+  // 勤務日 → その日の標準休憩時間帯(適用開始日で変わる)
+  const breakWindows = useMemo(
+    () => breakWindowsResolver(workTimeSettings),
+    [workTimeSettings]
+  );
 
   // カレンダーを週ごとに区切る(日曜始まり)
   const weeks = useMemo(() => {
@@ -393,7 +400,7 @@ export function TimesheetCalendar({
                 ? standardBreakMinutes(
                     selectedEntry.start_time,
                     selectedEntry.end_time,
-                    breakWindows
+                    breakWindows(selectedEntry.work_date)
                   )
                 : selectedEntry.break_minutes}
               分)/ 交通費 ¥
@@ -467,7 +474,7 @@ function WorkList({
   entries: WorkEntry[];
   holidays: Record<string, string>;
   shifts: Record<string, ShiftInfo>;
-  breakWindows: BreakWindow[];
+  breakWindows: (workDate: string) => BreakWindow[];
   onSelect: (workDate: string) => void;
 }) {
   const entryMap = new Map(entries.map((e) => [e.work_date, e]));
@@ -513,12 +520,12 @@ function WorkList({
                 ? workMinutes(
                     e.start_time,
                     e.end_time,
-                    standardBreakMinutes(e.start_time, e.end_time, breakWindows)
+                    standardBreakMinutes(e.start_time, e.end_time, breakWindows(date))
                   )
                 : null;
             const nightMins =
               e && e.end_time
-                ? nightMinutes(e.start_time, e.end_time, breakWindows)
+                ? nightMinutes(e.start_time, e.end_time, breakWindows(date))
                 : null;
             const otMins = mins !== null ? overtimeMinutes(mins) : null;
             // 予定が無いのに実績がある(予定外勤務)は出勤・退勤とも相違扱いで赤太字にする

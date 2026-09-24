@@ -10,7 +10,7 @@ import {
   businessDateOf,
   standardBreakMinutes,
 } from "@/lib/period";
-import { parseBreakWindows } from "@/lib/breaks";
+import { breakWindowsResolver, fetchWorkTimeSettings } from "@/lib/work-time";
 import { logActivity } from "@/lib/log";
 
 export type ClockResult = {
@@ -268,7 +268,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     // 1) 当日以前で「未退勤(end なし)」の直近レコード(=現在のシフト。前日出勤の深夜勤務にも対応)
     const { data: open } = await supabase
       .from("work_entries")
-      .select("id, start_time")
+      .select("id, work_date, start_time")
       .eq("employee_id", employee.id)
       .lte("work_date", date)
       .is("end_time", null)
@@ -281,7 +281,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     if (!target) {
       const { data: todayEntry } = await supabase
         .from("work_entries")
-        .select("id, start_time")
+        .select("id, work_date, start_time")
         .eq("employee_id", employee.id)
         .eq("work_date", date)
         .not("start_time", "is", null)
@@ -294,9 +294,10 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
         message: "本日の出勤記録が見つかりません。先に出勤QRを読み取ってください。",
       };
     }
-    // 休憩は標準休憩ルール(設定画面「休憩時間」。既定12-13/19-20/4-5時)から自動計算する
-    const { data: breakSettings } = await supabase.rpc("get_break_settings");
-    const breakWindows = parseBreakWindows(breakSettings);
+    // 休憩は標準休憩ルール(「営業と勤務時間」の休憩時間。勤務日に有効な定義)から自動計算する
+    const breakWindows = breakWindowsResolver(
+      await fetchWorkTimeSettings(supabase)
+    )(target.work_date);
     const brk = standardBreakMinutes(target.start_time.slice(0, 5), time, breakWindows);
     const { error } = await supabase
       .from("work_entries")

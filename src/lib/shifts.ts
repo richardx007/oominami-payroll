@@ -1,6 +1,7 @@
 /**
  * シフト予定・勤務予実まわりの共通定義。
- * - 1日3枠(A/B/C)の交代制。枠のラベル・時刻は app_settings に保存し、設定画面から編集可能。
+ * - 1日3枠(A/B/C)の交代制。枠のラベル・時刻は適用開始日ごとに work_time_settings に保存し、
+ *   管理画面「営業と勤務時間」から編集可能(日付ごとの引き方は lib/work-time.ts)。
  * - 従業員には識別色を割り当て、シフト表でニックネーム背景に使う。
  */
 
@@ -14,7 +15,7 @@ export type SlotDef = {
   end: string;
 };
 
-/** app_settings 未設定時の既定(要件: 早番 8:00-17:00 / 遅番 15:00-0:00 / 深夜 0:00-9:00) */
+/** 未設定時の既定(要件: 早番 8:00-17:00 / 遅番 15:00-0:00 / 深夜 0:00-9:00) */
 export const DEFAULT_SLOTS: Record<SlotKey, SlotDef> = {
   A: { key: "A", label: "早番", start: "8:00", end: "17:00" },
   B: { key: "B", label: "遅番", start: "15:00", end: "0:00" },
@@ -35,7 +36,7 @@ export function normalizeSlotTime(t: string | null | undefined): string {
   return `${h}:${String(min).padStart(2, "0")}`;
 }
 
-/** app_settings の key/value 配列からシフト枠定義を組み立てる */
+/** key/value 配列(その日に有効な work_time_settings)からシフト枠定義を組み立てる */
 export function parseSlots(
   rows: { key: string; value: string }[] | null | undefined
 ): Record<SlotKey, SlotDef> {
@@ -57,12 +58,10 @@ export function parseSlots(
   return out;
 }
 
-/** app_settings のシフト枠キー一覧(page から SELECT する用) */
-export const SHIFT_SETTING_KEYS = SLOT_KEYS.flatMap((k) => [
-  `shift_slot_${k.toLowerCase()}_label`,
-  `shift_slot_${k.toLowerCase()}_start`,
-  `shift_slot_${k.toLowerCase()}_end`,
-]);
+/** シフト枠の指定。固定か、勤務日 → その日の枠(適用開始日で変わるため) */
+export type SlotsSource =
+  | Record<SlotKey, SlotDef>
+  | ((workDate: string) => Record<SlotKey, SlotDef>);
 
 /**
  * 表示用の "H:MM"/"24:00" を <input type="time"> 用の "HH:MM"(00:00-23:59) に正規化する。
@@ -132,11 +131,11 @@ export function buildShiftMap(
     custom_start?: string | null;
     custom_end?: string | null;
   }[],
-  slots: Record<SlotKey, SlotDef>
+  slots: SlotsSource
 ): Record<string, ShiftInfo> {
   const out: Record<string, ShiftInfo> = {};
   for (const r of rows) {
-    const s = slots[r.slot];
+    const s = (typeof slots === "function" ? slots(r.work_date) : slots)[r.slot];
     if (!s) continue;
     const start = normalizeSlotTime(r.custom_start?.trim() || s.start);
     const end = normalizeSlotTime(r.custom_end?.trim() || s.end);

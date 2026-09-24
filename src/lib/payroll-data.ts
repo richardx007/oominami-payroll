@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Period } from "./period";
-import { BREAK_SETTING_KEYS, parseBreakWindows } from "./breaks";
+import { breakWindowsResolver, type WorkTimeSettingRow } from "./work-time";
 import {
   computePayslip,
   PayrollError,
@@ -69,7 +69,7 @@ export async function calculatePeriodPayroll(
       )
       .eq("year", taxYear),
     // 標準休憩時間帯(設定画面「休憩時間」で変更可)
-    supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
+    supabase.from("work_time_settings").select("effective_from, key, value"),
     // 前払金(日当として先に現金で支払った分)。差引支給額から控除する
     supabase
       .from("advance_payments")
@@ -78,7 +78,7 @@ export async function calculatePeriodPayroll(
       .lte("work_date", period.end),
   ]);
 
-  const breakWindows = parseBreakWindows(breakSettings);
+  const breakWindows = breakWindowsResolver(breakSettings as WorkTimeSettingRow[] | null);
   const entriesBy = groupBy(entries ?? [], (e) => e.employee_id);
   const wagesBy = groupBy(wageRates ?? [], (w) => w.employee_id);
   const taxBy = groupBy(taxSettings ?? [], (t) => t.employee_id);

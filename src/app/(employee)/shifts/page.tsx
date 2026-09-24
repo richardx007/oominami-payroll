@@ -35,7 +35,7 @@ export default async function EmployeeShiftsPage({
   return (
     <ShiftSchedule
       period={period}
-      slots={shiftData.slots}
+      slotVersions={shiftData.slotVersions}
       roster={shiftData.roster}
       assignments={shiftData.assignments}
       locks={shiftData.locks}

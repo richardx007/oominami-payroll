@@ -9,11 +9,15 @@
  */
 
 import { buildShiftMap, parseSlots, scheduleWindow, type SlotKey } from "./shifts";
+import { slotsResolver, type WorkTimeSettingRow } from "./work-time";
 
 export type CalendarFeedData = {
   employee_id: string;
   company_name: string | null;
+  /** 旧形式(app_settings の現在値)。slot_versions が無い古い DB 関数の返り値用 */
   slots: { key: string; value: string }[];
+  /** 適用開始日ごとの枠の定義 */
+  slot_versions?: WorkTimeSettingRow[];
   shifts: {
     work_date: string;
     slot: SlotKey;
@@ -63,7 +67,10 @@ export function foldLine(line: string): string {
 }
 
 export function buildShiftIcs(data: CalendarFeedData, now: Date = new Date()): string {
-  const slots = parseSlots(data.slots);
+  // 枠の定義は適用開始日ごと(slot_versions)。旧形式(slots)しか無ければそれを使う
+  const slots = data.slot_versions
+    ? slotsResolver(data.slot_versions)
+    : parseSlots(data.slots);
   const calName = `${data.company_name?.trim() || ""} シフト`.trim();
   const dtstamp = utcStamp(now);
 

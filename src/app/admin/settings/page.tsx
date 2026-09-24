@@ -1,10 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import {
-  BreakWindowsForm,
   EmailSettingsForm,
   PayslipIssuerForm,
-  ShiftSlotsForm,
+  ShiftMonthStartForm,
   TestSendForm,
   TimesheetLockForm,
   WorkRulesForm,
@@ -12,8 +11,6 @@ import {
 import { ClockSettingsForm } from "./clock";
 import { EventTypesForm } from "./event-types";
 import type { EventTypeRow } from "@/lib/business-calendar-view";
-import { parseSlots } from "@/lib/shifts";
-import { parseBreakWindows } from "@/lib/breaks";
 import { parsePayslipIssuer } from "@/lib/payslip-issuer";
 
 export default async function SettingsPage() {
@@ -30,8 +27,6 @@ export default async function SettingsPage() {
     .order("sort_order");
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
-  const slots = parseSlots(settings ?? []);
-  const breakWindows = parseBreakWindows(settings ?? []);
   const issuer = parsePayslipIssuer(settings ?? []);
 
   // 勤務ルール文書のプレビュー用署名付きURL(登録済みの場合のみ)
@@ -64,11 +59,9 @@ export default async function SettingsPage() {
       />
       <TestSendForm defaultEmail={admin.email} />
       <PayslipIssuerForm issuer={issuer} />
-      <ShiftSlotsForm
-        slots={slots}
+      <ShiftMonthStartForm
         monthStart={settingsMap.get("shift_month_start") === "1"}
       />
-      <BreakWindowsForm windows={breakWindows} />
       <TimesheetLockForm
         locked={settingsMap.get("lock_employee_time_edit") === "true"}
       />

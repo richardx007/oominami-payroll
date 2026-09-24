@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { periodFromKey, workMinutes, standardBreakMinutes } from "@/lib/period";
-import { BREAK_SETTING_KEYS, parseBreakWindows } from "@/lib/breaks";
+import { breakWindowsResolver, type WorkTimeSettingRow } from "@/lib/work-time";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
 import { effectiveAt } from "@/lib/payroll";
 import { logActivity } from "@/lib/log";
@@ -227,9 +227,9 @@ export async function emailPayslips(
       supabase
         .from("lunch_allowance_rates")
         .select("employee_id, lunch_allowance, effective_from"),
-      supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
+      supabase.from("work_time_settings").select("effective_from, key, value"),
     ]);
-  const breakWindows = parseBreakWindows(breakSettings);
+  const breakWindows = breakWindowsResolver(breakSettings as WorkTimeSettingRow[] | null);
   const lunchRatesByEmployee = new Map<string, NonNullable<typeof lunchRates>>();
   for (const l of lunchRates ?? []) {
     const arr = lunchRatesByEmployee.get(l.employee_id);
@@ -244,7 +244,7 @@ export async function emailPayslips(
     const start = e.start_time.slice(0, 5);
     const end = e.end_time.slice(0, 5);
     // 休憩・勤務時間は標準休憩ルールから算出(保存済み break_minutes は使わない)
-    const brk = standardBreakMinutes(start, end, breakWindows);
+    const brk = standardBreakMinutes(start, end, breakWindows(e.work_date));
     // 昼食補助はその日だけの上書き(現物支給等)があればそちらを優先する
     const baseLunch =
       effectiveAt(lunchRatesByEmployee.get(e.employee_id) ?? [], e.work_date)

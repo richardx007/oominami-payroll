@@ -5,7 +5,6 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { logActivity } from "@/lib/log";
-import { normalizeSlotTime } from "@/lib/shifts";
 import {
   normalizeSealSizeMm,
   SEAL_ALLOWED_TYPES,
@@ -98,108 +97,28 @@ export async function updateClockSettings(
   return { ok: true, message: "QR打刻の位置設定を保存しました" };
 }
 
-const slotFieldSchema = z.object({
-  a_label: z.string().max(10),
-  a_start: z.string().max(5),
-  a_end: z.string().max(5),
-  b_label: z.string().max(10),
-  b_start: z.string().max(5),
-  b_end: z.string().max(5),
-  c_label: z.string().max(10),
-  c_start: z.string().max(5),
-  c_end: z.string().max(5),
-  // 「1日始まり」チェックボックス。チェック時のみ "on" が送られる(未チェックは欠落)。
-  month_start: z.string().optional(),
-});
-
-/** シフト枠(A/B/C)のラベル・時刻を保存する。時刻は深夜0時=0:00に正規化して保持する。 */
-export async function updateShiftSlots(
+/**
+ * シフト予定表を「1日始まり」で表示するかを保存する。
+ * シフト枠・休憩時間は「営業と勤務時間」(admin/calendar/actions.ts の saveHourPatterns)で保存する。
+ */
+export async function updateShiftMonthStart(
   formData: FormData
 ): Promise<ActionResult> {
   await requireAdmin();
-
-  const parsed = slotFieldSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    return { ok: false, message: "入力内容を確認してください" };
-  }
-  const d = parsed.data;
   const supabase = await createClient();
-
-  const rows = [
-    { key: "shift_slot_a_label", value: d.a_label.trim() || "A" },
-    { key: "shift_slot_a_start", value: normalizeSlotTime(d.a_start) },
-    { key: "shift_slot_a_end", value: normalizeSlotTime(d.a_end) },
-    { key: "shift_slot_b_label", value: d.b_label.trim() || "B" },
-    { key: "shift_slot_b_start", value: normalizeSlotTime(d.b_start) },
-    { key: "shift_slot_b_end", value: normalizeSlotTime(d.b_end) },
-    { key: "shift_slot_c_label", value: d.c_label.trim() || "C" },
-    { key: "shift_slot_c_start", value: normalizeSlotTime(d.c_start) },
-    { key: "shift_slot_c_end", value: normalizeSlotTime(d.c_end) },
-    { key: "shift_month_start", value: d.month_start ? "1" : "0" },
-  ];
+  // チェックボックスはチェック時のみ "on" が送られる(未チェックは欠落)
   const { error } = await supabase
     .from("app_settings")
-    .upsert(rows, { onConflict: "key" });
+    .upsert(
+      { key: "shift_month_start", value: formData.get("month_start") ? "1" : "0" },
+      { onConflict: "key" }
+    );
   if (error) return { ok: false, message: "保存に失敗しました" };
 
   revalidatePath("/admin/settings");
   revalidatePath("/admin");
   revalidatePath("/shifts");
-  return { ok: true, message: "シフト枠を保存しました" };
-}
-
-const breakWindowFieldSchema = z
-  .object({
-    break_1_start: z.string().regex(/^\d{1,2}:\d{2}$/),
-    break_1_end: z.string().regex(/^\d{1,2}:\d{2}$/),
-    break_2_start: z.string().regex(/^\d{1,2}:\d{2}$/),
-    break_2_end: z.string().regex(/^\d{1,2}:\d{2}$/),
-    break_3_start: z.string().regex(/^\d{1,2}:\d{2}$/),
-    break_3_end: z.string().regex(/^\d{1,2}:\d{2}$/),
-  })
-  .refine(
-    (d) =>
-      [1, 2, 3].every((n) => {
-        const s = d[`break_${n}_start` as keyof typeof d];
-        const e = d[`break_${n}_end` as keyof typeof d];
-        return s < e;
-      }),
-    { message: "各枠は開始 < 終了で入力してください" }
-  );
-
-/**
- * 標準休憩時間帯(3枠)を保存する。深夜勤務で休憩をいつ取るかによって深夜割増が
- * 変わらないよう、休憩はこの3枠に取る前提で勤務時間・深夜勤務手当を計算する(§8参照)。
- */
-export async function updateBreakWindows(
-  formData: FormData
-): Promise<ActionResult> {
-  await requireAdmin();
-
-  const parsed = breakWindowFieldSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0].message };
-  }
-  const d = parsed.data;
-  const supabase = await createClient();
-
-  const rows = [1, 2, 3].flatMap((n) => [
-    {
-      key: `break_window_${n}_start`,
-      value: d[`break_${n}_start` as keyof typeof d].trim(),
-    },
-    {
-      key: `break_window_${n}_end`,
-      value: d[`break_${n}_end` as keyof typeof d].trim(),
-    },
-  ]);
-  const { error } = await supabase
-    .from("app_settings")
-    .upsert(rows, { onConflict: "key" });
-  if (error) return { ok: false, message: "保存に失敗しました" };
-
-  revalidatePath("/admin/settings");
-  return { ok: true, message: "休憩時間を保存しました" };
+  return { ok: true, message: "シフト予定表の設定を保存しました" };
 }
 
 /** 従業員による出退勤時刻・休憩時間の編集ロックをON/OFF切替する。QR打刻自体は影響を受けない。 */

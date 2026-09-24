@@ -383,7 +383,7 @@ app/
                          一本化（§17）
     calendar/            営業カレンダー(§24。2026-09-17)。自動作成通知の送信口は api/notify/business-calendar(§24.5)。
                          poster/=A4ポスター(季節背景・PDF/画像出力。§24.6)page/ui/actions=月の作成・日の3択編集・イベント。
-                         patterns/=営業時間の定義、preview/=ホームページでの見え方(/calendar/embed を iframe 表示)
+                         patterns/=営業と勤務時間、preview/=ホームページでの見え方(/calendar/embed を iframe 表示)
     settings/event-types.tsx  イベントの種類と色（営業カレンダー。§24）
     tax-table/           源泉徴収税額表(月額表)専用ページ(メニュー「税額表」。2026-08-22、設定画面から独立)。
                          Excelファイル(.xls/.xlsx)を選択するだけで取り込める主経路(`lib/tax-table-excel.ts`
@@ -1190,8 +1190,9 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
 
 ### 8.1 シフト枠（内部キー A/B/C、既定表示名は早番/遅番/深夜）
 - 1日3枠の交代制。DB上の枠キーは固定で `A`/`B`/`C`、既定の表示名・時刻は **早番 8:00-17:00 / 遅番 15:00-0:00 / 深夜 0:00-9:00**。
-- 枠のラベル・時刻は `app_settings`（`shift_slot_{a,b,c}_{label,start,end}`）に保存し、
-  **管理画面「設定」→「シフト枠」から編集可能**（`updateShiftSlots`）。
+- 枠のラベル・時刻は `work_time_settings`（適用開始日×キー `shift_slot_{a,b,c}_{label,start,end}`）に保存し、
+  **管理画面「営業と勤務時間」（`/admin/calendar/patterns`）で営業時間・休憩時間と一緒に適用開始日ごとに編集**する（2026-09-24。
+  それまでは app_settings の単一値を設定画面「シフト枠」で編集していた）。勤務日ごとに `lib/work-time.ts` の `slotsResolver()` で引く。
 - **夜中0時は「0時」に統一**（"24:00"表記は廃止）。`normalizeSlotTime()`（`src/lib/shifts.ts`）が
   "24:00"→"0:00" に変換し、表示（`parseSlots`/`buildShiftMap`/`slotHourRangeLabel`/`customTimeParen`）も
   保存（`updateShiftSlots`/`assignShift`）も0時基準に統一。既存DB値・既定シード値も 0:00 に更新済み
@@ -1202,7 +1203,7 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
 ### 8.2 シフト予定表（ホーム画面）
 - 管理者ホーム(`/admin`)を**シフト表に置換**。従業員も `(employee)/shifts`(`/shifts`・下部ナビに「シフト」タブ追加)で閲覧可能。
   ※2026-07-27に「確定/調整中」モードを追加し、**調整中の月は従業員も自分の希望を入力できる**ようになった(§13)。
-- **月の区切りを「1日始まり(暦月)」か「26日始まり(給与期間)」で切替可能**（設定画面「シフト枠」の
+- **月の区切りを「1日始まり(暦月)」か「26日始まり(給与期間)」で切替可能**（設定画面「シフト予定表」の
   チェックボックス`shift_month_start`。既定=オフ=26日始まり）。**勤務表(給与計算)は常に26日始まりのまま**で、
   この設定はシフト予定表のカレンダー範囲にのみ影響する。期間は `lib/period.ts` の `shiftPeriodFor(p, monthStart)`
   が `monthPeriodOf`（暦月）か `periodOf`（給与期間）を選ぶ。期間キーはどちらも "YYYY-MM" なので
@@ -1399,6 +1400,10 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
 ## 10. 標準休憩時間帯の設定化・勤務ルール文書（2026-07-23追加）
 
 ### 10.1 標準休憩時間帯を設定画面から編集可能に
+> **2026-09-24 変更**: 休憩時間帯は適用開始日ごとの定義（`work_time_settings` の `break_window_*`）になり、
+> 管理画面「営業と勤務時間」で営業時間・シフト枠と一緒に編集する。計算は**勤務日に有効な定義**を使う
+> （`lib/work-time.ts` の `breakWindowsResolver()`。`computePayslip()` の `breakWindows` は勤務日→休憩帯の関数も受け取る）。
+> 以下の app_settings / `get_break_settings()` 経由の読み出しは当時の記録。
 - §9.1で導入した標準休憩ルール（休憩は12:00-13:00/19:00-20:00/4:00-5:00に取る前提で勤務時間・深夜割増を
   計算する。理由は§7.2参照）を、**設定画面「シフト枠」の下「休憩時間」セクションから3枠とも編集可能**にした。
 - `src/lib/breaks.ts`（新設）: `BreakWindow`型（[開始,終了]を分で表す）、`DEFAULT_BREAK_WINDOWS`（既定値）、
@@ -2499,7 +2504,8 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   - 日をタップ → PC右／スマホ下のパネル: 「いつもどおり／時間を変える／臨時休業」＋管理用メモ、イベントの追加・編集・削除。
     「いつもどおり」は今の祝日データで区分を判定し直し、定義から戻す（`is_manual=false`、メモ消去）。
   - 変更はすべて操作ログ（「営業カレンダー変更」「営業カレンダーのイベント追加」等）。
-- `/admin/calendar/patterns` 営業時間の定義: 上部に「**適用開始日：［一覧］**」（select。既定は今日使われている定義で
+- `/admin/calendar/patterns` **営業と勤務時間**（2026-09-24に「営業時間の定義」から改名。シフト枠・休憩時間も同じ適用開始日で
+  セットに管理する。§8.1・§10.1）: 上部に「**適用開始日：［一覧］**」（select。既定は今日使われている定義で
   「（適用中）」付き。末尾が「＋ 適用開始日を追加」＝日付を入れ、開いている定義を写して始める。同じ日付は追加不可）。
   区分ごとに1行（区分｜営業/定休｜開店｜閉店｜通し）。時刻は「10:00」形式のテキスト入力（深夜の閉店は「26:00」）。
   保存時に「作成済みの月（○月・○月）にも反映する（手で直した日はそのまま）」を選べる（対象は `regenerateTargetMonths()`。

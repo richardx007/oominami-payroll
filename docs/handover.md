@@ -3475,6 +3475,21 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   **オーナーがWixに貼り直す必要あり**）。③**Wix の枠の高さを 1000px 程度に広げる（オーナー作業）**。
   埋め込みコードの説明文にも Wix の枠は高さ固定である旨を追記。
 
+**「営業と勤務時間」: シフト枠・休憩時間も適用開始日で管理（2026-09-24・オーナー依頼「営業時間の変更に連動して勤務時間も変わる」）**
+- 画面 `/admin/calendar/patterns` の名前を「営業時間の定義」→「**営業と勤務時間**」に変更し、設定画面にあった「シフト枠」「休憩時間」を移動。
+  **1つの適用開始日で 営業時間・シフト枠・休憩時間 がセット**（保存・削除は DB関数 `save_hours_version()` / `delete_hours_version()` で1トランザクション）。
+  設定画面には「シフト予定表」（1日始まりのチェックだけ。`shift_month_start` は従来どおり app_settings）と、新画面へのリンクを残した。
+- DB（マイグレーション `20260924081448_work_time_settings.sql`、適用済み）: `work_time_settings(effective_from, key, value)`。
+  キーは従来の `shift_slot_*` / `break_window_*` と同じ名前。**キーごとに、その日以前で最も新しい適用開始日の値**（DB `work_setting_at()` と
+  TS `lib/work-time.ts` の `workSettingsAt()` が同じ規則。**片方だけ変えないこと**）。既存の app_settings の値を 2000-01-01 と 2026-10-01 の両方に写した
+  （10/1 の定義は現在の値のまま。変わるならオーナーが画面で直す）。RLS: ログイン済みは読める・書くのは管理者。
+- 勤務日ごとの定義を使うように変更した箇所: 給与計算（`computePayslip` の `breakWindows` は勤務日→休憩帯の関数も可）、締めの日別明細、日別、
+  勤務表（管理者・従業員。表示・保存）、QR退勤、シフト表（枠の時刻一覧は期間の途中で変わると「〜9/30」「10/1〜」の2行）、
+  DB `get_shift_status()`（予実）・`collect_punch_alerts()`（未打刻通知）・`calendar_feed()`（`slot_versions` を追加）。
+- app_settings の旧キー・`get_break_settings()`・`get_shift_settings()` の shift_slot 部分はもう使わない（デプロイ切替中の旧コード用に残置。次回以降に削除可）。
+- 確認: マイグレーション前後で `get_shift_status()` の結果（2026年・383行）が完全一致。管理者として保存→削除をDB上で実行（ロールバック済み）。
+  vitest 115件（`work-time.test.ts` 追加）・tsc・eslint（既存の6件のみ）・next build。
+
 **次にやること**
 1. （完了）フェーズ5の実機確認。以後は毎月15日 12:00 に翌々月分が自動作成・通知される。
    次は 2026-10-15 12:00 に12月分。

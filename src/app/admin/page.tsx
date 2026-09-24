@@ -29,7 +29,7 @@ export default async function AdminHomePage({
     <div className="mx-auto w-full max-w-5xl space-y-4">
       <ShiftSchedule
         period={period}
-        slots={shiftData.slots}
+        slotVersions={shiftData.slotVersions}
         roster={shiftData.roster}
         assignments={shiftData.assignments}
         locks={shiftData.locks}

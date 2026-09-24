@@ -17,6 +17,9 @@ import {
   type DayType,
   type HourPattern,
 } from "@/lib/business-calendar-view";
+import { minutesToHHMM, parseBreakWindows } from "@/lib/breaks";
+import { normalizeSlotTime, parseSlots, SLOT_KEYS, type SlotKey } from "@/lib/shifts";
+import { workSettingsAt, type WorkTimeSettingRow } from "@/lib/work-time";
 import { deleteHourPatterns, saveHourPatterns } from "../actions";
 import type { ActionResult } from "../../employees/actions";
 
@@ -44,6 +47,39 @@ function toRow(p: HourPattern | undefined, t: DayType): Row {
   };
 }
 
+type SlotRow = { key: SlotKey; label: string; start: string; end: string };
+type BreakRow = { start: string; end: string };
+
+/** 適用開始日のシフト枠・休憩時間（その日に有効な値。ない項目は既定値） */
+function workTimeOf(settings: WorkTimeSettingRow[], from: string): { slots: SlotRow[]; breaks: BreakRow[] } {
+  const kv = workSettingsAt(settings, from);
+  const slots = parseSlots(kv);
+  return {
+    slots: SLOT_KEYS.map((k) => ({ key: k, label: slots[k].label, start: slots[k].start, end: slots[k].end })),
+    breaks: parseBreakWindows(kv).map(([s, e]) => ({
+      start: normalizeSlotTime(minutesToHHMM(s)),
+      end: normalizeSlotTime(minutesToHHMM(e)),
+    })),
+  };
+}
+
+/** "8:00"〜"24:00" → 分。不正なら null（サーバー側 hmToMin と同じ範囲） */
+function hmToMin(t: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mi = Number(m[2]);
+  if (h > 24 || mi > 59 || (h === 24 && mi > 0)) return null;
+  return h * 60 + mi;
+}
+
+const slotValid = (r: SlotRow) => r.label.trim().length <= 10 && hmToMin(r.start) != null && hmToMin(r.end) != null;
+const breakValid = (b: BreakRow) => {
+  const s = hmToMin(b.start);
+  const e = hmToMin(b.end);
+  return s != null && e != null && s < e && e < 1440;
+};
+
 /** "2026/10/1〜"（最初の定義は「最初から」） */
 function versionLabel(effectiveFrom: string): string {
   if (effectiveFrom === PATTERN_BASE_DATE) return "最初から";
@@ -62,11 +98,13 @@ function toPattern(r: Row): HourPattern | null {
 
 export function PatternsForm({
   patterns,
+  workTimeSettings,
   exampleHolidays,
   createdMonths,
   today,
 }: {
   patterns: HourPattern[];
+  workTimeSettings: WorkTimeSettingRow[];
   exampleHolidays: Record<string, string>;
   createdMonths: string[];
   today: string;
@@ -85,6 +123,8 @@ export function PatternsForm({
   const [selected, setSelected] = useState<string | null>(current);
   const [newFrom, setNewFrom] = useState(`${addMonthsYm(today.slice(0, 7), 1)}-01`);
   const [rows, setRows] = useState<Row[]>(rowsOf(current));
+  const [slots, setSlots] = useState<SlotRow[]>(workTimeOf(workTimeSettings, current).slots);
+  const [breaks, setBreaks] = useState<BreakRow[]>(workTimeOf(workTimeSettings, current).breaks);
   const [regenerate, setRegenerate] = useState(true);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -94,9 +134,21 @@ export function PatternsForm({
     setResult(null);
   };
 
+  const updateSlot = (i: number, patch: Partial<SlotRow>) => {
+    setSlots((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    setResult(null);
+  };
+  const updateBreak = (i: number, patch: Partial<BreakRow>) => {
+    setBreaks((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    setResult(null);
+  };
+
   const open = (from: string) => {
     setSelected(from);
     setRows(rowsOf(from));
+    const wt = workTimeOf(workTimeSettings, from);
+    setSlots(wt.slots);
+    setBreaks(wt.breaks);
     setResult(null);
   };
 
@@ -149,8 +201,25 @@ export function PatternsForm({
       });
       return;
     }
+    const badSlot = slots.find((r) => !slotValid(r));
+    if (badSlot) {
+      setResult({ ok: false, message: `シフト枠「${badSlot.label || badSlot.key}」の名前・時刻を確認してください（8:00 のように。深夜0時は 0:00）` });
+      return;
+    }
+    const badBreak = breaks.findIndex((b) => !breakValid(b));
+    if (badBreak >= 0) {
+      setResult({ ok: false, message: `休憩時間 枠${badBreak + 1} を確認してください（開始 < 終了 で、日をまたがないように）` });
+      return;
+    }
+    const workTime = {
+      slots: Object.fromEntries(slots.map((r) => [r.key, { label: r.label, start: r.start, end: r.end }])) as Record<
+        SlotKey,
+        { label: string; start: string; end: string }
+      >,
+      breaks,
+    };
     startTransition(async () => {
-      const r = await saveHourPatterns(effectiveFrom, parsed as HourPattern[], regenerate && targets.length > 0);
+      const r = await saveHourPatterns(effectiveFrom, parsed as HourPattern[], workTime, regenerate && targets.length > 0);
       setResult(r);
       if (r.ok) {
         setSelected(effectiveFrom);
@@ -168,8 +237,8 @@ export function PatternsForm({
       if (r.ok) {
         const rest = versions.filter((v) => v !== selected);
         const back = rest.filter((v) => v <= today).at(-1) ?? rest[0] ?? PATTERN_BASE_DATE;
-        setSelected(back);
-        setRows(rowsOf(back));
+        open(back);
+        setResult(r);
         router.refresh();
       }
     });
@@ -181,10 +250,11 @@ export function PatternsForm({
         <Link href="/admin/calendar" className="text-sm text-blue-700 hover:underline">
           ← 営業カレンダー
         </Link>
-        <h1 className="mt-1 text-xl font-bold">営業時間の定義</h1>
+        <h1 className="mt-1 text-xl font-bold">営業と勤務時間</h1>
         <p className="mt-1 text-sm text-gray-500">
-          区分ごとの「いつもの営業時間」です。毎月の営業カレンダーはこの定義から作られます。
-          営業時間が変わるときは「適用開始日を追加」して、その日からの定義を作ります。
+          営業時間・シフト枠・休憩時間を、1つの適用開始日でセットにして管理します。
+          毎月の営業カレンダーは営業時間から、シフト表・勤務表・給与計算はその日のシフト枠・休憩時間から計算されます。
+          変わるときは「適用開始日を追加」して、その日からの定義を作ります。
         </p>
       </div>
 
@@ -243,6 +313,7 @@ export function PatternsForm({
       <div className="space-y-6">
         {/* 区分ごとに1行（区分｜営業/定休｜開店｜閉店｜通し）。画面の横幅いっぱいを使う */}
         <section className="space-y-3 rounded-xl border border-gray-200 bg-white p-2 sm:p-4">
+          <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">営業時間</h2>
           <div className="grid grid-cols-[2.75rem_auto_1fr_1fr_auto] items-center gap-x-1.5 gap-y-1.5 sm:grid-cols-[4.5rem_auto_1fr_1fr_auto] sm:gap-x-3">
             <span />
             <span />
@@ -312,7 +383,90 @@ export function PatternsForm({
             時刻は 10:00 のように入力します。深夜0時をまたいで閉店する場合は 26:00 のように書きます。
             前の日から通しで続いている日は、開店時刻は使われません。
           </p>
+        </section>
 
+        {/* シフト枠（A/B/C）: 名前｜開始｜終了 */}
+        <section className="space-y-3 rounded-xl border border-gray-200 bg-white p-2 sm:p-4">
+          <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">シフト枠</h2>
+          <div className="grid grid-cols-[5rem_1fr_1fr] items-center gap-x-1.5 gap-y-1.5 sm:grid-cols-[7rem_1fr_1fr] sm:gap-x-3">
+            <span className="text-xs text-gray-500">名前</span>
+            <span className="text-xs text-gray-500">開始</span>
+            <span className="text-xs text-gray-500">終了</span>
+            {slots.map((r, i) => {
+              const bad = !slotValid(r);
+              return (
+                <div key={r.key} className="contents">
+                  <input
+                    value={r.label}
+                    onChange={(e) => updateSlot(i, { label: e.target.value })}
+                    placeholder={r.key}
+                    aria-label={`枠${r.key}の名前`}
+                    className={`${inputClass} font-bold ${bad ? "border-red-400" : ""}`}
+                  />
+                  <input
+                    value={r.start}
+                    onChange={(e) => updateSlot(i, { start: e.target.value })}
+                    placeholder="8:00"
+                    inputMode="numeric"
+                    aria-label={`${r.label || r.key}の開始`}
+                    className={`${inputClass} ${bad ? "border-red-400" : ""}`}
+                  />
+                  <input
+                    value={r.end}
+                    onChange={(e) => updateSlot(i, { end: e.target.value })}
+                    placeholder="17:00"
+                    inputMode="numeric"
+                    aria-label={`${r.label || r.key}の終了`}
+                    className={`${inputClass} ${bad ? "border-red-400" : ""}`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-500">
+            シフト予定表で使う3枠の名前と時刻です。深夜0時は 0:00 と書きます（翌日にまたぐ枠は終了が開始より前になります）。
+          </p>
+        </section>
+
+        {/* 休憩時間（3枠）: 枠｜開始｜〜｜終了 */}
+        <section className="space-y-3 rounded-xl border border-gray-200 bg-white p-2 sm:p-4">
+          <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">休憩時間</h2>
+          <div className="grid grid-cols-[2.75rem_1fr_auto_1fr] items-center gap-x-1.5 gap-y-1.5 sm:grid-cols-[4.5rem_1fr_auto_1fr] sm:gap-x-3">
+            {breaks.map((b, i) => {
+              const bad = !breakValid(b);
+              return (
+                <div key={i} className="contents">
+                  <span className={`text-sm font-bold ${bad ? "text-red-600" : "text-gray-800"}`}>枠{i + 1}</span>
+                  <input
+                    value={b.start}
+                    onChange={(e) => updateBreak(i, { start: e.target.value })}
+                    placeholder="12:00"
+                    inputMode="numeric"
+                    aria-label={`休憩 枠${i + 1}の開始`}
+                    className={`${inputClass} ${bad ? "border-red-400" : ""}`}
+                  />
+                  <span className="text-xs text-gray-400">〜</span>
+                  <input
+                    value={b.end}
+                    onChange={(e) => updateBreak(i, { end: e.target.value })}
+                    placeholder="13:00"
+                    inputMode="numeric"
+                    aria-label={`休憩 枠${i + 1}の終了`}
+                    className={`${inputClass} ${bad ? "border-red-400" : ""}`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-500">
+            休憩は原則この3つの時間帯に取るものとして、勤務時間・深夜勤務手当を計算します
+            （深夜の休憩をいつ取るかで支給額が変わらないようにするため、都度申告はしません）。
+            勤務日に有効な定義で計算されるので、適用開始日より前の勤務は変わりません。
+          </p>
+        </section>
+
+        {/* 保存（営業時間・シフト枠・休憩時間をまとめて） */}
+        <section className="space-y-3">
           {targets.length > 0 && (
             <label className="flex items-start gap-2 rounded-lg bg-yellow-50 p-3 text-sm">
               <input type="checkbox" checked={regenerate} onChange={(e) => setRegenerate(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />

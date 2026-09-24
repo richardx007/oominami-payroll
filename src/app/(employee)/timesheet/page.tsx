@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
 import { currentPeriod, periodFromKey, todayJST } from "@/lib/period";
 import { fetchJapaneseHolidays } from "@/lib/holidays";
-import { buildShiftMap, parseSlots, type SlotKey } from "@/lib/shifts";
-import { parseBreakWindows } from "@/lib/breaks";
+import { buildShiftMap, type SlotKey } from "@/lib/shifts";
+import { slotsResolver, type WorkTimeSettingRow } from "@/lib/work-time";
 import { TimesheetCalendar } from "./ui";
 import { upsertWorkEntry, deleteWorkEntry } from "./actions";
 
@@ -51,9 +51,8 @@ export default async function TimesheetPage({
     { data: closedPeriod },
     { data: pastEntries },
     { data: shiftRows },
-    { data: slotRows },
+    { data: workTimeRows },
     { data: locked },
-    { data: breakRows },
     { data: lunchRates },
   ] = await Promise.all([
       supabase
@@ -86,12 +85,10 @@ export default async function TimesheetPage({
         .eq("employee_id", employee.id)
         .gte("work_date", period.start)
         .lte("work_date", period.end),
-      // シフト枠の設定(app_settings は直接読めないため関数経由)
-      supabase.rpc("get_shift_settings"),
+      // シフト枠・休憩時間(適用開始日ごと)
+      supabase.from("work_time_settings").select("effective_from, key, value"),
       // 出退勤時刻・休憩時間の編集ロック状態(app_settings は直接読めないため関数経由)
       supabase.rpc("get_timesheet_lock"),
-      // 標準休憩時間帯(app_settings は直接読めないため関数経由)
-      supabase.rpc("get_break_settings"),
       // 昼食補助額の履歴(勤務日時点で有効な「本来の」金額の表示用)
       supabase
         .from("lunch_allowance_rates")
@@ -99,11 +96,7 @@ export default async function TimesheetPage({
         .eq("employee_id", employee.id),
     ]);
 
-  const breakWindows = parseBreakWindows(
-    breakRows as { key: string; value: string }[]
-  );
-
-  const slots = parseSlots(slotRows as { key: string; value: string }[]);
+  const workTimeSettings = (workTimeRows ?? []) as WorkTimeSettingRow[];
   const shifts = buildShiftMap(
     (shiftRows ?? []) as {
       work_date: string;
@@ -111,7 +104,7 @@ export default async function TimesheetPage({
       custom_start: string | null;
       custom_end: string | null;
     }[],
-    slots
+    slotsResolver(workTimeSettings)
   );
 
   // 登録・修正ユーザの表示名を解決(自分以外の担当者名もRLSを介さず引ける専用関数を使う)
@@ -165,7 +158,7 @@ export default async function TimesheetPage({
       employeeName={employee.name}
       shifts={shifts}
       timeLocked={!!locked}
-      breakWindows={breakWindows}
+      workTimeSettings={workTimeSettings}
       lunchRates={lunchRates ?? []}
       initialDate={initialDate}
     />

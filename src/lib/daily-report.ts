@@ -25,7 +25,7 @@ import {
   standardBreakMinutes,
   overtimeMinutes,
 } from "./period";
-import { BREAK_SETTING_KEYS, parseBreakWindows } from "./breaks";
+import { breakWindowsResolver, type WorkTimeSettingRow } from "./work-time";
 import { effectiveAt } from "./payroll";
 
 export type DailyRow = {
@@ -178,7 +178,7 @@ export async function loadDailyReport(
     supabase
       .from("lunch_allowance_rates")
       .select("employee_id, lunch_allowance, effective_from"),
-    supabase.from("app_settings").select("key, value").in("key", BREAK_SETTING_KEYS),
+    supabase.from("work_time_settings").select("effective_from, key, value"),
     advancesQuery,
   ]);
 
@@ -188,7 +188,7 @@ export async function loadDailyReport(
     advanceBy.set(`${a.employee_id}_${a.work_date}`, a.amount);
   }
 
-  const breakWindows = parseBreakWindows(breakSettings);
+  const breakWindows = breakWindowsResolver(breakSettings as WorkTimeSettingRow[] | null);
 
   const entriesBy = new Map<string, NonNullable<typeof entries>>();
   for (const e of entries ?? []) {
@@ -257,9 +257,10 @@ export async function loadDailyReport(
         continue;
       }
 
-      const brk = standardBreakMinutes(start, end, breakWindows);
+      const windows = breakWindows(e.work_date);
+      const brk = standardBreakMinutes(start, end, windows);
       const minutes = workMinutes(start, end, brk);
-      const nm = nightMinutes(start, end, breakWindows);
+      const nm = nightMinutes(start, end, windows);
       const om = overtimeMinutes(minutes);
       const basePay = Math.floor((minutes * wage.hourly_wage) / 60);
       const nightPay = Math.floor((nm * wage.hourly_wage * 0.25) / 60);

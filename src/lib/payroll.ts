@@ -4,7 +4,7 @@ import {
   standardBreakMinutes,
   overtimeMinutes,
 } from "./period";
-import { DEFAULT_BREAK_WINDOWS, type BreakWindow } from "./breaks";
+import { DEFAULT_BREAK_WINDOWS, windowsOn, type BreakWindowsSource } from "./breaks";
 
 /**
  * 給与計算エンジン(純粋関数)
@@ -193,8 +193,8 @@ export function computePayslip(params: {
   lunchRates: LunchRate[];
   taxRows: TaxTableRow[];
   periodEnd: string;
-  /** 標準休憩時間帯(設定画面で変更可)。未指定なら既定値(12-13/19-20/4-5時) */
-  breakWindows?: BreakWindow[];
+  /** 標準休憩時間帯(適用開始日で変わるため勤務日ごとに引ける)。未指定なら既定値(12-13/19-20/4-5時) */
+  breakWindows?: BreakWindowsSource;
   /** 当期に日当として先に支払った前払金の合計(未指定なら0) */
   advanceTotal?: number;
   /**
@@ -255,13 +255,14 @@ export function computePayslip(params: {
     }
     // 休憩は標準休憩ルール(breakWindows)から導出する。入力された break_minutes は使わない
     // (休憩を何時に取るかで深夜割増が変わらないよう労使合意の原則ルールで計算する)。
-    const brk = standardBreakMinutes(e.start_time, e.end_time as string, breakWindows);
+    const windows = windowsOn(breakWindows, e.work_date);
+    const brk = standardBreakMinutes(e.start_time, e.end_time as string, windows);
     const minutes = workMinutes(e.start_time, e.end_time as string, brk);
     totalMinutes += minutes;
     const dayBasePay = Math.floor((minutes * wage.hourly_wage) / 60);
     basePay += dayBasePay;
     // 深夜勤務手当: 深夜帯の勤務分数(標準休憩ぶんを除く)に対し時給の25%を割増して追加支給(日単位で切り捨て)
-    const nm = nightMinutes(e.start_time, e.end_time as string, breakWindows);
+    const nm = nightMinutes(e.start_time, e.end_time as string, windows);
     nightMins += nm;
     const dayNightPay = Math.floor((nm * wage.hourly_wage * 0.25) / 60);
     nightPay += dayNightPay;
