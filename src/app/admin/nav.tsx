@@ -19,8 +19,9 @@ const primaryLinks = [
 // 「従業員」は PC サイドバーでは給与明細の直後に並ぶ(primaryLinks の後 = moreLinks 先頭)。
 const moreLinks = [
   { href: "/admin/employees", label: "従業員", icon: PeopleIcon },
-  { href: "/admin/calendar", label: "営業カレンダー", icon: CalendarIcon },
   { href: "/admin/notices", label: "配信", icon: SendIcon },
+  { href: "/admin/calendar", label: "営業カレンダー", icon: CalendarIcon },
+  { href: "/admin/calendar/patterns", label: "営業と勤務時間", icon: ClockIcon },
   { href: "/admin/settings", label: "設定", icon: GearIcon },
   { href: "/admin/tax-table", label: "税額表", icon: TableIcon },
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },
@@ -29,9 +30,18 @@ const moreLinks = [
 // 会社ホームページ(別タブで開く)
 const HOMEPAGE_URL = "https://www.oominami.com";
 
+function matches(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
 function isActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
-  return pathname === href || pathname.startsWith(href + "/");
+  if (!matches(pathname, href)) return false;
+  // より詳しいメニューが一致するならそちらだけを選択中にする
+  // (「営業と勤務時間」= /admin/calendar/patterns を開いているとき「営業カレンダー」は選択しない)
+  return ![...primaryLinks, ...moreLinks].some(
+    (l) => l.href.length > href.length && l.href.startsWith(href + "/") && matches(pathname, l.href)
+  );
 }
 
 /** アプリのロゴ(public/logo.svg を表示。差し替えは public/ のファイルを置換) */
@@ -121,7 +131,7 @@ export function AdminSidebarNav() {
           );
         })}
 
-        {/* 管理グループ(従業員・配信・設定・操作ログ) */}
+        {/* 管理グループ(従業員・配信・営業カレンダー・営業と勤務時間・設定・税額表・操作ログ) */}
         <GroupToggle
           label="管理"
           open={manageOpen}
@@ -516,6 +526,25 @@ function GearIcon({ className }: { className?: string }) {
     >
       <circle cx="12" cy="12" r="3" />
       <path d="M12 2.5v3M12 18.5v3M4.2 7l2.6 1.5M17.2 15.5l2.6 1.5M4.2 17l2.6-1.5M17.2 8.5l2.6-1.5" />
+    </svg>
+  );
+}
+
+/** 営業と勤務時間メニュー用の時計アイコン */
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
     </svg>
   );
 }
