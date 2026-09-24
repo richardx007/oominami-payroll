@@ -246,9 +246,11 @@ export function ShiftSchedule({
         .sort(),
     ];
     const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+    // 区切りが1つだけ(期間中に変更なし)ならラベルは出さない。
+    // ⚠️ starts[1] が無いときに previousDate() を呼ぶと Invalid Date で例外になる(2026-09-24 本番で画面が開けなくなった)
     return starts.map((from, i) => ({
       from,
-      label: i === 0 ? `〜${md(previousDate(starts[1]))}` : `${md(from)}〜`,
+      label: starts.length === 1 ? "" : i === 0 ? `〜${md(previousDate(starts[1]))}` : `${md(from)}〜`,
     }));
   }, [slotVersions, period.start, period.end]);
 
