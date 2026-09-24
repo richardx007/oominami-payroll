@@ -6,6 +6,7 @@ import { jstTodayKey, PATTERN_BASE_DATE } from "@/lib/business-calendar-view";
 import { parseSlots } from "@/lib/shifts";
 import { buildShiftRules } from "@/lib/work-rules";
 import { workSettingsAt, type WorkTimeSettingRow } from "@/lib/work-time";
+import { CloseBar } from "./CloseBar";
 import { WorkRulesView, type VersionTab } from "./WorkRulesView";
 
 /**
@@ -13,14 +14,15 @@ import { WorkRulesView, type VersionTab } from "./WorkRulesView";
  * 表示方法は設定画面「勤務ルール」で切り替える(app_settings の work_rules_mode)。
  * - "generated"(既定): 「営業と勤務時間」の定義(今日有効なもの)から組み立てた画面。
  *   先の適用開始日の定義があれば、上部のボタンで切り替えて見られる(?from=YYYY-MM-DD)。
- * - "image": アップロードした文書(非公開ストレージ work-rules バケット)の署名付きURLへリダイレクトする
- *   (画像/PDFともブラウザが直接レンダリングするので専用ビューアは用意しない)。
+ * - "image": アップロードした文書(非公開ストレージ work-rules バケット)。画像はこのページ内に表示し、
+ *   PDF は署名付きURLへリダイレクトする(ブラウザの PDF ビューアに任せる)。
+ * 上部に「閉じる」バー(CloseBar)を出す。PCサイドバーのモーダル(iframe)からは ?embed=1 で開き、バーを出さない。
  * app_settings は管理者のみ SELECT 可のため、メタ情報は get_work_rules_meta() 経由で取得する。
  */
 export default async function WorkRulesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; embed?: string }>;
 }) {
   await requireEmployee(); // ログイン確認(管理者・従業員どちらも可)
   const supabase = await createClient();
@@ -33,6 +35,9 @@ export default async function WorkRulesPage({
     ])
   );
 
+  const { from, embed } = await searchParams;
+  const embedded = embed === "1";
+
   if (meta.get("work_rules_mode") === "image") {
     const path = meta.get("work_rules_path");
     if (!path) {
@@ -44,7 +49,16 @@ export default async function WorkRulesPage({
     if (!signed?.signedUrl) {
       return <Message text="文書の表示に失敗しました。時間をおいて再度お試しください。" />;
     }
-    redirect(signed.signedUrl);
+    if (meta.get("work_rules_mime") === "application/pdf") redirect(signed.signedUrl);
+    return (
+      <>
+        {!embedded && <CloseBar />}
+        <main className="bg-white p-3 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={signed.signedUrl} alt="勤務ルール" className="mx-auto h-auto max-w-full" />
+        </main>
+      </>
+    );
   }
 
   const { data: wt } = await supabase
@@ -63,7 +77,6 @@ export default async function WorkRulesPage({
   for (const v of versions.filter((v) => v > today)) {
     if (keyOf(v) !== keyOf(shown[shown.length - 1])) shown.push(v);
   }
-  const { from } = await searchParams;
   const selected = from && shown.includes(from) ? from : current;
 
   const kv = workSettingsAt(settings, selected);
@@ -75,7 +88,9 @@ export default async function WorkRulesPage({
   const tabs: VersionTab[] = shown.map((v, i) => ({
     from: v,
     label: i === 0 ? "現在" : `${md(v)}〜`,
-    href: i === 0 ? "/work-rules" : `/work-rules?from=${v}`,
+    href:
+      "/work-rules?" +
+      new URLSearchParams({ ...(i > 0 ? { from: v } : {}), ...(embedded ? { embed: "1" } : {}) }).toString(),
     active: v === selected,
   }));
   const effectiveLabel =
@@ -85,14 +100,22 @@ export default async function WorkRulesPage({
         ? `${ymd(selected)}から適用予定`
         : `${ymd(selected)}から適用`;
 
-  return <WorkRulesView rules={rules} effectiveLabel={effectiveLabel} tabs={tabs} />;
+  return (
+    <>
+      {!embedded && <CloseBar />}
+      <WorkRulesView rules={rules} effectiveLabel={effectiveLabel} tabs={tabs} />
+    </>
+  );
 }
 
 function Message({ text }: { text: string }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-6 text-center">
+    <>
+      <CloseBar />
+      <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-6 text-center">
       <p className="text-lg font-bold text-gray-700">勤務ルール</p>
       <p className="mt-2 text-sm text-gray-500">{text}</p>
-    </main>
+      </main>
+    </>
   );
 }

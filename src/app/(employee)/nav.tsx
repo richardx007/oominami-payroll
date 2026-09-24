@@ -152,8 +152,6 @@ export function EmployeeSidebarNav({
           <>
             <a
               href="/work-rules"
-              target="_blank"
-              rel="noopener noreferrer"
               className={`${sidebarItemClass} pl-6 ${sidebarIdleClass}`}
             >
               <DocumentIcon className="h-6 w-6 shrink-0" />
@@ -287,8 +285,6 @@ export function EmployeeNav({
             </a>
             <a
               href="/work-rules"
-              target="_blank"
-              rel="noopener noreferrer"
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
             >

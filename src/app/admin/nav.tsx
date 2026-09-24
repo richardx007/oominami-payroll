@@ -333,8 +333,6 @@ export function AdminBottomNav() {
             })}
             <a
               href="/work-rules"
-              target="_blank"
-              rel="noopener noreferrer"
               onClick={() => setMenuOpen(false)}
               className="flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
             >

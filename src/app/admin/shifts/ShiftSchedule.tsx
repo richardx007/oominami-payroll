@@ -634,8 +634,6 @@ export function ShiftSchedule({
         <p className="text-xs">
           <a
             href="/work-rules"
-            target="_blank"
-            rel="noopener noreferrer"
             className="font-medium text-blue-700 underline underline-offset-2"
           >
             {SLOT_KEYS.map((k) => slotsOf(today)[k].label).join("・")}の勤務時間・休憩時間はこちら

@@ -31,7 +31,7 @@ export function WorkRulesView({
   tabs: VersionTab[];
 }) {
   return (
-    <main className="min-h-screen bg-[#f5f1e6] px-3 py-4 sm:px-6 sm:py-8">
+    <main className="min-h-[calc(100vh-3rem)] bg-[#f5f1e6] px-3 py-4 sm:px-6 sm:py-8">
       <div className="mx-auto max-w-3xl space-y-4 rounded-2xl border-2 border-[#d4b25a] bg-[#fffdf7] p-3 shadow-sm sm:p-6">
         <header className="text-center">
           <h1 className="text-[19px] font-black tracking-tight text-[#152449] min-[400px]:text-2xl sm:text-4xl">

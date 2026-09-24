@@ -24,7 +24,7 @@ export async function getWorkRulesUrl(): Promise<
   );
   // 「営業と勤務時間」から組み立てる画面(既定)は、モーダル内に /work-rules をそのまま埋め込む
   if (meta.get("work_rules_mode") !== "image") {
-    return { url: "/work-rules", page: true };
+    return { url: "/work-rules?embed=1", page: true };
   }
   const path = meta.get("work_rules_path");
   if (!path) {
