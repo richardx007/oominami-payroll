@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { durationLabel, type ShiftRule, type ShiftVariant, type TimeRange } from "@/lib/work-rules";
 import type { SlotKey } from "@/lib/shifts";
 
@@ -35,26 +34,29 @@ const THEME: Record<SlotKey, { head: string; line: string; box: string; icon: "s
 
 export type VersionTab = { from: string; label: string; href: string; active: boolean };
 
-export function WorkRulesView({
+/**
+ * 勤務ルールの書類本体（紙1枚ぶん）。画面表示とPDF用のA4版(幅794px)の両方で使う。
+ * ⚠️ 段組みは画面幅(sm:)ではなく**書類自身の幅**(コンテナクエリ @xl: = 36rem以上で3列)で切り替える。
+ *   PDF用の版は画面外に A4 幅で置くため、スマホで開いていても3列で組まれる必要がある。
+ */
+export function WorkRulesDocument({
   rules,
-  effectiveLabel,
-  tabs,
+  versionLabel,
 }: {
   rules: ShiftRule[];
-  /** "2026年10月1日から適用" など。最初の定義なら null */
-  effectiveLabel: string | null;
-  /** 今後の変更がある場合の切替（今日の定義＋先の定義）。1つだけなら出さない */
-  tabs: VersionTab[];
+  /** 右上の「2026年10月1日 版」 */
+  versionLabel: string;
 }) {
   return (
-    <main className="min-h-[calc(100vh-3rem)] bg-[#f5f1e6] px-3 py-4 sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-3xl space-y-4 rounded-2xl border-2 border-[#d4b25a] bg-[#fffdf7] p-3 shadow-sm sm:p-6">
-        <header className="text-center">
-          <h1 className="text-[19px] font-black tracking-tight text-[#152449] min-[400px]:text-2xl sm:text-4xl">
+    <div className="@container">
+      <div className="mx-auto max-w-3xl space-y-4 rounded-2xl border-2 border-[#d4b25a] bg-[#fffdf7] p-3 shadow-sm @xl:p-6">
+        <header className="relative text-center">
+          <p className="text-right text-xs font-bold text-[#152449] @xl:absolute @xl:-top-2 @xl:right-0">{versionLabel}</p>
+          <h1 className="text-[19px] font-black tracking-tight text-[#152449] @sm:text-2xl @xl:pt-3 @xl:text-4xl">
             休憩時間と深夜勤務時間について
           </h1>
           <div className="mx-auto mt-2 h-px w-2/3 bg-gradient-to-r from-transparent via-[#d4b25a] to-transparent" />
-          <p className="mt-3 text-sm font-semibold leading-relaxed text-gray-800 sm:text-base">
+          <p className="mt-3 text-sm font-semibold leading-relaxed text-gray-800 @xl:text-base">
             給与計算を統一し、わかりやすくするため、
             <br />
             <span className="text-red-700">休憩時間</span>および
@@ -63,26 +65,8 @@ export function WorkRulesView({
           </p>
         </header>
 
-        {tabs.length > 1 && (
-          <nav className="flex flex-wrap justify-center gap-2" aria-label="適用開始日">
-            {tabs.map((t) => (
-              <Link
-                key={t.from}
-                href={t.href}
-                replace
-                className={`rounded-full border px-4 py-1.5 text-sm font-bold ${
-                  t.active ? "border-[#152449] bg-[#152449] text-white" : "border-gray-300 bg-white text-gray-700"
-                }`}
-              >
-                {t.label}
-              </Link>
-            ))}
-          </nav>
-        )}
-        {effectiveLabel && <p className="text-center text-sm font-bold text-[#152449]">{effectiveLabel}</p>}
-
         {/* 番ごとのカード（スマホは縦に並べる） */}
-        <section className="grid gap-3 sm:grid-cols-3">
+        <section className="grid gap-3 @xl:grid-cols-3">
           {rules.map((r) => {
             const t = THEME[r.key];
             return (
@@ -101,7 +85,7 @@ export function WorkRulesView({
                         <p className="text-sm font-bold text-gray-700">勤務時間</p>
                         <p className="text-2xl font-black tabular-nums text-gray-900">{range(v.work)}</p>
                         {alt && (
-                          <p className="text-sm font-bold tabular-nums text-gray-600 sm:text-xs">
+                          <p className="text-sm font-bold tabular-nums text-gray-600 @xl:text-xs">
                             通しでない日: <span className="whitespace-nowrap">{diffRange(v.work, alt.work)}</span>
                           </p>
                         )}
@@ -138,13 +122,14 @@ export function WorkRulesView({
                               {i === v.night.length - 1 && (
                                 <span className="whitespace-nowrap text-xs font-bold">（{durationLabel(v.nightMinutes)}）</span>
                               )}
+                              {/* 通しでない日の違いは枠の内側に小さく添える */}
+                              {i === v.night.length - 1 && nightDiff && (
+                                <span className="basis-full text-sm font-bold text-gray-600 @xl:text-xs">
+                                  通しでない日: <span className="whitespace-nowrap">{nightDiff}</span>
+                                </span>
+                              )}
                             </p>
                           ))}
-                          {nightDiff && (
-                            <p className="mt-0.5 text-sm font-bold tabular-nums text-gray-600 sm:text-xs">
-                              通しでない日: <span className="whitespace-nowrap">{nightDiff}</span>
-                            </p>
-                          )}
                         </div>
                       ) : (
                         <p className="pt-1 text-sm text-gray-600">※深夜勤務はありません</p>
@@ -160,13 +145,13 @@ export function WorkRulesView({
         {/* 給与計算について */}
         <section className="overflow-hidden rounded-xl border-2 border-red-700 bg-white">
           <h2 className="bg-red-700 py-2 text-center text-xl font-black tracking-widest text-white">給与計算について</h2>
-          <div className="space-y-3 p-3 sm:p-4">
-            <p className="text-sm font-semibold text-gray-800 sm:text-base">
+          <div className="space-y-3 p-3 @xl:p-4">
+            <p className="text-sm font-semibold text-gray-800 @xl:text-base">
               給与は、上記の<span className="text-red-700">休憩時間</span>を差し引いた勤務時間を基準に計算いたします。
             </p>
-            <div className="grid gap-3 sm:grid-cols-2 sm:divide-x-2 sm:divide-dotted sm:divide-gray-400">
+            <div className="grid gap-3 @xl:grid-cols-2 @xl:divide-x-2 @xl:divide-dotted @xl:divide-gray-400">
               <Example no="①" hours={9} />
-              <Example no="②" hours={8} className="sm:pl-3" />
+              <Example no="②" hours={8} className="@xl:pl-3" />
             </div>
             <p className="flex items-center gap-2 rounded-lg bg-[#fff6d6] p-2 text-sm font-semibold text-gray-800">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#152449] text-[#f3c74d]">
@@ -180,8 +165,8 @@ export function WorkRulesView({
         {/* 実際の休憩について */}
         <section className="overflow-hidden rounded-xl border-2 border-[#152449] bg-white">
           <h2 className="bg-[#152449] py-2 text-center text-xl font-black tracking-widest text-white">実際の休憩について</h2>
-          <div className="flex items-center gap-3 p-3 sm:p-4">
-            <RestIcon className="hidden h-16 w-16 shrink-0 text-[#152449] sm:block" />
+          <div className="flex items-center gap-3 p-3 @xl:p-4">
+            <RestIcon className="hidden h-16 w-16 shrink-0 text-[#152449] @xl:block" />
             <div className="space-y-1 text-sm font-semibold leading-relaxed text-gray-800">
               <p>
                 上記の休憩時間は、<span className="text-red-700">給与計算をわかりやすくするための基準時間</span>です。
@@ -195,13 +180,13 @@ export function WorkRulesView({
           </div>
         </section>
 
-        <footer className="rounded-xl bg-[#152449] px-3 py-3 text-center text-base font-black leading-relaxed text-[#f3c74d] sm:text-lg">
+        <footer className="rounded-xl bg-[#152449] px-3 py-3 text-center text-base font-black leading-relaxed text-[#f3c74d] @xl:text-lg">
           スタッフ全員が同じ基準で給与計算できるよう、
           <br />
           ご理解とご協力をお願いいたします。
         </footer>
       </div>
-    </main>
+    </div>
   );
 }
 

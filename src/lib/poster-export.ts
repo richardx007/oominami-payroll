@@ -192,3 +192,44 @@ export async function capturePosterImage(el: HTMLElement): Promise<PdfResult> {
     releaseCanvas(canvas);
   }
 }
+
+/**
+ * 任意の要素を「A4縦1枚」に収めた PDF にする（勤務ルール `app/work-rules` が使う）。
+ * 画像化はポスターと同じ方式（html2canvas-pro＋計算済みスタイルの焼き込み、iOSのメモリ対策）。
+ * 要素の縦横比は保ったまま、上下左右 marginMm の内側に収まるよう縮小して上寄せ・左右中央に置く
+ * （内容が少し長くても必ず1枚に収まる。引き伸ばしはしない）。
+ */
+export async function captureFitA4Pdf(el: HTMLElement, marginMm = 8): Promise<PdfResult> {
+  let canvas: HTMLCanvasElement | null = null;
+  let page: HTMLCanvasElement | null = null;
+  try {
+    canvas = await captureWithFallback(el);
+    // 用紙の解像度は「幅いっぱいに置いたときに等倍」になるように決める
+    const pxPerMm = canvas.width / (210 - marginMm * 2);
+    page = document.createElement("canvas");
+    page.width = Math.round(210 * pxPerMm);
+    page.height = Math.round(297 * pxPerMm);
+    const ctx = page.getContext("2d");
+    if (!ctx) throw new Error("canvas context を取得できませんでした");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, page.width, page.height);
+    const m = marginMm * pxPerMm;
+    const s = Math.min((page.width - m * 2) / canvas.width, (page.height - m * 2) / canvas.height, 1);
+    const w = canvas.width * s;
+    const h = canvas.height * s;
+    ctx.drawImage(canvas, (page.width - w) / 2, m, w, h);
+    releaseCanvas(canvas);
+    canvas = null;
+
+    const { width, height } = page;
+    const preview = toPreviewImage(page);
+    const jpegBlob = await toBlob(page, "image/jpeg", 0.92);
+    releaseCanvas(page);
+    page = null;
+    const jpeg = new Uint8Array(await jpegBlob.arrayBuffer());
+    return { blob: buildPdfFromJpeg(jpeg, width, height), pages: [preview] };
+  } finally {
+    releaseCanvas(canvas);
+    releaseCanvas(page);
+  }
+}
