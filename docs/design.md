@@ -140,7 +140,7 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 | `notifications` | 連絡・催促・一斉報知 | sender_id, recipient_id(null=全員), type(individual/broadcast/reminder), subject, body, emailed, sent_at |
 | `tax_reports` | 税理士送付記録（※現在は書き込みなし・将来用に残置） | pay_period_id, emailed_to, emailed_at |
 | `withholding_tax_table` | 源泉徴収税額表（月額表。国税庁公開の甲欄0〜7人＋乙欄を保持） | year, min_amount, max_amount, tax_kou_0..7, tax_otsu, created_at(取り込み日時) |
-| `app_settings` | アプリ設定（キー値） | key, value（gmail_user / tax_accountant_name / tax_accountant_email / company_name / break_window_{1,2,3}_{start,end} / work_rules_{path,filename,mime,uploaded_at} 等） |
+| `app_settings` | アプリ設定（キー値） | key, value（gmail_user / tax_accountant_name / tax_accountant_email / company_name / work_rules_{path,filename,mime,uploaded_at,mode} / shift_month_start 等。※shift_slot_* / break_window_* は2026-09-24から `work_time_settings` へ移行し、ここの値は使わない） |
 | `activity_logs` | 操作ログ（閲覧は管理者のみ・挿入はSECURITY DEFINER関数経由） | created_at, actor_id, actor_name, action, detail ／ 保持90日（`log_activity` 内で超過分を削除・削除自体も記録） |
 | `clock_events` | QR打刻の監査ログ（追記専用。管理者=全件、従業員=自分の挿入/参照） | employee_id, type(in/out), event_at, work_entry_id, latitude, longitude, accuracy, distance_m, out_of_range, location_denied, user_agent |
 | `storage.objects`(work-rules バケット) | 勤務ルール文書(jpg/png/pdf)。固定パス`document`に常に上書き保存 | RLS: SELECT=authenticated全員、INSERT/UPDATE/DELETE=管理者のみ(`is_admin()`) |
@@ -207,8 +207,8 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
   ログイン/初回登録/再設定申請でも呼べるよう **authenticated と anon に実行付与**（他のDEFINER関数はanon revoke）。
 - `get_shift_roster()`: 在籍・非管理者の id/氏名/ニックネーム/色を返す（SECURITY DEFINER・authenticated）。
   従業員は他人の `employees` 行を直接 SELECT できないため、シフト表の名簿表示に使う。
-- `get_shift_settings()`: `app_settings` の `shift_slot_*`（枠ラベル・時刻）だけを返す（SECURITY DEFINER・authenticated）。
-  `app_settings` は管理者のみ SELECT 可のため、従業員のシフト閲覧・勤務表の予定時刻表示に使う。
+- `get_shift_settings()`: `app_settings` の `shift_slot_*` と `shift_month_start` を返す（SECURITY DEFINER・authenticated）。
+  **2026-09-24以降、枠の時刻は `work_time_settings` から読むため、ここは `shift_month_start`（1日始まり）のためだけに使う**（§25）。
 - `get_shift_status(start, end)`: シフト予定と勤務実績を突き合わせ、状態
   （match / missing=予定あり実績なし / timediff=時刻相違 / unplanned=実績あり予定なし）だけを返す
   （SECURITY DEFINER・authenticated）。**実際の勤務時刻は返さない**ため、従業員セッションでも他人の
@@ -219,6 +219,9 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 - `get_contact_settings()`: `app_settings` の `company_name`・`gmail_user` を返す（SECURITY DEFINER・authenticated）。
   従業員下部メニュー「管理者へ✉️」の `mailto:`（宛先＝送信元メール、本文＝会社名 管理者様/氏名）組み立てに使う。
 - `get_break_settings()`: `app_settings` の `break_window_*`（標準休憩時間帯3枠）を返す（SECURITY DEFINER・authenticated）。§10.1参照。
+  **2026-09-24以降は未使用**（休憩は `work_time_settings`。デプロイ切替中の旧コード用に残置。§25）。
+- `work_setting_at(date, key)` / `is_overnight_day(date)` / `overnight_days(start, end)` / `slot_end_at(date, slot)` /
+  `save_hours_version(from, patterns, settings)` / `delete_hours_version(from)`: 営業と勤務時間（適用開始日ごとの定義）。§25参照。
 - `get_work_rules_meta()`: `app_settings` の `work_rules_*`（勤務ルール文書のストレージパス・元ファイル名・MIME）を返す
   （SECURITY DEFINER・authenticated）。§10.2参照。
 - `get_employee_names(uuid[])`: 指定id群の表示名（ニックネーム優先）だけを返す（SECURITY DEFINER・
@@ -375,15 +378,17 @@ app/
                          個別=管理者にCC / 一斉=管理者にも配信。フォームは sm:2カラム、送信履歴は折返し対応
     report/              税理士資料の部品のみ残置（page は廃止）。actions.ts(sendTaxReport/buildTaxReportCsv)と
                          ui.tsx(税理士メール送信=アイコン+文字 / PDF・CSV=文字ラベルのボタン)を close から利用
-    settings/            メール設定（会社名/送信元/税理士 氏名・アドレスを2カラム）・シフト枠・休憩時間(3枠)・
-                         勤務表ロック・QR打刻の位置設定+出退勤QRコード・勤務ルール文書アップロード、
+    settings/            メール設定（会社名/送信元/税理士 氏名・アドレスを2カラム）・シフト予定表（1日始まり。
+                         シフト枠・休憩時間は2026-09-24に「営業と勤務時間」へ移動・§25）・
+                         勤務表ロック・QR打刻の位置設定+出退勤QRコード・勤務ルール（表示方法の切替＋文書アップロード）、
                          の順に並ぶ（§10参照）。右上に ver.表示。取り込みは例外安全化し body上限を5mbに拡張
                          （next.config）。源泉徴収税額表は2026-08-22に`admin/tax-table/`へ独立（下記）。
                          昼食補助（全社共通定額）の設定は2026-09-02に廃止し`employees/`の従業員別履歴に
                          一本化（§17）
     calendar/            営業カレンダー(§24。2026-09-17)。自動作成通知の送信口は api/notify/business-calendar(§24.5)。
                          poster/=A4ポスター(季節背景・PDF/画像出力。§24.6)page/ui/actions=月の作成・日の3択編集・イベント。
-                         patterns/=営業と勤務時間、preview/=ホームページでの見え方(/calendar/embed を iframe 表示)
+                         patterns/=営業と勤務時間(営業時間・シフト枠・休憩時間を適用開始日でセット管理。§25。
+                         管理メニューにも単独項目あり)、preview/=ホームページでの見え方(/calendar/embed を iframe 表示)
     settings/event-types.tsx  イベントの種類と色（営業カレンダー。§24）
     tax-table/           源泉徴収税額表(月額表)専用ページ(メニュー「税額表」。2026-08-22、設定画面から独立)。
                          Excelファイル(.xls/.xlsx)を選択するだけで取り込める主経路(`lib/tax-table-excel.ts`
@@ -1425,6 +1430,10 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
   （開始<終了のバリデーションつき）。
 
 ### 10.2 勤務ルール文書のアップロード・閲覧
+> **2026-09-24 変更**: 勤務ルールは既定で「営業と勤務時間」の定義から組み立てた画面を表示する（§25.4）。
+> アップロード文書は設定画面「勤務ルール」の表示方法で「アップロードした文書」を選んだときだけ使う
+> （画像はページ内に表示・PDFは従来どおり署名付きURLへ）。メニューのリンクは別タブではなく同じ画面で開く
+> （ホーム画面アプリで戻れなくなるため。ページ上部に「閉じる」）。以下は導入時の記録。
 - 管理者が勤務ルールを記載した文書（jpg/png/pdf、20MBまで）をアップロードでき、従業員・管理者とも
   ハンバーガーメニュー「勤務ルール」からいつでも閲覧できる機能。
 - **保存先**: Supabase Storageの非公開バケット `work-rules`。固定パス `document` に常に上書き保存する
@@ -2485,7 +2494,7 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
 ### 24.3 管理画面
 - `/admin/calendar`（サイドバー「管理」→「営業カレンダー」）: `admin/calendar/page.tsx`・`ui.tsx`・`actions.ts`。
   - ヘッダー: 1行目に ＜ 年月 ＞ と右寄せのアイコン
-    👁 ホームページでの見え方 / 🖼 ポスター / ⚙ 営業時間の定義 / 🎨 イベントの種類と色（設定画面 `#event-types`）、
+    👁 ホームページでの見え方 / 🖼 ポスター / ⚙ 営業と勤務時間 / 🎨 イベントの種類と色（設定画面 `#event-types`）、
     **2行目に状態バッジ**（準備中=黄・公開中=緑・未作成=グレー）と、その右に説明文
     「日をタップすると変更できます。●：変更あり」（`text-xs`。**iPhoneでバッジと同じ1行に収めるため短くしている**。2026-09-23）。
     🔴 **状態バッジを年月と同じ行に置かないこと**（スマホで「2026 年10 月」と折り返す。2026-09-18にオーナー指摘で2行に分離。
@@ -2601,3 +2610,55 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
   縦罫線が週の下端まで到達・日付とチップの間隔1.2mm。PDF→PDF→画像の連続出力でプレビュー崩れなし。
   `buildPdfFromJpeg` の出力をスキルの `verify-pdf.mjs` と macOS CoreGraphics（qlmanage）で検証。
   本番でオーナーが実機確認済み（2026-09-18。問題なし）。
+
+## 25. 営業と勤務時間・勤務ルール画面（2026-09-24追加）
+営業時間の変更（2026-10-01〜）に連動して勤務時間も変わるため、営業時間・シフト枠・休憩時間を
+**1つの適用開始日でセット**に管理し、シフト・勤務表・給与計算・勤務ルールの表示をすべて「その日に有効な定義」で行う。
+
+### 25.1 データベース（マイグレーション `20260924081448_work_time_settings.sql`・`20260924120000_late_shift_end_overnight.sql`、本番適用済み）
+- `work_time_settings(effective_from, key, value)`: シフト枠・休憩時間の定義。キーは
+  `shift_slot_{a,b,c}_{label,start,end}` / `shift_slot_b_end_overnight` / `break_window_{1,2,3}_{start,end}`（check 制約あり）。
+  RLS: ログイン済みは SELECT 可、書き込みは管理者のみ。適用開始日の集合は `business_hour_patterns` と同じ（2000-01-01＝最初の定義）。
+- `work_setting_at(date, key)`: **キーごとに、その日以前で最も新しい適用開始日の値**。TS の `workSettingsAt()`（`lib/work-time.ts`）と同じ規則。
+- `save_hours_version(from, patterns, settings)` / `delete_hours_version(from)`: 営業時間6区分＋シフト枠・休憩を1トランザクションで保存・削除
+  （管理者のみ。最初の定義は削除不可）。
+- 遅番の終了: `shift_slot_b_end` =「翌日まで通しの日」**以外**の日の終了、`shift_slot_b_end_overnight` = 通しの日の終了。
+  `is_overnight_day(date)` = 営業カレンダー `business_days`（手で直した日を含む。open かつ overnight）、未作成の月は営業時間の定義
+  （`business_day_type`×適用開始日）。`slot_end_at(date, slot)` が枠の既定の終了を返す。`overnight_days(start, end)` は期間内の通しの日（画面用）。
+- `get_shift_status()`・`collect_punch_alerts()` は枠の開始を `work_setting_at`、終了を `slot_end_at` で日ごとに決める。
+  `calendar_feed()` は `slot_versions`（適用開始日つきの枠）と、各シフトの `overnight` を返す。
+- 移行: 既存の app_settings の値を 2000-01-01 と 2026-10-01 の両方に写した（`shift_slot_b_end_overnight` は `b_end` と同じ値）。
+  移行前後で `get_shift_status()` の結果が一致することを確認済み。
+
+### 25.2 アプリ側の引き方（`src/lib/work-time.ts`・`src/lib/shifts.ts`・`src/lib/breaks.ts`）
+- `breakWindowsResolver(rows)` → 勤務日 → 休憩帯。`computePayslip()` の `breakWindows` は配列または勤務日→休憩帯の関数（`BreakWindowsSource`）。
+  給与計算・締めの日別明細・日別・勤務表（表示/保存）・QR退勤は**勤務日**の定義で休憩・深夜を計算する。
+- `slotsResolver(rows, overnightDates)` → 勤務日 → 枠（遅番は通しの日なら `endOvernight` を終了に。`slotsForDay()`）。
+  `buildShiftMap()` は枠の固定値か日付→枠の関数を受け取る。シフト表（`loadShiftData` が `slotVersions`・`overnightDates` を返す）・
+  勤務表・ICS が使う。**クライアント部品には関数を渡せない**ので、行データ（`WorkTimeSettingRow[]`）と通しの日の配列を渡して部品内で resolver を作る。
+- シフト表の下の枠時刻一覧は廃止し、「早番・遅番・深夜の勤務時間・休憩時間はこちら」（`/work-rules`）のリンクに置き換えた。
+
+### 25.3 画面「営業と勤務時間」（`/admin/calendar/patterns`）
+- 管理メニュー（従業員｜配信｜営業カレンダー｜**営業と勤務時間**｜設定｜税額表｜操作ログ）と営業カレンダー右上の⚙から開く。
+  `admin/nav.tsx` の `isActive` は、より詳しいメニュー（/admin/calendar/patterns）が一致するときは親（/admin/calendar）を選択中にしない。
+- 適用開始日：［一覧］で定義を選ぶ（末尾「＋ 適用開始日を追加」＝開いている定義を写して開始）。営業時間 → シフト枠 → 休憩時間 → 保存。
+  遅番の終了は「通しの日」「それ以外」の2欄。保存は `saveHourPatterns(effectiveFrom, patterns, workTime, regenerate)` →
+  `save_hours_version`。変更後は `revalidatePath("/", "layout")`（シフト・勤務表・給与など全体に影響するため）。
+- 設定画面からシフト枠・休憩時間を削除し、「シフト予定表」（1日始まり `shift_month_start`）だけ残した（`updateShiftMonthStart`）。
+
+### 25.4 勤務ルール画面（`/work-rules`）
+- 表示方法は設定画面「勤務ルール」で切替（`app_settings.work_rules_mode`: `generated`=既定 / `image`=アップロード文書）。
+- `generated`: 元の画像（iCloud「オオミナミ勤務ルール.jpg」）と同じ構成の書類を、**今日有効な定義**から組み立てる
+  （`app/work-rules/WorkRulesView.tsx` の `WorkRulesDocument`）。各番の休憩（基準）・深夜勤務時間は `lib/work-rules.ts` の
+  `buildShiftRules()` が**給与計算と同じ関数**（`standardBreakMinutes`/`nightMinutes`/`shiftRange`/`NIGHT_BAND`）で求める。時刻は深夜0時＝「0:00」。
+  遅番は「翌日まで通しの日」を本体に、違う部分だけ「通しでない日: 〜23:00」「通しでない日: 〜23:00（1時間）」と小さく添える（深夜は枠の内側）。
+  書類右上に「2026年10月1日 版」（最初の定義は「初版」）。
+- ヘッダー（`WorkRulesHeader.tsx`。上部固定）: 勤務ルール｜適用開始日の切替「現在｜10/1〜」（先の定義で表示内容が変わるものだけ。`?from=`）｜
+  PDF｜閉じる（アプリ内から来たら履歴を戻る、それ以外は `/`）。PCサイドバーはモーダル内の iframe（`/work-rules?embed=1`、閉じるは出さない）。
+  🔴 全パスの `X-Frame-Options: DENY` だと iframe が真っ白になるため、`next.config.ts` で `/work-rules` だけ `SAMEORIGIN`＋`frame-ancestors 'self'`。
+- 段組みは画面幅ではなく**コンテナクエリ**（`@container` / `@xl:`=36rem以上で3列）。
+- PDF: 画面外（left:-10000px）に幅794px（A4の96dpi換算）で置いた書類（id `work-rules-a4`）を `poster-export.ts` の
+  `captureFitA4Pdf()`（ポスターと同じ html2canvas-pro＋計算済みスタイル焼き込み＋`buildPdfFromJpeg`）で画像化し、
+  縦横比を保ったまま余白8mmの内側に収めて **A4縦1枚**にする → 共通の `PdfPreviewDialog`（ダウンロード/共有）。
+  ヘッドレス Chrome で生成確認（1ページ・約540KB）。
+
