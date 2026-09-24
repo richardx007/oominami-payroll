@@ -3502,6 +3502,9 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   PCサイドバーのモーダルは generated なら `/work-rules` を iframe で表示。
 - シフト表の下の枠時刻一覧を廃止し、「早番・遅番・深夜の勤務時間・休憩時間はこちら」のリンク（/work-rules・別タブ）に置き換え。
 - 確認: vitest 119件（`work-rules.test.ts` で既定値が元の画像と同じ内容になることを確認）・tsc・next build、ローカルで375px/900px幅の表示を確認。
+- 🔴 デプロイ後、PC（Mac）のサイドバーから開くと**モーダルが真っ白**だった。全パスに付けている `X-Frame-Options: DENY` が同一アプリの iframe も拒否していたため。
+  `next.config.ts` で `/work-rules` だけ `SAMEORIGIN` + `frame-ancestors 'self'` に変更（他サイトからの埋め込みは不可のまま）。
+  **iframe で自アプリの画面を出すときは、このヘッダーを必ず確認すること。**
 
 **次にやること**
 1. （完了）フェーズ5の実機確認。以後は毎月15日 12:00 に翌々月分が自動作成・通知される。

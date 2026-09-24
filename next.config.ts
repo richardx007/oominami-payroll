@@ -29,8 +29,9 @@ const nextConfig: NextConfig = {
       {
         // クリックジャッキング・MIMEスニッフィング対策等の基本的なセキュリティヘッダー。
         // 給与・個人情報を扱う画面のため全パスに適用する。
-        // ただしホームページに iframe で埋め込む営業カレンダー(/calendar/embed)は除く(下の設定)。
-        source: "/:path((?!calendar/embed).*)",
+        // ただしホームページに iframe で埋め込む営業カレンダー(/calendar/embed)と、
+        // PCサイドバーのモーダルで iframe 表示する勤務ルール(/work-rules)は除く(下の設定)。
+        source: "/:path((?!calendar/embed|work-rules).*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
@@ -44,6 +45,23 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "geolocation=(self), camera=(), microphone=()",
           },
+        ],
+      },
+      {
+        // 勤務ルール。PCサイドバーの「勤務ルール」はモーダル内の iframe で表示するため、
+        // 同じアプリ(同一オリジン)からの埋め込みだけ許可する(他サイトからは不可のまま)。
+        // ⚠️ DENY のままだとモーダルが真っ白になる(2026-09-24 発生)。
+        source: "/work-rules",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
+          { key: "Permissions-Policy", value: "geolocation=(), camera=(), microphone=()" },
         ],
       },
       {
