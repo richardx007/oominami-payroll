@@ -7,6 +7,7 @@ import {
   updateShiftMonthStart,
   updatePayslipIssuer,
   updateTimesheetLock,
+  updateWorkRulesMode,
   uploadWorkRules,
 } from "./actions";
 import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
@@ -321,14 +322,19 @@ export function TestSendForm({ defaultEmail }: { defaultEmail: string }) {
 
 /** 勤務ルール文書(jpg/png/pdf)のアップロード。既存文書があれば置き換える。 */
 export function WorkRulesForm({
+  mode,
   currentFilename,
   previewUrl,
 }: {
+  /** メニュー「勤務ルール」の表示方法。generated=「営業と勤務時間」から組み立てた画面 / image=アップロードした文書 */
+  mode: "generated" | "image";
   currentFilename: string | null;
   previewUrl: string | null;
 }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const [modeResult, setModeResult] = useState<ActionResult | null>(null);
+  const [modePending, startModeTransition] = useTransition();
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -336,9 +342,48 @@ export function WorkRulesForm({
         勤務ルール
       </h2>
       <p className="mt-1 text-sm text-gray-500">
-        勤務ルールを記載した文書(jpg・png・pdf)をアップロードします。従業員・管理者ともメニューの
-        「勤務ルール」からいつでも確認できます。
+        従業員・管理者ともメニューの「勤務ルール」からいつでも確認できます。表示する内容を選んでください。
       </p>
+      <form
+        action={(fd) =>
+          startModeTransition(async () => setModeResult(await updateWorkRulesMode(fd)))
+        }
+        className="mt-3 space-y-2"
+      >
+        <label className="flex items-start gap-2 text-sm">
+          <input type="radio" name="mode" value="generated" defaultChecked={mode === "generated"} className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <span className="font-medium text-gray-800">「営業と勤務時間」の設定から作った画面</span>
+            <span className="block text-xs text-gray-500">
+              各番の勤務時間・休憩時間・深夜勤務時間を、今日有効な定義で表示します(先の定義があれば切り替えて見られます)。{" "}
+              <a href="/work-rules" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                表示を確認
+              </a>
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="radio" name="mode" value="image" defaultChecked={mode === "image"} className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <span className="font-medium text-gray-800">アップロードした文書(下で登録)</span>
+            <span className="block text-xs text-gray-500">jpg・png・pdf をそのまま表示します。時刻は自動では変わりません。</span>
+          </span>
+        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            disabled={modePending}
+            className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {modePending ? "保存中..." : "表示方法を保存する"}
+          </button>
+          {modeResult && (
+            <p className={`text-sm ${modeResult.ok ? "text-green-700" : "text-red-600"}`}>
+              {modeResult.message}
+            </p>
+          )}
+        </div>
+      </form>
+      <p className="mt-4 text-sm font-medium text-gray-700">文書のアップロード</p>
       {currentFilename && (
         <p className="mt-2 text-sm text-gray-600">
           現在の登録:{" "}

@@ -75,6 +75,7 @@ export default async function SettingsPage() {
       />
       <EventTypesForm types={(eventTypes ?? []) as EventTypeRow[]} />
       <WorkRulesForm
+        mode={settingsMap.get("work_rules_mode") === "image" ? "image" : "generated"}
         currentFilename={settingsMap.get("work_rules_filename") ?? null}
         previewUrl={workRulesPreviewUrl}
       />

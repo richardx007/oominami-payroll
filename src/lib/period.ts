@@ -208,14 +208,14 @@ export function workMinutes(
 }
 
 // 深夜帯 = 22:00(1320分)〜翌5:00(1740分=29:00)
-const NIGHT_BAND: [number, number] = [22 * 60, 29 * 60];
+export const NIGHT_BAND: [number, number] = [22 * 60, 29 * 60];
 
 function overlapLen(a0: number, a1: number, b0: number, b1: number): number {
   return Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
 }
 
 /** 出退勤時刻から勤務区間 [開始, 終了) を分で返す(日跨ぎは終了に24時間加算) */
-function shiftRange(startTime: string, endTime: string): [number, number] {
+export function shiftRange(startTime: string, endTime: string): [number, number] {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
   const start = sh * 60 + sm;

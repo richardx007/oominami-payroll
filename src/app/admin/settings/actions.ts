@@ -316,6 +316,30 @@ export async function importTaxTable(
   }
 }
 
+/**
+ * メニュー「勤務ルール」の表示方法を保存する。
+ * generated=「営業と勤務時間」の定義から組み立てた画面(既定) / image=アップロードした文書。
+ */
+export async function updateWorkRulesMode(formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const mode = formData.get("mode");
+  if (mode !== "generated" && mode !== "image") {
+    return { ok: false, message: "表示方法を選んでください" };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert({ key: "work_rules_mode", value: mode }, { onConflict: "key" });
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/work-rules");
+  return {
+    ok: true,
+    message: mode === "image" ? "アップロードした文書を表示します" : "「営業と勤務時間」から作った画面を表示します",
+  };
+}
+
 const WORK_RULES_ALLOWED_TYPES = [
   "image/jpeg",
   "image/png",

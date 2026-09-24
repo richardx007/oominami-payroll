@@ -226,6 +226,7 @@ function GroupToggle({
 /** 勤務ルール画像を同ページ上に重ねて表示するモーダル。 */
 function WorkRulesModal({ onClose }: { onClose: () => void }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [isPage, setIsPage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -233,7 +234,10 @@ function WorkRulesModal({ onClose }: { onClose: () => void }) {
     getWorkRulesUrl()
       .then((r) => {
         if (!alive) return;
-        if ("url" in r) setUrl(r.url);
+        if ("url" in r) {
+          setUrl(r.url);
+          setIsPage(!!r.page);
+        }
         else setError(r.error);
       })
       .catch(() => {
@@ -271,6 +275,9 @@ function WorkRulesModal({ onClose }: { onClose: () => void }) {
         <div className="overflow-auto p-4 text-center">
           {error ? (
             <p className="py-8 text-sm text-gray-500">{error}</p>
+          ) : url && isPage ? (
+            // 「営業と勤務時間」から組み立てた勤務ルール画面
+            <iframe src={url} title="勤務ルール" className="h-[75vh] w-full rounded-lg border-0" />
           ) : url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

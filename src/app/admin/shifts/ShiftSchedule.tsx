@@ -13,7 +13,6 @@ import {
   nicknameStyle,
   previousDate,
   shiftNoteLabel,
-  slotHourRangeLabel,
   todayNicknameStyle,
   toInputTime,
   type NicknameStyle,
@@ -237,22 +236,6 @@ export function ShiftSchedule({
   // 日付 → その日のシフト枠(適用開始日で変わる)
   const slotsOf = useMemo(() => slotsResolver(slotVersions), [slotVersions]);
 
-  // 枠の時刻一覧に出す定義の区切り(期間の途中で定義が変わる場合は複数)
-  const legendRanges = useMemo(() => {
-    const starts = [
-      period.start,
-      ...[...new Set(slotVersions.map((v) => v.effective_from))]
-        .filter((d) => d > period.start && d <= period.end)
-        .sort(),
-    ];
-    const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
-    // 区切りが1つだけ(期間中に変更なし)ならラベルは出さない。
-    // ⚠️ starts[1] が無いときに previousDate() を呼ぶと Invalid Date で例外になる(2026-09-24 本番で画面が開けなくなった)
-    return starts.map((from, i) => ({
-      from,
-      label: starts.length === 1 ? "" : i === 0 ? `〜${md(previousDate(starts[1]))}` : `${md(from)}〜`,
-    }));
-  }, [slotVersions, period.start, period.end]);
 
   /**
    * その従業員・その日の勤務表(該当日を選択済み)へのリンク。
@@ -646,24 +629,18 @@ export function ShiftSchedule({
         </div>
         </div>
 
-        {/* シフト枠の時刻一覧(定義ごとに1行) + 補足説明。従業員・管理者どちらの画面にも表示する。
-            期間の途中で定義が変わる場合は「〜9/30」「10/1〜」のように分けて出す */}
-        {legendRanges.map((r) => {
-          const def = slotsOf(r.from);
-          return (
-            <p key={r.from} className="text-xs text-gray-600">
-              {legendRanges.length > 1 && (
-                <span className="font-semibold">{r.label} </span>
-              )}
-              {SLOT_KEYS.map((k, i) => (
-                <span key={k}>
-                  {i > 0 && "、"}
-                  {def[k].label} {slotHourRangeLabel(def[k])}
-                </span>
-              ))}
-            </p>
-          );
-        })}
+        {/* 各番の勤務時間・休憩時間は勤務ルール画面(「営業と勤務時間」の定義から作る)で見る。
+            従業員・管理者どちらの画面にも表示する */}
+        <p className="text-xs">
+          <a
+            href="/work-rules"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-blue-700 underline underline-offset-2"
+          >
+            {SLOT_KEYS.map((k) => slotsOf(today)[k].label).join("・")}の勤務時間・休憩時間はこちら
+          </a>
+        </p>
         <p className="text-xs font-medium">
           <span className="text-gray-800">太字＝実績入力済み。</span>
           <span className="text-red-600">赤太字＝予定と実績が相違。</span>
