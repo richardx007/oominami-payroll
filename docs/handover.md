@@ -3489,6 +3489,9 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - app_settings の旧キー・`get_break_settings()`・`get_shift_settings()` の shift_slot 部分はもう使わない（デプロイ切替中の旧コード用に残置。次回以降に削除可）。
 - 確認: マイグレーション前後で `get_shift_status()` の結果（2026年・383行）が完全一致。管理者として保存→削除をDB上で実行（ロールバック済み）。
   vitest 115件（`work-time.test.ts` 追加）・tsc・eslint（既存の6件のみ）・next build。
+- 🔴 デプロイ直後、シフト表（管理者ホーム・従業員 /shifts）が「This page couldn't load」で開けなくなった（e9c0cae で修正）。
+  枠の時刻一覧の区切りが1つだけの月（シフト表が1日始まりの9月など）で `previousDate(undefined)` → Invalid Date の例外。
+  ログイン必須の画面を公開前に実際に開いて確認していなかったのが原因。**シフト表を触ったら、切替のある月・無い月の両方を開いて確認すること。**
 
 **次にやること**
 1. （完了）フェーズ5の実機確認。以後は毎月15日 12:00 に翌々月分が自動作成・通知される。
