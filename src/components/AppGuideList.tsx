@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { audienceLabel, linkKind, type AppGuide } from "@/lib/app-guides";
+import { linkKind, type AppGuide } from "@/lib/app-guides";
 
 const KIND_LABEL = { drive: "Google ドライブで開く", youtube: "YouTube で開く", web: "開く" } as const;
 
 /** アプリの解説の一覧（/admin/guides・/guides で共用）。
  * アプリに保存した動画は同じタブの再生画面（/watch/[id]）、URL は別タブで開く */
-export function AppGuideList({ guides, showAudience = false }: { guides: AppGuide[]; showAudience?: boolean }) {
+export function AppGuideList({ guides }: { guides: AppGuide[] }) {
   if (guides.length === 0) {
     return (
       <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
@@ -24,14 +24,10 @@ export function AppGuideList({ guides, showAudience = false }: { guides: AppGuid
             <span className="min-w-0 flex-1">
               <span className="block font-bold text-gray-900">{g.title}</span>
               {g.summary && <span className="mt-1 block whitespace-pre-line text-sm text-gray-600">{g.summary}</span>}
-              <span className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                <span className="font-semibold text-blue-700">
-                  {g.video_path ? "▶ 動画を見る" : `${KIND_LABEL[linkKind(g.url ?? "")]} ↗`}
-                </span>
-                {showAudience && (
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">公開対象: {audienceLabel(g)}</span>
-                )}
-              </span>
+              {/* URL の項目だけ、別タブで開くことが分かるように開き先を添える（動画はアプリ内の再生画面） */}
+              {!g.video_path && (
+                <span className="mt-2 block text-xs font-semibold text-blue-700">{KIND_LABEL[linkKind(g.url ?? "")]} ↗</span>
+              )}
             </span>
           </>
         );

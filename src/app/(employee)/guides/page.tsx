@@ -17,7 +17,6 @@ export default async function GuidesPage() {
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <h1 className="text-lg font-bold">アプリの解説</h1>
-      <p className="text-sm text-gray-500">操作説明の動画・資料です。タップすると別のタブで開きます。</p>
       <AppGuideList guides={(data ?? []) as AppGuide[]} />
     </div>
   );

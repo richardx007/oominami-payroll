@@ -503,6 +503,8 @@ const guideSchema = z
     url: z.string().trim().max(1000, "URLが長すぎます"),
     video_path: z.string().nullable(),
     video_size: z.number().int().nonnegative().nullable(),
+    /** 動画ファイルの作成日時（ISO。未入力は null） */
+    video_created_at: z.iso.datetime({ offset: true }).nullable(),
     summary: z.string().trim().max(GUIDE_SUMMARY_MAX, `概略は${GUIDE_SUMMARY_MAX}文字までです`),
     for_admin: z.boolean(),
     for_employee: z.boolean(),
@@ -539,6 +541,7 @@ export async function saveAppGuide(input: z.input<typeof guideSchema>): Promise<
     url: isVideo ? null : g.url,
     video_path: isVideo ? g.video_path : null,
     video_size: isVideo ? g.video_size : null,
+    video_created_at: isVideo ? g.video_created_at : null,
     summary: g.summary,
     for_admin: g.for_admin,
     for_employee: g.for_employee,

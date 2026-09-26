@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { AppGuideList } from "@/components/AppGuideList";
@@ -17,14 +16,8 @@ export default async function AdminGuidesPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">アプリの解説</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          操作説明の動画・資料です。タップすると別のタブで開きます。
-          追加・変更は<Link href="/admin/settings#app-guides" className="text-blue-700 underline">設定の「アプリの解説」</Link>で行います。
-        </p>
-      </div>
-      <AppGuideList guides={(data ?? []) as AppGuide[]} showAudience />
+      <h1 className="text-xl font-bold">アプリの解説</h1>
+      <AppGuideList guides={(data ?? []) as AppGuide[]} />
     </div>
   );
 }

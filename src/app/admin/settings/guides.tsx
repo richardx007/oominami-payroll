@@ -11,6 +11,9 @@ import {
   GUIDE_VIDEO_BUCKET,
   GUIDE_VIDEO_MAX,
   GUIDE_VIDEO_TYPES,
+  formatJstDateTime,
+  isoToJstInput,
+  jstInputToIso,
   STORAGE_FREE_BYTES,
   type AppGuide,
 } from "@/lib/app-guides";
@@ -105,8 +108,15 @@ function GuideRow({ guide, index, first, last }: { guide: AppGuide; index: numbe
           </span>
           {guide.title}
         </td>
-        <td className="max-w-[18rem] truncate px-3 py-2 text-gray-600" title={guide.summary}>
-          {guide.summary || <span className="text-gray-400">—</span>}
+        <td className="max-w-[18rem] px-3 py-2 text-gray-600">
+          <span className="block truncate" title={guide.summary}>
+            {guide.summary || <span className="text-gray-400">—</span>}
+          </span>
+          {guide.video_path && (
+            <span className="mt-0.5 block whitespace-nowrap text-xs text-gray-500">
+              作成日時: {guide.video_created_at ? formatJstDateTime(guide.video_created_at) : "未登録"}
+            </span>
+          )}
         </td>
         <td className="whitespace-nowrap px-3 py-2 text-right">
           <span className="inline-flex gap-1">
@@ -145,6 +155,8 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
   const [kind, setKind] = useState<Kind>(guide && !guide.video_path ? "url" : "video");
   const [url, setUrl] = useState(guide?.url ?? "");
   const [file, setFile] = useState<File | null>(null);
+  // 動画ファイルの作成日時（日本時間の datetime-local の値）
+  const [createdAt, setCreatedAt] = useState(isoToJstInput(guide?.video_created_at));
   const [summary, setSummary] = useState(guide?.summary ?? "");
   const [forAdmin, setForAdmin] = useState(guide?.for_admin ?? true);
   const [forEmployee, setForEmployee] = useState(guide?.for_employee ?? false);
@@ -167,6 +179,8 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
       return;
     }
     setFile(f);
+    // ブラウザからはファイルの作成日時そのものは取れないため、最終更新日時を初期値にする（手で直せる）
+    if (f) setCreatedAt(isoToJstInput(new Date(f.lastModified).toISOString()));
   }
 
   function save() {
@@ -201,6 +215,7 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
         url,
         video_path: videoPath,
         video_size: videoSize,
+        video_created_at: kind === "video" ? jstInputToIso(createdAt) : null,
         summary,
         for_admin: forAdmin,
         for_employee: forEmployee,
@@ -276,6 +291,17 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
           />
           {file && <p className="text-xs text-gray-600">選んだファイル: {file.name}（{formatBytes(file.size)}）</p>}
           <p className="text-xs text-gray-500">mp4 で {formatBytes(GUIDE_VIDEO_MAX)} まで。</p>
+          {/* iOS の日時入力は指定幅より広く描画されるため、横に並べず1行で置く */}
+          <label className="block pt-1">
+            <span className="mb-1 block text-xs font-medium text-gray-500">動画ファイルの作成日時</span>
+            <input
+              type="datetime-local"
+              value={createdAt}
+              onChange={(e) => setCreatedAt(e.target.value)}
+              className={`${inputClass} appearance-none bg-white`}
+            />
+            <span className="mt-1 block text-xs text-gray-500">動画を選ぶと、ファイルの更新日時が入ります。違う場合は直してください。</span>
+          </label>
         </div>
       ) : (
         <label className="block">
