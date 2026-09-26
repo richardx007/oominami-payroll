@@ -279,6 +279,11 @@ function DeviceNotificationSection({
       setDeviceMsg(res);
       // 失効していた場合はサーバー側で購読を消しているので、表示も未登録に戻す
       if (!res.ok && res.message.includes("無効")) {
+        // 🔴 ブラウザ側の購読も必ず解除する。subscribeThisDevice() は既存の購読を再利用するため、
+        //    ここで残すと「受け取る」を押しても同じ失効済みの endpoint を登録し直し、何度やっても
+        //    「無効になっていました」が繰り返される(2026-09-26 Mac の Chrome PWA で、macOS の
+        //    通知設定を変えた直後に Google 側で購読が失効して発生)。
+        await unsubscribeThisDevice().catch(() => null);
         setDeviceOn(false);
         setEndpoint(null);
       }
