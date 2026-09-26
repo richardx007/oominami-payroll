@@ -10,7 +10,13 @@ import {
   SEAL_ALLOWED_TYPES,
   SEAL_MAX_SIZE,
 } from "@/lib/payslip-issuer";
-import { audienceLabel, GUIDE_SUMMARY_MAX, GUIDE_TITLE_MAX } from "@/lib/app-guides";
+import {
+  audienceLabel,
+  GUIDE_SUMMARY_MAX,
+  GUIDE_TITLE_MAX,
+  GUIDE_VIDEO_BUCKET,
+  GUIDE_VIDEO_PATH_RE,
+} from "@/lib/app-guides";
 import type { ActionResult } from "../employees/actions";
 
 const emailSettingsSchema = z.object({
@@ -487,25 +493,38 @@ export async function updatePayslipIssuer(
 
 // ---- アプリの解説（操作説明の動画・資料へのリンク）----
 
+// 動画はブラウザから Storage へ直接アップロードし（Workers を通すと CPU 時間・リクエストサイズの上限に当たる）、
+// ここでは保存先のパスと大きさだけを受け取って記録する。
 const guideSchema = z
   .object({
     id: z.uuid().nullable(),
     title: z.string().trim().min(1, "タイトルを入力してください").max(GUIDE_TITLE_MAX, `タイトルは${GUIDE_TITLE_MAX}文字までです`),
-    url: z
-      .string()
-      .trim()
-      .max(1000, "URLが長すぎます")
-      .refine((u) => /^https?:\/\/\S+$/.test(u), "URLは https:// から始まる形で入力してください"),
+    kind: z.enum(["video", "url"]),
+    url: z.string().trim().max(1000, "URLが長すぎます"),
+    video_path: z.string().nullable(),
+    video_size: z.number().int().nonnegative().nullable(),
     summary: z.string().trim().max(GUIDE_SUMMARY_MAX, `概略は${GUIDE_SUMMARY_MAX}文字までです`),
     for_admin: z.boolean(),
     for_employee: z.boolean(),
   })
-  .refine((g) => g.for_admin || g.for_employee, { message: "公開対象を1つ以上選んでください" });
+  .refine((g) => g.for_admin || g.for_employee, { message: "公開対象を1つ以上選んでください" })
+  .refine((g) => g.kind !== "url" || /^https?:\/\/\S+$/.test(g.url), {
+    message: "URLは https:// から始まる形で入力してください",
+  })
+  .refine((g) => g.kind !== "video" || (g.video_path != null && GUIDE_VIDEO_PATH_RE.test(g.video_path)), {
+    message: "動画ファイルを選んでください",
+  });
 
 function revalidateGuides() {
   revalidatePath("/admin/settings");
   revalidatePath("/admin/guides");
   revalidatePath("/guides");
+}
+
+/** 使わなくなった動画を Storage から消す（失敗しても保存自体は成功扱い。容量が残るだけ） */
+async function removeGuideVideo(supabase: Awaited<ReturnType<typeof createClient>>, path: string | null | undefined) {
+  if (!path) return;
+  await supabase.storage.from(GUIDE_VIDEO_BUCKET).remove([path]);
 }
 
 export async function saveAppGuide(input: z.input<typeof guideSchema>): Promise<ActionResult> {
@@ -514,9 +533,12 @@ export async function saveAppGuide(input: z.input<typeof guideSchema>): Promise<
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
   const g = parsed.data;
   const supabase = await createClient();
+  const isVideo = g.kind === "video";
   const row = {
     title: g.title,
-    url: g.url,
+    url: isVideo ? null : g.url,
+    video_path: isVideo ? g.video_path : null,
+    video_size: isVideo ? g.video_size : null,
     summary: g.summary,
     for_admin: g.for_admin,
     for_employee: g.for_employee,
@@ -525,7 +547,10 @@ export async function saveAppGuide(input: z.input<typeof guideSchema>): Promise<
   };
 
   let error;
+  let oldVideo: string | null = null;
   if (g.id) {
+    const { data: before } = await supabase.from("app_guides").select("video_path").eq("id", g.id).maybeSingle();
+    oldVideo = before?.video_path ?? null;
     ({ error } = await supabase.from("app_guides").update(row).eq("id", g.id));
   } else {
     const { data: last } = await supabase
@@ -537,8 +562,13 @@ export async function saveAppGuide(input: z.input<typeof guideSchema>): Promise<
     ({ error } = await supabase.from("app_guides").insert({ ...row, sort_order: (last?.sort_order ?? 0) + 1 }));
   }
   if (error) return { ok: false, message: "保存に失敗しました" };
+  // 動画を差し替えた・URL に切り替えた場合は、前の動画を消す
+  if (oldVideo && oldVideo !== row.video_path) await removeGuideVideo(supabase, oldVideo);
 
-  await logActivity(g.id ? "アプリの解説を変更" : "アプリの解説を追加", `${g.title}（${audienceLabel(g)}）`);
+  await logActivity(
+    g.id ? "アプリの解説を変更" : "アプリの解説を追加",
+    `${g.title}（${isVideo ? "動画" : "URL"}・${audienceLabel(g)}）`
+  );
   revalidateGuides();
   return { ok: true, message: `「${g.title}」を保存しました` };
 }
@@ -547,11 +577,26 @@ export async function deleteAppGuide(id: string): Promise<ActionResult> {
   await requireAdmin();
   if (!z.uuid().safeParse(id).success) return { ok: false, message: "指定が正しくありません" };
   const supabase = await createClient();
-  const { data, error } = await supabase.from("app_guides").delete().eq("id", id).select("title").maybeSingle();
+  const { data, error } = await supabase
+    .from("app_guides")
+    .delete()
+    .eq("id", id)
+    .select("title, video_path")
+    .maybeSingle();
   if (error || !data) return { ok: false, message: "削除できませんでした" };
+  await removeGuideVideo(supabase, data.video_path);
   await logActivity("アプリの解説を削除", data.title);
   revalidateGuides();
   return { ok: true, message: `「${data.title}」を削除しました` };
+}
+
+/** アップロードしたが保存しなかった動画を消す（保存に失敗したとき・やめたとき）。どこからも使われていないものだけ */
+export async function discardGuideVideo(path: string): Promise<void> {
+  await requireAdmin();
+  if (!GUIDE_VIDEO_PATH_RE.test(path)) return;
+  const supabase = await createClient();
+  const { data: used } = await supabase.from("app_guides").select("id").eq("video_path", path).maybeSingle();
+  if (!used) await removeGuideVideo(supabase, path);
 }
 
 /** 並び順を1つ上（-1）または下（+1）へ。隣の項目と sort_order を入れ替える */
