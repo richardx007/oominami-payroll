@@ -18,6 +18,9 @@ const CALENDAR_URL = "/calendar/embed";
 // 会社ホームページ(別タブで開く)
 const HOMEPAGE_URL = "https://www.oominami.com";
 
+// アプリの解説(操作説明の動画・資料へのリンク集。管理者が設定画面で登録)。関連情報／その他の最後に置く
+const GUIDES_HREF = "/guides";
+
 const SEEN_KEY = "notices_seen_at";
 const SEEN_EVENT = "notices-seen-changed";
 
@@ -90,7 +93,7 @@ export function EmployeeSidebarNav({
   const pathname = usePathname();
   const hasUnread = useNoticeUnread(latestNoticeAt);
   const [clockOpen, setClockOpen] = useState(false);
-  const [relatedOpen, setRelatedOpen] = useState(false);
+  const [relatedOpen, setRelatedOpen] = useState(() => pathname.startsWith(GUIDES_HREF));
   const mailtoHref = buildMailtoHref(adminEmail, companyName, employeeName);
 
   return (
@@ -175,6 +178,15 @@ export function EmployeeSidebarNav({
               <GlobeIcon className="h-6 w-6 shrink-0" />
               ホームページ
             </a>
+            <Link
+              href={GUIDES_HREF}
+              className={`${sidebarItemClass} pl-6 ${
+                pathname.startsWith(GUIDES_HREF) ? sidebarActiveClass : sidebarIdleClass
+              }`}
+            >
+              <PlayCircleIcon className="h-6 w-6 shrink-0" />
+              アプリの解説
+            </Link>
           </>
         )}
       </nav>
@@ -311,6 +323,14 @@ export function EmployeeNav({
               <GlobeIcon className="h-5 w-5 shrink-0" />
               ホームページ
             </a>
+            <Link
+              href={GUIDES_HREF}
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <PlayCircleIcon className="h-5 w-5 shrink-0" />
+              アプリの解説
+            </Link>
             {/* 区切り線の下にログアウト */}
             <form action={signOut} className="border-t-4 border-white/15">
               <button
@@ -625,6 +645,25 @@ function ChevronIcon({ className }: { className?: string }) {
       aria-hidden="true"
     >
       <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+/** アプリの解説（操作説明の動画）用のアイコン */
+function PlayCircleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 8.5v7l5.5-3.5z" />
     </svg>
   );
 }

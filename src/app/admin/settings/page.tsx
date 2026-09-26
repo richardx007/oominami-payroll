@@ -10,6 +10,8 @@ import {
 } from "./ui";
 import { ClockSettingsForm } from "./clock";
 import { EventTypesForm } from "./event-types";
+import { AppGuidesForm } from "./guides";
+import { APP_GUIDE_COLUMNS, type AppGuide } from "@/lib/app-guides";
 import type { EventTypeRow } from "@/lib/business-calendar-view";
 import { parsePayslipIssuer } from "@/lib/payslip-issuer";
 
@@ -25,6 +27,12 @@ export default async function SettingsPage() {
     .from("calendar_event_types")
     .select("id, name, color, sort_order, is_default")
     .order("sort_order");
+
+  const { data: guides } = await supabase
+    .from("app_guides")
+    .select(APP_GUIDE_COLUMNS)
+    .order("sort_order")
+    .order("created_at");
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
   const issuer = parsePayslipIssuer(settings ?? []);
@@ -79,6 +87,7 @@ export default async function SettingsPage() {
         currentFilename={settingsMap.get("work_rules_filename") ?? null}
         previewUrl={workRulesPreviewUrl}
       />
+      <AppGuidesForm guides={(guides ?? []) as AppGuide[]} />
     </div>
   );
 }

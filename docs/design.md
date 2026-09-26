@@ -2662,3 +2662,20 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
   縦横比を保ったまま余白8mmの内側に収めて **A4縦1枚**にする → 共通の `PdfPreviewDialog`（ダウンロード/共有）。
   ヘッドレス Chrome で生成確認（1ページ・約540KB）。
 
+
+## 26. アプリの解説（2026-09-26追加）
+操作説明の動画（Google ドライブ）や資料へのリンク集。管理者が設定画面で登録し、メニュー「アプリの解説」から開く。
+
+### 26.1 データベース（マイグレーション `20260926000000_app_guides.sql`、本番適用済み）
+- `app_guides(id, title, url, summary, for_admin, for_employee, sort_order, created_at, updated_at, updated_by)`。
+  タイトル60字・概略400字・URL は `http(s)://` で始まる1000字まで。公開対象は `for_admin`/`for_employee`（両方可・少なくとも1つ）。
+- RLS: SELECT は `is_admin() or for_employee`（従業員は従業員向けの行だけ）。書き込みは管理者のみ。
+
+### 26.2 画面
+- 登録: 設定画面の最後「アプリの解説」（`admin/settings/guides.tsx`、アンカー `#app-guides`）。タイトル・URL・概略・公開対象（管理者／従業員のチェック）。
+  追加・編集・削除（確認つき）・↑↓で並べ替え。サーバー処理は `admin/settings/actions.ts` の `saveAppGuide` / `deleteAppGuide` / `moveAppGuide`（操作ログに記録）。
+- 表示: 管理者 `/admin/guides`（`for_admin` の行。公開対象も表示）、従業員 `/guides`（`for_employee` の行）。共通部品 `components/AppGuideList.tsx`。
+  各行はリンク先を別タブで開く（Google ドライブ／YouTube／その他で「〜で開く」の表記を変える。`lib/app-guides.ts` の `linkKind`）。
+- メニュー: 管理者・従業員とも、PCサイドバーは「関連情報」グループの最後、スマホは「その他」の最後（ログアウトの上）。
+  その画面を開いているときは「関連情報」を開いた状態にし、スマホの「その他」を選択中の色にする。
+- Google ドライブの動画は共有設定を「リンクを知っている全員」（閲覧者）にしないと、従業員のアカウントでは開けない（設定画面に注意書き）。

@@ -1,0 +1,50 @@
+import { audienceLabel, linkKind, type AppGuide } from "@/lib/app-guides";
+
+const KIND_LABEL = { drive: "Google ドライブで開く", youtube: "YouTube で開く", web: "開く" } as const;
+
+/** アプリの解説の一覧（/admin/guides・/guides で共用）。リンクは別タブで開く */
+export function AppGuideList({ guides, showAudience = false }: { guides: AppGuide[]; showAudience?: boolean }) {
+  if (guides.length === 0) {
+    return (
+      <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
+        解説はまだありません
+      </p>
+    );
+  }
+  return (
+    <ul className="space-y-3">
+      {guides.map((g) => (
+        <li key={g.id}>
+          <a
+            href={g.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 transition hover:border-blue-400 hover:shadow-sm active:opacity-80"
+          >
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-600 text-white">
+              <PlayIcon className="h-6 w-6" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold text-gray-900">{g.title}</span>
+              {g.summary && <span className="mt-1 block whitespace-pre-line text-sm text-gray-600">{g.summary}</span>}
+              <span className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-semibold text-blue-700">{KIND_LABEL[linkKind(g.url)]} ↗</span>
+                {showAudience && (
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">公開対象: {audienceLabel(g)}</span>
+                )}
+              </span>
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PlayIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
+    </svg>
+  );
+}

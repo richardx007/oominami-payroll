@@ -30,6 +30,9 @@ const moreLinks = [
 // 会社ホームページ(別タブで開く)
 const HOMEPAGE_URL = "https://www.oominami.com";
 
+// アプリの解説(操作説明の動画・資料へのリンク集。設定画面で登録)。関連情報／その他の最後に置く
+const GUIDES_HREF = "/admin/guides";
+
 function matches(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
@@ -107,7 +110,7 @@ export function AdminSidebarNav() {
   // (null = 未操作。レンダー中に導出するので effect での setState は不要)
   const [manageOverride, setManageOverride] = useState<boolean | null>(null);
   const manageOpen = manageOverride ?? manageActive;
-  const [relatedOpen, setRelatedOpen] = useState(false);
+  const [relatedOpen, setRelatedOpen] = useState(() => isActive(pathname, GUIDES_HREF));
   const [rulesOpen, setRulesOpen] = useState(false);
 
   return (
@@ -187,6 +190,17 @@ export function AdminSidebarNav() {
               <GlobeIcon className="h-6 w-6 shrink-0" />
               ホームページ
             </a>
+            <Link
+              href={GUIDES_HREF}
+              className={`${sidebarItemClass} pl-6 ${
+                isActive(pathname, GUIDES_HREF)
+                  ? "bg-white text-[#152449]"
+                  : "text-blue-50 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <PlayCircleIcon className="h-6 w-6 shrink-0" />
+              アプリの解説
+            </Link>
           </>
         )}
       </nav>
@@ -300,7 +314,7 @@ function WorkRulesModal({ onClose }: { onClose: () => void }) {
 export function AdminBottomNav() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const moreActive = moreLinks.some((l) => isActive(pathname, l.href));
+  const moreActive = moreLinks.some((l) => isActive(pathname, l.href)) || isActive(pathname, GUIDES_HREF);
 
   return (
     <>
@@ -349,6 +363,14 @@ export function AdminBottomNav() {
               <GlobeIcon className="h-5 w-5 shrink-0" />
               ホームページ
             </a>
+            <Link
+              href={GUIDES_HREF}
+              onClick={() => setMenuOpen(false)}
+              className="flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+            >
+              <PlayCircleIcon className="h-5 w-5 shrink-0" />
+              アプリの解説
+            </Link>
             {/* 区切り線の下にログアウト(ヘッダーから移設) */}
             <form action={signOut} className="border-t-4 border-white/15">
               <button
@@ -682,3 +704,21 @@ function GlobeIcon({ className }: { className?: string }) {
   );
 }
 
+/** アプリの解説（操作説明の動画）用のアイコン */
+function PlayCircleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 8.5v7l5.5-3.5z" />
+    </svg>
+  );
+}

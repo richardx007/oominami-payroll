@@ -10,6 +10,7 @@ import {
   SEAL_ALLOWED_TYPES,
   SEAL_MAX_SIZE,
 } from "@/lib/payslip-issuer";
+import { audienceLabel, GUIDE_SUMMARY_MAX, GUIDE_TITLE_MAX } from "@/lib/app-guides";
 import type { ActionResult } from "../employees/actions";
 
 const emailSettingsSchema = z.object({
@@ -482,4 +483,94 @@ export async function updatePayslipIssuer(
   revalidatePath("/admin/settings");
   revalidatePath("/admin/close");
   return { ok: true, message: "給与明細PDFの支払元・印を保存しました" };
+}
+
+// ---- アプリの解説（操作説明の動画・資料へのリンク）----
+
+const guideSchema = z
+  .object({
+    id: z.uuid().nullable(),
+    title: z.string().trim().min(1, "タイトルを入力してください").max(GUIDE_TITLE_MAX, `タイトルは${GUIDE_TITLE_MAX}文字までです`),
+    url: z
+      .string()
+      .trim()
+      .max(1000, "URLが長すぎます")
+      .refine((u) => /^https?:\/\/\S+$/.test(u), "URLは https:// から始まる形で入力してください"),
+    summary: z.string().trim().max(GUIDE_SUMMARY_MAX, `概略は${GUIDE_SUMMARY_MAX}文字までです`),
+    for_admin: z.boolean(),
+    for_employee: z.boolean(),
+  })
+  .refine((g) => g.for_admin || g.for_employee, { message: "公開対象を1つ以上選んでください" });
+
+function revalidateGuides() {
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/guides");
+  revalidatePath("/guides");
+}
+
+export async function saveAppGuide(input: z.input<typeof guideSchema>): Promise<ActionResult> {
+  const admin = await requireAdmin();
+  const parsed = guideSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
+  const g = parsed.data;
+  const supabase = await createClient();
+  const row = {
+    title: g.title,
+    url: g.url,
+    summary: g.summary,
+    for_admin: g.for_admin,
+    for_employee: g.for_employee,
+    updated_at: new Date().toISOString(),
+    updated_by: admin.id,
+  };
+
+  let error;
+  if (g.id) {
+    ({ error } = await supabase.from("app_guides").update(row).eq("id", g.id));
+  } else {
+    const { data: last } = await supabase
+      .from("app_guides")
+      .select("sort_order")
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    ({ error } = await supabase.from("app_guides").insert({ ...row, sort_order: (last?.sort_order ?? 0) + 1 }));
+  }
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  await logActivity(g.id ? "アプリの解説を変更" : "アプリの解説を追加", `${g.title}（${audienceLabel(g)}）`);
+  revalidateGuides();
+  return { ok: true, message: `「${g.title}」を保存しました` };
+}
+
+export async function deleteAppGuide(id: string): Promise<ActionResult> {
+  await requireAdmin();
+  if (!z.uuid().safeParse(id).success) return { ok: false, message: "指定が正しくありません" };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("app_guides").delete().eq("id", id).select("title").maybeSingle();
+  if (error || !data) return { ok: false, message: "削除できませんでした" };
+  await logActivity("アプリの解説を削除", data.title);
+  revalidateGuides();
+  return { ok: true, message: `「${data.title}」を削除しました` };
+}
+
+/** 並び順を1つ上（-1）または下（+1）へ。隣の項目と sort_order を入れ替える */
+export async function moveAppGuide(id: string, dir: -1 | 1): Promise<ActionResult> {
+  await requireAdmin();
+  if (!z.uuid().safeParse(id).success) return { ok: false, message: "指定が正しくありません" };
+  const supabase = await createClient();
+  const { data: rows, error } = await supabase.from("app_guides").select("id, sort_order").order("sort_order").order("created_at");
+  if (error || !rows) return { ok: false, message: "並べ替えに失敗しました" };
+  const i = rows.findIndex((r) => r.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= rows.length) return { ok: true, message: "" };
+  // sort_order が重複していても確実に入れ替わるよう、一覧の位置で振り直す
+  const order = rows.map((r) => r.id);
+  [order[i], order[j]] = [order[j], order[i]];
+  for (let k = 0; k < order.length; k++) {
+    const { error: e } = await supabase.from("app_guides").update({ sort_order: k + 1 }).eq("id", order[k]);
+    if (e) return { ok: false, message: "並べ替えに失敗しました" };
+  }
+  revalidateGuides();
+  return { ok: true, message: "" };
 }
