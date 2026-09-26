@@ -2673,6 +2673,7 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
 
 ### 26.2 画面
 - 登録: 設定画面の最後「アプリの解説」（`admin/settings/guides.tsx`、アンカー `#app-guides`）。タイトル・URL・概略・公開対象（管理者／従業員のチェック）。
+  一覧は1項目1行の表（公開対象｜🎬/🔗 タイトル｜解説の冒頭｜↑↓編集。縞模様は `zebraRowClass`）。「編集」でその行の下にフォームを開く。
   追加・編集・削除（確認つき）・↑↓で並べ替え。サーバー処理は `admin/settings/actions.ts` の `saveAppGuide` / `deleteAppGuide` / `moveAppGuide`（操作ログに記録）。
 - 表示: 管理者 `/admin/guides`（`for_admin` の行。公開対象も表示）、従業員 `/guides`（`for_employee` の行）。共通部品 `components/AppGuideList.tsx`。
   各行はリンク先を別タブで開く（Google ドライブ／YouTube／その他で「〜で開く」の表記を変える。`lib/app-guides.ts` の `linkKind`）。

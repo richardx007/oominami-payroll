@@ -16,6 +16,7 @@ import {
 } from "@/lib/app-guides";
 import { deleteAppGuide, discardGuideVideo, moveAppGuide, saveAppGuide } from "./actions";
 import type { ActionResult } from "../employees/actions";
+import { zebraRowClass } from "@/lib/table";
 
 const inputClass =
   "w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm";
@@ -36,16 +37,33 @@ export function AppGuidesForm({ guides }: { guides: AppGuide[] }) {
         アプリに保存した動画: 合計 {formatBytes(used)}（無料枠の保存容量 {formatBytes(STORAGE_FREE_BYTES)} のうち）。
         再生のたびに通信量（無料枠は月5GB）を使います。
       </p>
-      <div className="mt-4 max-w-2xl space-y-2">
-        {guides.length === 0 && !adding && <p className="text-sm text-gray-400">まだ登録されていません。</p>}
-        {guides.map((g, i) => (
-          <GuideRow
-            key={`${g.id}-${g.title}-${g.url}-${g.video_path}-${g.summary}-${g.for_admin}-${g.for_employee}`}
-            guide={g}
-            first={i === 0}
-            last={i === guides.length - 1}
-          />
-        ))}
+      {guides.length === 0 && !adding && <p className="mt-4 text-sm text-gray-400">まだ登録されていません。</p>}
+      {guides.length > 0 && (
+        <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-blue-50/70 text-left text-xs text-gray-600">
+              <tr>
+                <th className="whitespace-nowrap px-3 py-2 font-semibold">公開対象</th>
+                <th className="whitespace-nowrap px-3 py-2 font-semibold">タイトル</th>
+                <th className="px-3 py-2 font-semibold">解説</th>
+                <th className="px-3 py-2" aria-label="操作" />
+              </tr>
+            </thead>
+            <tbody>
+              {guides.map((g, i) => (
+                <GuideRow
+                  key={`${g.id}-${g.title}-${g.url}-${g.video_path}-${g.summary}-${g.for_admin}-${g.for_employee}`}
+                  guide={g}
+                  index={i}
+                  first={i === 0}
+                  last={i === guides.length - 1}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="mt-3 max-w-2xl">
         {adding ? (
           <GuideEditor guide={null} onDone={() => setAdding(false)} />
         ) : (
@@ -61,8 +79,8 @@ export function AppGuidesForm({ guides }: { guides: AppGuide[] }) {
   );
 }
 
-/** 一覧の1行。上下ボタンで並べ替え、「編集」でフォームを開く */
-function GuideRow({ guide, first, last }: { guide: AppGuide; first: boolean; last: boolean }) {
+/** 一覧の1行（公開対象｜タイトル｜解説の冒頭｜↑↓編集）。「編集」でその下にフォームを開く */
+function GuideRow({ guide, index, first, last }: { guide: AppGuide; index: number; first: boolean; last: boolean }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -74,44 +92,47 @@ function GuideRow({ guide, first, last }: { guide: AppGuide; first: boolean; las
     });
   }
 
-  if (editing) return <GuideEditor guide={guide} onDone={() => setEditing(false)} />;
-
+  const btn = "rounded-lg border px-2 py-1 text-sm disabled:opacity-30";
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-gray-200 p-3">
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold text-gray-800">{guide.title}</p>
-        <p className="truncate text-xs text-gray-500">
-          {guide.video_path ? `🎬 アプリに保存した動画（${formatBytes(guide.video_size ?? 0)}）` : `🔗 ${guide.url}`}
-        </p>
-        <p className="mt-1 text-xs">
-          <span className="rounded bg-blue-50 px-1.5 py-0.5 font-medium text-blue-700">{audienceLabel(guide)}</span>
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <button
-          onClick={() => move(-1)}
-          disabled={pending || first}
-          aria-label="上へ"
-          className="rounded-lg border border-gray-300 px-2 py-1 text-sm text-gray-600 disabled:opacity-30"
-        >
-          ↑
-        </button>
-        <button
-          onClick={() => move(1)}
-          disabled={pending || last}
-          aria-label="下へ"
-          className="rounded-lg border border-gray-300 px-2 py-1 text-sm text-gray-600 disabled:opacity-30"
-        >
-          ↓
-        </button>
-        <button
-          onClick={() => setEditing(true)}
-          className="rounded-lg border border-blue-600 px-3 py-1 text-sm font-medium text-blue-700 hover:bg-blue-50"
-        >
-          編集
-        </button>
-      </div>
-    </div>
+    <>
+      <tr className={`${zebraRowClass(index)} border-t border-gray-100`}>
+        <td className="whitespace-nowrap px-3 py-2">
+          <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">{audienceLabel(guide)}</span>
+        </td>
+        <td className="whitespace-nowrap px-3 py-2 font-semibold text-gray-800">
+          <span className="mr-1" title={guide.video_path ? "アプリに保存した動画" : "URL"}>
+            {guide.video_path ? "🎬" : "🔗"}
+          </span>
+          {guide.title}
+        </td>
+        <td className="max-w-[18rem] truncate px-3 py-2 text-gray-600" title={guide.summary}>
+          {guide.summary || <span className="text-gray-400">—</span>}
+        </td>
+        <td className="whitespace-nowrap px-3 py-2 text-right">
+          <span className="inline-flex gap-1">
+            <button onClick={() => move(-1)} disabled={pending || first} aria-label="上へ" className={`${btn} border-gray-300 bg-white text-gray-600`}>
+              ↑
+            </button>
+            <button onClick={() => move(1)} disabled={pending || last} aria-label="下へ" className={`${btn} border-gray-300 bg-white text-gray-600`}>
+              ↓
+            </button>
+            <button
+              onClick={() => setEditing((v) => !v)}
+              className={`${btn} border-blue-600 bg-white px-3 font-medium text-blue-700 hover:bg-blue-50`}
+            >
+              {editing ? "閉じる" : "編集"}
+            </button>
+          </span>
+        </td>
+      </tr>
+      {editing && (
+        <tr className={zebraRowClass(index)}>
+          <td colSpan={4} className="px-3 pb-3">
+            <GuideEditor guide={guide} onDone={() => setEditing(false)} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
