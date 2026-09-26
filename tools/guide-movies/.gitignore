@@ -1,0 +1,7 @@
+node_modules/
+# 作業中のファイル（音声・コマ・途中の動画）と完成品
+work/
+out/
+# VOICEVOX エンジン（約1.9GB。README の手順で取得）
+voicevox/
+*.log

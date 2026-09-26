@@ -1,0 +1,13 @@
+{
+  "title": "営業時間と勤務時間の設定",
+  "html": "movie.html",
+  "narration": "narration.json",
+  "end": 124,
+  "output": "営業時間と勤務時間の管理_管理者ガイド",
+  "bgm": {
+    "full": [[4.6, 115.3]],
+    "arp": [[0.2, null, 0.4]],
+    "riser": null,
+    "cymbal": null
+  }
+}

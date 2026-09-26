@@ -3584,11 +3584,16 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   （Claude in Chrome）に接続できなかった。オーナーの登録作業での確認待ち。不具合が出たらまずここを疑うこと。
 - eslint の既存エラー1件（`admin/settings/clock.tsx` の setState in effect）は今回の変更と無関係で未対応。
 
-**ムービー制作のメモ（詳細は設計書§26.4）**
-- 制作用のファイル（HTML・合成スクリプト・VOICEVOX エンジン約1.9GB）はセッションの一時フォルダにあり、**残らない前提**。
-  作り直すときは設計書§26.4 の手順で再構築する。
+**ムービーの制作ツール（2026-09-26 保存。詳細は `tools/guide-movies/README.md`・設計書§26.4）**
+- 制作用のファイル一式を `tools/guide-movies/` に保存した（当初は一時フォルダで作っていた。今後も手順書ムービーを追加する予定のため）。
+  `movies/<名前>/` に映像（movie.html）・原稿（narration.json）・設定（config.json）、`lib/` に共通の道具。
+  `cd tools/guide-movies && npm install` のあと `node lib/build.mjs eigyo-kinmu` などで作り直せる。
+- VOICEVOX エンジン（約1.9GB）は `tools/guide-movies/voicevox/engine/` に置いてある（**git 管理外**。この Mac にだけある。
+  別の環境では README の「準備」で公式配布から取得）。
 - VOICEVOX の「ずんだもん」を使った動画には「VOICEVOX:ずんだもん」のクレジットが必要（動画内に表記済み）。
-- ffmpeg の書き出しは作成日時が入らないので、アプリに登録する動画は `-metadata creation_time=...` を付けること。
+- ffmpeg の書き出しは作成日時が入らないので、アプリに登録する動画は `-metadata creation_time=...` を付ける（ツールの `light` 手順で自動）。
+- ついでに `eslint.config.mjs` に `.open-next/**`・`.wrangler/**` を除外に追加した。デプロイ後に `npx eslint .` がビルド出力（39MB）を読んで
+  メモリ不足で落ちていたため。残る7件のエラーは既存（`set-state-in-effect` 等。今回の変更とは無関係）。
 
 ## 7. すぐ使えるコマンド集
 

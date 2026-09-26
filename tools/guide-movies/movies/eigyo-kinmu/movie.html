@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>営業時間と勤務時間 操作ガイド</title>
+<style>
+
+:root{
+  --navy:#0f1b3d; --ink:#1f2937; --muted:#6b7280; --blue:#2563eb; --blue-d:#1e40af;
+  --green:#16a34a; --yellow:#facc15; --red:#dc2626; --orange:#f97316; --gold:#d3a94e;
+  --bg:#f3f5fa;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#05070f;overflow:hidden}
+body{display:grid;place-items:center}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--bg);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;color:var(--navy);
+  transform-origin:0 0;-webkit-font-smoothing:antialiased}
+.abs{position:absolute}
+/* 背景 */
+.blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55}
+#grid{position:absolute;inset:0;background-image:radial-gradient(#c9d3e6 1.3px,transparent 1.3px);background-size:34px 34px;opacity:.55}
+/* テロップ共通 */
+.chapter{position:absolute;left:96px;top:64px;display:flex;align-items:center;gap:16px;font-weight:800;font-size:22px;letter-spacing:.08em;color:var(--blue)}
+.chapter b{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--blue);color:#fff;font-size:22px}
+.h1{position:absolute;left:96px;font-size:66px;font-weight:900;letter-spacing:.01em;line-height:1.2}
+.h1 em{font-style:normal;color:var(--blue)}
+.sub{position:absolute;left:100px;font-size:30px;font-weight:600;color:#334155;line-height:1.6}
+.tip{position:absolute;left:100px;display:flex;gap:14px;align-items:flex-start;font-size:27px;font-weight:600;color:#1e293b;line-height:1.5;max-width:760px}
+.tip i{flex:none;font-style:normal;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;box-shadow:0 4px 14px rgba(15,27,61,.12);font-size:22px;margin-top:2px}
+.kbd{display:inline-block;padding:0 12px;border-radius:10px;background:#fff;border:2px solid #cbd5e1;font-weight:800;color:var(--navy);box-shadow:0 3px 0 #cbd5e1}
+.kbd.red{border-color:#ef4444;color:#dc2626;box-shadow:0 3px 0 #fca5a5}
+.kbd.blue{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 3px 0 #1e3a8a}
+.hl{background:linear-gradient(transparent 62%,#fde68a 62%)}
+/* 電話 */
+#phoneCam{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.phone{position:relative;width:458px;height:960px;border-radius:66px;background:#0c0f1a;padding:14px;box-shadow:0 40px 90px rgba(15,27,61,.35),0 0 0 2px #2b3144 inset}
+.screen{position:relative;width:430px;height:932px;border-radius:54px;overflow:hidden;background:#f9fafb}
+.notch{position:absolute;left:50%;top:10px;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#0c0f1a;z-index:50}
+.sbar{position:absolute;left:0;right:0;top:0;height:54px;display:flex;justify-content:space-between;align-items:center;padding:8px 34px 0 42px;font-size:16px;font-weight:700;color:#111;z-index:40;background:#fff}
+.appbar{position:absolute;left:0;right:0;top:54px;height:50px;display:flex;align-items:center;gap:12px;padding:0 18px;background:#fff;border-bottom:1px solid #e5e7eb;font-weight:800;font-size:17px;color:#1e3a8a;z-index:30}
+.appbar .burger{font-size:22px;color:#4b5563}
+.view{position:absolute;left:0;right:0;top:104px;bottom:0;overflow:hidden;background:#f9fafb}
+.scroller{position:absolute;left:0;right:0;top:0;padding:12px 10px 60px}
+/* 管理画面 */
+.nav{display:flex;align-items:center;gap:4px}
+.nav .arr{font-size:20px;font-weight:800;color:#4b5563;padding:2px 6px}
+.nav .ym{font-size:19px;font-weight:900;color:#1e40af;white-space:nowrap}
+.icons{margin-left:auto;display:flex;gap:4px}
+.ib{width:36px;height:36px;border-radius:9px;border:1px solid #d1d5db;background:#fff;display:grid;place-items:center;color:#4b5563}
+.ib svg{width:20px;height:20px}
+.badgeRow{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#6b7280}
+.badge{padding:3px 11px;border-radius:9px;font-size:16px;font-weight:800}
+.b-draft{background:#fef08a;color:#713f12}.b-public{background:#dcfce7;color:#166534}
+.msg{margin-top:8px;border-radius:9px;background:#fefce8;color:#713f12;font-size:13px;padding:9px 11px;line-height:1.5}
+.cal{margin-top:10px;border:2px solid #9ca3af;border-radius:12px;background:#fff;padding:2px}
+.wh{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-weight:800;font-size:16px;color:#374151;border-radius:8px;margin-bottom:2px}
+.wh div{padding:5px 0}
+.wk{position:relative;border-top:1px solid #f3f4f6}
+.wk .bgc{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,1fr)}
+.wk .bgc div{border:1px solid #f3f4f6;position:relative}
+.wk .bgc .out{background:#f9fafb}
+.wk .bgc .sel{box-shadow:inset 0 0 0 3px #3b82f6;border-radius:3px}
+.wk .fg{position:relative;display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:auto;min-height:74px;padding-bottom:3px;align-content:start}
+.dn{text-align:center;font-weight:800;font-size:16px;line-height:1.55}
+.dn .dot{font-size:9px;color:#f97316;vertical-align:4px;margin-left:1px}
+.ch{margin:1px 1px 0;border:1px solid #22c55e;background:#f0fdf4;color:#166534;font-size:11px;font-weight:600;line-height:1.3;border-radius:2px;padding:0 2px;white-space:nowrap;overflow:hidden;text-align:center}
+.ch.tc{border-color:#ef4444;background:#fef2f2;color:#dc2626;font-weight:800}
+.ch.stay{border:none;background:none;color:#374151;font-weight:700;text-align:left}
+.band{margin:1px 0 0;border:1px solid #22c55e;background:#f0fdf4;color:#166534;font-size:11px;font-weight:600;line-height:1.3;padding:0 3px;display:flex;justify-content:space-between;white-space:nowrap;overflow:hidden}
+.band.l{border-top-left-radius:3px;border-bottom-left-radius:3px}
+.band.r{border-top-right-radius:3px;border-bottom-right-radius:3px}
+.band.ev{border-color:#d3a94e;background:#fbf1d9;color:#b8860b;font-weight:800}
+.flash{position:absolute;pointer-events:none;border-radius:6px;box-shadow:0 0 0 3px #f97316,0 0 24px 6px rgba(249,115,22,.45);z-index:5}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#4b5563;margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.card{margin-top:12px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px}
+.card h3{margin:0 0 8px;font-size:14px;border-left:4px solid #2563eb;padding-left:8px}
+.inp{width:100%;border:1px solid #d1d5db;border-radius:9px;padding:9px 11px;font-size:15px;background:#fff;min-height:40px;color:#111;font-family:inherit;line-height:1.4}
+.inp.focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.35)}
+.inp.red{color:#d81f2a;font-weight:800}
+.inp .caret{display:inline-block;width:2px;height:17px;background:#2563eb;vertical-align:-3px;margin-left:1px}
+.btn{width:100%;border:none;border-radius:9px;background:#2563eb;color:#fff;font-weight:800;font-size:15px;padding:11px;text-align:center;font-family:inherit}
+.btn.dim{opacity:.4}
+.okmsg{color:#15803d;font-size:14px;font-weight:600;margin:6px 0}
+.lbl{font-size:12px;color:#6b7280;font-weight:600;margin-bottom:4px}
+.panel{margin-top:12px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px}
+.ph{display:flex;justify-content:space-between;align-items:flex-start}
+.ph .d{font-size:19px;font-weight:800}
+.ph .s{font-size:14px;color:#4b5563;margin-top:2px}
+.ph .s small{font-size:12px;color:#9ca3af;margin-left:8px}
+.ph .s .m{font-size:12px;color:#ea580c;margin-left:8px}
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0 10px}
+.mode{border:1px solid #d1d5db;border-radius:9px;padding:10px 2px;text-align:center;font-weight:800;font-size:14px;color:#374151;background:#fff}
+.mode.on{background:#2563eb;border-color:#2563eb;color:#fff}
+.mode.on.red{background:#ef4444;border-color:#ef4444}
+.pnote{font-size:13px;color:#4b5563;margin:4px 0 10px}
+.evsec{border-top:1px solid #f3f4f6;margin-top:14px;padding-top:12px}
+.evh{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:15px;color:#1f2937}
+.addb{border:1px solid #2563eb;color:#1d4ed8;border-radius:9px;padding:4px 12px;font-size:14px;font-weight:700}
+.evitem{margin-top:8px;border:1px solid #d3a94e;background:#fbf1d9;border-radius:9px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center}
+.evitem b{color:#b8860b;font-size:14px}.evitem small{display:block;color:#4b5563;font-size:12px}
+.evform{margin-top:8px;background:#f9fafb;border-radius:10px;padding:10px;display:grid;gap:8px}
+.pill{display:inline-block;border:1px solid;border-radius:99px;padding:3px 12px;font-size:14px;font-weight:700;margin-right:6px}
+.pill.on{box-shadow:0 0 0 2px #3b82f6}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px}
+.chk i{width:17px;height:17px;border-radius:4px;border:1.5px solid #6b7280;display:grid;place-items:center;font-style:normal;font-size:12px;color:#fff}
+.chk i.on{background:#2563eb;border-color:#2563eb}
+/* 営業と勤務時間 */
+.back{font-size:13px;color:#1d4ed8;font-weight:600}
+.pt{font-size:21px;font-weight:900;margin:4px 0 4px}
+.pdesc{font-size:12px;color:#4b5563;line-height:1.55}
+.sel{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;font-weight:800}
+.selbox{flex:1;border:1px solid #d1d5db;border-radius:9px;padding:8px 10px;font-weight:700;font-size:15px;background:#fff;display:flex;justify-content:space-between;position:relative}
+.dd{position:absolute;left:0;right:0;top:44px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.22);overflow:hidden;z-index:20;font-weight:600}
+.dd div{padding:11px 14px;border-bottom:1px solid #f3f4f6}
+.dd .cur{color:#2563eb}
+.newbox{margin-top:10px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:10px}
+.newbox .row{display:flex;align-items:center;gap:8px;font-size:14px}
+.newbox p{margin:6px 0 0;font-size:12px;color:#4b5563;line-height:1.5}
+.ptab{margin-top:10px}
+.ptab .tr{display:grid;grid-template-columns:58px 78px 1fr 1fr 34px;gap:5px;align-items:center;padding:4px 0}
+.ptab .th{font-size:11px;color:#6b7280}
+.ptab .dt{font-weight:800;font-size:14px}
+.seg{display:flex;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;font-size:12px;font-weight:700}
+.seg span{flex:1;text-align:center;padding:6px 0;color:#6b7280}
+.seg .on{background:#16a34a;color:#fff}
+.ti{border:1px solid #d1d5db;border-radius:8px;padding:6px 6px;font-size:14px;background:#fff;text-align:center;font-variant-numeric:tabular-nums;min-height:32px}
+.ti.dis{background:#f3f4f6;color:#9ca3af}
+.ti.chg{border-color:#f59e0b;background:#fffbeb;font-weight:800;color:#92400e}
+.ti.focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.35)}
+.cb{width:20px;height:20px;border-radius:5px;border:1.5px solid #6b7280;margin:auto;display:grid;place-items:center;font-size:13px;color:#fff}
+.cb.on{background:#2563eb;border-color:#2563eb}
+.faint{opacity:.55}
+.regen{display:flex;gap:9px;background:#fefce8;border-radius:10px;padding:11px;font-size:14px;margin-top:12px}
+.regen small{display:block;font-size:12px;color:#4b5563;margin-top:3px;line-height:1.5}
+/* 指 */
+#finger{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(37,99,235,.28);border:3px solid rgba(255,255,255,.95);box-shadow:0 6px 18px rgba(15,27,61,.35);z-index:100;pointer-events:none}
+#ripple{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:3px solid #2563eb;z-index:99;pointer-events:none}
+/* ブラウザ */
+#browser{position:absolute;left:830px;top:238px;width:1020px;height:772px;border-radius:18px;background:#fff;box-shadow:0 40px 90px rgba(15,27,61,.28);overflow:hidden}
+.bbar{height:52px;background:#eef1f6;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #dde2ea}
+.bbar i{width:13px;height:13px;border-radius:50%;display:inline-block}
+.url{flex:1;margin-left:14px;height:32px;border-radius:9px;background:#fff;display:flex;align-items:center;gap:10px;padding:0 14px;font-size:15px;color:#475569}
+.reload{font-size:18px;color:#64748b;display:inline-block}
+.hp{padding:16px 36px}
+.hpcard{border:1px solid #e5e7eb;border-radius:16px;padding:14px 20px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.hphead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.hphead h2{margin:0;font-size:22px;letter-spacing:.05em}
+.hpym{font-weight:800;font-size:15px}.hpym b{font-size:30px;margin-left:2px}
+.hpnav{display:flex;align-items:center;gap:14px}
+.hpnav span.c{width:38px;height:38px;border-radius:50%;background:#e9ebef;display:grid;place-items:center;font-weight:800}
+.hpcal{border:2px solid #475569;border-radius:12px;overflow:hidden}
+.hpcal .wh{font-size:21px;border-radius:0;margin:0;border-bottom:2px solid #475569}
+.hpcal .wk .fg{min-height:92px}
+.hpcal .dn{font-size:17px;text-align:left;padding-left:8px}
+.hpcal .ch,.hpcal .band{font-size:13px;line-height:1.45}
+.hpfoot{margin-top:10px;font-size:16px;font-weight:800;color:#d81f2a;line-height:1.5}
+.hplegend{display:flex;gap:20px;font-size:15px;color:#475569;margin-top:6px}
+.hplegend span{display:inline-flex;gap:6px;align-items:center}
+.hplegend i{width:11px;height:11px;border-radius:50%;display:inline-block}
+/* 汎用カード */
+.stepcard{position:absolute;width:500px;height:370px;border-radius:30px;background:#fff;box-shadow:0 24px 60px rgba(15,27,61,.12);padding:40px 38px}
+.stepcard .when{font-size:24px;font-weight:800;color:#64748b}
+.stepcard .big{font-size:44px;font-weight:900;margin:12px 0 16px;line-height:1.25}
+.stepcard .desc{font-size:24px;color:#334155;line-height:1.6;font-weight:600}
+.stag{display:inline-block;padding:6px 18px;border-radius:12px;font-size:24px;font-weight:900}
+.callout{position:absolute;left:96px;display:flex;align-items:center;gap:16px;background:#fff;border-radius:20px;padding:18px 26px;box-shadow:0 14px 36px rgba(15,27,61,.12);font-size:27px;font-weight:700;width:720px}
+.callout .n{flex:none;width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:900;font-size:22px}
+.callout small{display:block;font-size:20px;color:#64748b;font-weight:600;margin-top:2px}
+svg#lines{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none;z-index:60}
+#progress{position:absolute;left:0;bottom:0;height:6px;background:linear-gradient(90deg,#2563eb,#22c55e);z-index:200}
+.sig{position:absolute;opacity:0;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 8px rgba(34,197,94,.25),0 0 30px 10px rgba(34,197,94,.55);z-index:90}
+.summary{position:absolute;left:260px;width:1400px;display:flex;align-items:center;gap:30px;background:#fff;border-radius:26px;padding:30px 40px;box-shadow:0 20px 50px rgba(15,27,61,.10);font-size:34px;font-weight:800}
+.summary .ic{flex:none;width:76px;height:76px;border-radius:22px;display:grid;place-items:center;font-size:38px;color:#fff}
+.summary small{display:block;font-size:24px;color:#64748b;font-weight:600;margin-top:4px}
+
+/* ---- 2本目用 ---- */
+.node{position:absolute;border-radius:24px;background:#fff;box-shadow:0 18px 44px rgba(15,27,61,.12);padding:22px 28px;font-weight:800}
+.node small{display:block;font-size:21px;color:#64748b;font-weight:600;margin-top:6px;line-height:1.45}
+.node .tag{display:inline-block;padding:4px 14px;border-radius:10px;color:#fff;font-size:20px;margin-bottom:8px}
+svg#dlines{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none}
+/* タイムライン図 */
+#chart{position:absolute;left:110px;top:300px;width:1700px;height:600px}
+.axis{position:absolute;left:230px;right:30px;top:0;height:40px}
+.tick{position:absolute;top:0;transform:translateX(-50%);font-size:20px;font-weight:700;color:#64748b}
+.vline{position:absolute;top:36px;bottom:0;width:0;border-left:2px dashed #cbd5e1}
+.vline.mid{border-left:3px solid #94a3b8}
+.crow{position:absolute;left:0;right:30px;height:70px}
+.crow .lab{position:absolute;left:0;top:0;width:210px;height:70px;display:flex;align-items:center;justify-content:flex-end;font-size:26px;font-weight:800;color:#1e293b;text-align:right;line-height:1.2}
+.bar{position:absolute;top:10px;height:50px;border-radius:12px;display:flex;align-items:center;padding:0 16px;font-size:22px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden}
+/* 日付カード */
+.dcard{position:absolute;top:420px;width:330px;height:300px;border-radius:26px;background:#fff;box-shadow:0 18px 44px rgba(15,27,61,.12);padding:26px 28px;border:4px solid transparent}
+.dcard .dd2{font-size:34px;font-weight:900}
+.dcard .who{display:inline-block;margin-top:8px;padding:4px 14px;border-radius:10px;font-size:20px;font-weight:800}
+.dcard .ln{font-size:25px;font-weight:700;margin-top:14px;color:#334155}
+.dcard .ln b{font-size:30px}
+.old .who{background:#e2e8f0;color:#334155}
+.new{border-color:#22c55e}
+.new .who{background:#dcfce7;color:#166534}
+#marker{position:absolute;top:360px;width:6px;height:420px;border-radius:3px;background:#2563eb}
+#marker span{position:absolute;top:-58px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#2563eb;color:#fff;font-size:24px;font-weight:900;padding:8px 18px;border-radius:12px}
+.point{position:absolute;left:96px;width:820px;display:flex;gap:18px;align-items:center;background:#fff;border-radius:22px;padding:20px 26px;box-shadow:0 14px 36px rgba(15,27,61,.10);font-size:30px;font-weight:800}
+.point .ic{flex:none;width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:28px;color:#fff}
+.point small{display:block;font-size:21px;color:#64748b;font-weight:600;margin-top:4px}
+.ddmock{position:absolute;left:1060px;top:470px;width:700px;border-radius:22px;background:#fff;box-shadow:0 24px 60px rgba(15,27,61,.16);overflow:hidden;font-size:28px;font-weight:700}
+.ddmock .hd{padding:18px 26px;background:#f1f5f9;font-size:22px;color:#475569}
+.ddmock .it{padding:18px 26px;border-top:1px solid #eef2f7;display:flex;justify-content:space-between;align-items:center}
+.ddmock .it em{font-style:normal;font-size:20px;font-weight:700;color:#64748b}
+/* 営業と勤務時間（スマホ） */
+.srow{display:grid;grid-template-columns:70px 1fr 1fr;gap:6px;align-items:center;padding:4px 0}
+.srow .nm{border:1px solid #d1d5db;border-radius:8px;padding:6px;font-size:14px;font-weight:800;text-align:center;background:#fff}
+.bend{display:grid;grid-template-columns:auto 1fr;gap:4px;align-items:center}
+.bend span{font-size:11px;color:#4b5563}
+.brow{display:grid;grid-template-columns:40px 1fr 16px 1fr;gap:6px;align-items:center;padding:4px 0;font-size:14px;font-weight:800}
+.hlbox{position:absolute;pointer-events:none;border-radius:12px;z-index:6}
+/* 勤務ルール */
+#rules{position:absolute;left:830px;top:200px;width:1020px;height:720px;border-radius:18px;background:#fff;box-shadow:0 40px 90px rgba(15,27,61,.28);overflow:hidden}
+.rhead{height:60px;background:#152449;color:#fff;display:flex;align-items:center;gap:10px;padding:0 20px;font-weight:800;font-size:19px}
+.rtab{border:1px solid rgba(255,255,255,.5);border-radius:99px;padding:5px 16px;font-size:16px}
+.rtab.on{background:#fff;color:#152449}
+.rbtn{border:1px solid rgba(255,255,255,.4);border-radius:9px;padding:6px 14px;font-size:16px}
+.rdoc{margin:18px 26px;border:2px solid #d4b25a;border-radius:18px;background:#fffdf7;padding:18px 22px;position:relative}
+.rdoc h1{margin:10px 0 6px;text-align:center;font-size:32px;font-weight:900;color:#152449;letter-spacing:-.01em}
+.rdoc .ver{position:absolute;right:22px;top:12px;font-size:15px;font-weight:800;color:#152449}
+.rdoc .intro{text-align:center;font-size:15px;font-weight:600;color:#1f2937;line-height:1.6}
+.rdoc .intro b{color:#b91c1c}
+.rcards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.rcard{border:1px solid #d1d5db;border-radius:14px;overflow:hidden;background:#fff;position:relative}
+.rcard .top{padding:10px 0;text-align:center;color:#fff;font-size:24px;font-weight:900;letter-spacing:.2em}
+.rcard .bd{padding:12px;text-align:center}
+.rcard .k{font-size:14px;font-weight:800;color:#374151}
+.rcard .wt{font-size:24px;font-weight:900;color:#111827;font-variant-numeric:tabular-nums}
+.rcard .alt{font-size:13px;font-weight:800;color:#4b5563}
+.rcard .sep{border-top:2px dotted;margin:10px 0}
+.rcard .bx{border:2px solid;border-radius:10px;padding:4px;font-size:20px;font-weight:900;margin-top:4px;font-variant-numeric:tabular-nums}
+.rcard .nb{border:2px solid;border-radius:10px;padding:4px;font-size:17px;font-weight:900;margin-top:4px}
+.rcard .none{font-size:13px;color:#4b5563;margin-top:4px}
+.rpay{margin-top:14px;border:2px solid #b91c1c;border-radius:14px;overflow:hidden}
+.rpay h2{margin:0;background:#b91c1c;color:#fff;text-align:center;font-size:20px;padding:6px;letter-spacing:.2em}
+.rpay p{margin:10px 14px;font-size:15px;font-weight:600}
+#cursor{position:absolute;left:0;top:0;opacity:0;width:34px;height:34px;z-index:120;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bgwrap">
+    <div class="blob" id="blob1" style="width:760px;height:760px;background:#bcd3ff"></div>
+    <div class="blob" id="blob2" style="width:620px;height:620px;background:#c8f0d8"></div>
+    <div class="blob" id="blob3" style="width:520px;height:520px;background:#ffe8a8"></div>
+    <div id="grid"></div>
+  </div>
+
+  <div class="chapter" data-a="5.3,30.8" data-fx="left"><b>01</b>この画面の役割</div>
+  <div class="chapter" data-a="31.1,59.8" data-fx="left"><b>02</b>適用開始日とは</div>
+  <div class="chapter" data-a="60.1,99.8" data-fx="left"><b>03</b>変わるときの操作</div>
+  <div class="chapter" data-a="100.1,115.2" data-fx="left"><b>04</b>勤務ルールへの反映</div>
+
+  <!-- S1a 役割の図 -->
+  <div class="h1" style="top:140px" data-a="5.5,17.9" data-fx="up">「営業と勤務時間」で<em>2つ</em>を決める</div>
+  <svg id="dlines"></svg>
+  <div class="node" id="nCenter" style="left:120px;top:520px;width:380px;font-size:40px;text-align:center" data-a="5.8,17.9" data-fx="pop">⚙ 営業と勤務時間<small>管理メニューから開く</small></div>
+  <div class="node" id="nOpen" style="left:640px;top:330px;width:470px;font-size:34px" data-a="9.7,17.9" data-fx="left"><span class="tag" style="background:#16a34a">営業時間</span><br>お店を開けている時間<small>区分（月〜木・金・土・日・祝・祝前日）ごと</small></div>
+  <div class="node" id="nWork" style="left:640px;top:640px;width:470px;font-size:34px" data-a="13.7,17.9" data-fx="left"><span class="tag" style="background:#e0701a">勤務時間</span><br>シフト枠と休憩時間<small>早番・遅番・深夜の時刻と、休憩を取る時間帯</small></div>
+  <div class="node" id="nCal" style="left:1260px;top:340px;width:540px;font-size:30px" data-a="10.8,17.9" data-fx="left">📅 営業カレンダーを自動作成<small>毎月15日に翌々月分 → ホームページへ</small></div>
+  <div class="node" id="nShift" style="left:1260px;top:610px;width:540px;font-size:30px" data-a="14.8,17.9" data-fx="left">👥 シフト・勤務表・給与計算<small>シフト勤務の時間、休憩・深夜手当の計算に使う</small></div>
+  <div class="node" id="nRule" style="left:1260px;top:800px;width:540px;font-size:30px" data-a="15.8,17.9" data-fx="left">📄 勤務ルール<small>従業員に見せる「休憩と深夜勤務」の説明</small></div>
+
+  <!-- S1b 営業時間に沿って決める -->
+  <div class="h1" style="top:140px" data-a="18.2,30.8" data-fx="up">勤務時間は<em>営業時間に沿って</em>決める</div>
+  <div id="chart" data-a="18.5,30.8" data-fx="up">
+    <div class="axis" id="axis"></div>
+    <div class="crow" style="top:60px"><div class="lab" id="labOpen">営業時間<br><span style="font-size:18px;color:#64748b">ふつうの日</span></div><div class="bar" id="barOpen" style="background:#16a34a"></div></div>
+    <div class="crow" style="top:190px"><div class="lab">早番</div><div class="bar" id="barA" style="background:#1e7b3c">8:00〜17:00</div></div>
+    <div class="crow" style="top:280px"><div class="lab">遅番</div><div class="bar" id="barB" style="background:#e0701a"></div></div>
+    <div class="crow" style="top:370px"><div class="lab">深夜</div><div class="bar" id="barC" style="background:#152449">0:00〜9:00</div></div>
+    <div id="chartNote" style="position:absolute;left:230px;top:480px;font-size:28px;font-weight:800;color:#1e293b"></div>
+  </div>
+
+  <!-- S2 適用開始日 -->
+  <div class="h1" style="top:140px" data-a="31.3,59.6" data-fx="up">「適用開始日」＝<em>いつから変わるか</em></div>
+  <div class="sub" style="top:250px" data-a="35.4,44.9" data-fx="up">身近な例：「10月1日から ダイヤ改正」「10月1日から 料金改定」と同じ考え方です</div>
+  <div id="days" data-a="39.8,45" data-fx="fade" style="position:absolute;inset:0">
+    <div class="dcard old" id="dc1" style="left:130px"><div class="dd2">9月29日（火）</div><span class="who">今までの設定</span><div class="ln">閉店 <b>24:00</b></div><div class="ln">遅番 <b>〜0:00</b></div></div>
+    <div class="dcard old" id="dc2" style="left:500px"><div class="dd2">9月30日（水）</div><span class="who">今までの設定</span><div class="ln">閉店 <b>24:00</b></div><div class="ln">遅番 <b>〜0:00</b></div></div>
+    <div id="marker" style="left:872px"><span>適用開始日 10/1</span></div>
+    <div class="dcard new" id="dc3" style="left:920px"><div class="dd2">10月1日（木）</div><span class="who">新しい設定</span><div class="ln">閉店 <b style="color:#16a34a">23:00</b></div><div class="ln">遅番 <b style="color:#16a34a">〜23:00</b></div></div>
+    <div class="dcard new" id="dc4" style="left:1290px;opacity:.9"><div class="dd2">10月2日 以降</div><span class="who">新しい設定</span><div class="ln" style="font-size:24px;line-height:1.5">次の変更まで<br>ずっとこの設定</div></div>
+  </div>
+  <div class="point" style="top:330px" data-a="45.8,59.6" data-fx="left"><span class="ic" style="background:#2563eb">🗓</span><div>前もって登録できる<small>その日が来るまでは、今の設定のまま</small></div></div>
+  <div class="point" style="top:480px" data-a="50,59.6" data-fx="left"><span class="ic" style="background:#16a34a">🔒</span><div>過去の勤務・給与は変わらない<small>勤務した日の設定で計算されます</small></div></div>
+  <div class="point" style="top:630px" data-a="54.4,59.6" data-fx="left"><span class="ic" style="background:#ca8a04">👀</span><div>一覧の見方<small>（適用中）＝今日使われている設定</small></div></div>
+  <div class="ddmock" data-a="54.6,59.6" data-fx="right" style="top:330px">
+    <div class="hd">適用開始日：（9月26日に開いた場合）</div>
+    <div class="it"><span>最初から（適用中）</span><em>いま使っている設定</em></div>
+    <div class="it"><span>2026/10/1〜</span><em>10月1日から使う設定</em></div>
+    <div class="it" style="color:#2563eb"><span>＋ 適用開始日を追加</span><em>新しく変わるとき</em></div>
+  </div>
+
+  <!-- S3 操作 -->
+  <div class="h1" style="top:140px;font-size:58px" data-a="60.3,99.6" data-fx="up">変わるときは<em>新しい日付で追加</em></div>
+  <div class="sub" style="top:236px;font-size:25px;color:#64748b" data-a="60.8,99.6" data-fx="up">例：2027年4月1日から、開店と早番・昼休憩を1時間遅らせる</div>
+  <div class="callout" style="top:320px" data-a="64.2,99.6" data-fx="left"><span class="n">1</span><div>いちばん新しい定義を開く<small>下に表示している定義が写されるため</small></div></div>
+  <div class="callout" style="top:450px" data-a="68.8,99.6" data-fx="left"><span class="n">2</span><div>「＋ 適用開始日を追加」<small>変わる日（例：2027/4/1）を入れる</small></div></div>
+  <div class="callout" style="top:580px" data-a="73.6,99.6" data-fx="left"><span class="n">3</span><div>変わるところだけ直す<small>営業時間 → シフト枠 → 休憩時間</small></div></div>
+  <div class="callout" style="top:710px" data-a="89,99.6" data-fx="left"><span class="n">4</span><div>「この適用開始日で追加する」<small>営業時間と勤務時間がセットで保存されます</small></div></div>
+  <div class="tip" style="top:860px;font-size:24px;color:#9a3412;max-width:780px" data-a="83.8,93.3" data-fx="up"><i>🌙</i><span>遅番の終わりは「通しの日」と「それ以外の日」で別々に決められます</span></div>
+  <div class="tip" style="top:850px;font-size:25px;color:#b91c1c;max-width:800px;background:#fff1f2;border-radius:18px;padding:14px 18px;left:90px" data-a="93.6,99.6" data-fx="up"><i>⚠️</i><span>使っている定義を書き換えると<b>過去の計算まで変わります</b>。変更は必ず新しい日付で追加</span></div>
+
+  <!-- S4 勤務ルール -->
+  <div class="h1" style="top:140px;font-size:58px" data-a="100.3,115.2" data-fx="up">勤務ルールに<em>自動で反映</em></div>
+  <div class="callout" style="top:300px;width:700px" data-a="100.8,115.2" data-fx="left"><span class="n">📄</span><div>設定から自動で作られる<small>休憩・深夜勤務時間は給与計算と同じ計算</small></div></div>
+  <div class="callout" style="top:440px;width:700px" data-a="104.8,115.2" data-fx="left"><span class="n">⇆</span><div>上の切り替えで先の内容も確認<small>「現在」「10/1〜」「4/1〜」</small></div></div>
+  <div class="callout" style="top:580px;width:700px" data-a="110.2,115.2" data-fx="left"><span class="n">👥</span><div>従業員のメニューにも表示<small>「関連情報 → 勤務ルール」。PDFで配布も可</small></div></div>
+  <div id="rules" data-a="100.4,115.2" data-fx="right">
+    <div class="rhead"><span style="margin-right:auto">勤務ルール</span><span class="rtab" id="tab0">現在</span><span class="rtab" id="tab1">10/1〜</span><span class="rtab" id="tab2">4/1〜</span><span class="rbtn" id="rpdf">PDF</span><span class="rbtn">× 閉じる</span></div>
+    <div class="rdoc" id="rdoc"></div>
+  </div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M4 2l16 10-7 1.5 4 7.5-3 1.5-4-7.5L4 20z" fill="#111" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+
+  <!-- 電話 -->
+  <div id="phoneWrap" data-a="60.4,99.6" data-fx="fade" style="position:absolute;inset:0;pointer-events:none">
+    <div id="phoneCam"><div class="phone"><div class="screen" id="screen">
+      <div class="notch"></div>
+      <div class="sbar"><span>9:41</span><span>●●● 🔋</span></div>
+      <div class="appbar"><span class="burger">≡</span><span>営業と勤務時間</span></div>
+      <div class="view" id="viewPat"><div class="scroller" id="scPat"></div></div>
+      <div id="ripple"></div><div id="finger"></div>
+    </div></div></div>
+  </div>
+
+  <!-- S0 オープニング -->
+  <div id="op" class="abs" style="inset:0;background:radial-gradient(1200px 700px at 30% 30%,#1e3a8a,#0f1b3d);z-index:150">
+    <div class="abs" style="left:160px;top:250px;font-size:30px;font-weight:800;letter-spacing:.3em;color:#93c5fd" data-a="0.3,99" data-fx="up">管理者向け 操作ガイド</div>
+    <div class="abs" style="left:150px;top:310px;font-size:120px;font-weight:900;color:#fff;letter-spacing:.02em" data-a="0.6,99" data-fx="up">営業時間と勤務時間の管理</div>
+    <div class="abs" style="left:160px;top:540px;display:flex;gap:18px;font-size:30px;font-weight:800;color:#0f1b3d">
+      <span style="background:#fff;border-radius:18px;padding:14px 26px" data-a="1.4,99" data-fx="pop">① 画面の役割</span>
+      <span style="background:#fde68a;border-radius:18px;padding:14px 26px" data-a="1.8,99" data-fx="pop">② 適用開始日とは</span>
+      <span style="background:#bfdbfe;border-radius:18px;padding:14px 26px" data-a="2.2,99" data-fx="pop">③ 変わるときの操作</span>
+      <span style="background:#bbf7d0;border-radius:18px;padding:14px 26px" data-a="2.6,99" data-fx="pop">④ 勤務ルールへの反映</span>
+    </div>
+    <div class="abs" style="left:160px;top:740px;font-size:26px;color:#cbd5e1;font-weight:600" data-a="3,99" data-fx="up">約 2 分 30 秒</div>
+  </div>
+
+  <!-- まとめ -->
+  <div id="end" class="abs" style="inset:0;background:#f3f5fa;z-index:160">
+    <div class="abs" style="left:0;width:1920px;top:120px;text-align:center;font-size:64px;font-weight:900" data-a="115.9,999" data-fx="up">まとめ</div>
+    <div class="summary" style="top:280px" data-a="116.4,999" data-fx="left"><span class="ic" style="background:#16a34a">🕙</span><div>営業時間 ＝ 営業カレンダーを作るための情報<small>勤務時間（シフト枠・休憩）は、営業時間に沿って決める</small></div></div>
+    <div class="summary" style="top:470px" data-a="117.1,999" data-fx="left"><span class="ic" style="background:#2563eb">🗓</span><div>適用開始日 ＝ <span class="hl">いつから変わるか</span><small>前もって登録OK。過去の勤務・給与の計算は変わりません</small></div></div>
+    <div class="summary" style="top:660px" data-a="117.8,999" data-fx="left"><span class="ic" style="background:#ca8a04">＋</span><div>変わるときは <span class="hl">新しい適用開始日で追加</span><small>勤務ルールにも自動で反映されます</small></div></div>
+    <div class="abs" style="left:0;width:1920px;top:900px;text-align:center;font-size:26px;font-weight:800;color:#64748b;letter-spacing:.2em" data-a="118.8,999" data-fx="fade">オオミナミ　営業と勤務時間</div>
+    <div class="abs" style="right:48px;bottom:30px;font-size:20px;font-weight:600;color:#94a3b8" data-a="116,999" data-fx="fade">ナレーション　VOICEVOX:ずんだもん</div>
+  </div>
+
+  <div id="progress"></div>
+</div>
+
+<script>
+const DUR = 124;
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const back = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const P = (t, a, d = 0.5, f = eo) => f(clamp((t - a) / d));
+const typed = (t, a, d, text) => text.slice(0, Math.round(clamp((t - a) / d) * text.length));
+const caret = '<span class="caret"></span>';
+
+// ---------------------------------------------------------------- 時刻（映像内の秒）
+const T = {
+  sel1: 65.6, opt1: 66.8, sel2: 69.8, opt2: 70.8, date: 71.8,
+  wd: 74.6, fri: 75.8, pre: 77.0,
+  scrShift: [78.9, 79.6], aStart: 80.2, aEnd: 81.3, scrBreak: [81.9, 82.5], b1s: 82.8, b1e: 83.4,
+  scrB: [83.9, 84.5], scrSave: [89.1, 89.8], save: 90.6, sel3: 94.2,
+  tab1: 106.0, tab2: 108.8,
+};
+
+// ---------------------------------------------------------------- 営業と勤務時間（スマホ）
+function fld(t, tap, text, old) {
+  if (t < tap) return { v: old, f: false, c: false };
+  const v = t < tap + 0.2 ? "" : typed(t, tap + 0.2, 0.35, text);
+  return { v, f: t < tap + 0.8, c: true };
+}
+let patKey = "";
+function patState(t) {
+  const ver = t >= T.opt2 ? "new" : t >= T.opt1 ? "v1001" : "base";
+  const dd = (t >= T.sel1 && t < T.opt1) ? 1 : (t >= T.sel2 && t < T.opt2) ? 2 : (t >= T.sel3 && t < 99.8) ? 3 : 0;
+  const close = ver === "base" ? "24:00" : "23:00", bOff = ver === "base" ? "0:00" : "23:00";
+  return {
+    ver, dd, close, bOff, saved: t >= T.save,
+    date: t >= T.date + 0.3 ? "2027/04/01" : "", dateF: t >= T.date && t < T.wd - 0.4,
+    wd: fld(t, T.wd, "11:00", "10:00"), fri: fld(t, T.fri, "11:00", "10:00"), pre: fld(t, T.pre, "11:00", "10:00"),
+    aS: fld(t, T.aStart, "9:00", "8:00"), aE: fld(t, T.aEnd, "18:00", "17:00"),
+    b1s: fld(t, T.b1s, "13:00", "12:00"), b1e: fld(t, T.b1e, "14:00", "13:00"),
+  };
+}
+function renderPat(t) {
+  const s = patState(t);
+  const key = JSON.stringify(s);
+  if (key !== patKey) {
+    patKey = key;
+    const ti = (x, id) => `<div class="ti ${x.c ? "chg" : ""} ${x.f ? "focus" : ""}" id="${id}">${x.v}${x.f ? caret : ""}</div>`;
+    const plain = (v, id = "") => `<div class="ti" ${id ? `id="${id}"` : ""}>${v}</div>`;
+    const row = (lab, open, close, on) => `<div class="tr"><div class="dt">${lab}</div><div class="seg"><span class="on">営業</span><span>定休</span></div>${open}${on ? '<div class="ti dis">通し</div>' : close}<div class="cb ${on ? "on" : ""}">${on ? "✓" : ""}</div></div>`;
+    const selLabel = s.ver === "new" ? "＋ 適用開始日を追加" : s.ver === "v1001" ? "2026/10/1〜" : "最初から（適用中）";
+    const opts = s.dd === 3
+      ? ["最初から（適用中）", "2026/10/1〜", "2027/4/1〜"]
+      : ["最初から（適用中）", "2026/10/1〜"];
+    const cur = s.dd === 3 ? "2027/4/1〜" : s.dd === 2 ? "2026/10/1〜" : "最初から（適用中）";
+    let h = `<div class="back">← 営業カレンダー</div><div class="pt">営業と勤務時間</div>
+      <div class="pdesc">営業時間・シフト枠・休憩時間を、1つの適用開始日でセットにして管理します。変わるときは「適用開始日を追加」して、その日からの定義を作ります。</div>
+      <div class="sel">適用開始日：<div class="selbox" id="selbox"><span>${s.dd === 3 ? "2027/4/1〜" : selLabel}</span><span>▾</span>
+      ${s.dd ? `<div class="dd">${opts.map((o, i) => `<div class="${o === cur ? "cur" : ""}" id="o${i}">${o === cur ? "✓ " : ""}${o}</div>`).join("")}<div id="oNew" style="color:#2563eb">＋ 適用開始日を追加</div></div>` : ""}</div></div>`;
+    if (s.ver === "new") h += `<div class="newbox"><div class="row"><div class="ti ${s.dateF ? "focus" : ""}" id="f-date" style="width:150px;text-align:left">${s.date || '<span style="color:#9ca3af">年/月/日</span>'}</div>から使う営業時間</div><p>いま下に表示している定義を写して始めます。変わる区分だけ直して保存してください。</p></div>`;
+    else h += `<div class="pdesc" style="margin-top:8px;font-size:13px">${s.ver === "v1001" ? "2026/10/1〜 の定義" : "最初の定義（2026/10/1 の前日まで使われます）"}</div>`;
+    const O = (x, id) => (s.ver === "new" ? ti(x, id) : plain("10:00"));
+    h += `<div class="card ptab" id="ptab"><h3>営業時間</h3><div class="tr th"><span></span><span></span><span>開店</span><span>閉店</span><span>通し</span></div>
+      ${row("月〜木", O(s.wd, "p-wd"), plain(s.close))}${row("金", O(s.fri, "p-fri"), "", true)}${row("土", plain("6:00"), "", true)}${row("日", plain("6:00"), plain(s.close))}${row("祝", plain("6:00"), plain(s.close))}${row("祝前日", O(s.pre, "p-pre"), "", true)}</div>`;
+    const A = (x, id, old) => (s.ver === "new" ? ti(x, id) : plain(old));
+    h += `<div class="card" id="secShift"><h3>シフト枠</h3><div class="srow th" style="font-size:11px;color:#6b7280"><span>名前</span><span>開始</span><span>終了</span></div>
+      <div class="srow"><div class="nm">早番</div>${A(s.aS, "s-as", "8:00")}${A(s.aE, "s-ae", "17:00")}</div>
+      <div class="srow" id="rowB"><div class="nm">遅番</div>${plain("15:00")}<div class="bend"><span>通しの日</span>${plain("0:00", "b-on")}<span>それ以外</span>${plain(s.bOff, "b-off")}</div></div>
+      <div class="srow"><div class="nm">深夜</div>${plain("0:00")}${plain("9:00")}</div></div>`;
+    h += `<div class="card" id="secBreak"><h3>休憩時間</h3>
+      <div class="brow"><span>枠1</span>${A(s.b1s, "k1s", "12:00")}<span style="color:#9ca3af">〜</span>${A(s.b1e, "k1e", "13:00")}</div>
+      <div class="brow"><span>枠2</span>${plain("19:00")}<span style="color:#9ca3af">〜</span>${plain("20:00")}</div>
+      <div class="brow"><span>枠3</span>${plain("4:00")}<span style="color:#9ca3af">〜</span>${plain("5:00")}</div>
+      <div class="pdesc" style="margin-top:4px">勤務日に有効な定義で計算されるので、適用開始日より前の勤務は変わりません。</div></div>`;
+    h += `${s.saved ? '<div class="okmsg">2027/4/1からの定義を保存しました。作り直す月はありませんでした</div>' : ""}
+      <div class="btn" id="b-patsave" style="margin-top:12px">${s.ver === "new" ? "この適用開始日で追加する" : "保存する"}</div><div style="height:260px"></div>`;
+    $("#scPat").innerHTML = h;
+  }
+  // スクロール（名前付きの位置の間を補間）
+  const pos = (n) => (n === 0 ? 0 : Math.max(0, $("#" + n).offsetTop - 12));
+  const S = [[T.scrShift[0], 0], [T.scrShift[1], "secShift"], [T.scrBreak[0], "secShift"], [T.scrBreak[1], "secBreak"], [T.scrB[0], "secBreak"], [T.scrB[1], "secShift"], [T.scrSave[0], "secShift"], [T.scrSave[1], "secBreak"], [93.9, "secBreak"], [94.1, 0]];
+  let y = pos(S[0][1]);
+  for (let i = 1; i < S.length; i++) {
+    const [t0, a] = S[i - 1], [t1, b] = S[i];
+    if (t >= t0) y = pos(a) + (pos(b) - pos(a)) * eio(clamp((t - t0) / (t1 - t0)));
+  }
+  $("#scPat").style.transform = `translateY(${-y}px)`;
+  // 遅番の終わり（通しの日／それ以外の2欄）を赤い太枠で囲む。ナレーションに合わせて点滅
+  $("#scPat").querySelectorAll(".hlbox,.hltag").forEach((e) => e.remove());
+  const HL0 = 84.4, HL1 = 88.9;
+  if (t > HL0 && t < HL1) {
+    const el = $("#rowB .bend"), sc = $("#scPat").getBoundingClientRect(), r = el.getBoundingClientRect();
+    const k = $("#screen").getBoundingClientRect().width / 430;
+    const x = (r.left - sc.left) / k, y = (r.top - sc.top) / k, w = r.width / k, h = r.height / k;
+    const o = Math.min(P(t, HL0, 0.3), 1 - P(t, HL1 - 0.4, 0.4));
+    const pulse = 0.5 + 0.5 * Math.sin((t - HL0) * Math.PI * 2 * 1.2);
+    const b = document.createElement("div"); b.className = "hlbox";
+    const grow = 1 + 0.25 * (1 - P(t, HL0, 0.35, back));
+    Object.assign(b.style, { left: x - 7 + "px", top: y - 7 + "px", width: w + 14 + "px", height: h + 14 + "px", opacity: o,
+      transform: `scale(${grow})`, border: "4px solid #ef4444", boxShadow: `0 0 0 ${3 + 5 * pulse}px rgba(239,68,68,${0.18 + 0.2 * pulse}), 0 0 26px 6px rgba(239,68,68,.35)` });
+    const tag = document.createElement("div"); tag.className = "hltag"; tag.textContent = "遅番の終わり";
+    Object.assign(tag.style, { position: "absolute", left: x - 7 + "px", top: y - 36 + "px", background: "#ef4444", color: "#fff", fontSize: "13px", fontWeight: "800", padding: "3px 10px", borderRadius: "8px", zIndex: 7, opacity: o, whiteSpace: "nowrap" });
+    $("#scPat").append(b, tag);
+  }
+}
+
+// ---------------------------------------------------------------- 指
+const FINGER = [
+  [64.4, [330, 800]], [65.2, "#selbox"], [T.sel1, "#selbox", 1], [66.4, "#o1"], [T.opt1, "#o1", 1],
+  [69.4, "#selbox"], [T.sel2, "#selbox", 1], [70.4, "#oNew"], [T.opt2, "#oNew", 1], [71.4, "#f-date"], [T.date, "#f-date", 1],
+  [74.2, "#p-wd"], [T.wd, "#p-wd", 1], [75.4, "#p-fri"], [T.fri, "#p-fri", 1], [76.6, "#p-pre"], [T.pre, "#p-pre", 1], [78.4, [330, 800]],
+  [79.8, "#s-as"], [T.aStart, "#s-as", 1], [81.0, "#s-ae"], [T.aEnd, "#s-ae", 1], [82.6, "#k1s"], [T.b1s, "#k1s", 1], [83.2, "#k1e"], [T.b1e, "#k1e", 1], [83.9, [330, 800]],
+  [90.0, "#b-patsave"], [T.save, "#b-patsave", 1], [93.8, [330, 700]], [94.0, "#selbox"], [T.sel3, "#selbox", 1], [95.0, [330, 760]],
+];
+const FINGER_ON = [[64.3, 84.2], [89.8, 95.2]];
+function posInScreen(sel) {
+  const el = $(sel, $("#screen"));
+  if (!el) return null;
+  const scr = $("#screen").getBoundingClientRect(), r = el.getBoundingClientRect(), s = scr.width / 430;
+  return [(r.left + r.width / 2 - scr.left) / s, (r.top + r.height / 2 - scr.top) / s];
+}
+const lastPos = {};
+function resolve(target, i) {
+  if (Array.isArray(target)) return target;
+  const p = posInScreen(target);
+  if (p) lastPos[i] = p;
+  return lastPos[i] || [215, 600];
+}
+function renderFinger(t) {
+  const on = FINGER_ON.some(([a, b]) => t >= a && t <= b);
+  const vis = FINGER_ON.reduce((m, [a, b]) => Math.max(m, P(t, a, 0.25) * (1 - P(t, b - 0.25, 0.25))), 0);
+  const f = $("#finger"), rp = $("#ripple");
+  f.style.opacity = on ? vis : 0;
+  let i = FINGER.findIndex((x) => x[0] > t);
+  if (i === -1) i = FINGER.length;
+  const prev = FINGER[Math.max(0, i - 1)], next = FINGER[Math.min(FINGER.length - 1, i)];
+  let x, y;
+  if (i === 0 || i === FINGER.length) [x, y] = resolve(prev[1], Math.max(0, i - 1));
+  else {
+    const a = resolve(prev[1], i - 1), b = resolve(next[1], i), k = eio(clamp((t - prev[0]) / (next[0] - prev[0])));
+    x = a[0] + (b[0] - a[0]) * k; y = a[1] + (b[1] - a[1]) * k;
+  }
+  let press = 0, rip = null;
+  for (const fr of FINGER) if (fr[2]) {
+    const d = t - fr[0];
+    if (d > -0.12 && d < 0.18) press = Math.max(press, 1 - Math.abs(d - 0.03) / 0.15);
+    if (d >= 0 && d < 0.5) rip = d / 0.5;
+  }
+  f.style.transform = `translate(${x}px,${y}px) scale(${1 - 0.18 * press})`;
+  f.style.background = `rgba(37,99,235,${0.28 + 0.3 * press})`;
+  rp.style.transform = `translate(${x}px,${y}px) scale(${rip == null ? 1 : 1 + rip * 1.6})`;
+  rp.style.opacity = rip == null || !on ? 0 : 1 - rip;
+}
+
+// ---------------------------------------------------------------- カメラ
+const HOME = [1350, 540];
+const CAM = [
+  [60, 1, [215, 466], HOME],
+  [73.4, 1, [215, 466], HOME], [74.0, 1.4, "#ptab", HOME], [78.2, 1.4, "#ptab", HOME], [78.8, 1, [215, 466], HOME],
+  [84.4, 1, [215, 466], HOME], [85.0, 1.7, "#rowB .bend", HOME], [88.4, 1.7, "#rowB .bend", HOME], [89.0, 1, [215, 466], HOME],
+];
+const camCache = {};
+function renderCam(t) {
+  let i = CAM.findIndex((c) => c[0] > t);
+  const get = (j) => {
+    const c = CAM[j];
+    let f = c[2];
+    if (!Array.isArray(f)) { const p = posInScreen(f); if (p) camCache[j] = p; f = camCache[j] || [215, 466]; }
+    return { s: c[1], f, c: c[3] };
+  };
+  let s, fx, fy, cx, cy;
+  if (i === 0) i = 1;
+  if (i === -1) { const g = get(CAM.length - 1); s = g.s; [fx, fy] = g.f; [cx, cy] = g.c; }
+  else {
+    const a = get(i - 1), b = get(i), k = eio(clamp((t - CAM[i - 1][0]) / (CAM[i][0] - CAM[i - 1][0])));
+    s = a.s + (b.s - a.s) * k; fx = a.f[0] + (b.f[0] - a.f[0]) * k; fy = a.f[1] + (b.f[1] - a.f[1]) * k;
+    cx = a.c[0] + (b.c[0] - a.c[0]) * k; cy = a.c[1] + (b.c[1] - a.c[1]) * k;
+  }
+  $("#phoneCam").style.transform = `translate(${cx - (fx + 14) * s}px,${cy - (fy + 14) * s}px) scale(${s})`;
+  const k = clamp((s - 1) / 0.4);
+  $("#phoneWrap").style.webkitMaskImage = k > 0 ? `linear-gradient(to right, rgba(0,0,0,${1 - k}) 870px, #000 990px)` : "none";
+}
+
+// ---------------------------------------------------------------- S1a の線
+function renderDiagram(t) {
+  const st = $("#stage").getBoundingClientRect(), sc = st.width / 1920;
+  const R = (id) => { const r = $(id).getBoundingClientRect(); return { l: (r.left - st.left) / sc, r: (r.right - st.left) / sc, y: (r.top + r.height / 2 - st.top) / sc }; };
+  let h = "";
+  const line = (a, b, t0, color) => {
+    if (t < t0 || t > 18.2) return;
+    const A = R(a), B = R(b), x0 = A.r, y0 = A.y, x1 = B.l, y1 = B.y;
+    const len = Math.hypot(x1 - x0, y1 - y0) * 1.3, p = P(t, t0, 0.6), o = 1 - P(t, 17.8, 0.35);
+    h += `<path d="M${x0} ${y0} C ${x0 + 90} ${y0}, ${x1 - 90} ${y1}, ${x1} ${y1}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${len}" stroke-dashoffset="${len * (1 - p)}" opacity="${o}"/>`;
+  };
+  line("#nCenter", "#nOpen", 9.7, "#16a34a"); line("#nCenter", "#nWork", 13.7, "#e0701a");
+  line("#nOpen", "#nCal", 10.8, "#16a34a"); line("#nWork", "#nShift", 14.8, "#e0701a"); line("#nWork", "#nRule", 15.8, "#e0701a");
+  $("#dlines").innerHTML = h;
+}
+
+// ---------------------------------------------------------------- S1b のタイムライン図（6:00〜翌10:00）
+const AX0 = 6 * 60, AX1 = 34 * 60, AXW = 1440;
+const X = (min) => ((min - AX0) / (AX1 - AX0)) * AXW;
+let axisDone = false;
+function renderChart(t) {
+  if (t < 18 || t > 31.5) return;
+  if (!axisDone) {
+    let h = "";
+    for (let m = 6; m <= 34; m += 2) h += `<div class="tick" style="left:${X(m * 60)}px">${m % 24}:00</div>`;
+    h += `<div class="vline mid" style="left:${X(24 * 60)}px;height:540px"></div>`;
+    for (const m of [10, 23]) h += `<div class="vline" id="vl${m}" style="left:${X(m * 60)}px;height:540px"></div>`;
+    $("#axis").innerHTML = h; axisDone = true;
+  }
+  const over = P(t, 26.6, 0.9, eio); // 通しの日へ
+  const openEnd = 23 * 60 + (34 * 60 - 23 * 60) * over;
+  const bar = (id, s, e, text, grow) => {
+    const el = $(id), w = (X(e) - X(s)) * grow;
+    Object.assign(el.style, { left: 230 + X(s) + "px", width: Math.max(0, w) + "px" });
+    el.textContent = text;
+  };
+  bar("#barOpen", 10 * 60, openEnd, over > 0.5 ? "10:00〜 翌日まで通し（お泊まり可）→" : "10:00〜23:00", P(t, 18.8, 0.8, eio));
+  bar("#barA", 8 * 60, 17 * 60, "8:00〜17:00", P(t, 19.4, 0.7, eio));
+  bar("#barB", 15 * 60, 23 * 60 + 60 * over, over > 0.5 ? "15:00〜0:00" : "15:00〜23:00", P(t, 20.0, 0.7, eio));
+  bar("#barC", 24 * 60, 33 * 60, "0:00〜9:00", P(t, 20.6, 0.7, eio));
+  $("#labOpen").innerHTML = `営業時間<br><span style="font-size:18px;color:#64748b">${over > 0.5 ? "通しの日" : "ふつうの日"}</span>`;
+  $("#barC").style.opacity = 0.35 + 0.65 * Math.max(over, P(t, 20.6, 0.4) * (t < 22.6 ? 1 : 0));
+  const note = t >= 26.6 ? "🌙 通しの日：遅番は0:00まで → 深夜が引き継ぐ" : t >= 22.6 ? "🕚 23時閉店の日：遅番も23:00まで" : "";
+  $("#chartNote").textContent = note;
+  $("#chartNote").style.opacity = t >= 22.6 ? Math.min(P(t, 22.6, 0.4), t < 26.6 ? 1 - P(t, 26.3, 0.3) : P(t, 26.8, 0.4)) : 0;
+}
+
+// ---------------------------------------------------------------- S2 日付カード
+function renderDays(t) {
+  if (t < 39 || t > 46) return;
+  ["#dc1", "#dc2", "#dc3", "#dc4"].forEach((id, i) => {
+    const p = P(t, 40.0 + i * 0.5, 0.5, back);
+    $(id).style.transform = `translateY(${(1 - p) * 60}px) scale(${0.9 + 0.1 * p})`;
+    $(id).style.opacity = P(t, 40.0 + i * 0.5, 0.4);
+  });
+  const m = P(t, 41.6, 0.6, back);
+  $("#marker").style.transform = `scaleY(${m})`;
+  $("#marker").style.transformOrigin = "top";
+  $("#marker span").style.opacity = P(t, 42.0, 0.3);
+}
+
+// ---------------------------------------------------------------- S4 勤務ルール
+const RV = {
+  base: { ver: "初版", a: ["8:00〜17:00", "12:00〜13:00"], alt: false, aChg: false },
+  v1001: { ver: "2026年10月1日 版", a: ["8:00〜17:00", "12:00〜13:00"], alt: true, aChg: false },
+  v0401: { ver: "2027年4月1日 版", a: ["9:00〜18:00", "13:00〜14:00"], alt: true, aChg: true },
+};
+let rulesKey = "";
+function renderRules(t) {
+  if (t < 99 || t > 116) return;
+  const v = t >= T.tab2 ? "v0401" : t >= T.tab1 ? "v1001" : "base", d = RV[v];
+  if (v !== rulesKey) {
+    rulesKey = v;
+    ["base", "v1001", "v0401"].forEach((k, i) => $("#tab" + i).classList.toggle("on", k === v));
+    const card = (id, label, head, box, work, alt, brk, night, nightAlt) => `<div class="rcard" id="${id}"><div class="top" style="background:${head}">${label}</div><div class="bd">
+      <div class="k">勤務時間</div><div class="wt">${work}</div>${alt ? `<div class="alt">通しでない日: ${alt}</div>` : ""}
+      <div class="sep" style="border-color:${head}80"></div><div class="k">休憩時間（基準）</div><div class="bx" style="border-color:${head};background:${box};color:${head}">${brk}</div>
+      <div class="k" style="margin-top:10px">深夜勤務時間</div>${night ? `<div class="nb" style="border-color:#152449;background:#eef2fa;color:#152449">🌙 ${night}${nightAlt ? `<div style="font-size:13px;color:#4b5563">通しでない日: ${nightAlt}</div>` : ""}</div>` : '<div class="none">※深夜勤務はありません</div>'}</div></div>`;
+    $("#rdoc").innerHTML = `<div class="ver">${d.ver}</div><h1>休憩時間と深夜勤務時間について</h1>
+      <div class="intro">給与計算を統一し、わかりやすくするため、<br><b>休憩時間</b>および<b>深夜勤務時間</b>は下記の時間を<b>基準として計算</b>いたします。</div>
+      <div class="rcards">
+        ${card("rcA", "早番", "#1e7b3c", "#eef8f0", d.a[0], "", d.a[1], "", "")}
+        ${card("rcB", "遅番", "#e0701a", "#fff4e8", "15:00〜0:00", d.alt ? "〜23:00" : "", "19:00〜20:00", "22:00〜0:00（2時間）", d.alt ? "〜23:00（1時間）" : "")}
+        ${card("rcC", "深夜", "#152449", "#eef2fa", "0:00〜9:00", "", "4:00〜5:00", "0:00〜5:00（4時間）", "")}
+      </div>
+      <div class="rpay"><h2>給与計算について</h2><p>給与は、上記の<b style="color:#b91c1c">休憩時間</b>を差し引いた勤務時間を基準に計算いたします。</p></div>`;
+  }
+  // 変わったカードを光らせる
+  $("#rdoc").querySelectorAll(".flash").forEach((e) => e.remove());
+  const fl = (id, a) => {
+    if (t < a || t > a + 2.6) return;
+    const el = $(id), f = document.createElement("div"); f.className = "flash";
+    Object.assign(f.style, { left: el.offsetLeft - 4 + "px", top: el.offsetTop - 4 + "px", width: el.offsetWidth + 8 + "px", height: el.offsetHeight + 8 + "px", opacity: Math.min(P(t, a, 0.2), 1 - P(t, a + 2.2, 0.4)) });
+    $("#rdoc").appendChild(f);
+  };
+  fl("#rcB", T.tab1 + 0.1); fl("#rcA", T.tab2 + 0.1);
+  // マウスカーソル
+  const st = $("#stage").getBoundingClientRect(), sc = st.width / 1920;
+  const at = (id) => { const r = $(id).getBoundingClientRect(); return [(r.left + r.width / 2 - st.left) / sc, (r.top + r.height / 2 - st.top) / sc + 4]; };
+  const K = [[101.5, [1500, 700]], [105.2, [1500, 700]], [105.8, at("#tab1")], [108.2, at("#tab1")], [108.6, at("#tab2")], [111.6, at("#tab2")], [112.4, at("#rpdf")]];
+  let p = K[0][1];
+  for (let i = 1; i < K.length; i++) if (t >= K[i - 1][0]) { const k = eio(clamp((t - K[i - 1][0]) / (K[i][0] - K[i - 1][0]))); p = [K[i - 1][1][0] + (K[i][1][0] - K[i - 1][1][0]) * k, K[i - 1][1][1] + (K[i][1][1] - K[i - 1][1][1]) * k]; }
+  const c = $("#cursor");
+  c.style.transform = `translate(${p[0]}px,${p[1]}px) scale(${[T.tab1, T.tab2].some((x) => t > x - 0.1 && t < x + 0.15) ? 0.85 : 1})`;
+  c.style.opacity = Math.min(P(t, 101.5, 0.3), 1 - P(t, 114.8, 0.3));
+}
+
+// ---------------------------------------------------------------- 共通
+const animEls = [...document.querySelectorAll("[data-a]")].map((el) => {
+  const [a, b] = el.dataset.a.split(",").map(Number);
+  return { el, a, b, fx: el.dataset.fx || "up" };
+});
+function renderAnims(t) {
+  for (const { el, a, b, fx } of animEls) {
+    const pi = P(t, a, fx === "pop" ? 0.55 : 0.5, fx === "pop" ? back : eo), po = P(t, b, 0.35, (x) => x * x);
+    const o = clamp(P(t, a, 0.4) * (1 - po));
+    el.style.opacity = o;
+    el.style.visibility = o <= 0.001 ? "hidden" : "visible";
+    let tr = "";
+    if (fx === "up") tr = `translateY(${(1 - pi) * 46 - po * 20}px)`;
+    if (fx === "left") tr = `translateX(${(1 - pi) * -60 - po * 30}px)`;
+    if (fx === "right") tr = `translateX(${(1 - pi) * 120 + po * 60}px)`;
+    if (fx === "pop") tr = `scale(${0.85 + 0.15 * pi - po * 0.05})`;
+    if (el.id !== "phoneWrap") el.style.transform = tr;
+  }
+}
+function renderBg(t) {
+  const s = Math.sin, c = Math.cos;
+  $("#blob1").style.transform = `translate(${-160 + 120 * s(t * 0.21)}px,${-220 + 90 * c(t * 0.17)}px)`;
+  $("#blob2").style.transform = `translate(${1300 + 140 * c(t * 0.19)}px,${560 + 80 * s(t * 0.23)}px)`;
+  $("#blob3").style.transform = `translate(${760 + 160 * s(t * 0.13)}px,${760 + 70 * c(t * 0.29)}px)`;
+  $("#grid").style.transform = `translateY(${-(t * 6) % 34}px)`;
+}
+function renderSpecial(t) {
+  const w = P(t, 4.6, 0.7, eio);
+  $("#op").style.clipPath = `inset(0 0 ${w * 100}% 0)`;
+  $("#op").style.display = w >= 1 ? "none" : "block";
+  const e = P(t, 115.3, 0.7, eio);
+  $("#end").style.clipPath = `inset(${(1 - e) * 100}% 0 0 0)`;
+  $("#end").style.display = e <= 0 ? "none" : "block";
+  $("#phoneWrap").style.opacity = Math.min(P(t, 60.4, 0.5), 1 - P(t, 99.6, 0.4));
+  $("#progress").style.width = `${(t / DUR) * 100}%`;
+}
+window.renderAt = function (t) {
+  renderBg(t); renderAnims(t); renderSpecial(t);
+  if (t > 59 && t < 101) { renderPat(t); renderCam(t); renderFinger(t); }
+  renderDiagram(t); renderChart(t); renderDays(t); renderRules(t);
+};
+window.DUR = DUR;
+const params = new URLSearchParams(location.search);
+if (!params.has("render")) {
+  const fit = () => { const s = Math.min(innerWidth / 1920, innerHeight / 1080); $("#stage").style.transform = `scale(${s})`; $("#stage").style.marginRight = `${1920 * s - 1920}px`; $("#stage").style.marginBottom = `${1080 * s - 1080}px`; };
+  fit(); addEventListener("resize", fit);
+  const start = performance.now() - (Number(params.get("t")) || 0) * 1000;
+  const loop = (now) => { renderAt(((now - start) / 1000) % DUR); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+} else document.body.style.display = "block";
+</script>
+</body>
+</html>

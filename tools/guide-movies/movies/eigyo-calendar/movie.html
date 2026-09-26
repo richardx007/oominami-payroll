@@ -1,0 +1,1254 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>営業カレンダー 操作ガイド</title>
+<style>
+:root{
+  --navy:#0f1b3d; --ink:#1f2937; --muted:#6b7280; --blue:#2563eb; --blue-d:#1e40af;
+  --green:#16a34a; --yellow:#facc15; --red:#dc2626; --orange:#f97316; --gold:#d3a94e;
+  --bg:#f3f5fa;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#05070f;overflow:hidden}
+body{display:grid;place-items:center}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--bg);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;color:var(--navy);
+  transform-origin:0 0;-webkit-font-smoothing:antialiased}
+.abs{position:absolute}
+/* 背景 */
+.blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55}
+#grid{position:absolute;inset:0;background-image:radial-gradient(#c9d3e6 1.3px,transparent 1.3px);background-size:34px 34px;opacity:.55}
+/* テロップ共通 */
+.chapter{position:absolute;left:96px;top:64px;display:flex;align-items:center;gap:16px;font-weight:800;font-size:22px;letter-spacing:.08em;color:var(--blue)}
+.chapter b{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--blue);color:#fff;font-size:22px}
+.h1{position:absolute;left:96px;font-size:66px;font-weight:900;letter-spacing:.01em;line-height:1.2}
+.h1 em{font-style:normal;color:var(--blue)}
+.sub{position:absolute;left:100px;font-size:30px;font-weight:600;color:#334155;line-height:1.6}
+.tip{position:absolute;left:100px;display:flex;gap:14px;align-items:flex-start;font-size:27px;font-weight:600;color:#1e293b;line-height:1.5;max-width:760px}
+.tip i{flex:none;font-style:normal;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;box-shadow:0 4px 14px rgba(15,27,61,.12);font-size:22px;margin-top:2px}
+.kbd{display:inline-block;padding:0 12px;border-radius:10px;background:#fff;border:2px solid #cbd5e1;font-weight:800;color:var(--navy);box-shadow:0 3px 0 #cbd5e1}
+.kbd.red{border-color:#ef4444;color:#dc2626;box-shadow:0 3px 0 #fca5a5}
+.kbd.blue{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 3px 0 #1e3a8a}
+.hl{background:linear-gradient(transparent 62%,#fde68a 62%)}
+/* 電話 */
+#phoneCam{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.phone{position:relative;width:458px;height:960px;border-radius:66px;background:#0c0f1a;padding:14px;box-shadow:0 40px 90px rgba(15,27,61,.35),0 0 0 2px #2b3144 inset}
+.screen{position:relative;width:430px;height:932px;border-radius:54px;overflow:hidden;background:#f9fafb}
+.notch{position:absolute;left:50%;top:10px;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#0c0f1a;z-index:50}
+.sbar{position:absolute;left:0;right:0;top:0;height:54px;display:flex;justify-content:space-between;align-items:center;padding:8px 34px 0 42px;font-size:16px;font-weight:700;color:#111;z-index:40;background:#fff}
+.appbar{position:absolute;left:0;right:0;top:54px;height:50px;display:flex;align-items:center;gap:12px;padding:0 18px;background:#fff;border-bottom:1px solid #e5e7eb;font-weight:800;font-size:17px;color:#1e3a8a;z-index:30}
+.appbar .burger{font-size:22px;color:#4b5563}
+.view{position:absolute;left:0;right:0;top:104px;bottom:0;overflow:hidden;background:#f9fafb}
+.scroller{position:absolute;left:0;right:0;top:0;padding:12px 10px 60px}
+/* 管理画面 */
+.nav{display:flex;align-items:center;gap:4px}
+.nav .arr{font-size:20px;font-weight:800;color:#4b5563;padding:2px 6px}
+.nav .ym{font-size:19px;font-weight:900;color:#1e40af;white-space:nowrap}
+.icons{margin-left:auto;display:flex;gap:4px}
+.ib{width:36px;height:36px;border-radius:9px;border:1px solid #d1d5db;background:#fff;display:grid;place-items:center;color:#4b5563}
+.ib svg{width:20px;height:20px}
+.badgeRow{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#6b7280}
+.badge{padding:3px 11px;border-radius:9px;font-size:16px;font-weight:800}
+.b-draft{background:#fef08a;color:#713f12}.b-public{background:#dcfce7;color:#166534}
+.msg{margin-top:8px;border-radius:9px;background:#fefce8;color:#713f12;font-size:13px;padding:9px 11px;line-height:1.5}
+.cal{margin-top:10px;border:2px solid #9ca3af;border-radius:12px;background:#fff;padding:2px}
+.wh{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-weight:800;font-size:16px;color:#374151;border-radius:8px;margin-bottom:2px}
+.wh div{padding:5px 0}
+.wk{position:relative;border-top:1px solid #f3f4f6}
+.wk .bgc{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,1fr)}
+.wk .bgc div{border:1px solid #f3f4f6;position:relative}
+.wk .bgc .out{background:#f9fafb}
+.wk .bgc .sel{box-shadow:inset 0 0 0 3px #3b82f6;border-radius:3px}
+.wk .fg{position:relative;display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:auto;min-height:74px;padding-bottom:3px;align-content:start}
+.dn{text-align:center;font-weight:800;font-size:16px;line-height:1.55}
+.dn .dot{font-size:9px;color:#f97316;vertical-align:4px;margin-left:1px}
+.ch{margin:1px 1px 0;border:1px solid #22c55e;background:#f0fdf4;color:#166534;font-size:11px;font-weight:600;line-height:1.3;border-radius:2px;padding:0 2px;white-space:nowrap;overflow:hidden;text-align:center}
+.ch.tc{border-color:#ef4444;background:#fef2f2;color:#dc2626;font-weight:800}
+.ch.stay{border:none;background:none;color:#374151;font-weight:700;text-align:left}
+.band{margin:1px 0 0;border:1px solid #22c55e;background:#f0fdf4;color:#166534;font-size:11px;font-weight:600;line-height:1.3;padding:0 3px;display:flex;justify-content:space-between;white-space:nowrap;overflow:hidden}
+.band.l{border-top-left-radius:3px;border-bottom-left-radius:3px}
+.band.r{border-top-right-radius:3px;border-bottom-right-radius:3px}
+.band.ev{border-color:#d3a94e;background:#fbf1d9;color:#b8860b;font-weight:800}
+.flash{position:absolute;pointer-events:none;border-radius:6px;box-shadow:0 0 0 3px #f97316,0 0 24px 6px rgba(249,115,22,.45);z-index:5}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#4b5563;margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.card{margin-top:12px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px}
+.card h3{margin:0 0 8px;font-size:14px;border-left:4px solid #2563eb;padding-left:8px}
+.inp{width:100%;border:1px solid #d1d5db;border-radius:9px;padding:9px 11px;font-size:15px;background:#fff;min-height:40px;color:#111;font-family:inherit;line-height:1.4}
+.inp.focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.35)}
+.inp.red{color:#d81f2a;font-weight:800}
+.inp .caret{display:inline-block;width:2px;height:17px;background:#2563eb;vertical-align:-3px;margin-left:1px}
+.btn{width:100%;border:none;border-radius:9px;background:#2563eb;color:#fff;font-weight:800;font-size:15px;padding:11px;text-align:center;font-family:inherit}
+.btn.dim{opacity:.4}
+.okmsg{color:#15803d;font-size:14px;font-weight:600;margin:6px 0}
+.lbl{font-size:12px;color:#6b7280;font-weight:600;margin-bottom:4px}
+.panel{margin-top:12px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px}
+.ph{display:flex;justify-content:space-between;align-items:flex-start}
+.ph .d{font-size:19px;font-weight:800}
+.ph .s{font-size:14px;color:#4b5563;margin-top:2px}
+.ph .s small{font-size:12px;color:#9ca3af;margin-left:8px}
+.ph .s .m{font-size:12px;color:#ea580c;margin-left:8px}
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0 10px}
+.mode{border:1px solid #d1d5db;border-radius:9px;padding:10px 2px;text-align:center;font-weight:800;font-size:14px;color:#374151;background:#fff}
+.mode.on{background:#2563eb;border-color:#2563eb;color:#fff}
+.mode.on.red{background:#ef4444;border-color:#ef4444}
+.pnote{font-size:13px;color:#4b5563;margin:4px 0 10px}
+.evsec{border-top:1px solid #f3f4f6;margin-top:14px;padding-top:12px}
+.evh{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:15px;color:#1f2937}
+.addb{border:1px solid #2563eb;color:#1d4ed8;border-radius:9px;padding:4px 12px;font-size:14px;font-weight:700}
+.evitem{margin-top:8px;border:1px solid #d3a94e;background:#fbf1d9;border-radius:9px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center}
+.evitem b{color:#b8860b;font-size:14px}.evitem small{display:block;color:#4b5563;font-size:12px}
+.evform{margin-top:8px;background:#f9fafb;border-radius:10px;padding:10px;display:grid;gap:8px}
+.pill{display:inline-block;border:1px solid;border-radius:99px;padding:3px 12px;font-size:14px;font-weight:700;margin-right:6px}
+.pill.on{box-shadow:0 0 0 2px #3b82f6}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px}
+.chk i{width:17px;height:17px;border-radius:4px;border:1.5px solid #6b7280;display:grid;place-items:center;font-style:normal;font-size:12px;color:#fff}
+.chk i.on{background:#2563eb;border-color:#2563eb}
+/* 営業と勤務時間 */
+.back{font-size:13px;color:#1d4ed8;font-weight:600}
+.pt{font-size:21px;font-weight:900;margin:4px 0 4px}
+.pdesc{font-size:12px;color:#4b5563;line-height:1.55}
+.sel{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;font-weight:800}
+.selbox{flex:1;border:1px solid #d1d5db;border-radius:9px;padding:8px 10px;font-weight:700;font-size:15px;background:#fff;display:flex;justify-content:space-between;position:relative}
+.dd{position:absolute;left:0;right:0;top:44px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.22);overflow:hidden;z-index:20;font-weight:600}
+.dd div{padding:11px 14px;border-bottom:1px solid #f3f4f6}
+.dd .cur{color:#2563eb}
+.newbox{margin-top:10px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:10px}
+.newbox .row{display:flex;align-items:center;gap:8px;font-size:14px}
+.newbox p{margin:6px 0 0;font-size:12px;color:#4b5563;line-height:1.5}
+.ptab{margin-top:10px}
+.ptab .tr{display:grid;grid-template-columns:58px 78px 1fr 1fr 34px;gap:5px;align-items:center;padding:4px 0}
+.ptab .th{font-size:11px;color:#6b7280}
+.ptab .dt{font-weight:800;font-size:14px}
+.seg{display:flex;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;font-size:12px;font-weight:700}
+.seg span{flex:1;text-align:center;padding:6px 0;color:#6b7280}
+.seg .on{background:#16a34a;color:#fff}
+.ti{border:1px solid #d1d5db;border-radius:8px;padding:6px 6px;font-size:14px;background:#fff;text-align:center;font-variant-numeric:tabular-nums;min-height:32px}
+.ti.dis{background:#f3f4f6;color:#9ca3af}
+.ti.chg{border-color:#f59e0b;background:#fffbeb;font-weight:800;color:#92400e}
+.ti.focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.35)}
+.cb{width:20px;height:20px;border-radius:5px;border:1.5px solid #6b7280;margin:auto;display:grid;place-items:center;font-size:13px;color:#fff}
+.cb.on{background:#2563eb;border-color:#2563eb}
+.faint{opacity:.55}
+.regen{display:flex;gap:9px;background:#fefce8;border-radius:10px;padding:11px;font-size:14px;margin-top:12px}
+.regen small{display:block;font-size:12px;color:#4b5563;margin-top:3px;line-height:1.5}
+/* 指 */
+#finger{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(37,99,235,.28);border:3px solid rgba(255,255,255,.95);box-shadow:0 6px 18px rgba(15,27,61,.35);z-index:100;pointer-events:none}
+#ripple{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:3px solid #2563eb;z-index:99;pointer-events:none}
+/* ブラウザ */
+#browser{position:absolute;left:830px;top:238px;width:1020px;height:772px;border-radius:18px;background:#fff;box-shadow:0 40px 90px rgba(15,27,61,.28);overflow:hidden}
+.bbar{height:52px;background:#eef1f6;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #dde2ea}
+.bbar i{width:13px;height:13px;border-radius:50%;display:inline-block}
+.url{flex:1;margin-left:14px;height:32px;border-radius:9px;background:#fff;display:flex;align-items:center;gap:10px;padding:0 14px;font-size:15px;color:#475569}
+.reload{font-size:18px;color:#64748b;display:inline-block}
+.hp{padding:16px 36px}
+.hpcard{border:1px solid #e5e7eb;border-radius:16px;padding:14px 20px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.hphead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.hphead h2{margin:0;font-size:22px;letter-spacing:.05em}
+.hpym{font-weight:800;font-size:15px}.hpym b{font-size:30px;margin-left:2px}
+.hpnav{display:flex;align-items:center;gap:14px}
+.hpnav span.c{width:38px;height:38px;border-radius:50%;background:#e9ebef;display:grid;place-items:center;font-weight:800}
+.hpcal{border:2px solid #475569;border-radius:12px;overflow:hidden}
+.hpcal .wh{font-size:21px;border-radius:0;margin:0;border-bottom:2px solid #475569}
+.hpcal .wk .fg{min-height:92px}
+.hpcal .dn{font-size:17px;text-align:left;padding-left:8px}
+.hpcal .ch,.hpcal .band{font-size:13px;line-height:1.45}
+.hpfoot{margin-top:10px;font-size:16px;font-weight:800;color:#d81f2a;line-height:1.5}
+.hplegend{display:flex;gap:20px;font-size:15px;color:#475569;margin-top:6px}
+.hplegend span{display:inline-flex;gap:6px;align-items:center}
+.hplegend i{width:11px;height:11px;border-radius:50%;display:inline-block}
+/* 汎用カード */
+.stepcard{position:absolute;width:500px;height:370px;border-radius:30px;background:#fff;box-shadow:0 24px 60px rgba(15,27,61,.12);padding:40px 38px}
+.stepcard .when{font-size:24px;font-weight:800;color:#64748b}
+.stepcard .big{font-size:44px;font-weight:900;margin:12px 0 16px;line-height:1.25}
+.stepcard .desc{font-size:24px;color:#334155;line-height:1.6;font-weight:600}
+.stag{display:inline-block;padding:6px 18px;border-radius:12px;font-size:24px;font-weight:900}
+.callout{position:absolute;left:96px;display:flex;align-items:center;gap:16px;background:#fff;border-radius:20px;padding:18px 26px;box-shadow:0 14px 36px rgba(15,27,61,.12);font-size:27px;font-weight:700;width:720px}
+.callout .n{flex:none;width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:900;font-size:22px}
+.callout small{display:block;font-size:20px;color:#64748b;font-weight:600;margin-top:2px}
+svg#lines{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none;z-index:60}
+#progress{position:absolute;left:0;bottom:0;height:6px;background:linear-gradient(90deg,#2563eb,#22c55e);z-index:200}
+.sig{position:absolute;opacity:0;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 8px rgba(34,197,94,.25),0 0 30px 10px rgba(34,197,94,.55);z-index:90}
+.summary{position:absolute;left:260px;width:1400px;display:flex;align-items:center;gap:30px;background:#fff;border-radius:26px;padding:30px 40px;box-shadow:0 20px 50px rgba(15,27,61,.10);font-size:34px;font-weight:800}
+.summary .ic{flex:none;width:76px;height:76px;border-radius:22px;display:grid;place-items:center;font-size:38px;color:#fff}
+.summary small{display:block;font-size:24px;color:#64748b;font-weight:600;margin-top:4px}
+.node{position:absolute;border-radius:24px;background:#fff;box-shadow:0 18px 44px rgba(15,27,61,.12);padding:22px 28px;font-weight:800}
+.node small{display:block;font-size:21px;color:#64748b;font-weight:600;margin-top:6px;line-height:1.45}
+.node .tag{display:inline-block;padding:4px 14px;border-radius:10px;color:#fff;font-size:20px;margin-bottom:8px}
+.point{position:absolute;left:96px;width:820px;display:flex;gap:18px;align-items:center;background:#fff;border-radius:22px;padding:20px 26px;box-shadow:0 14px 36px rgba(15,27,61,.10);font-size:30px;font-weight:800}
+.point .ic{flex:none;width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:28px;color:#fff}
+.point small{display:block;font-size:21px;color:#64748b;font-weight:600;margin-top:4px}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bgwrap">
+    <div class="blob" id="blob1" style="width:760px;height:760px;background:#bcd3ff"></div>
+    <div class="blob" id="blob2" style="width:620px;height:620px;background:#c8f0d8"></div>
+    <div class="blob" id="blob3" style="width:520px;height:520px;background:#ffe8a8"></div>
+    <div id="grid"></div>
+  </div>
+
+  <!-- チャプター表示 -->
+  <div class="chapter" data-a="5.4,15" data-fx="left"><b>02</b>毎月の流れ</div>
+  <div class="chapter" data-a="15.2,24.8" data-fx="left"><b>03</b>画面の見方</div>
+  <div class="chapter" data-a="25,62.7" data-fx="left"><b>04</b>いつもと違う日を直す</div>
+  <div class="chapter" data-a="66,85.6" data-fx="left"><b>05</b>お客様へのお知らせ</div>
+  <div class="chapter" data-a="86,99.6" data-fx="left"><b>06</b>ホームページへの反映</div>
+
+  <!-- S1 毎月の流れ -->
+  <div class="h1" style="top:140px" data-a="5.5,14.6" data-fx="up">基本は<em>いつもと違う日だけ</em>直す</div>
+  <div id="flowline" class="abs" style="left:300px;top:640px;width:1320px;height:8px;border-radius:4px;background:#dbe3f0"><div id="flowfill" style="height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#2563eb,#eab308,#16a34a)"></div></div>
+  <div class="stepcard" style="left:110px;top:400px" data-a="6.2,14.6" data-fx="pop">
+    <div class="when">毎月 15日</div>
+    <div class="big">翌々月分を<br>自動で作成</div>
+    <div class="desc">営業時間の定義から作られ、<br>管理者に通知が届きます<br><span style="color:#64748b;font-size:21px">例：9/15 に 11月分</span></div>
+  </div>
+  <div class="stepcard" style="left:710px;top:400px" data-a="7.6,14.6" data-fx="pop">
+    <div class="when">〜 月末まで　<span class="stag b-draft">準備中</span></div>
+    <div class="big">いつもと違う日<br>だけ直す</div>
+    <div class="desc">臨時休業・時間の変更・<br>イベントやお知らせ</div>
+  </div>
+  <div class="stepcard" style="left:1310px;top:400px" data-a="9,14.6" data-fx="pop">
+    <div class="when">翌月 1日　<span class="stag b-public">公開中</span></div>
+    <div class="big">ホームページに<br>自動で公開</div>
+    <div class="desc">今月と翌月が表示されます<br><span style="color:#64748b;font-size:21px">確認ボタンはありません</span></div>
+  </div>
+  <div class="sub" style="top:850px;left:110px;font-size:28px" data-a="10.6,14.6" data-fx="up">🔔 通知はアカウント設定の「通知対象」→「営業カレンダーの作成」で受け取れます</div>
+
+  <!-- S2 画面の見方 -->
+  <div class="h1" style="top:140px" data-a="15.4,24.6" data-fx="up">メニュー「<em>営業カレンダー</em>」</div>
+  <div class="callout" style="top:330px" id="co1" data-a="16.3,24.6" data-fx="left"><span class="n">1</span><div>右上のボタン<small>👁 HPでの見え方・📄 ポスター・⚙ 営業時間・🎨 色</small></div></div>
+  <div class="callout" style="top:470px" id="co2" data-a="17.8,24.6" data-fx="left"><span class="n">2</span><div>月の状態<small>準備中＝まだHPに出ていない ／ 公開中＝HPに表示中</small></div></div>
+  <div class="callout" style="top:610px" id="co3" data-a="19.3,24.6" data-fx="left"><span class="n">3</span><div>直す期限<small>この日までに直せば、1日から自動で公開</small></div></div>
+  <div class="callout" style="top:750px" id="co4" data-a="20.8,24.6" data-fx="left"><span class="n">4</span><div>カレンダー<small>日をタップして変更。<span style="color:#f97316">●</span>＝手で変更した日</small></div></div>
+
+  <!-- S3 臨時休業 -->
+  <div class="h1" style="top:140px" data-a="25.2,37.6" data-fx="up"><em>①</em> 臨時休業にする</div>
+  <div class="tip" style="top:300px" data-a="26,37.6" data-fx="up"><i>👆</i><span>日をタップ</span></div>
+  <div class="tip" style="top:370px" data-a="28.8,37.6" data-fx="up"><i>🟥</i><span><span class="kbd red">臨時休業</span> を選ぶ</span></div>
+  <div class="tip" style="top:440px" data-a="29.9,37.6" data-fx="up"><i>📝</i><span>管理用メモは任意<br><span style="font-size:22px;color:#64748b">（ホームページには出ません）</span></span></div>
+  <div class="tip" style="top:560px" data-a="32,37.6" data-fx="up"><i>💾</i><span><span class="kbd blue">保存する</span></span></div>
+  <div class="tip" style="top:660px;color:#c2410c" data-a="34.4,37.6" data-fx="up"><i>●</i><span>手で変更した日には <span style="color:#f97316">●</span> が付きます</span></div>
+
+  <!-- S4 時間を変える -->
+  <div class="h1" style="top:140px" data-a="38,46.6" data-fx="up"><em>②</em> 営業時間を変える</div>
+  <div class="tip" style="top:300px" data-a="38.6,46.6" data-fx="up"><i>👆</i><span>日をタップ → <span class="kbd">時間を変える</span></span></div>
+  <div class="tip" style="top:390px" data-a="41,46.6" data-fx="up"><i>🕘</i><span>開店・閉店を入力</span></div>
+  <div class="tip" style="top:460px" data-a="42,46.6" data-fx="up"><i>💡</i><span>深夜0時をまたぐ閉店は<br><b class="hl">26:00</b> のように入力</span></div>
+  <div class="tip" style="top:580px" data-a="42.6,46.6" data-fx="up"><i>🌙</i><span>「翌日まで通し」にもできます</span></div>
+
+  <!-- S5 イベント -->
+  <div class="h1" style="top:140px" data-a="47,57.6" data-fx="up"><em>③</em> イベント・お知らせ</div>
+  <div class="tip" style="top:300px" data-a="47.6,57.6" data-fx="up"><i>👆</i><span>日をタップ → <span class="kbd">＋ 追加</span></span></div>
+  <div class="tip" style="top:390px" data-a="50.2,57.6" data-fx="up"><i>🎨</i><span>種類を選ぶと色分けされます</span></div>
+  <div class="tip" style="top:460px" data-a="52.4,57.6" data-fx="up"><i>📅</i><span>終了日を変えれば<b class="hl">複数日の帯</b>に</span></div>
+  <div class="tip" style="top:530px" data-a="53.2,57.6" data-fx="up"><i>🔒</i><span>「ホームページに表示する」を外すと<br>管理画面だけのメモに</span></div>
+
+  <!-- S6 元に戻す -->
+  <div class="h1" style="top:140px" data-a="58,62.7" data-fx="up">元に戻すのも<em>1タップ</em></div>
+  <div class="tip" style="top:300px" data-a="58.6,62.7" data-fx="up"><i>↩︎</i><span><span class="kbd">いつもどおり</span> → <span class="kbd blue">保存する</span></span></div>
+  <div class="tip" style="top:390px" data-a="60.8,62.7" data-fx="up"><i>✨</i><span>営業時間の定義どおりに戻り、<span style="color:#f97316">●</span> も消えます</span></div>
+
+  <!-- S7 タイトルカード -->
+  <div id="tcard" class="abs" style="left:0;top:0;width:1920px;height:1080px;background:#0f1b3d;z-index:70" data-a="62.8,65.9" data-fx="fade"></div>
+  <div class="abs" style="left:0;width:1920px;top:380px;text-align:center;font-size:84px;font-weight:900;color:#fff;z-index:71" data-a="63.1,65.8" data-fx="up">営業時間そのものが変わるときは？</div>
+  <div class="abs" style="left:0;width:1920px;top:540px;text-align:center;font-size:40px;font-weight:700;color:#bcd3ff;z-index:71" data-a="63.8,65.8" data-fx="up">日ごとに直さず、<span style="color:#fde68a">「営業と勤務時間」で新しい定義を追加</span>します</div>
+
+  <div class="h1" style="top:140px;font-size:58px" data-a="66.2,79.6" data-fx="up">⚙ 営業と勤務時間</div>
+  <div class="sub" style="top:238px;font-size:26px;color:#64748b" data-a="66.6,79.6" data-fx="up">例：10月1日から、日〜木の閉店を 24時 → 23時 に</div>
+  <div class="callout" style="top:330px" data-a="67.6,79.6" data-fx="left"><span class="n">1</span><div>「＋ 適用開始日を追加」<small>変わる日（例：2026/10/1）を入れる</small></div></div>
+  <div class="callout" style="top:470px" data-a="70.4,79.6" data-fx="left"><span class="n">2</span><div>変わる区分だけ直す<small>今の定義が写されるので、違う所だけ</small></div></div>
+  <div class="callout" style="top:610px" data-a="74,79.6" data-fx="left"><span class="n">3</span><div>「作成済みの月にも反映」→ 追加<small>手で直した日（臨時休業など）はそのまま</small></div></div>
+  <div class="tip" style="top:770px;font-size:24px;color:#475569" data-a="76.6,79.6" data-fx="up"><i>⏱</i><span>シフト枠・休憩時間も同じ日から切り替わります<br>（前日までの勤務の計算は変わりません）</span></div>
+
+  <div class="h1" style="top:140px;font-size:58px" data-a="79.8,85.6" data-fx="up">お客様への告知は<em>「月の注釈」</em></div>
+  <div class="tip" style="top:290px" data-a="80.4,85.6" data-fx="up"><i>📝</i><span>カレンダーの下の欄に書いて<br><span class="kbd blue">注釈を保存する</span></span></div>
+  <div class="tip" style="top:420px;color:#d81f2a" data-a="83.4,85.6" data-fx="up"><i>🔴</i><span>ホームページ・ポスターに<b>赤い太字</b>で表示されます</span></div>
+
+  <!-- S8 -->
+  <div class="h1" style="top:118px;font-size:58px" data-a="86.2,99.6" data-fx="up">保存した瞬間、<em>ホームページに反映</em></div>
+  <div class="callout" style="top:300px;left:70px;width:700px" data-a="94.6,99.6" data-fx="left"><span class="n" style="background:#16a34a">✓</span><div>公開中の月（今月・翌月）<small>保存するとすぐホームページに反映</small></div></div>
+  <div class="callout" style="top:460px;left:70px;width:700px" data-a="95.6,99.6" data-fx="left"><span class="n" style="background:#ca8a04">⏳</span><div>準備中の月<small>1日に自動で公開（それまでは出ません）</small></div></div>
+  <div class="callout" style="top:620px;left:70px;width:700px" data-a="96.6,99.6" data-fx="left"><span class="n" style="background:#475569">👁</span><div>公開前の確認<small>右上の「ホームページでの見え方」で<br>準備中の月もそのまま確認できます</small></div></div>
+
+  <div id="browser" data-a="86.4,99.6" data-fx="right">
+    <div class="bbar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+      <div class="url"><span class="reload" id="reload">⟳</span><span>🔒 オオミナミ ホームページ ／ 営業カレンダー</span></div></div>
+    <div class="hp"><div class="hpcard">
+      <div class="hphead"><h2>オオミナミ　営業カレンダー</h2><div class="hpnav"><span class="c">‹</span><span class="hpym">2026年<b>10月</b></span><span class="c">›</span></div></div>
+      <div id="hpcal"></div>
+      <div class="hpfoot" id="hpfoot"></div>
+      <div class="hplegend"><span><i style="background:#16a34a"></i>営業時間</span><span><i style="background:#b8860b"></i>イベント</span><span><i style="background:#1d4ed8"></i>お知らせ</span></div>
+    </div></div>
+  </div>
+
+  <!-- 電話 -->
+  <div id="phoneWrap" data-a="15.2,99.6" data-fx="fade" style="position:absolute;inset:0;pointer-events:none">
+    <div id="phoneCam"><div class="phone"><div class="screen" id="screen">
+      <div class="notch"></div>
+      <div class="sbar"><span>9:41</span><span>●●● 🔋</span></div>
+      <div class="appbar"><span class="burger">≡</span><span id="apptitle">営業カレンダー</span></div>
+      <div class="view" id="viewAdmin"><div class="scroller" id="scAdmin"></div></div>
+      <div class="view" id="viewPat"><div class="scroller" id="scPat"></div></div>
+      <div id="ripple"></div><div id="finger"></div>
+    </div></div></div>
+  </div>
+  <div class="sig" id="sig"></div>
+
+  <!-- S0 オープニング -->
+  <div id="op" class="abs" style="inset:0;background:radial-gradient(1200px 700px at 30% 30%,#1e3a8a,#0f1b3d);z-index:150">
+    <div class="abs" style="left:160px;top:250px;font-size:30px;font-weight:800;letter-spacing:.3em;color:#93c5fd" data-a="0.3,99" data-fx="up">管理者向け 操作ガイド</div>
+    <div class="abs" style="left:150px;top:310px;font-size:150px;font-weight:900;color:#fff;letter-spacing:.02em" data-a="0.6,99" data-fx="up">営業カレンダー</div>
+    <div class="abs" style="left:160px;top:560px;display:flex;gap:22px;font-size:32px;font-weight:800;color:#0f1b3d">
+      <span style="background:#fff;border-radius:18px;padding:14px 28px" data-a="1.4,99" data-fx="pop">① しくみと画面の開き方</span>
+      <span style="background:#fde68a;border-radius:18px;padding:14px 28px" data-a="1.8,99" data-fx="pop">② いつもと違う日の設定</span>
+      <span style="background:#bbf7d0;border-radius:18px;padding:14px 28px" data-a="2.2,99" data-fx="pop">③ ホームページへの反映</span>
+    </div>
+    <div class="abs" style="left:160px;top:760px;font-size:26px;color:#cbd5e1;font-weight:600" data-a="2.8,99" data-fx="up">約 3 分</div>
+  </div>
+
+  <!-- S9 まとめ -->
+  <div id="end" class="abs" style="inset:0;background:#f3f5fa;z-index:160">
+    <div class="abs" style="left:0;width:1920px;top:120px;text-align:center;font-size:64px;font-weight:900" data-a="100.5,999" data-fx="up">まとめ</div>
+    <div class="summary" style="top:280px" data-a="101.1,999" data-fx="left"><span class="ic" style="background:#2563eb">📅</span><div>毎月15日に自動作成 → <span class="hl">いつもと違う日だけ</span>直す<small>臨時休業・時間の変更・イベント。<span style="color:#f97316">●</span> は「いつもどおり」で元に戻せます</small></div></div>
+    <div class="summary" style="top:470px" data-a="101.8,999" data-fx="left"><span class="ic" style="background:#ca8a04">⚙</span><div>営業時間が変わるときは <span class="hl">適用開始日を追加</span><small>「営業と勤務時間」で、変わる区分だけ直して保存</small></div></div>
+    <div class="summary" style="top:660px" data-a="102.5,999" data-fx="left"><span class="ic" style="background:#16a34a">⚡</span><div>保存すると <span class="hl">ホームページにすぐ反映</span><small>公開中（今月・翌月）は即時。準備中の月は1日に自動で公開</small></div></div>
+    <div class="abs" style="left:0;width:1920px;top:900px;text-align:center;font-size:26px;font-weight:800;color:#64748b;letter-spacing:.2em" data-a="103.6,999" data-fx="fade">オオミナミ　営業カレンダー</div>
+    <div class="abs" style="right:48px;bottom:30px;font-size:20px;font-weight:600;color:#94a3b8" data-a="100.6,999" data-fx="fade">ナレーション　VOICEVOX:ずんだもん</div>
+  </div>
+
+  <!-- ===== 追加: 冒頭「営業カレンダーのしくみ」（合成タイムライン t 5.2〜43.8） ===== -->
+  <div id="L_intro" class="abs" style="inset:0;z-index:120;pointer-events:none">
+    <div class="chapter" data-n="5.4,43.6" data-fx="left"><b>01</b>営業カレンダーのしくみ</div>
+    <div class="h1" style="top:140px" data-n="5.6,13.2">ホームページの営業カレンダーは<em>自動で作られる</em></div>
+    <div class="h1" style="top:140px" data-n="13.5,21.8">曜日ごとの<em>営業時間のルール</em>どおりに作成</div>
+    <div class="h1" style="top:140px" data-n="22.1,30.2">管理するのは<em>いつもと違う日</em>だけ</div>
+    <div class="h1" style="top:140px;font-size:60px" data-n="30.5,43.6">設定は「<em>営業カレンダー</em>」の画面で</div>
+
+    <!-- I1: 給与計算アプリ → ホームページ -->
+    <div class="node" id="iApp" style="left:110px;top:430px;width:520px;text-align:center" data-n="6.0,13.3" data-fx="pop">
+      <div style="margin:0 auto 14px;width:120px;height:120px;border-radius:30px;background:#152449;display:grid;place-items:center;color:#f3c74d;font-size:30px;font-weight:900;line-height:1.1">給与<br>管理</div>
+      <div style="font-size:38px">給与計算アプリ</div><small>営業カレンダーの元データ</small>
+    </div>
+    <div class="abs" id="iArrow" style="left:640px;top:560px;width:170px;text-align:center;font-size:22px;font-weight:800;color:#16a34a" data-n="7.4,13.3" data-fx="left">自動で作成<div style="font-size:64px;line-height:1">➜</div></div>
+    <div id="iBrowser" class="abs" style="left:830px;top:250px;width:1000px;height:640px;border-radius:18px;background:#fff;box-shadow:0 40px 90px rgba(15,27,61,.25);overflow:hidden" data-n="6.6,30.2" data-fx="right">
+      <div class="bbar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i>
+        <div class="url"><span>🔒 オオミナミ ホームページ ／ 営業カレンダー</span></div></div>
+      <div class="hp" style="padding:14px 30px"><div class="hpcard">
+        <div class="hphead"><h2>オオミナミ　営業カレンダー</h2><div class="hpnav"><span class="c">‹</span><span class="hpym">2026年<b>10月</b></span><span class="c">›</span></div></div>
+        <div id="iHpCal" style="position:relative"></div>
+      </div></div>
+    </div>
+
+    <!-- I2: 営業時間のルール -->
+    <div class="node" id="iRules" style="left:100px;top:300px;width:660px;padding:22px 26px" data-n="13.8,21.8" data-fx="left">
+      <div style="font-size:26px;margin-bottom:10px">営業時間のルール <span style="font-size:20px;color:#64748b">（営業と勤務時間）</span></div>
+      <div id="iRuleRows"></div>
+    </div>
+
+    <!-- I3: いつもと違う日 -->
+    <div class="point" style="top:330px;width:660px;left:100px" data-n="22.6,30.2" data-fx="left"><span class="ic" style="background:#16a34a">✓</span><div>いつもの日<small>ルールどおりに自動で作られる</small></div></div>
+    <div class="point" style="top:480px;width:660px;left:100px" data-n="24.4,30.2" data-fx="left"><span class="ic" style="background:#ef4444">✎</span><div>いつもと違う日だけ設定<small>臨時休業・臨時営業（時間の変更）・イベント</small></div></div>
+
+    <!-- I4/I5: メニューから開く -->
+    <div class="tip" style="top:300px" data-n="35.2,43.6" data-fx="up"><i>📱</i><span>スマホ：下の <span class="kbd">≡ その他</span> →<br><span class="kbd blue">営業カレンダー</span></span></div>
+    <div class="tip" style="top:450px" data-n="40.8,43.6" data-fx="up"><i>💻</i><span>パソコン：左のメニュー<br><span class="kbd">管理</span> → <span class="kbd blue">営業カレンダー</span></span></div>
+    <div id="iPhoneWrap" class="abs" style="left:1121px;top:60px" data-n="31.2,43.6" data-fx="right">
+      <div class="phone"><div class="screen" id="iScreen">
+        <div class="notch"></div>
+        <div class="sbar"><span>9:41</span><span>●●● 🔋</span></div>
+        <div class="appbar"><span class="burger">≡</span><span id="iTitle">シフト</span></div>
+        <div class="view" id="iHome" style="bottom:64px;padding:12px 10px"></div>
+        <div class="view" id="iCal" style="transform:translateX(100%)"><div class="scroller" id="iCalSc"></div></div>
+        <div id="iTabs" class="abs" style="left:0;right:0;bottom:0;height:64px;background:#152449;display:grid;grid-template-columns:repeat(5,1fr);color:#bfdbfe;font-size:11px;font-weight:700;text-align:center;align-items:center">
+          <div>▦<br>シフト</div><div>🗓<br>勤務表</div><div>¥<br>日別</div><div>¥<br>給与明細</div><div id="iMore" style="color:#fff">≡<br>その他</div>
+        </div>
+        <div id="iMenu" class="abs" style="right:8px;bottom:70px;width:210px;border-radius:14px;background:#152449;color:#e0e7ff;font-size:15px;font-weight:700;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.35);display:none">
+          <div style="padding:10px 16px">👥 従業員</div><div style="padding:10px 16px">✈ 配信</div>
+          <div id="iMenuCal" style="padding:10px 16px">🗓 営業カレンダー</div><div style="padding:10px 16px">🕘 営業と勤務時間</div>
+          <div style="padding:10px 16px">⚙ 設定</div><div style="padding:10px 16px">▤ 税額表</div><div style="padding:10px 16px">☰ 操作ログ</div>
+          <div style="padding:10px 16px">📄 勤務ルール</div><div style="padding:10px 16px">🌐 ホームページ</div><div style="padding:10px 16px">▶ アプリの解説</div>
+        </div>
+        <div id="iRipple" style="position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:3px solid #2563eb;z-index:99;opacity:0"></div>
+        <div id="iFinger" style="position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(37,99,235,.28);border:3px solid rgba(255,255,255,.95);box-shadow:0 6px 18px rgba(15,27,61,.35);z-index:100;opacity:0"></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ===== 追加: 「営業時間そのものが変わるときは？」→ 別の動画を参照（t 107.3〜114.3） ===== -->
+  <div id="L_ref" class="abs" style="inset:0;z-index:130;pointer-events:none">
+    <div class="abs" style="inset:0;background:#0f1b3d" data-n="107.3,114.1" data-fx="fade"></div>
+    <div class="abs" style="left:0;width:1920px;top:330px;text-align:center;font-size:80px;font-weight:900;color:#fff" data-n="107.5,114.0">営業時間そのものが変わるときは？</div>
+    <div class="abs" style="left:0;width:1920px;top:500px;text-align:center" data-n="108.2,114.0" data-fx="pop">
+      <span style="display:inline-flex;align-items:center;gap:18px;background:#fff;border-radius:24px;padding:22px 36px;font-size:40px;font-weight:900;color:#0f1b3d">▶ 動画「営業時間と勤務時間の管理」をご覧ください</span>
+    </div>
+    <div class="abs" style="left:0;width:1920px;top:660px;text-align:center;font-size:30px;font-weight:700;color:#bcd3ff" data-n="109.2,114.0">メニューの「アプリの解説」から見られます</div>
+  </div>
+
+  <!-- ===== 追加: まとめ＝運用例（10月の場合）（t 128.7〜153.5） ===== -->
+  <div id="L_sum" class="abs" style="inset:0;z-index:125;pointer-events:none">
+    <div id="sumBg" class="abs" style="inset:0;background:#f3f5fa"></div>
+    <div class="chapter" data-n="129.0,999" data-fx="left"><b>✓</b>まとめ</div>
+    <div class="h1" style="top:130px" data-n="129.1,999">運用例（<em>10月</em>の場合）</div>
+    <div id="sumTrack" class="abs" style="left:0;top:0;width:1920px;height:1080px" data-n="129.6,999" data-fx="fade"></div>
+    <div id="sumSteps" class="abs" style="left:170px;top:670px;width:1580px" data-n="130.2,999" data-fx="up"></div>
+    <div class="abs" style="left:0;width:1920px;top:1000px;text-align:center;font-size:24px;font-weight:800;color:#94a3b8;letter-spacing:.2em" data-n="151.2,999" data-fx="fade">オオミナミ　営業カレンダー</div>
+    <div class="abs" style="right:48px;bottom:30px;font-size:20px;font-weight:600;color:#94a3b8" data-n="130,999" data-fx="fade">ナレーション　VOICEVOX:ずんだもん</div>
+  </div>
+
+  <div id="xfade" class="abs" style="inset:0;background:#f3f5fa;z-index:145;opacity:0;pointer-events:none"></div>
+
+  <svg id="lines"></svg>
+  <div id="progress"></div>
+</div>
+
+<script>
+const DUR = 108;
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const back = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const P = (t, a, d = 0.5, f = eo) => f(clamp((t - a) / d));
+/** frames: [[t, v], ...] を補間（v は数値） */
+function kf(t, frames, f = eio) {
+  if (t <= frames[0][0]) return frames[0][1];
+  for (let i = 1; i < frames.length; i++) {
+    const [t1, v1] = frames[i];
+    if (t <= t1) {
+      const [t0, v0] = frames[i - 1];
+      return v0 + (v1 - v0) * f(clamp((t - t0) / (t1 - t0 || 1)));
+    }
+  }
+  return frames[frames.length - 1][1];
+}
+/** 状態の段階: [[t, value]] で t 以降の最後の値 */
+function step(t, list, init) { let v = init; for (const [a, x] of list) if (t >= a) v = x; return v; }
+/** 入力中の文字列 */
+function typed(t, a, d, text) { const n = Math.round(clamp((t - a) / d) * text.length); return text.slice(0, n); }
+
+// ---------------------------------------------------------------- 日付・営業データ
+const HOL = { "2026-09-21": "敬老の日", "2026-09-22": "国民の休日", "2026-09-23": "秋分の日", "2026-10-12": "スポーツの日", "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日" };
+const W = ["日", "月", "火", "水", "木", "金", "土"];
+function addDays(k, n) { const d = new Date(k + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function dow(k) { return new Date(k + "T00:00:00Z").getUTCDay(); }
+function dayType(k) {
+  if (HOL[addDays(k, 1)]) return "pre";
+  const w = dow(k);
+  if (HOL[k] && w !== 5 && w !== 6) return "holiday";
+  return w === 0 ? "sun" : w === 6 ? "sat" : w === 5 ? "fri" : "weekday";
+}
+const TYPE_LABEL = { weekday: "月〜木", fri: "金", sat: "土", sun: "日", holiday: "祝", pre: "祝前日" };
+function defs(close) {
+  return { weekday: { o: 600, c: close }, fri: { o: 600, on: true }, sat: { o: 360, on: true }, sun: { o: 360, c: close }, holiday: { o: 360, c: close }, pre: { o: 600, on: true } };
+}
+const fm = (m) => { const h = Math.floor(m / 60), mi = m % 60; return mi ? `${h}:${String(mi).padStart(2, "0")}` : `${h}`; };
+function buildDays(from, to, close, edits = {}) {
+  const D = defs(close), days = {};
+  for (let k = from; k <= to; k = addDays(k, 1)) {
+    const ty = dayType(k), p = D[ty];
+    days[k] = { k, ty, status: "open", o: p.o, c: p.c ?? null, on: !!p.on, manual: false };
+    if (edits[k]) Object.assign(days[k], edits[k], { manual: true });
+  }
+  return days;
+}
+function monthKeys(ym) {
+  const first = ym + "-01";
+  const [y, m] = ym.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  const keys = [];
+  for (let k = addDays(first, -dow(first)); k <= addDays(last, 6 - dow(last)); k = addDays(k, 1)) keys.push(k);
+  return keys;
+}
+/** 通し営業の帯と単日ラベル */
+function buildView(days) {
+  const ks = Object.keys(days).sort(), spans = [], info = {};
+  const isOn = (d) => d && d.status === "open" && d.on;
+  for (let i = 0; i < ks.length; i++) {
+    const d = days[ks[i]];
+    if (isOn(d) && !isOn(days[addDays(ks[i], -1)])) {
+      let j = i; while (j + 1 < ks.length && isOn(days[ks[j + 1]])) j++;
+      const nx = days[ks[j + 1]];
+      let endKey = ks[j], endLabel = "翌朝";
+      if (nx && nx.status === "open") { endKey = nx.k; endLabel = fm(nx.c); }
+      spans.push({ start: ks[i], end: endKey, head: fm(d.o), tail: endLabel });
+      for (let x = i; x <= j; x++) info[ks[x]] = { band: true, stay: true };
+      if (endKey !== ks[j]) info[endKey] = { band: true };
+    }
+  }
+  for (const k of ks) {
+    const d = days[k];
+    if (!info[k]) info[k] = {};
+    if (d.status === "open" && !info[k].band) info[k].label = `${fm(d.o)}〜${fm(d.c)}`;
+  }
+  return { spans, info };
+}
+function renderCal(el, { ym, days, events = [], selected = null, hp = false }) {
+  const keys = monthKeys(ym), v = buildView(days);
+  const hdrBg = ["#e6f0fb", "#fbf4dc", "#e8f5ea", "#fceaf0"][(Number(ym.slice(5, 7)) - 1) % 4];
+  let h = `<div class="wh" style="background:${hdrBg}">` + W.map((w, i) => `<div style="color:${i === 0 ? "#ef4444" : i === 6 ? (hp ? "#ef4444" : "#3b82f6") : ""}">${w}</div>`).join("") + "</div>";
+  for (let wi = 0; wi < keys.length; wi += 7) {
+    const wk = keys.slice(wi, wi + 7), ws = wk[0], we = wk[6];
+    const inM = (k) => k.slice(0, 7) === ym;
+    let bg = "", fg = "";
+    wk.forEach((k, c) => { bg += `<div class="${inM(k) ? "" : "out"} ${k === selected ? "sel" : ""}" data-k="${k}"></div>`; });
+    // 日付
+    wk.forEach((k, c) => {
+      const d = days[k], w = dow(k), red = HOL[k] || w === 0 || (hp && w === 6);
+      const col = !inM(k) ? "#d1d5db" : red ? "#ef4444" : w === 6 ? "#3b82f6" : "#1f2937";
+      fg += `<div class="dn" style="grid-column:${c + 1};grid-row:1;color:${col}">${Number(k.slice(8))}${!hp && d && d.manual && inM(k) ? '<span class="dot">●</span>' : ""}</div>`;
+    });
+    const colTop = [0, 0, 0, 0, 0, 0, 0];
+    const occ = {}; // level -> cols
+    const place = (c0, span) => { let lv = 0; for (;; lv++) { let ok = true; for (let c = c0; c < c0 + span; c++) if (occ[lv + "," + c]) ok = false; if (ok) break; } for (let c = c0; c < c0 + span; c++) { occ[lv + "," + c] = 1; colTop[c] = Math.max(colTop[c], lv + 1); } return lv; };
+    // 営業の帯
+    for (const s of v.spans) {
+      if (s.end < ws || s.start > we) continue;
+      const a = s.start < ws ? ws : s.start, b = s.end > we ? we : s.end;
+      if (!inM(a) && !inM(b)) continue;
+      const c0 = wk.indexOf(a), span = wk.indexOf(b) - c0 + 1, L = s.start < ws, R = s.end > we;
+      const lv = place(c0, span);
+      fg += `<div class="band ${L ? "" : "l"} ${R ? "" : "r"}" style="grid-column:${c0 + 1}/span ${span};grid-row:${lv + 2};margin-left:${L ? 0 : 2}px;margin-right:${R ? 0 : 2}px"><span>${L ? "" : "初日" + s.head + "〜通し"}</span><span>${R ? "" : "〜最終" + s.tail}</span></div>`;
+    }
+    // イベントの帯
+    for (const e of events) {
+      if (e.end < ws || e.start > we) continue;
+      const a = e.start < ws ? ws : e.start, b = e.end > we ? we : e.end;
+      const c0 = wk.indexOf(a), span = wk.indexOf(b) - c0 + 1;
+      const lv = place(c0, span);
+      fg += `<div class="band ev l r" style="grid-column:${c0 + 1}/span ${span};grid-row:${lv + 2};margin:1px 2px 0">${e.title}</div>`;
+    }
+    // 単日のチップ
+    wk.forEach((k, c) => {
+      const d = days[k], inf = v.info[k] || {};
+      if (!d || !inM(k)) return;
+      const items = [];
+      if (d.status === "temp_closed") items.push(`<div class="ch tc">臨時休業</div>`);
+      if (inf.label) items.push(`<div class="ch">${inf.label}</div>`);
+      if (inf.stay && d.status === "open") items.push(`<div class="ch stay">泊まり可</div>`);
+      items.forEach((it, i) => { fg += `<div style="grid-column:${c + 1};grid-row:${colTop[c] + 2 + i};min-width:0">${it}</div>`; });
+    });
+    h += `<div class="wk"><div class="bgc">${bg}</div><div class="fg">${fg}</div></div>`;
+  }
+  el.innerHTML = h;
+}
+
+// ---------------------------------------------------------------- タイムライン（秒）
+const T = {
+  // S3 臨時休業 11/18
+  s3tap: 27.0, s3scr: [27.4, 28.2], s3mode: 29.2, s3memoTap: 30.2, s3type: [30.4, 31.4], s3save: 32.4, s3back: [33.0, 33.8],
+  // S4 時間を変える 11/26
+  s4tap: 39.0, s4scr: [39.3, 40.0], s4mode: 40.6, s4fTap: 41.5, s4type: [41.8, 42.5], s4save: 43.2, s4back: [43.7, 44.4],
+  // S5 イベント 11/28-29
+  s5tap: 48.0, s5scr: [48.3, 49.0], s5add: 49.6, s5tTap: 50.2, s5type: [50.4, 51.2], s5kind: 51.9, s5end: 52.7, s5save: 53.7, s5back: [54.2, 54.9],
+  // S6 元に戻す 11/26
+  s6tap: 58.8, s6scr: [59.0, 59.6], s6mode: 59.9, s6save: 60.5, s6back: [61.0, 61.6],
+  // S7 営業と勤務時間
+  s7gear: 66.7, s7sel: 68.0, s7new: 68.7, s7date: 69.6, s7f1: 71.0, s7f2: 72.2, s7f3: 73.3, s7scr: [74.0, 74.9], s7save: 76.1, s7back: 77.6,
+  s7noteScr: [79.4, 80.1], s7noteTap: 80.6, s7noteType: [80.8, 82.8], s7noteSave: 83.6,
+  // S8 反映デモ 10/22
+  s8tap: 87.9, s8scr: [88.1, 88.6], s8mode: 89.0, s8save: 89.6, s8back: [90.2, 90.8], s8sig: [89.7, 90.5],
+};
+const NOTE_TEXT = "※10月より日〜木（祝前日を除く）の終了時刻が24時から23時に変更となります。";
+
+// ---------------------------------------------------------------- 管理画面の状態
+function adminState(t) {
+  const st = { ym: "2026-11", sel: null, scroll: 0, panel: null, footnote: "", footTyping: null, footMsg: false };
+  if (t >= 77) st.ym = "2026-10";
+  // 11月の編集
+  const eN = {}, evN = [];
+  if (t >= T.s3save) eN["2026-11-18"] = { status: "temp_closed" };
+  if (t >= T.s4save && t < T.s6save) eN["2026-11-26"] = { c: 1260 };
+  if (t >= T.s5save) evN.push({ start: "2026-11-28", end: "2026-11-29", title: "秋の感謝祭" });
+  // 10月
+  const eO = {};
+  if (t >= T.s8save) eO["2026-10-22"] = { status: "temp_closed" };
+  if (st.ym === "2026-11") { st.days = buildDays("2026-10-25", "2026-12-06", 1380, eN); st.events = evN; }
+  else { st.days = buildDays("2026-09-27", "2026-11-01", 1380, eO); st.events = []; }
+
+  const seq = (tap, scr, back, date) => {
+    if (t >= tap && t < back[1] + 0.9) st.sel = date;
+    st.scroll = Math.max(st.scroll, kf(t, [[scr[0], 0], [scr[1], 1], [back[0], 1], [back[1], 0]]));
+  };
+  const panelBase = (date) => ({ date, mode: "usual", memo: "", focus: null, msg: null, open: "10:00", close: "23:00", ev: null });
+  // S3
+  if (t >= T.s3tap && t < T.s3back[1]) {
+    seq(T.s3tap, T.s3scr, T.s3back, "2026-11-18");
+    const p = panelBase("2026-11-18");
+    if (t >= T.s3mode) p.mode = "closed";
+    if (t >= T.s3memoTap) { p.focus = "memo"; p.memo = typed(t, T.s3type[0], T.s3type[1] - T.s3type[0], "設備点検のため"); }
+    if (t >= T.s3save) { p.focus = null; p.msg = "11/18 を保存しました"; }
+    st.panel = p;
+  } else if (t >= T.s3back[1] && t < T.s3back[1] + 0.9) st.sel = "2026-11-18";
+  // S4
+  if (t >= T.s4tap && t < T.s4back[1]) {
+    seq(T.s4tap, T.s4scr, T.s4back, "2026-11-26");
+    const p = panelBase("2026-11-26");
+    if (t >= T.s4mode) p.mode = "hours";
+    if (t >= T.s4fTap) { p.focus = "close"; p.close = t < T.s4type[0] ? "23:00" : typed(t, T.s4type[0], T.s4type[1] - T.s4type[0], "21:00"); }
+    if (t >= T.s4save) { p.focus = null; p.msg = "11/26 を保存しました"; }
+    st.panel = p;
+  } else if (t >= T.s4back[1] && t < T.s4back[1] + 0.9) st.sel = "2026-11-26";
+  // S5
+  if (t >= T.s5tap && t < T.s5back[1]) {
+    seq(T.s5tap, T.s5scr, T.s5back, "2026-11-28");
+    const p = panelBase("2026-11-28");
+    if (t >= T.s5add && t < T.s5save) {
+      p.ev = { title: "", end: "2026/11/28", kind: "イベント", focus: null };
+      if (t >= T.s5tTap) { p.ev.focus = "title"; p.ev.title = typed(t, T.s5type[0], T.s5type[1] - T.s5type[0], "秋の感謝祭"); }
+      if (t >= T.s5kind) p.ev.focus = null;
+      if (t >= T.s5end) { p.ev.focus = "end"; }
+      if (t >= T.s5end + 0.25) p.ev.end = "2026/11/29";
+    }
+    if (t >= T.s5save) p.evSaved = true;
+    st.panel = p;
+  } else if (t >= T.s5back[1] && t < T.s5back[1] + 0.9) st.sel = "2026-11-28";
+  // S6
+  if (t >= T.s6tap && t < T.s6back[1]) {
+    seq(T.s6tap, T.s6scr, T.s6back, "2026-11-26");
+    const p = panelBase("2026-11-26");
+    p.mode = "hours"; p.close = "21:00";
+    if (t >= T.s6mode) p.mode = "usual";
+    if (t >= T.s6save) p.msg = "11/26 を保存しました";
+    st.panel = p;
+  } else if (t >= T.s6back[1] && t < T.s6back[1] + 0.9) st.sel = "2026-11-26";
+  // S7 注釈
+  if (t >= 77) {
+    st.footnote = t >= T.s7noteTap ? typed(t, T.s7noteType[0], T.s7noteType[1] - T.s7noteType[0], NOTE_TEXT) : "";
+    st.footFocus = t >= T.s7noteTap && t < T.s7noteSave;
+    st.footMsg = t >= T.s7noteSave;
+    st.footScroll = kf(t, [[T.s7noteScr[0], 0], [T.s7noteScr[1], 1], [85.8, 1], [86.6, 0]]);
+  }
+  // S8
+  if (t >= T.s8tap && t < T.s8back[1]) {
+    seq(T.s8tap, T.s8scr, T.s8back, "2026-10-22");
+    const p = panelBase("2026-10-22");
+    if (t >= T.s8mode) p.mode = "closed";
+    if (t >= T.s8save) p.msg = "10/22 を保存しました";
+    st.panel = p;
+  } else if (t >= T.s8back[1] && t < T.s8back[1] + 0.9) st.sel = "2026-10-22";
+  return st;
+}
+
+const ICONS = {
+  eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  poster: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
+  palette: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7h2A4.5 4.5 0 0 0 21 10.7C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7" r="1.2" fill="currentColor"/><circle cx="15" cy="7.5" r="1.2" fill="currentColor"/></svg>',
+};
+const md = (k) => `${Number(k.slice(5, 7))}月${Number(k.slice(8))}日`;
+const caret = '<span class="caret"></span>';
+
+function panelHTML(st) {
+  const p = st.panel, d = st.days[p.date], w = dow(p.date);
+  const red = HOL[p.date] || w === 0;
+  const cur = d.status === "temp_closed" ? "臨時休業" : d.on ? `${fm(d.o)}〜翌日まで通し` : `${fm(d.o)}〜${fm(d.c)}`;
+  let h = `<div class="panel" id="panel"><div class="ph"><div><div class="d" style="color:${red ? "#dc2626" : w === 6 ? "#2563eb" : "#1f2937"}">${md(p.date)}（${W[w]}）</div>
+    <div class="s">${cur}<small>区分: ${TYPE_LABEL[d.ty]}</small>${d.manual ? '<span class="m">● 手で変更</span>' : ""}</div></div><div style="font-size:22px;color:#6b7280">×</div></div>`;
+  h += `<div class="modes"><div class="mode ${p.mode === "usual" ? "on" : ""}" id="m-usual">いつもどおり</div><div class="mode ${p.mode === "hours" ? "on" : ""}" id="m-hours">時間を変える</div><div class="mode ${p.mode === "closed" ? "on red" : ""}" id="m-closed">臨時休業</div></div>`;
+  if (p.mode === "usual") h += `<div class="pnote">${d.manual ? "営業時間の定義どおりに戻します。メモも消えます。" : "営業時間の定義どおりです。"}</div>`;
+  if (p.mode === "hours") {
+    h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lbl">開店</div><div class="inp">${p.open}</div></div><div><div class="lbl">閉店</div><div class="inp ${p.focus === "close" ? "focus" : ""}" id="f-close">${p.close}${p.focus === "close" ? caret : ""}</div></div></div>
+      <div class="chk" style="margin:8px 0 4px"><i></i>翌日まで通し（お泊まり可）</div><div class="lbl" style="font-weight:400">深夜0時をまたぐ閉店は 26:00 のように書きます。</div>`;
+  }
+  if (p.mode !== "usual") h += `<div style="margin-top:8px"><div class="lbl">管理用メモ（ホームページには出ません）</div><div class="inp ${p.focus === "memo" ? "focus" : ""}" id="f-memo">${p.memo}${p.focus === "memo" ? caret : ""}</div></div>`;
+  if (p.msg) h += `<div class="okmsg">${p.msg}</div>`;
+  h += `<div class="btn ${p.mode === "usual" && !d.manual ? "dim" : ""}" id="b-save" style="margin-top:10px">保存する</div>`;
+  // イベント
+  h += `<div class="evsec" id="evsec"><div class="evh"><span>イベント・お知らせ</span>${p.ev ? "" : '<span class="addb" id="b-add">＋ 追加</span>'}</div>`;
+  const evs = st.events.filter((e) => e.start <= p.date && e.end >= p.date);
+  if (p.ev) {
+    const e = p.ev;
+    h += `<div class="evform"><div><div class="lbl">タイトル</div><div class="inp ${e.focus === "title" ? "focus" : ""}" id="f-title">${e.title || (e.focus === "title" ? "" : '<span style="color:#9ca3af">例: 夏祭り</span>')}${e.focus === "title" ? caret : ""}</div></div>
+      <div><span class="pill ${e.kind === "イベント" ? "on" : ""}" id="k-ev" style="border-color:#d3a94e;background:#fbf1d9;color:#b8860b">イベント</span><span class="pill" style="border-color:#3b82f6;background:#e8f0fe;color:#1d4ed8">お知らせ</span></div>
+      <div><div class="lbl">開始日</div><div class="inp">2026/11/28</div></div>
+      <div><div class="lbl">終了日（1日だけなら開始日と同じ）</div><div class="inp ${e.focus === "end" ? "focus" : ""}" id="f-end">${e.end}</div></div>
+      <div class="chk"><i class="on">✓</i>ホームページに表示する</div>
+      <div style="display:flex;gap:8px"><div class="btn" id="b-evsave" style="width:auto;padding:9px 20px">保存する</div><div class="btn" style="width:auto;padding:9px 16px;background:#fff;color:#374151;border:1px solid #d1d5db">やめる</div></div></div>`;
+  } else if (evs.length) {
+    for (const e of evs) h += `<div class="evitem"><div><b>${e.title}</b><small>イベント・11月28日〜11月29日</small></div><small style="color:#6b7280">編集</small></div>`;
+  } else h += `<div class="pnote" style="margin-top:8px">この日のイベントはありません。</div>`;
+  if (p.evSaved) h += `<div class="okmsg">「秋の感謝祭」を保存しました</div>`;
+  return h + "</div></div>";
+}
+
+let adminKey = "";
+function renderAdmin(t) {
+  const st = adminState(t);
+  const pub = st.ym === "2026-10";
+  const key = JSON.stringify([st.ym, st.sel, st.panel, st.footnote, st.footFocus, st.footMsg, Object.values(st.days).filter((d) => d.manual).map((d) => d.k + d.status + d.c), st.events.length]);
+  const sc = $("#scAdmin");
+  if (key !== adminKey) {
+    adminKey = key;
+    const ymL = `${st.ym.slice(0, 4)}年${Number(st.ym.slice(5))}月`;
+    let h = `<div class="nav"><span class="arr">＜</span><span class="ym">${ymL}</span><span class="arr">＞</span>
+      <div class="icons" id="icons"><span class="ib">${ICONS.eye}</span><span class="ib">${ICONS.poster}</span><span class="ib" id="i-gear">${ICONS.gear}</span><span class="ib">${ICONS.palette}</span></div></div>
+      <div class="badgeRow" id="badgeRow"><span class="badge ${pub ? "b-public" : "b-draft"}" id="badge">${pub ? "公開中" : "準備中"}</span><span>日をタップすると変更できます。<span style="color:#f97316">●</span>：変更あり</span></div>`;
+    if (!pub) h += `<div class="msg" id="msgbox"><b>9月30日（あと5日）までに直してください。</b>10月1日から自動でホームページに表示されます。</div>`;
+    h += `<div class="cal" id="cal"></div>`;
+    const m = Number(st.ym.slice(5));
+    h += `<div class="card" id="footcard"><h3>${m}月の注釈</h3><div class="inp red ${st.footFocus ? "focus" : ""}" style="min-height:62px;font-size:14px" id="f-foot">${st.footnote}${st.footFocus ? caret : ""}</div>${st.footMsg ? `<div class="okmsg">${m}月の注釈を保存しました</div>` : ""}<div class="btn ${st.footnote && !st.footMsg ? "" : "dim"}" style="margin-top:8px" id="b-foot">注釈を保存する</div></div>`;
+    h += `<div class="legend"><span><i style="background:#16a34a"></i>営業時間</span><span><i style="background:#ef4444"></i>臨時休業</span><span><i style="background:#d3a94e"></i>イベント</span><span><i style="background:#3b82f6"></i>お知らせ</span></div>`;
+    h += st.panel ? panelHTML(st) : `<div class="panel" style="border-style:dashed;text-align:center;color:#6b7280;font-size:14px">日付を選ぶと、その日の営業時間やイベントを変更できます</div>`;
+    sc.innerHTML = h;
+    renderCal($("#cal", sc), { ym: st.ym, days: st.days, events: st.events, selected: st.sel });
+  }
+  // スクロール: パネル（イベント欄）まで
+  let target = 0;
+  const panel = $("#panel", sc);
+  if (panel) target = panel.offsetTop - (st.panel && st.panel.scrollExtra ? -40 : 50);
+  let y = st.scroll * target;
+  if (st.footScroll) y = Math.max(y, st.footScroll * ($("#footcard", sc).offsetTop - 330));
+  sc.style.transform = `translateY(${-y}px)`;
+}
+
+// ---------------------------------------------------------------- 営業と勤務時間
+let patKey = "";
+function renderPat(t) {
+  const sel = t >= T.s7new ? "new" : "base";
+  const dd = t >= T.s7sel && t < T.s7new;
+  const date = t >= T.s7date + 0.3 ? "2026/10/01" : "";
+  const dateFocus = t >= T.s7date && t < T.s7f1;
+  const fld = (a, isFocus) => {
+    if (t < a) return { v: "24:00", f: false, c: false };
+    const v = t < a + 0.25 ? "" : typed(t, a + 0.25, 0.45, "23:00");
+    return { v, f: t < a + 0.9, c: true };
+  };
+  const f1 = fld(T.s7f1), f2 = fld(T.s7f2), f3 = fld(T.s7f3);
+  const saved = t >= T.s7save;
+  const key = JSON.stringify([sel, dd, date, dateFocus, f1, f2, f3, saved]);
+  if (key !== patKey) {
+    patKey = key;
+    const ti = (x, id) => `<div class="ti ${x.c ? "chg" : ""} ${x.f ? "focus" : ""}" id="${id}">${x.v}${x.f ? caret : ""}</div>`;
+    const row = (lab, o, c, on) => `<div class="tr"><div class="dt">${lab}</div><div class="seg"><span class="on">営業</span><span>定休</span></div><div class="ti">${o}</div>${on ? '<div class="ti dis">通し</div>' : c}<div class="cb ${on ? "on" : ""}">${on ? "✓" : ""}</div></div>`;
+    let h = `<div class="back">← 営業カレンダー</div><div class="pt">営業と勤務時間</div>
+      <div class="pdesc">営業時間・シフト枠・休憩時間を、1つの適用開始日でセットにして管理します。変わるときは「適用開始日を追加」して、その日からの定義を作ります。</div>
+      <div class="sel">適用開始日：<div class="selbox" id="selbox"><span>${sel === "new" ? "＋ 適用開始日を追加" : "最初から（適用中）"}</span><span>▾</span>
+      ${dd ? '<div class="dd"><div class="cur">✓ 最初から（適用中）</div><div id="dd-new">＋ 適用開始日を追加</div></div>' : ""}</div></div>`;
+    if (sel === "new") h += `<div class="newbox"><div class="row"><div class="ti ${dateFocus ? "focus" : ""}" id="f-date" style="width:150px;text-align:left">${date || '<span style="color:#9ca3af">年/月/日</span>'}</div>から使う営業時間</div><p>いま下に表示している定義を写して始めます。変わる区分だけ直して保存してください。</p></div>`;
+    else h += `<div class="pdesc" style="margin-top:8px;font-size:13px">最初の定義</div>`;
+    h += `<div class="card ptab" id="ptab"><h3>営業時間</h3><div class="tr th"><span></span><span></span><span>開店</span><span>閉店</span><span>通し</span></div>
+      ${row("月〜木", "10:00", ti(f1, "p-wd"))}${row("金", "10:00", "", true)}${row("土", "6:00", "", true)}${row("日", "6:00", ti(f2, "p-sun"))}${row("祝", "6:00", ti(f3, "p-hol"))}${row("祝前日", "10:00", "", true)}
+      <div class="pdesc" style="margin-top:6px">時刻は 10:00 のように入力します。深夜0時をまたいで閉店する場合は 26:00 のように書きます。</div></div>
+      <div class="card faint"><h3>シフト枠</h3><div class="pdesc">早番・遅番・深夜番の名前と時刻</div></div>
+      <div class="card faint"><h3>休憩時間</h3><div class="pdesc">休憩を取る3つの時間帯</div></div>
+      <div class="regen" id="regen"><div class="cb on" style="margin:0;flex:none">✓</div><div><b>作成済みの月（10月・11月）にも反映する</b><small>手で直した日はそのまま残ります。10月は公開中のため、ホームページの表示もすぐ変わります。</small></div></div>
+      ${saved ? '<div class="okmsg">2026/10/1〜 を保存しました。10月・11月を作り直しました</div>' : ""}
+      <div class="btn" id="b-patsave" style="margin-top:10px">${sel === "new" ? "この適用開始日で追加する" : "保存する"}</div>`;
+    $("#scPat").innerHTML = h;
+  }
+  const y = kf(t, [[T.s7scr[0], 0], [T.s7scr[1], 1]]) * ($("#regen").offsetTop - 380);
+  $("#scPat").style.transform = `translateY(${-y}px)`;
+}
+
+// ---------------------------------------------------------------- 指（タップ）
+// [時刻, 対象セレクタ または [x,y]（画面内座標）, タップするか]
+const FINGER = [
+  [25.8, [300, 700]], [26.8, '[data-k="2026-11-18"]'], [T.s3tap, '[data-k="2026-11-18"]', 1],
+  [28.6, "#m-closed"], [T.s3mode, "#m-closed", 1], [29.8, "#f-memo"], [T.s3memoTap, "#f-memo", 1], [31.8, "#b-save"], [T.s3save, "#b-save", 1], [33.2, [330, 820]],
+  [38.4, [330, 820]], [38.8, '[data-k="2026-11-26"]'], [T.s4tap, '[data-k="2026-11-26"]', 1],
+  [40.3, "#m-hours"], [T.s4mode, "#m-hours", 1], [41.2, "#f-close"], [T.s4fTap, "#f-close", 1], [42.9, "#b-save"], [T.s4save, "#b-save", 1], [44, [330, 820]],
+  [47.4, [330, 820]], [47.8, '[data-k="2026-11-28"]'], [T.s5tap, '[data-k="2026-11-28"]', 1],
+  [49.3, "#b-add"], [T.s5add, "#b-add", 1], [50.0, "#f-title"], [T.s5tTap, "#f-title", 1], [51.6, "#k-ev"], [T.s5kind, "#k-ev", 1], [52.4, "#f-end"], [T.s5end, "#f-end", 1], [53.4, "#b-evsave"], [T.s5save, "#b-evsave", 1], [54.6, [330, 820]],
+  [58.2, [330, 820]], [58.6, '[data-k="2026-11-26"]'], [T.s6tap, '[data-k="2026-11-26"]', 1],
+  [59.7, "#m-usual"], [T.s6mode, "#m-usual", 1], [60.2, "#b-save"], [T.s6save, "#b-save", 1], [61.4, [330, 820]],
+  [66.1, [330, 820]], [66.5, "#i-gear"], [T.s7gear, "#i-gear", 1],
+  [67.7, "#selbox"], [T.s7sel, "#selbox", 1], [68.45, "#dd-new"], [T.s7new, "#dd-new", 1], [69.3, "#f-date"], [T.s7date, "#f-date", 1],
+  [70.7, "#p-wd"], [T.s7f1, "#p-wd", 1], [71.9, "#p-sun"], [T.s7f2, "#p-sun", 1], [73.0, "#p-hol"], [T.s7f3, "#p-hol", 1], [74.0, [330, 800]],
+  [75.7, "#b-patsave"], [T.s7save, "#b-patsave", 1], [77.0, [330, 800]],
+  [80.2, "#f-foot"], [T.s7noteTap, "#f-foot", 1], [83.2, "#b-foot"], [T.s7noteSave, "#b-foot", 1], [84.6, [330, 820]],
+  [87.4, [330, 820]], [87.7, '[data-k="2026-10-22"]'], [T.s8tap, '[data-k="2026-10-22"]', 1],
+  [88.7, "#m-closed"], [T.s8mode, "#m-closed", 1], [89.3, "#b-save"], [T.s8save, "#b-save", 1], [90.6, [330, 820]],
+];
+// 指の表示区間
+const FINGER_ON = [[25.8, 33.8], [38.3, 44.3], [47.3, 54.9], [58.1, 61.6], [66.0, 77.4], [80.0, 84.8], [87.3, 91.0]];
+/** 要素の画面内座標（transform を無視して offset で積み上げ、スクロール分を足す） */
+function posInScreen(sel) {
+  const el = $(sel, $("#screen"));
+  if (!el) return null;
+  const scr = $("#screen").getBoundingClientRect(), r = el.getBoundingClientRect();
+  const s = scr.width / 430;
+  return [(r.left + r.width / 2 - scr.left) / s, (r.top + r.height / 2 - scr.top) / s];
+}
+const lastPos = {};
+function resolve(target, i) {
+  if (Array.isArray(target)) return target;
+  const p = posInScreen(target);
+  if (p) lastPos[i] = p;
+  return lastPos[i] || [215, 600];
+}
+function renderFinger(t) {
+  const on = FINGER_ON.some(([a, b]) => t >= a && t <= b);
+  const vis = FINGER_ON.reduce((m, [a, b]) => Math.max(m, P(t, a, 0.25) * (1 - P(t, b - 0.25, 0.25))), 0);
+  const f = $("#finger"), rp = $("#ripple");
+  f.style.opacity = on ? vis : 0;
+  let i = FINGER.findIndex((x) => x[0] > t);
+  if (i === -1) i = FINGER.length;
+  const prev = FINGER[Math.max(0, i - 1)], next = FINGER[Math.min(FINGER.length - 1, i)];
+  let x, y;
+  if (i === 0 || i === FINGER.length) [x, y] = resolve(prev[1], Math.max(0, i - 1));
+  else {
+    const a = resolve(prev[1], i - 1), b = resolve(next[1], i);
+    const k = eio(clamp((t - prev[0]) / (next[0] - prev[0])));
+    x = a[0] + (b[0] - a[0]) * k; y = a[1] + (b[1] - a[1]) * k;
+  }
+  // タップの押し込み・波紋
+  let press = 0, rip = null;
+  for (const fr of FINGER) if (fr[2]) {
+    const d = t - fr[0];
+    if (d > -0.12 && d < 0.18) press = Math.max(press, 1 - Math.abs(d - 0.03) / 0.15);
+    if (d >= 0 && d < 0.5) rip = d / 0.5;
+  }
+  f.style.transform = `translate(${x}px,${y}px) scale(${1 - 0.18 * press})`;
+  f.style.background = `rgba(37,99,235,${0.28 + 0.3 * press})`;
+  rp.style.transform = `translate(${x}px,${y}px) scale(${rip == null ? 1 : 1 + rip * 1.6})`;
+  rp.style.opacity = rip == null || !on ? 0 : 1 - rip;
+}
+
+// ---------------------------------------------------------------- カメラ（電話の位置と拡大）
+// [時刻, 拡大率, 注目点（画面内: セレクタ or [x,y]）, 置き場所（ステージ座標）[cx,cy]]
+const HOME = [1350, 540];
+const CAM = [
+  [15.0, 1, [215, 466], HOME],
+  [33.9, 1, [215, 466], HOME], [34.5, 1.85, '[data-k="2026-11-18"]', HOME], [36.9, 1.85, '[data-k="2026-11-18"]', HOME], [37.5, 1, [215, 466], HOME],
+  [44.4, 1, [215, 466], HOME], [45.0, 1.85, '[data-k="2026-11-26"]', HOME], [46.2, 1.85, '[data-k="2026-11-26"]', HOME], [46.8, 1, [215, 466], HOME],
+  [55.0, 1, [215, 466], HOME], [55.6, 1.8, '[data-k="2026-11-28"]', HOME], [57.1, 1.8, '[data-k="2026-11-28"]', HOME], [57.7, 1, [215, 466], HOME],
+  [70.2, 1, [215, 466], HOME], [70.6, 1.45, "#ptab", HOME], [73.9, 1.45, "#ptab", HOME], [74.4, 1, [215, 466], HOME],
+  [77.8, 1, [215, 466], HOME], [78.3, 1.5, "#cal", HOME], [79.3, 1.5, "#cal", HOME], [79.8, 1, [215, 466], HOME],
+  [85.6, 1, [215, 466], HOME], [86.6, 0.74, [215, 466], [440, 624]],
+  [94.0, 0.74, [215, 466], [440, 624]], [94.8, 0.74, [215, 466], [440, 1500]],
+];
+const camCache = {};
+function renderCam(t) {
+  let i = CAM.findIndex((c) => c[0] > t);
+  const get = (j) => {
+    const c = CAM[j];
+    let f = c[2];
+    if (!Array.isArray(f)) { const p = posInScreen(f); if (p) camCache[j] = [p[0], p[1] + (f === "#ptab" ? 20 : 0)]; f = camCache[j] || [215, 466]; }
+    return { s: c[1], f, c: c[3] };
+  };
+  let s, fx, fy, cx, cy;
+  if (i === 0) i = 1;
+  if (i === -1) { const g = get(CAM.length - 1); ({ s } = g); [fx, fy] = g.f; [cx, cy] = g.c; }
+  else {
+    const a = get(i - 1), b = get(i), k = eio(clamp((t - CAM[i - 1][0]) / (CAM[i][0] - CAM[i - 1][0])));
+    s = a.s + (b.s - a.s) * k; fx = a.f[0] + (b.f[0] - a.f[0]) * k; fy = a.f[1] + (b.f[1] - a.f[1]) * k;
+    cx = a.c[0] + (b.c[0] - a.c[0]) * k; cy = a.c[1] + (b.c[1] - a.c[1]) * k;
+  }
+  // 画面(0,0)は電話の枠の内側 14px
+  const ox = cx - (fx + 14) * s, oy = cy - (fy + 14) * s;
+  $("#phoneCam").style.transform = `translate(${ox}px,${oy}px) scale(${s})`;
+  // 拡大中は左のテロップ側を薄くフェードさせる（電話が説明文に重ならないように）
+  const k = clamp((s - 1) / 0.4);
+  const m = k > 0 && cx > 900 ? `linear-gradient(to right, rgba(0,0,0,${1 - k}) 870px, #000 990px)` : "none";
+  $("#phoneWrap").style.webkitMaskImage = m;
+}
+
+// ---------------------------------------------------------------- 画面の切り替え
+function renderScreens(t) {
+  const pat = t >= T.s7gear + 0.15 && t < T.s7back;
+  const toPat = P(t, T.s7gear + 0.15, 0.4), toAdm = P(t, T.s7back, 0.4);
+  const vA = $("#viewAdmin"), vP = $("#viewPat");
+  if (t < T.s7gear + 0.15) { vA.style.transform = "none"; vP.style.transform = "translateX(100%)"; }
+  else if (t < T.s7back) { vA.style.transform = `translateX(${-30 * toPat}%)`; vP.style.transform = `translateX(${100 * (1 - toPat)}%)`; }
+  else { vA.style.transform = `translateX(${-30 * (1 - toAdm)}%)`; vP.style.transform = `translateX(${100 * toAdm}%)`; }
+  vP.style.zIndex = pat ? 2 : 1; vA.style.zIndex = pat ? 1 : 2;
+  $("#apptitle").textContent = pat ? "営業と勤務時間" : "営業カレンダー";
+  if (t >= T.s7gear - 1) renderPat(Math.min(t, T.s7back + 1));
+  renderAdmin(t);
+}
+
+// ---------------------------------------------------------------- 変更箇所の光
+const FLASH = [
+  ['[data-k="2026-11-18"]', T.s3back[1], 3.2], ['[data-k="2026-11-26"]', T.s4back[1], 2.4], ['[data-k="2026-11-26"]', T.s6back[1], 1.4],
+];
+function renderFlash(t) {
+  const sc = $("#scAdmin");
+  sc.querySelectorAll(".flash").forEach((e) => e.remove());
+  const add = (sel, a, d, span = 1) => {
+    if (t < a || t > a + d) return;
+    const el = $(sel, sc); if (!el) return;
+    const o = Math.min(P(t, a, 0.25), 1 - P(t, a + d - 0.4, 0.4));
+    const cal = $("#cal", sc);
+    const f = document.createElement("div"); f.className = "flash";
+    const r = el.getBoundingClientRect(), rs = sc.getBoundingClientRect(), s = $("#screen").getBoundingClientRect().width / 430;
+    Object.assign(f.style, { left: (r.left - rs.left) / s + "px", top: (r.top - rs.top) / s + "px", width: (r.width * span) / s + "px", height: r.height / s + "px", opacity: o });
+    sc.appendChild(f);
+  };
+  for (const [sel, a, d] of FLASH) add(sel, a, d);
+  add('[data-k="2026-11-28"]', T.s5back[1], 2.6); add('[data-k="2026-11-29"]', T.s5back[1], 2.6);
+  // 10月（定義変更の反映）: 月〜木の行を光らせる
+  if (t >= T.s7back + 0.3 && t < T.s7back + 2.2) for (const k of ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"]) add(`[data-k="${k}"]`, T.s7back + 0.3, 1.9);
+}
+
+// ---------------------------------------------------------------- ホームページ（ブラウザ）
+let hpKey = "";
+function renderHP(t) {
+  if (t < 85) return;
+  const upd = t >= T.s8sig[1];
+  const edits = upd ? { "2026-10-22": { status: "temp_closed" } } : {};
+  const key = String(upd);
+  if (key !== hpKey) {
+    hpKey = key;
+    renderCal($("#hpcal"), { ym: "2026-10", days: buildDays("2026-09-27", "2026-11-01", 1380, edits), hp: true });
+    $("#hpfoot").textContent = NOTE_TEXT;
+  }
+  const r = P(t, T.s8sig[1] - 0.45, 0.45, (x) => x);
+  $("#reload").style.transform = `rotate(${r * 360}deg)`;
+  $("#reload").style.color = r > 0 && r < 1 ? "#2563eb" : "#64748b";
+  const hc = $("#hpcal");
+  hc.querySelectorAll(".flash").forEach((e) => e.remove());
+  const a = T.s8sig[1];
+  if (t >= a && t < a + 3.5) {
+    const el = $('[data-k="2026-10-22"]', hc), rs = hc.getBoundingClientRect(), r2 = el.getBoundingClientRect();
+    const sc = $("#stage").getBoundingClientRect().width / 1920;
+    const f = document.createElement("div"); f.className = "flash";
+    Object.assign(f.style, { left: (r2.left - rs.left) / sc + "px", top: (r2.top - rs.top) / sc + "px", width: r2.width / sc + "px", height: r2.height / sc + "px", opacity: Math.min(P(t, a, 0.2), 1 - P(t, a + 3.1, 0.4)), boxShadow: "0 0 0 4px #22c55e,0 0 30px 8px rgba(34,197,94,.5)" });
+    hc.style.position = "relative"; hc.appendChild(f);
+  }
+  // 信号（電話 → ブラウザ）
+  const sig = $("#sig");
+  const [s0, s1] = T.s8sig;
+  if (t >= s0 && t <= s1 + 0.15) {
+    const k = eio(clamp((t - s0) / (s1 - s0)));
+    const x0 = 560, y0 = 720, x1 = 1400, y1 = 700, mx = 980, my = 330;
+    const x = (1 - k) * (1 - k) * x0 + 2 * (1 - k) * k * mx + k * k * x1, y = (1 - k) * (1 - k) * y0 + 2 * (1 - k) * k * my + k * k * y1;
+    sig.style.opacity = 1 - P(t, s1, 0.15);
+    sig.style.transform = `translate(${x}px,${y}px)`;
+  } else sig.style.opacity = 0;
+}
+
+// ---------------------------------------------------------------- 説明の線（S2）
+function renderLines(t) {
+  const svg = $("#lines");
+  let h = "";
+  const st = $("#stage").getBoundingClientRect(), sc = st.width / 1920;
+  const link = (co, sel, a, next) => {
+    const el = $(sel, $("#screen")); if (!el) return;
+    const o = Math.min(P(t, a + 0.2, 0.4), 1 - P(t, next, 0.3));
+    if (o <= 0) return;
+    const r = el.getBoundingClientRect(), c = $(co).getBoundingClientRect();
+    const x0 = (c.right - st.left) / sc, y0 = (c.top + c.height / 2 - st.top) / sc;
+    const x1 = (r.left - st.left) / sc - 6, y1 = (r.top + r.height / 2 - st.top) / sc;
+    const len = Math.hypot(x1 - x0, y1 - y0), dash = len * (1 - P(t, a + 0.2, 0.6));
+    h += `<g opacity="${o}"><path d="M${x0} ${y0} C ${x0 + 120} ${y0}, ${x1 - 120} ${y1}, ${x1} ${y1}" fill="none" stroke="#2563eb" stroke-width="3" stroke-dasharray="${len * 1.3}" stroke-dashoffset="${dash * 1.3}"/><circle cx="${x1}" cy="${y1}" r="${7 * P(t, a + 0.6, 0.3, back)}" fill="#2563eb"/>
+      <rect x="${(r.left - st.left) / sc - 4}" y="${(r.top - st.top) / sc - 4}" width="${r.width / sc + 8}" height="${r.height / sc + 8}" rx="10" fill="none" stroke="#2563eb" stroke-width="3" opacity="${P(t, a + 0.6, 0.3)}"/></g>`;
+  };
+  if (t > 16 && t < 24.8) {
+    link("#co1", "#icons", 16.3, 17.9); link("#co2", "#badge", 17.8, 19.4); link("#co3", "#msgbox", 19.3, 20.9); link("#co4", "#cal", 20.8, 24.2);
+  }
+  svg.innerHTML = h;
+}
+
+// ---------------------------------------------------------------- 汎用の出入り
+const animEls = [...document.querySelectorAll("[data-a]")].map((el) => {
+  const [a, b] = el.dataset.a.split(",").map(Number);
+  return { el, a, b, fx: el.dataset.fx || "up" };
+});
+function renderAnims(t) {
+  for (const { el, a, b, fx } of animEls) {
+    const pi = P(t, a, fx === "pop" ? 0.55 : 0.5, fx === "pop" ? back : eo), po = P(t, b, 0.35, (x) => x * x);
+    const o = clamp(P(t, a, 0.4) * (1 - po));
+    el.style.opacity = o;
+    el.style.visibility = o <= 0.001 ? "hidden" : "visible";
+    let tr = "";
+    if (fx === "up") tr = `translateY(${(1 - pi) * 46 - po * 20}px)`;
+    if (fx === "left") tr = `translateX(${(1 - pi) * -60 - po * 30}px)`;
+    if (fx === "right") tr = `translateX(${(1 - pi) * 120 + po * 60}px)`;
+    if (fx === "pop") tr = `scale(${0.85 + 0.15 * pi - po * 0.05})`;
+    if (el.id !== "phoneWrap") el.style.transform = tr;
+  }
+}
+
+function renderBg(t) {
+  const s = Math.sin, c = Math.cos;
+  $("#blob1").style.transform = `translate(${-160 + 120 * s(t * 0.21)}px,${-220 + 90 * c(t * 0.17)}px)`;
+  $("#blob2").style.transform = `translate(${1300 + 140 * c(t * 0.19)}px,${560 + 80 * s(t * 0.23)}px)`;
+  $("#blob3").style.transform = `translate(${760 + 160 * s(t * 0.13)}px,${760 + 70 * c(t * 0.29)}px)`;
+  $("#grid").style.transform = `translateY(${-(t * 6) % 34}px)`;
+}
+
+function renderSpecial(t) {
+  // オープニングの幕（上にワイプ）
+  const w = P(t, 4.6, 0.7, eio);
+  $("#op").style.clipPath = `inset(0 0 ${w * 100}% 0)`;
+  $("#op").style.display = w >= 1 ? "none" : "block";
+  // まとめ（下からワイプ）
+  const e = P(t, 99.8, 0.7, eio);
+  $("#end").style.clipPath = `inset(${(1 - e) * 100}% 0 0 0)`;
+  $("#end").style.display = e <= 0 ? "none" : "block";
+  // 流れのライン
+  $("#flowfill").style.width = `${P(t, 6.4, 3.4, eio) * 100}%`;
+  $("#flowline").style.opacity = Math.min(P(t, 6, 0.4), 1 - P(t, 14.6, 0.35));
+  // 電話の表示（タイトルカード中は隠す）
+  const pv = Math.min(P(t, 15.2, 0.5), 1 - P(t, 62.8, 0.3) + P(t, 65.8, 0.4), 1 - P(t, 94.2, 0.5));
+  $("#phoneWrap").style.opacity = pv;
+  $("#progress").style.width = `${(t / DUR) * 100}%`;
+}
+
+const oldRenderAt = function (t) {
+  renderBg(t);
+  renderAnims(t);
+  renderSpecial(t);
+  renderScreens(t);
+  renderCam(t);
+  renderFinger(t);
+  renderFlash(t);
+  renderHP(t);
+  renderLines(t);
+};
+
+// ===================================================================== 構成の組み替え（2026-09-26）
+// 合成タイムライン t の区間ごとに「元の映像の時刻 v を再生」か「追加した場面」を切り替える。
+const SEGS = [{"t0": 0, "t1": 5.2, "v0": 0}, {"t0": 5.2, "t1": 43.8}, {"t0": 43.8, "t1": 101.5, "v0": 5.0}, {"t0": 101.5, "t1": 107.3, "v0": 80.0}, {"t0": 107.3, "t1": 114.3}, {"t0": 114.3, "t1": 128.7, "v0": 85.8}, {"t0": 128.7, "t1": 153.5}];
+const TOTAL = SEGS[SEGS.length - 1].t1;
+const segAt = (t) => SEGS.find((g) => t < g.t1) || SEGS[SEGS.length - 1];
+
+// 追加した場面の出入り（data-n="開始,終了"。元の data-a と同じ動き）
+const newEls = [...document.querySelectorAll("[data-n]")].map((el) => {
+  const [a, b] = el.dataset.n.split(",").map(Number);
+  return { el, a, b, fx: el.dataset.fx || "up" };
+});
+function newAnims(t) {
+  for (const { el, a, b, fx } of newEls) {
+    const pi = P(t, a, fx === "pop" ? 0.55 : 0.5, fx === "pop" ? back : eo), po = P(t, b, 0.35, (x) => x * x);
+    const o = clamp(P(t, a, 0.4) * (1 - po));
+    el.style.opacity = o;
+    el.style.visibility = o <= 0.001 ? "hidden" : "visible";
+    let tr = "";
+    if (fx === "up") tr = `translateY(${(1 - pi) * 46 - po * 20}px)`;
+    if (fx === "left") tr = `translateX(${(1 - pi) * -60 - po * 30}px)`;
+    if (fx === "right") tr = `translateX(${(1 - pi) * 120 + po * 60}px)`;
+    if (fx === "pop") tr = `scale(${0.85 + 0.15 * pi - po * 0.05})`;
+    el.style.transform = tr;
+  }
+}
+
+// ---------------------------------------------------------------- 冒頭「しくみ」
+const RULES = [
+  ["weekday", "月〜木", "10:00〜23:00", 14.4],
+  ["fri", "金", "10:00〜翌日まで通し", 15.5],
+  ["sat", "土", "6:00〜翌日まで通し", 16.6],
+  ["sun", "日", "6:00〜23:00", 17.7],
+  ["holiday", "祝", "6:00〜23:00", 18.8],
+  ["pre", "祝前日", "10:00〜翌日まで通し", 19.9],
+];
+$("#iRuleRows").innerHTML = RULES.map(
+  ([k, lab, hrs]) =>
+    `<div id="rr-${k}" style="display:grid;grid-template-columns:120px 1fr;align-items:center;padding:9px 14px;border-radius:12px;font-size:27px;font-weight:800;margin-top:4px"><span>${lab}</span><span style="color:#166534">${hrs}</span></div>`
+).join("");
+let iHpKey = "";
+const I_EDIT = 23.0;
+function iOverlay(sel, style, text) {
+  const cal = $("#iHpCal"), el = $(sel, cal);
+  if (!el) return;
+  const rc = cal.getBoundingClientRect(), r = el.getBoundingClientRect(), s = $("#stage").getBoundingClientRect().width / 1920;
+  const d = document.createElement("div");
+  d.className = "iov";
+  Object.assign(d.style, { position: "absolute", left: (r.left - rc.left) / s + "px", top: (r.top - rc.top) / s + "px", width: r.width / s + "px", height: r.height / s + "px", pointerEvents: "none", zIndex: 5, ...style });
+  if (text) d.innerHTML = text;
+  cal.appendChild(d);
+}
+function renderIntro(t) {
+  const on = t >= 5.0 && t < 44.2;
+  $("#L_intro").style.display = on ? "block" : "none";
+  if (!on) return;
+  // ホームページのカレンダー（I3 から臨時休業・臨時営業が入る）
+  const edited = t >= I_EDIT;
+  if (String(edited) !== iHpKey) {
+    iHpKey = String(edited);
+    const edits = edited ? { "2026-10-22": { status: "temp_closed" }, "2026-10-29": { c: 26 * 60 } } : {};
+    renderCal($("#iHpCal"), { ym: "2026-10", days: buildDays("2026-09-27", "2026-11-01", 1380, edits), hp: true });
+  }
+  $("#iHpCal").querySelectorAll(".iov").forEach((e) => e.remove());
+  // I2: ルールの行を順に光らせ、その区分の日を青く囲む
+  for (const [k, , , a] of RULES) {
+    const act = t >= a && t < a + 1.25 && t < 21.8;
+    const row = $("#rr-" + k);
+    row.style.background = act ? "#dbeafe" : "transparent";
+    row.style.boxShadow = act ? "inset 0 0 0 3px #2563eb" : "none";
+    if (act) {
+      const o = Math.min(P(t, a, 0.2), 1 - P(t, a + 1.0, 0.25));
+      for (let d = 1; d <= 31; d++) {
+        const key = `2026-10-${String(d).padStart(2, "0")}`;
+        if (dayType(key) === k) iOverlay(`[data-k="${key}"]`, { background: "rgba(37,99,235,.16)", boxShadow: "inset 0 0 0 3px #2563eb", borderRadius: "6px", opacity: o });
+      }
+    }
+  }
+  // I3: いつもと違う日を強調
+  if (t >= I_EDIT && t < 30.4) {
+    const o = Math.min(P(t, I_EDIT, 0.3), 1 - P(t, 30.0, 0.3));
+    const pulse = 3 + 3 * (0.5 + 0.5 * Math.sin((t - I_EDIT) * 7));
+    const tag = (bg, s, below) => `<span style="position:absolute;left:50%;${below ? "bottom:-34px" : "top:-34px"};transform:translateX(-50%);white-space:nowrap;background:${bg};color:#fff;font-size:15px;font-weight:800;padding:3px 10px;border-radius:8px">${s}</span>`;
+    iOverlay('[data-k="2026-10-22"]', { border: "4px solid #ef4444", borderRadius: "8px", boxShadow: `0 0 0 ${pulse}px rgba(239,68,68,.25)`, opacity: o }, tag("#ef4444", "臨時休業"));
+    iOverlay('[data-k="2026-10-29"]', { border: "4px solid #f97316", borderRadius: "8px", boxShadow: `0 0 0 ${pulse}px rgba(249,115,22,.25)`, opacity: o }, tag("#f97316", "臨時営業（26時まで）", true));
+  }
+  renderIntroPhone(t);
+}
+
+// I5: スマホで「その他」→「営業カレンダー」
+let iPhoneInit = false;
+const I_MENU = [36.9, 38.3], I_CAL = 38.35;
+const I_FINGER = [[35.8, [330, 700]], [36.6, "#iMore"], [36.8, "#iMore", 1], [37.8, "#iMenuCal"], [38.2, "#iMenuCal", 1], [39.2, [250, 520]]];
+function iPos(sel) {
+  const scr = $("#iScreen").getBoundingClientRect(), el = $(sel, $("#iScreen"));
+  if (!el) return [215, 600];
+  const r = el.getBoundingClientRect(), s = scr.width / 430;
+  return [(r.left + r.width / 2 - scr.left) / s, (r.top + r.height / 2 - scr.top) / s];
+}
+function renderIntroPhone(t) {
+  if (!iPhoneInit) {
+    iPhoneInit = true;
+    // ホーム（シフト表）の見た目だけの画面
+    const names = ["佐藤", "鈴木", "高橋", "田中", "伊藤", "渡辺", "山本"];
+    const col = ["#1e7b3c", "#e0701a", "#152449"];
+    let h = `<div style="display:flex;align-items:center;gap:6px;font-weight:900;color:#1e40af;font-size:19px">＜ 2026年10月 ＞</div>
+      <div style="margin-top:10px;display:grid;grid-template-columns:52px repeat(7,1fr);gap:3px;font-size:12px;text-align:center;color:#374151">
+      <span></span>${["日", "月", "火", "水", "木", "金", "土"].map((w) => `<b>${w}</b>`).join("")}`;
+    names.forEach((n, i) => {
+      h += `<b style="text-align:left">${n}</b>`;
+      for (let d = 0; d < 7; d++) {
+        const k = (i * 3 + d * 2) % 5;
+        h += k < 3 ? `<span style="border-radius:4px;background:${col[k]};color:#fff;padding:5px 0">${"早遅深"[k]}</span>` : "<span></span>";
+      }
+    });
+    $("#iHome").innerHTML = h + "</div>";
+    // 営業カレンダーの画面は元の映像の管理画面（11月・変更前）を写す
+    oldRenderAt(-100);
+    $("#iCalSc").innerHTML = $("#scAdmin").innerHTML;
+  }
+  const menu = t >= I_MENU[0] && t < I_MENU[1];
+  $("#iMenu").style.display = menu ? "block" : "none";
+  const k = P(t, I_CAL, 0.35, eio);
+  $("#iCal").style.transform = `translateX(${(1 - k) * 100}%)`;
+  $("#iHome").style.opacity = 1 - k;
+  $("#iTabs").style.opacity = 1 - k;
+  $("#iTitle").textContent = k > 0.5 ? "営業カレンダー" : "シフト";
+  // 指
+  const f = $("#iFinger"), rp = $("#iRipple");
+  const vis = Math.min(P(t, 35.6, 0.25), 1 - P(t, 39.4, 0.25));
+  f.style.opacity = vis;
+  let i = I_FINGER.findIndex((x) => x[0] > t);
+  if (i === -1) i = I_FINGER.length;
+  const at = (fr) => (Array.isArray(fr[1]) ? fr[1] : iPos(fr[1]));
+  let x, y;
+  if (i === 0 || i === I_FINGER.length) [x, y] = at(I_FINGER[Math.max(0, i - 1)]);
+  else {
+    const a = at(I_FINGER[i - 1]), b = at(I_FINGER[i]), q = eio(clamp((t - I_FINGER[i - 1][0]) / (I_FINGER[i][0] - I_FINGER[i - 1][0])));
+    x = a[0] + (b[0] - a[0]) * q; y = a[1] + (b[1] - a[1]) * q;
+  }
+  let press = 0, rip = null;
+  for (const fr of I_FINGER) if (fr[2]) {
+    const d = t - fr[0];
+    if (d > -0.12 && d < 0.18) press = Math.max(press, 1 - Math.abs(d - 0.03) / 0.15);
+    if (d >= 0 && d < 0.5) rip = d / 0.5;
+  }
+  f.style.transform = `translate(${x}px,${y}px) scale(${1 - 0.18 * press})`;
+  rp.style.transform = `translate(${x}px,${y}px) scale(${rip == null ? 1 : 1 + rip * 1.6})`;
+  rp.style.opacity = rip == null ? 0 : 1 - rip;
+}
+
+// ---------------------------------------------------------------- まとめ（運用例）
+const S_STEP = [131.2, 135.8, 141.2, 146.2];
+const MX = (m, d) => 170 + m * 540 + ((d - 1) / 31) * 500; // m: 0=10月 1=11月 2=12月
+function renderSummary(t) {
+  const on = t >= 128.7;
+  $("#L_sum").style.display = on ? "block" : "none";
+  if (!on) return;
+  const w = P(t, 128.7, 0.7, eio);
+  $("#L_sum").style.clipPath = `inset(${(1 - w) * 100}% 0 0 0)`;
+  const step = S_STEP.filter((a) => t >= a).length; // 0〜4
+  const ST = {
+    public: ["公開中", "#dcfce7", "#166534", "#16a34a"],
+    draft: ["準備中", "#fef08a", "#713f12", "#ca8a04"],
+    none: ["未作成", "#f1f5f9", "#64748b", "#cbd5e1"],
+    ended: ["終了", "#f1f5f9", "#64748b", "#cbd5e1"],
+  };
+  const state = [
+    step >= 4 ? "ended" : "public",
+    "public",
+    step >= 4 ? "public" : step >= 2 ? "draft" : "none",
+  ];
+  const sub = [
+    step >= 4 ? "ホームページから外れる" : "ホームページに表示中",
+    "ホームページに表示中",
+    step >= 4 ? "ホームページに表示中" : step >= 2 ? "作成済み・まだ非公開" : "10月15日に自動で作成",
+  ];
+  let h = "";
+  // 公開中の範囲（ブラケット）: 10〜11月 → 11〜12月
+  const bk = P(t, S_STEP[3] + 0.3, 0.8, eio);
+  const bx0 = 170 + 540 * bk, bx1 = 1210 + 540 * bk;
+  h += `<div style="position:absolute;left:${bx0}px;top:262px;width:${bx1 - bx0}px;height:16px;border:4px solid #16a34a;border-bottom:none;border-radius:10px 10px 0 0;opacity:${P(t, 131.4, 0.4)}"></div>
+    <div style="position:absolute;left:${bx0}px;top:222px;width:${bx1 - bx0}px;text-align:center;font-size:22px;font-weight:900;color:#16a34a;opacity:${P(t, 131.4, 0.4)}">ホームページに公開中</div>`;
+  ["10月", "11月", "12月"].forEach((m, i) => {
+    const [lab, bg, fg, line] = ST[state[i]];
+    const chips = i === 2 && step >= 3
+      ? `<div style="margin-top:10px;display:flex;gap:6px;justify-content:center;opacity:${P(t, S_STEP[2] + 0.3, 0.4)}">${["臨時休業", "臨時営業", "イベント"].map((c, j) => `<span style="font-size:17px;font-weight:800;padding:3px 10px;border-radius:8px;background:${["#fef2f2", "#fff7ed", "#fbf1d9"][j]};color:${["#dc2626", "#c2410c", "#b8860b"][j]};border:1px solid ${["#fca5a5", "#fdba74", "#d3a94e"][j]}">${c}</span>`).join("")}</div>`
+      : "";
+    h += `<div style="position:absolute;left:${170 + i * 540}px;top:290px;width:500px;height:225px;border-radius:26px;background:#fff;box-shadow:0 18px 44px rgba(15,27,61,.10);border:4px solid ${line};text-align:center;padding-top:18px">
+      <div style="font-size:48px;font-weight:900">${m}</div>
+      <span style="display:inline-block;margin-top:4px;padding:4px 16px;border-radius:10px;background:${bg};color:${fg};font-size:22px;font-weight:900">${lab}</span>
+      <div style="font-size:19px;color:#64748b;font-weight:700;margin-top:6px">${sub[i]}</div>${chips}</div>`;
+  });
+  // 日付の目印（10/5 → 10/15 → 10/31 → 11/1）
+  const PX = [MX(0, 5), MX(0, 15), MX(0, 31), MX(1, 1)];
+  const PL = ["いま（10月）", "10月15日", "10月末", "11月1日"];
+  let px = PX[0];
+  for (let i = 1; i < 4; i++) px += (PX[i] - PX[i - 1]) * P(t, S_STEP[i], 0.6, eio);
+  const pl = PL[Math.max(0, step - 1)];
+  h += `<div style="position:absolute;left:170px;top:552px;width:1580px;height:6px;border-radius:3px;background:#dbe3f0"></div>
+    <div style="position:absolute;left:${px - 13}px;top:540px;width:26px;height:26px;border-radius:50%;background:#2563eb;box-shadow:0 0 0 8px rgba(37,99,235,.2);opacity:${P(t, 131.2, 0.3)}"></div>
+    <div style="position:absolute;left:${px}px;top:578px;transform:translateX(-50%);white-space:nowrap;background:#2563eb;color:#fff;font-size:22px;font-weight:900;padding:5px 14px;border-radius:10px;opacity:${P(t, 131.2, 0.3)}">${pl}</div>`;
+  $("#sumTrack").innerHTML = h;
+  // 手順（2列×2行）
+  const rows = [
+    ["いま（10月）", "ホームページは 10月・11月 を公開中"],
+    ["10月15日", "12月分が自動で作られる（まだ非公開＝準備中）"],
+    ["10月の月末まで", "12月の臨時営業・臨時休業・イベントを設定"],
+    ["11月1日", "12月がホームページに公開（公開中は 11月・12月）"],
+  ];
+  $("#sumSteps").innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${rows
+    .map(([when, what], i) => {
+      const act = step === i + 1, done = step > i + 1, o = step >= i + 1 ? 1 : 0.3;
+      return `<div style="display:flex;gap:16px;align-items:center;background:#fff;border-radius:20px;padding:16px 22px;box-shadow:0 10px 28px rgba(15,27,61,.08);opacity:${o};outline:${act ? "4px solid #2563eb" : "none"}">
+        <span style="flex:none;width:46px;height:46px;border-radius:50%;background:${done || act ? "#2563eb" : "#cbd5e1"};color:#fff;display:grid;place-items:center;font-size:22px;font-weight:900">${i + 1}</span>
+        <div><div style="font-size:22px;font-weight:800;color:#2563eb">${when}</div><div style="font-size:26px;font-weight:800">${what}</div></div></div>`;
+    })
+    .join("")}</div>`;
+}
+
+// ---------------------------------------------------------------- 合成
+window.renderAt = function (t) {
+  const g = segAt(t);
+  if (g.v0 != null) oldRenderAt(g.v0 + (t - g.t0));
+  else {
+    oldRenderAt(-100);
+    $("#op").style.display = "none";
+  }
+  $("#end").style.display = "none"; // 元のまとめは使わない（運用例に差し替え）
+  renderBg(t);
+  newAnims(t);
+  renderIntro(t);
+  $("#L_ref").style.display = t >= 107.2 && t < 114.8 ? "block" : "none";
+  renderSummary(t);
+  // 元の映像の区間どうしのつなぎ目（03→月の注釈）を一瞬の白でつなぐ
+  $("#xfade").style.opacity = Math.max(0, 1 - Math.abs(t - 101.5) / 0.3);
+  $("#progress").style.width = `${(t / TOTAL) * 100}%`;
+};
+window.DUR = TOTAL;
+
+// プレビュー再生（?render のときは外から renderAt を呼ぶ）
+const params = new URLSearchParams(location.search);
+if (!params.has("render")) {
+  const fit = () => { const s = Math.min(innerWidth / 1920, innerHeight / 1080); $("#stage").style.transform = `scale(${s})`; $("#stage").style.marginRight = `${1920 * s - 1920}px`; $("#stage").style.marginBottom = `${1080 * s - 1080}px`; };
+  fit(); addEventListener("resize", fit);
+  const start = performance.now() - (Number(params.get("t")) || 0) * 1000;
+  const loop = (now) => { renderAt(((now - start) / 1000) % TOTAL); requestAnimationFrame(loop); };
+  if (params.has("still")) renderAt(Number(params.get("t")) || 0); else requestAnimationFrame(loop);
+} else document.body.style.display = "block";
+</script>
+</body>
+</html>

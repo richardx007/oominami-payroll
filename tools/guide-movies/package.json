@@ -1,0 +1,14 @@
+{
+  "name": "oominami-guide-movies",
+  "private": true,
+  "description": "アプリの解説（操作説明ムービー）の制作用ツール。アプリ本体とは依存関係を分けている",
+  "type": "module",
+  "scripts": {
+    "build": "node lib/build.mjs",
+    "snap": "node lib/snap.mjs"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "puppeteer-core": "^25.12.0"
+  }
+}

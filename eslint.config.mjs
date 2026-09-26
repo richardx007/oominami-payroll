@@ -16,6 +16,11 @@ const eslintConfig = defineConfig([
     "public/sw.js",
     "public/sw.js.map",
     "public/swe-worker-*.js",
+    // opennextjs-cloudflare のビルド出力（デプロイのたびに作られる。lint すると巨大でメモリ不足になる）
+    ".open-next/**",
+    ".wrangler/**",
+    // 解説動画の制作ツール（アプリとは別の Node スクリプトと HTML。tools/guide-movies/README.md）
+    "tools/**",
   ]),
 ]);
 
