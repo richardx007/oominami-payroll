@@ -1,4 +1,20 @@
 [
-  { "surface": "勤務時間", "pronunciation": "キンムジカン", "accent_type": 3, "note": "「営業時間」と同じ形（きんむ↘じかん）。未登録だと「キ'ンム／ジカン」と2語に分かれる" },
-  { "surface": "月末", "pronunciation": "ゲツマツ", "accent_type": 0, "note": "未登録だと「つきまつ」" }
+  {
+    "surface": "勤務時間",
+    "pronunciation": "キンムジカン",
+    "accent_type": 3,
+    "note": "「営業時間」と同じ形（きんむ↘じかん）。未登録だと「キ'ンム／ジカン」と2語に分かれる"
+  },
+  {
+    "surface": "月末",
+    "pronunciation": "ゲツマツ",
+    "accent_type": 0,
+    "note": "未登録だと「つきまつ」"
+  },
+  {
+    "surface": "右上",
+    "pronunciation": "ミギウエ",
+    "accent_type": 0,
+    "note": "未登録だと「みぎじょう」"
+  }
 ]

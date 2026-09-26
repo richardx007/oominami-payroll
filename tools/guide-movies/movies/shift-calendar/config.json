@@ -1,0 +1,13 @@
+{
+  "title": "シフトを自分のカレンダーに表示する",
+  "html": "movie.html",
+  "narration": "narration.json",
+  "end": 113.5,
+  "output": "シフトのカレンダー連携_従業員ガイド",
+  "bgm": {
+    "full": [[4.6, 103.8]],
+    "arp": [[0.2, null, 0.4]],
+    "riser": null,
+    "cymbal": null
+  }
+}

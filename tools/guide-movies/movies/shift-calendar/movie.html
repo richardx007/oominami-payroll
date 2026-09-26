@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>シフトのカレンダー連携 操作ガイド</title>
+<style>
+
+
+:root{
+  --navy:#0f1b3d; --ink:#1f2937; --muted:#6b7280; --blue:#2563eb; --blue-d:#1e40af;
+  --green:#16a34a; --yellow:#facc15; --red:#dc2626; --orange:#f97316; --gold:#d3a94e;
+  --bg:#f3f5fa;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#05070f;overflow:hidden}
+body{display:grid;place-items:center}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--bg);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;color:var(--navy);
+  transform-origin:0 0;-webkit-font-smoothing:antialiased}
+.abs{position:absolute}
+/* 背景 */
+.blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55}
+#grid{position:absolute;inset:0;background-image:radial-gradient(#c9d3e6 1.3px,transparent 1.3px);background-size:34px 34px;opacity:.55}
+/* テロップ共通 */
+.chapter{position:absolute;left:96px;top:64px;display:flex;align-items:center;gap:16px;font-weight:800;font-size:22px;letter-spacing:.08em;color:var(--blue)}
+.chapter b{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--blue);color:#fff;font-size:22px}
+.h1{position:absolute;left:96px;font-size:66px;font-weight:900;letter-spacing:.01em;line-height:1.2}
+.h1 em{font-style:normal;color:var(--blue)}
+.sub{position:absolute;left:100px;font-size:30px;font-weight:600;color:#334155;line-height:1.6}
+.tip{position:absolute;left:100px;display:flex;gap:14px;align-items:flex-start;font-size:27px;font-weight:600;color:#1e293b;line-height:1.5;max-width:760px}
+.tip i{flex:none;font-style:normal;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;box-shadow:0 4px 14px rgba(15,27,61,.12);font-size:22px;margin-top:2px}
+.kbd{display:inline-block;padding:0 12px;border-radius:10px;background:#fff;border:2px solid #cbd5e1;font-weight:800;color:var(--navy);box-shadow:0 3px 0 #cbd5e1}
+.kbd.red{border-color:#ef4444;color:#dc2626;box-shadow:0 3px 0 #fca5a5}
+.kbd.blue{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 3px 0 #1e3a8a}
+.hl{background:linear-gradient(transparent 62%,#fde68a 62%)}
+/* 電話 */
+#phoneCam{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.phone{position:relative;width:458px;height:960px;border-radius:66px;background:#0c0f1a;padding:14px;box-shadow:0 40px 90px rgba(15,27,61,.35),0 0 0 2px #2b3144 inset}
+.screen{position:relative;width:430px;height:932px;border-radius:54px;overflow:hidden;background:#f9fafb}
+.notch{position:absolute;left:50%;top:10px;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#0c0f1a;z-index:50}
+.sbar{position:absolute;left:0;right:0;top:0;height:54px;display:flex;justify-content:space-between;align-items:center;padding:8px 34px 0 42px;font-size:16px;font-weight:700;color:#111;z-index:40;background:#fff}
+.appbar{position:absolute;left:0;right:0;top:54px;height:50px;display:flex;align-items:center;gap:12px;padding:0 18px;background:#fff;border-bottom:1px solid #e5e7eb;font-weight:800;font-size:17px;color:#1e3a8a;z-index:30}
+.appbar .burger{font-size:22px;color:#4b5563}
+.view{position:absolute;left:0;right:0;top:104px;bottom:0;overflow:hidden;background:#f9fafb}
+.scroller{position:absolute;left:0;right:0;top:0;padding:12px 10px 60px}
+/* 管理画面 */
+.nav{display:flex;align-items:center;gap:4px}
+.nav .arr{font-size:20px;font-weight:800;color:#4b5563;padding:2px 6px}
+.nav .ym{font-size:19px;font-weight:900;color:#1e40af;white-space:nowrap}
+.icons{margin-left:auto;display:flex;gap:4px}
+.ib{width:36px;height:36px;border-radius:9px;border:1px solid #d1d5db;background:#fff;display:grid;place-items:center;color:#4b5563}
+.ib svg{width:20px;height:20px}
+.badgeRow{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:#6b7280}
+.badge{padding:3px 11px;border-radius:9px;font-size:16px;font-weight:800}
+.b-draft{background:#fef08a;color:#713f12}.b-public{background:#dcfce7;color:#166534}
+.msg{margin-top:8px;border-radius:9px;background:#fefce8;color:#713f12;font-size:13px;padding:9px 11px;line-height:1.5}
+.cal{margin-top:10px;border:2px solid #9ca3af;border-radius:12px;background:#fff;padding:2px}
+.wh{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-weight:800;font-size:16px;color:#374151;border-radius:8px;margin-bottom:2px}
+.wh div{padding:5px 0}
+.wk{position:relative;border-top:1px solid #f3f4f6}
+.wk .bgc{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,1fr)}
+.wk .bgc div{border:1px solid #f3f4f6;position:relative}
+.wk .bgc .out{background:#f9fafb}
+.wk .bgc .sel{box-shadow:inset 0 0 0 3px #3b82f6;border-radius:3px}
+.wk .fg{position:relative;display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:auto;min-height:74px;padding-bottom:3px;align-content:start}
+.dn{text-align:center;font-weight:800;font-size:16px;line-height:1.55}
+.dn .dot{font-size:9px;color:#f97316;vertical-align:4px;margin-left:1px}
+.ch{margin:1px 1px 0;border:1px solid #22c55e;background:#f0fdf4;color:#166534;font-size:11px;font-weight:600;line-height:1.3;border-radius:2px;padding:0 2px;white-space:nowrap;overflow:hidden;text-align:center}
+.ch.tc{border-color:#ef4444;background:#fef2f2;color:#dc2626;font-weight:800}
+.ch.stay{border:none;background:none;color:#374151;font-weight:700;text-align:left}
+.band{margin:1px 0 0;border:1px solid #22c55e;background:#f0fdf4;color:#166534;font-size:11px;font-weight:600;line-height:1.3;padding:0 3px;display:flex;justify-content:space-between;white-space:nowrap;overflow:hidden}
+.band.l{border-top-left-radius:3px;border-bottom-left-radius:3px}
+.band.r{border-top-right-radius:3px;border-bottom-right-radius:3px}
+.band.ev{border-color:#d3a94e;background:#fbf1d9;color:#b8860b;font-weight:800}
+.flash{position:absolute;pointer-events:none;border-radius:6px;box-shadow:0 0 0 3px #f97316,0 0 24px 6px rgba(249,115,22,.45);z-index:5}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#4b5563;margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.card{margin-top:12px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px}
+.card h3{margin:0 0 8px;font-size:14px;border-left:4px solid #2563eb;padding-left:8px}
+.inp{width:100%;border:1px solid #d1d5db;border-radius:9px;padding:9px 11px;font-size:15px;background:#fff;min-height:40px;color:#111;font-family:inherit;line-height:1.4}
+.inp.focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.35)}
+.inp.red{color:#d81f2a;font-weight:800}
+.inp .caret{display:inline-block;width:2px;height:17px;background:#2563eb;vertical-align:-3px;margin-left:1px}
+.btn{width:100%;border:none;border-radius:9px;background:#2563eb;color:#fff;font-weight:800;font-size:15px;padding:11px;text-align:center;font-family:inherit}
+.btn.dim{opacity:.4}
+.okmsg{color:#15803d;font-size:14px;font-weight:600;margin:6px 0}
+.lbl{font-size:12px;color:#6b7280;font-weight:600;margin-bottom:4px}
+.panel{margin-top:12px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px}
+.ph{display:flex;justify-content:space-between;align-items:flex-start}
+.ph .d{font-size:19px;font-weight:800}
+.ph .s{font-size:14px;color:#4b5563;margin-top:2px}
+.ph .s small{font-size:12px;color:#9ca3af;margin-left:8px}
+.ph .s .m{font-size:12px;color:#ea580c;margin-left:8px}
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0 10px}
+.mode{border:1px solid #d1d5db;border-radius:9px;padding:10px 2px;text-align:center;font-weight:800;font-size:14px;color:#374151;background:#fff}
+.mode.on{background:#2563eb;border-color:#2563eb;color:#fff}
+.mode.on.red{background:#ef4444;border-color:#ef4444}
+.pnote{font-size:13px;color:#4b5563;margin:4px 0 10px}
+.evsec{border-top:1px solid #f3f4f6;margin-top:14px;padding-top:12px}
+.evh{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:15px;color:#1f2937}
+.addb{border:1px solid #2563eb;color:#1d4ed8;border-radius:9px;padding:4px 12px;font-size:14px;font-weight:700}
+.evitem{margin-top:8px;border:1px solid #d3a94e;background:#fbf1d9;border-radius:9px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center}
+.evitem b{color:#b8860b;font-size:14px}.evitem small{display:block;color:#4b5563;font-size:12px}
+.evform{margin-top:8px;background:#f9fafb;border-radius:10px;padding:10px;display:grid;gap:8px}
+.pill{display:inline-block;border:1px solid;border-radius:99px;padding:3px 12px;font-size:14px;font-weight:700;margin-right:6px}
+.pill.on{box-shadow:0 0 0 2px #3b82f6}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px}
+.chk i{width:17px;height:17px;border-radius:4px;border:1.5px solid #6b7280;display:grid;place-items:center;font-style:normal;font-size:12px;color:#fff}
+.chk i.on{background:#2563eb;border-color:#2563eb}
+/* 営業と勤務時間 */
+.back{font-size:13px;color:#1d4ed8;font-weight:600}
+.pt{font-size:21px;font-weight:900;margin:4px 0 4px}
+.pdesc{font-size:12px;color:#4b5563;line-height:1.55}
+.sel{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;font-weight:800}
+.selbox{flex:1;border:1px solid #d1d5db;border-radius:9px;padding:8px 10px;font-weight:700;font-size:15px;background:#fff;display:flex;justify-content:space-between;position:relative}
+.dd{position:absolute;left:0;right:0;top:44px;background:#fff;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.22);overflow:hidden;z-index:20;font-weight:600}
+.dd div{padding:11px 14px;border-bottom:1px solid #f3f4f6}
+.dd .cur{color:#2563eb}
+.newbox{margin-top:10px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:10px}
+.newbox .row{display:flex;align-items:center;gap:8px;font-size:14px}
+.newbox p{margin:6px 0 0;font-size:12px;color:#4b5563;line-height:1.5}
+.ptab{margin-top:10px}
+.ptab .tr{display:grid;grid-template-columns:58px 78px 1fr 1fr 34px;gap:5px;align-items:center;padding:4px 0}
+.ptab .th{font-size:11px;color:#6b7280}
+.ptab .dt{font-weight:800;font-size:14px}
+.seg{display:flex;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;font-size:12px;font-weight:700}
+.seg span{flex:1;text-align:center;padding:6px 0;color:#6b7280}
+.seg .on{background:#16a34a;color:#fff}
+.ti{border:1px solid #d1d5db;border-radius:8px;padding:6px 6px;font-size:14px;background:#fff;text-align:center;font-variant-numeric:tabular-nums;min-height:32px}
+.ti.dis{background:#f3f4f6;color:#9ca3af}
+.ti.chg{border-color:#f59e0b;background:#fffbeb;font-weight:800;color:#92400e}
+.ti.focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.35)}
+.cb{width:20px;height:20px;border-radius:5px;border:1.5px solid #6b7280;margin:auto;display:grid;place-items:center;font-size:13px;color:#fff}
+.cb.on{background:#2563eb;border-color:#2563eb}
+.faint{opacity:.55}
+.regen{display:flex;gap:9px;background:#fefce8;border-radius:10px;padding:11px;font-size:14px;margin-top:12px}
+.regen small{display:block;font-size:12px;color:#4b5563;margin-top:3px;line-height:1.5}
+/* 指 */
+#finger{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(37,99,235,.28);border:3px solid rgba(255,255,255,.95);box-shadow:0 6px 18px rgba(15,27,61,.35);z-index:100;pointer-events:none}
+#ripple{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:3px solid #2563eb;z-index:99;pointer-events:none}
+/* ブラウザ */
+#browser{position:absolute;left:830px;top:238px;width:1020px;height:772px;border-radius:18px;background:#fff;box-shadow:0 40px 90px rgba(15,27,61,.28);overflow:hidden}
+.bbar{height:52px;background:#eef1f6;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #dde2ea}
+.bbar i{width:13px;height:13px;border-radius:50%;display:inline-block}
+.url{flex:1;margin-left:14px;height:32px;border-radius:9px;background:#fff;display:flex;align-items:center;gap:10px;padding:0 14px;font-size:15px;color:#475569}
+.reload{font-size:18px;color:#64748b;display:inline-block}
+.hp{padding:16px 36px}
+.hpcard{border:1px solid #e5e7eb;border-radius:16px;padding:14px 20px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.hphead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.hphead h2{margin:0;font-size:22px;letter-spacing:.05em}
+.hpym{font-weight:800;font-size:15px}.hpym b{font-size:30px;margin-left:2px}
+.hpnav{display:flex;align-items:center;gap:14px}
+.hpnav span.c{width:38px;height:38px;border-radius:50%;background:#e9ebef;display:grid;place-items:center;font-weight:800}
+.hpcal{border:2px solid #475569;border-radius:12px;overflow:hidden}
+.hpcal .wh{font-size:21px;border-radius:0;margin:0;border-bottom:2px solid #475569}
+.hpcal .wk .fg{min-height:92px}
+.hpcal .dn{font-size:17px;text-align:left;padding-left:8px}
+.hpcal .ch,.hpcal .band{font-size:13px;line-height:1.45}
+.hpfoot{margin-top:10px;font-size:16px;font-weight:800;color:#d81f2a;line-height:1.5}
+.hplegend{display:flex;gap:20px;font-size:15px;color:#475569;margin-top:6px}
+.hplegend span{display:inline-flex;gap:6px;align-items:center}
+.hplegend i{width:11px;height:11px;border-radius:50%;display:inline-block}
+/* 汎用カード */
+.stepcard{position:absolute;width:500px;height:370px;border-radius:30px;background:#fff;box-shadow:0 24px 60px rgba(15,27,61,.12);padding:40px 38px}
+.stepcard .when{font-size:24px;font-weight:800;color:#64748b}
+.stepcard .big{font-size:44px;font-weight:900;margin:12px 0 16px;line-height:1.25}
+.stepcard .desc{font-size:24px;color:#334155;line-height:1.6;font-weight:600}
+.stag{display:inline-block;padding:6px 18px;border-radius:12px;font-size:24px;font-weight:900}
+.callout{position:absolute;left:96px;display:flex;align-items:center;gap:16px;background:#fff;border-radius:20px;padding:18px 26px;box-shadow:0 14px 36px rgba(15,27,61,.12);font-size:27px;font-weight:700;width:720px}
+.callout .n{flex:none;width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:900;font-size:22px}
+.callout small{display:block;font-size:20px;color:#64748b;font-weight:600;margin-top:2px}
+svg#lines{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none;z-index:60}
+#progress{position:absolute;left:0;bottom:0;height:6px;background:linear-gradient(90deg,#2563eb,#22c55e);z-index:200}
+.sig{position:absolute;opacity:0;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 8px rgba(34,197,94,.25),0 0 30px 10px rgba(34,197,94,.55);z-index:90}
+.summary{position:absolute;left:260px;width:1400px;display:flex;align-items:center;gap:30px;background:#fff;border-radius:26px;padding:30px 40px;box-shadow:0 20px 50px rgba(15,27,61,.10);font-size:34px;font-weight:800}
+.summary .ic{flex:none;width:76px;height:76px;border-radius:22px;display:grid;place-items:center;font-size:38px;color:#fff}
+.summary small{display:block;font-size:24px;color:#64748b;font-weight:600;margin-top:4px}
+
+
+/* ---- シフトのカレンダー連携 ---- */
+.point{position:absolute;left:96px;width:780px;display:flex;gap:18px;align-items:center;background:#fff;border-radius:22px;padding:20px 26px;box-shadow:0 14px 36px rgba(15,27,61,.10);font-size:30px;font-weight:800}
+.point .ic{flex:none;width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:28px;color:#fff}
+.point small{display:block;font-size:21px;color:#64748b;font-weight:600;margin-top:4px}
+.scr{position:absolute;left:0;right:0;top:54px;bottom:0;overflow:hidden;background:#f9fafb}
+/* アプリ（従業員） */
+.ehead{height:50px;background:#152449;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-weight:800;font-size:16px}
+.ehead .me{display:flex;align-items:center;gap:6px;color:#dbeafe;font-weight:700;font-size:15px;padding:6px 8px;border-radius:8px}
+.etabs{position:absolute;left:0;right:0;bottom:0;height:64px;background:#152449;display:grid;grid-template-columns:repeat(5,1fr);color:#bfdbfe;font-size:11px;font-weight:700;text-align:center;align-items:center}
+.acard{margin:10px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px}
+.acard h3{margin:0 0 8px;font-size:15px;border-left:4px solid #2563eb;padding-left:8px}
+.acard p{margin:4px 0;font-size:12.5px;color:#4b5563;line-height:1.55}
+.abtn{display:inline-block;border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;margin:4px 4px 0 0}
+.abtn.pri{background:#2563eb;color:#fff}
+.abtn.sec{border:1px solid #2563eb;color:#1d4ed8;background:#fff}
+.howto{margin-top:8px;border-radius:10px;background:#eff6ff;color:#1e3a8a;padding:9px 10px;font-size:12px;line-height:1.55}
+.howto b{font-weight:800}
+.fld{border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;margin-top:4px;background:#fff}
+/* iOS の「照会カレンダーを追加」 */
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.sheet{position:absolute;left:0;right:0;top:40px;bottom:0;border-radius:28px 28px 0 0;background:#f2f2f7;padding:16px 16px 0;color:#111}
+.sheet .top{display:flex;align-items:center;justify-content:space-between}
+.sheet .x{width:40px;height:40px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:20px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.sheet .ok{width:40px;height:40px;border-radius:50%;background:#ef4444;color:#fff;display:grid;place-items:center;font-size:22px;font-weight:900}
+.sheet .tt{font-size:17px;font-weight:800}
+.sheet .desc{color:#8e8e93;font-size:13px;line-height:1.55;margin:14px 6px 18px}
+.sheet .lab{color:#8e8e93;font-size:15px;font-weight:800;margin:14px 6px 6px}
+.sheet .box{background:#fff;border-radius:16px;padding:14px 16px;font-size:14px}
+.sheet .btnw{background:#fff;border-radius:16px;padding:15px;text-align:center;font-weight:800;font-size:16px;margin-top:22px}
+.ev{border-left:3px solid #3b82f6;padding-left:8px;margin:6px 0}
+.ev b{display:block;font-size:14px}.ev small{color:#6b7280;font-size:12px}
+/* iOS カレンダー */
+.ical{position:absolute;left:0;right:0;top:54px;bottom:0;background:#fff;color:#111}
+.ical .mh{padding:6px 16px 4px;font-size:30px;font-weight:800}
+.ical .wd{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;color:#8e8e93;text-align:center;padding:4px 0;border-bottom:1px solid #e5e5ea}
+.ical .gr{display:grid;grid-template-columns:repeat(7,1fr)}
+.ical .gr div{height:112px;border-bottom:1px solid #eee;padding:3px 2px;font-size:13px;text-align:center;position:relative}
+.ical .gr .pill{display:block;margin-top:3px;border-radius:4px;font-size:10px;font-weight:700;color:#fff;padding:1px 0;background:#8b5cf6}
+.ical .gr .pill.t{background:#c4b5fd;color:#4c1d95}
+/* パソコン（ブラウザ） */
+#pc{position:absolute;left:900px;top:190px;width:960px;height:800px;border-radius:16px;background:#fff;box-shadow:0 40px 90px rgba(15,27,61,.28);overflow:hidden}
+#pc .bar{height:44px;background:#eef1f6;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid #dde2ea}
+#pc .bar i{width:12px;height:12px;border-radius:50%;display:inline-block}
+#pc .url{flex:1;margin-left:10px;height:28px;border-radius:8px;background:#fff;display:flex;align-items:center;padding:0 12px;font-size:13px;color:#475569}
+.pview{position:absolute;left:0;right:0;top:44px;bottom:0;overflow:hidden}
+.pside{position:absolute;left:0;top:0;bottom:0;width:190px;background:#152449;color:#dbeafe;font-size:15px;font-weight:700;padding:14px 12px}
+.pside div{padding:7px 8px;border-radius:8px}
+.pside .me{position:absolute;left:12px;right:12px;bottom:14px;border-top:1px solid rgba(255,255,255,.2);padding-top:12px;font-size:14px}
+.pmain{position:absolute;left:190px;right:0;top:0;bottom:0;background:#f9fafb;padding:16px 22px;overflow:hidden}
+.gcal{position:absolute;inset:0;background:#fff;color:#1f1f1f}
+.gcal .gh{height:56px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid #e0e0e0;font-size:20px}
+.gcal .gl{position:absolute;left:0;top:56px;bottom:0;width:210px;padding:14px;font-size:13px}
+.gcal .gm{position:absolute;left:210px;right:0;top:56px;bottom:0}
+.gcal .gw{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;color:#70757a;text-align:center;padding:6px 0}
+.gcal .gg{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid #e0e0e0}
+.gcal .gg div{height:108px;border-right:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0;font-size:12px;text-align:center;padding-top:4px}
+.gcal .gg .ge{display:block;margin:2px 4px 0;border-radius:4px;background:#0b8043;color:#fff;font-size:11px;text-align:left;padding:1px 5px}
+.gdlg{position:absolute;left:50%;top:50%;width:560px;margin:-110px 0 0 -280px;border-radius:28px;background:#e8edf6;padding:26px 30px;box-shadow:0 20px 50px rgba(0,0,0,.3);color:#1f1f1f}
+.gdlg h4{margin:0 0 14px;font-size:26px;font-weight:500}
+.gdlg p{margin:0;font-size:15px;color:#444;line-height:1.5}
+.gdlg .acts{display:flex;justify-content:flex-end;gap:20px;align-items:center;margin-top:18px;font-size:16px}
+.gdlg .add{background:#0b57d0;color:#fff;border-radius:99px;padding:10px 26px;box-shadow:0 0 0 3px #0b57d0 inset,0 0 0 5px #fff inset}
+#cursor{position:absolute;left:0;top:0;width:34px;height:34px;z-index:120;pointer-events:none;opacity:0}
+.hbox{position:absolute;pointer-events:none;border-radius:12px;border:4px solid #ef4444;box-shadow:0 0 0 6px rgba(239,68,68,.22);z-index:30}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bgwrap">
+    <div class="blob" id="blob1" style="width:760px;height:760px;background:#bcd3ff"></div>
+    <div class="blob" id="blob2" style="width:620px;height:620px;background:#c8f0d8"></div>
+    <div class="blob" id="blob3" style="width:520px;height:520px;background:#ffe8a8"></div>
+    <div id="grid"></div>
+  </div>
+
+  <div class="chapter" data-a="5.3,35.6" data-fx="left"><b>01</b>できること・画面の開き方</div>
+  <div class="chapter" data-a="36,62" data-fx="left"><b>02</b>iPhoneのカレンダー</div>
+  <div class="chapter" data-a="62.4,90" data-fx="left"><b>03</b>Googleカレンダー（パソコン）</div>
+  <div class="chapter" data-a="90.4,103.6" data-fx="left"><b>04</b>知っておいてほしいこと</div>
+
+  <!-- S1 できること -->
+  <div class="h1" style="top:140px" data-a="5.5,21.6" data-fx="up">シフトを<em>自分のカレンダー</em>で見る</div>
+  <div class="point" style="top:330px" data-a="6.2,21.6" data-fx="left"><span class="ic" style="background:#2563eb">📅</span><div>iPhoneのカレンダー・Googleカレンダー<small>このアプリのシフトがそのまま表示されます</small></div></div>
+  <div class="point" style="top:480px" data-a="10.8,21.6" data-fx="left"><span class="ic" style="background:#16a34a">↻</span><div>登録は1回だけ<small>シフトが変わると自動で反映されます</small></div></div>
+  <div class="point" style="top:630px" data-a="15.8,21.6" data-fx="left"><span class="ic" style="background:#8b5cf6">仮</span><div>調整中の月は「仮:早番」<small>シフトが確定すると「仮:」が外れます</small></div></div>
+
+  <!-- S2 開き方 -->
+  <div class="h1" style="top:140px;font-size:58px" data-a="22,35.6" data-fx="up">右上の<em>自分の名前</em>から開く</div>
+  <div class="tip" style="top:290px" data-a="22.4,35.6" data-fx="up"><i>👤</i><span>画面右上の <span class="kbd">名前</span> をタップ</span></div>
+  <div class="tip" style="top:380px" data-a="26.8,35.6" data-fx="up"><i>⚙</i><span>アカウント設定の<br><span class="kbd blue">カレンダー連携</span> へ</span></div>
+  <div class="tip" style="top:520px;font-size:24px;color:#475569" data-a="31.8,35.6" data-fx="up"><i>💻</i><span>パソコンは、左下の名前から</span></div>
+
+  <!-- S3 iPhone -->
+  <div class="h1" style="top:140px;font-size:58px" data-a="36.2,61.8" data-fx="up"><em>iPhone</em>の標準カレンダー</div>
+  <div class="callout" style="top:300px;width:720px" data-a="40.3,61.8" data-fx="left"><span class="n">1</span><div>「iPhone・Macのカレンダーに登録」<small>カレンダー連携のボタンを押す</small></div></div>
+  <div class="callout" style="top:430px;width:720px" data-a="45.3,61.8" data-fx="left"><span class="n">2</span><div>画面下の「検索」<small>「照会カレンダーを追加」の画面で</small></div></div>
+  <div class="callout" style="top:560px;width:720px" data-a="50.8,61.8" data-fx="left"><span class="n">3</span><div>右上の「✓」で完了<small>タイトルは「オオミナミ シフト」</small></div></div>
+  <div class="tip" style="top:720px;font-size:24px;color:#475569" data-a="56,61.8" data-fx="up"><i>⏳</i><span>最初にシフトが表示されるまで、<br>少し時間がかかることがあります</span></div>
+
+  <!-- S4 Google -->
+  <div class="h1" style="top:130px;font-size:56px" data-a="62.6,89.8" data-fx="up"><em>Google</em>は<em>パソコン</em>で登録</div>
+  <div class="tip" style="top:240px;font-size:24px;color:#b91c1c;max-width:700px" data-a="63.2,89.8" data-fx="up"><i>⚠️</i><span>スマホのGoogleカレンダーアプリからは登録できません</span></div>
+  <div class="callout" style="top:350px;left:70px;width:760px" data-a="68.8,89.8" data-fx="left"><span class="n">1</span><div>「Googleカレンダーに登録」<small>パソコンでアカウント設定を開いて押す</small></div></div>
+  <div class="callout" style="top:480px;left:70px;width:760px" data-a="73.8,89.8" data-fx="left"><span class="n">2</span><div>「カレンダーを追加」→「追加」<small>Google カレンダーの画面で</small></div></div>
+  <div class="callout" style="top:610px;left:70px;width:760px" data-a="78.8,89.8" data-fx="left"><span class="n">3</span><div>名前は後で自動で変わる<small>「webcal://…」→「オオミナミ シフト」</small></div></div>
+  <div class="tip" style="top:760px;left:90px;font-size:24px;color:#475569" data-a="84.8,89.8" data-fx="up"><i>📱</i><span>パソコンで登録すれば、スマホの<br>Googleカレンダーアプリにも表示されます</span></div>
+
+  <!-- S5 知っておいてほしいこと -->
+  <div class="h1" style="top:140px" data-a="90.6,103.6" data-fx="up">知っておいて<em>ほしいこと</em></div>
+  <div class="summary" style="top:320px" data-a="90.8,103.6" data-fx="left"><span class="ic" style="background:#ca8a04">⏱</span><div>反映は数時間〜1日遅れることがある<small>直前の変更は、このアプリのシフト画面で確認してください</small></div></div>
+  <div class="summary" style="top:530px" data-a="97.8,103.6" data-fx="left"><span class="ic" style="background:#dc2626">🔒</span><div>登録用のURLは他の人に教えない<small>URLを知っている人は誰でもあなたのシフトを見られます</small></div></div>
+
+  <!-- パソコン（ブラウザ） -->
+  <div id="pc" data-a="63.6,89.8" data-fx="right">
+    <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><div class="url" id="pcUrl"></div></div>
+    <div class="pview" id="pApp">
+      <div class="pside"><div>▦ シフト</div><div>🗓 勤務表</div><div>¥ 日別</div><div>¥ 給与明細</div><div>⏱ 出退勤</div><div>🔔 お知らせ</div>
+        <div class="me">👤 山田 花子<br><span style="font-size:12px;opacity:.7">ログアウト</span></div></div>
+      <div class="pmain"><div style="font-size:22px;font-weight:900;margin-bottom:8px">アカウント設定</div>
+        <div class="acard" style="margin:0"><h3>カレンダー連携</h3>
+          <p>自分のシフトを、スマホやパソコンのカレンダーに自動で表示できます。登録は1回だけで、以後シフトが変わると自動で反映されます。</p>
+          <span class="abtn pri">iPhone・Macのカレンダーに登録</span><span class="abtn sec" id="pGoogleBtn">Googleカレンダーに登録</span>
+          <div class="howto"><b>iPhoneでの登録手順</b><br>1. 上の「iPhone・Macのカレンダーに登録」を押す<br>2. 「照会カレンダーを追加」画面が開くので、画面下の「検索」を押す<br>3. 次の画面で右上のチェック（✓）ボタンを押すと完了</div>
+          <div class="howto"><b>Googleカレンダーでの登録手順</b> <span style="color:#b91c1c;font-weight:800">★パソコンでの操作が必要です</span><br>1. 上の「Googleカレンダーに登録」を押し、開いた画面で「登録」（または「追加」）を押す<br>2. 登録直後にカレンダー名が「webcal://…」と表示されることがありますが、しばらくすると自動で「シフト」の名前に変わります</div>
+        </div>
+      </div>
+    </div>
+    <div class="pview" id="pGoogle" style="display:none">
+      <div class="gcal">
+        <div class="gh"><span style="font-size:24px">📅</span><span>カレンダー</span><span style="margin-left:20px;font-size:18px">2026年 10月</span></div>
+        <div class="gl"><div style="font-weight:700;margin-bottom:8px">マイカレンダー</div><div>☑ 山田 花子</div><div style="font-weight:700;margin:16px 0 8px">他のカレンダー</div><div>☑ 日本の祝日</div><div id="gName" style="margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div></div>
+        <div class="gm"><div class="gw"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div><div class="gg" id="gGrid"></div></div>
+        <div id="gDim" style="position:absolute;inset:0;background:rgba(0,0,0,.32)"></div>
+        <div class="gdlg" id="gDlg"><h4>カレンダーを追加</h4><p>オオミナミ シフト<br>&lt;a1b2c3d4e5f6g7h8i9j0@import.calendar.google.com&gt;</p><div class="acts"><span style="color:#0b57d0">キャンセル</span><span class="add" id="gAdd">追加</span></div></div>
+      </div>
+    </div>
+  </div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M4 2l16 10-7 1.5 4 7.5-3 1.5-4-7.5L4 20z" fill="#111" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+
+  <!-- スマホ -->
+  <div id="phoneWrap" style="position:absolute;inset:0;pointer-events:none">
+    <div id="phoneCam" style="position:absolute;left:1121px;top:60px;transform-origin:0 0"><div class="phone"><div class="screen" id="screen">
+      <div class="notch"></div>
+      <div class="sbar"><span>10:43</span><span>●●● 🔋</span></div>
+      <!-- S1: 自分のカレンダー（iOS） / S2〜: アプリ -->
+      <div class="scr" id="sHome">
+        <div class="ehead"><span>給与管理</span><span class="me" id="meBtn">山田 花子 👤</span></div>
+        <div style="padding:12px 12px 80px"><div style="font-size:17px;font-weight:900;color:#1e40af">勤務表　2026年10月</div><div id="homeRows"></div></div>
+        <div class="etabs"><div>▦<br>シフト</div><div style="color:#fff">🗓<br>勤務表</div><div>¥<br>日別</div><div>¥<br>給与明細</div><div>≡<br>その他</div></div>
+      </div>
+      <div class="scr" id="sAcct" style="transform:translateX(100%)">
+        <div class="ehead"><span>給与管理</span><span class="me">山田 花子 👤</span></div>
+        <div id="acctSc" style="position:absolute;left:0;right:0;top:50px">
+          <div style="padding:12px 12px 0;font-size:20px;font-weight:900">アカウント設定</div>
+          <div class="acard"><h3>プロフィール</h3><div style="font-size:12px;color:#6b7280">氏名</div><div class="fld">山田 花子</div><div style="font-size:12px;color:#6b7280;margin-top:6px">ニックネーム</div><div class="fld">はなこ</div><span class="abtn pri" style="margin-top:8px">保存する</span></div>
+          <div class="acard"><h3>通知</h3><p>この端末で、お知らせの通知を受け取れます。</p><span class="abtn sec">この端末で通知を受け取る</span></div>
+          <div class="acard" id="calCard"><h3>カレンダー連携</h3>
+            <p>自分のシフトを、スマホやパソコンのカレンダーに自動で表示できます。登録は1回だけで、以後シフトが変わると自動で反映されます。</p>
+            <span class="abtn pri" id="iosBtn">iPhone・Macのカレンダーに登録</span><span class="abtn sec">Googleカレンダーに登録</span>
+            <div class="howto"><b>iPhoneでの登録手順</b><br>1. 上の「iPhone・Macのカレンダーに登録」を押す<br>2. 「照会カレンダーを追加」画面が開くので、画面下の<b>「検索」</b>を押す<br>3. 次の画面で右上の<b>チェック（✓）ボタン</b>を押すと完了</div>
+            <div class="howto"><b>Googleカレンダーでの登録手順</b> <span style="color:#b91c1c;font-weight:800">★パソコンでの操作が必要です</span></div>
+            <p style="margin-top:10px;font-weight:700;color:#374151">▶ 詳細情報</p>
+          </div>
+        </div>
+      </div>
+      <!-- iOS: 照会カレンダーを追加 -->
+      <div id="sSheet" style="position:absolute;left:0;right:0;top:0;bottom:0;display:none">
+        <div class="dim"></div>
+        <div class="sheet" id="sheet1">
+          <div class="top"><span class="x">✕</span><span class="tt">照会カレンダーを追加</span><span style="width:40px"></span></div>
+          <div class="desc">照会カレンダーは、外部ソースからのデータの読み取り専用のフィードです。このフィードを購読することで、データプロバイダによって更新された予定を入手することができます。</div>
+          <div class="lab">照会 URL</div><div class="box">…a1b2c3d4e5f6a7b8c9d0e1f2.ics</div>
+          <div class="btnw" id="searchBtn">検索</div>
+        </div>
+        <div class="sheet" id="sheet2" style="display:none">
+          <div class="top"><span class="x">✕</span><span class="tt">照会カレンダーを追加</span><span class="ok" id="okBtn">✓</span></div>
+          <div class="desc" style="margin-bottom:6px">照会カレンダーは、外部ソースからのデータの読み取り専用のフィードです。</div>
+          <div class="lab">照会先</div><div class="box" style="color:#6b7280;font-size:12px">https://oominami-payroll.shinsekai.workers.dev/…</div>
+          <div class="lab">タイトル</div><div class="box" style="font-weight:700">オオミナミ シフト</div>
+          <div class="lab">プレビュー</div><div class="box"><div class="ev"><b>仮:早番</b><small>2026/11/27 8時00分〜17時00分</small></div><div class="ev"><b>仮:遅番</b><small>2026/11/28 15:00〜2026/11/29 0:00</small></div><small style="color:#6b7280">その他2件の予定...</small></div>
+          <div class="box" style="margin-top:14px;display:flex;justify-content:space-between"><b>アカウント</b><span style="color:#8e8e93">この iPhone内 ›</span></div>
+        </div>
+      </div>
+      <!-- iOS カレンダー -->
+      <div class="ical" id="sCal" style="display:none"><div style="color:#ef4444;font-size:15px;padding:8px 14px 0">‹ 2026年</div><div class="mh">10月</div>
+        <div class="wd"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div><div class="gr" id="icalGrid"></div></div>
+      <!-- Google カレンダー（スマホアプリ） -->
+      <div class="ical" id="sGapp" style="display:none"><div style="display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:20px">≡ <b>10月</b></div><div id="gappList" style="padding:0 12px"></div></div>
+      <div id="ripple"></div><div id="finger"></div>
+    </div></div></div>
+  </div>
+
+  <!-- オープニング -->
+  <div id="op" class="abs" style="inset:0;background:radial-gradient(1200px 700px at 30% 30%,#1e3a8a,#0f1b3d);z-index:150">
+    <div class="abs" style="left:160px;top:250px;font-size:30px;font-weight:800;letter-spacing:.3em;color:#93c5fd" data-a="0.3,99" data-fx="up">従業員向け 操作ガイド</div>
+    <div class="abs" style="left:150px;top:310px;font-size:104px;font-weight:900;color:#fff" data-a="0.6,99" data-fx="up">シフトを自分のカレンダーに</div>
+    <div class="abs" style="left:160px;top:520px;display:flex;gap:18px;font-size:30px;font-weight:800;color:#0f1b3d">
+      <span style="background:#fff;border-radius:18px;padding:14px 26px" data-a="1.4,99" data-fx="pop">① できること・開き方</span>
+      <span style="background:#e9d5ff;border-radius:18px;padding:14px 26px" data-a="1.8,99" data-fx="pop">② iPhoneのカレンダー</span>
+      <span style="background:#bbf7d0;border-radius:18px;padding:14px 26px" data-a="2.2,99" data-fx="pop">③ Googleカレンダー</span>
+    </div>
+    <div class="abs" style="left:160px;top:720px;font-size:26px;color:#cbd5e1;font-weight:600" data-a="3,99" data-fx="up">約 2 分</div>
+  </div>
+
+  <!-- まとめ -->
+  <div id="end" class="abs" style="inset:0;background:#f3f5fa;z-index:160">
+    <div class="abs" style="left:0;width:1920px;top:120px;text-align:center;font-size:64px;font-weight:900" data-a="104.5,999" data-fx="up">まとめ</div>
+    <div class="summary" style="top:280px" data-a="105.0,999" data-fx="left"><span class="ic" style="background:#2563eb">👤</span><div>右上の名前 → <span class="hl">カレンダー連携</span><small>パソコンは左下の名前から</small></div></div>
+    <div class="summary" style="top:470px" data-a="106.4,999" data-fx="left"><span class="ic" style="background:#8b5cf6">📱</span><div>iPhone：「検索」→ 右上の「✓」<small>最初の表示まで少し時間がかかることがあります</small></div></div>
+    <div class="summary" style="top:660px" data-a="108.2,999" data-fx="left"><span class="ic" style="background:#16a34a">G</span><div>Google：パソコンで「追加」<small>スマホのGoogleカレンダーアプリにも表示されます</small></div></div>
+    <div class="abs" style="left:0;width:1920px;top:900px;text-align:center;font-size:26px;font-weight:800;color:#64748b;letter-spacing:.2em" data-a="109.5,999" data-fx="fade">オオミナミ　シフトのカレンダー連携</div>
+    <div class="abs" style="right:48px;bottom:30px;font-size:20px;font-weight:600;color:#94a3b8" data-a="104.6,999" data-fx="fade">ナレーション　VOICEVOX:ずんだもん</div>
+  </div>
+
+  <div id="progress"></div>
+</div>
+
+<script>
+const DUR = 113.5;
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const back = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const P = (t, a, d = 0.5, f = eo) => f(clamp((t - a) / d));
+
+// ---------------------------------------------------------------- シフトのデータ（見本）
+// 10月は確定、11月は調整中（「仮:」）。枠: 早=8:00〜17:00 / 遅=15:00〜0:00 / 深=0:00〜9:00
+const SHIFT = {};
+[[2, "早"], [3, "遅"], [5, "早"], [7, "早"], [9, "遅"], [10, "遅"], [12, "早"], [14, "深"], [16, "早"], [17, "遅"], [19, "早"], [21, "早"], [23, "遅"], [24, "遅"], [26, "早"], [28, "深"], [30, "早"], [31, "遅"]].forEach(([d, s]) => (SHIFT[d] = s));
+const LABEL = { 早: "早番", 遅: "遅番", 深: "深夜" };
+const TIME = { 早: "8:00〜17:00", 遅: "15:00〜0:00", 深: "0:00〜9:00" };
+function monthCells(y, m) { // 日曜始まり
+  const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const cells = [];
+  for (let i = 0; i < first; i++) cells.push(null);
+  for (let d = 1; d <= days; d++) cells.push(d);
+  while (cells.length % 7) cells.push(null);
+  return cells;
+}
+// アプリの勤務表（ホーム）
+$("#homeRows").innerHTML = Object.entries(SHIFT).slice(0, 12).map(([d, s]) =>
+  `<div style="display:flex;justify-content:space-between;padding:9px 4px;border-bottom:1px solid #e5e7eb;font-size:14px"><span>10/${d}</span><span style="font-weight:700">${LABEL[s]}</span><span style="color:#6b7280">${TIME[s]}</span></div>`).join("");
+// iOS カレンダー（10月）
+$("#icalGrid").innerHTML = monthCells(2026, 10).map((d) => `<div>${d ?? ""}${d && SHIFT[d] ? `<span class="pill" data-d="${d}">${LABEL[SHIFT[d]]}</span>` : ""}</div>`).join("");
+// Google カレンダー（パソコン・10月）
+function gGrid(on) {
+  $("#gGrid").innerHTML = monthCells(2026, 10).map((d) => `<div>${d ?? ""}${on && d && SHIFT[d] ? `<span class="ge">${d === 14 || d === 28 ? "0:00" : SHIFT[d] === "早" ? "8:00" : "15:00"} ${LABEL[SHIFT[d]]}</span>` : ""}</div>`).join("");
+}
+// Google カレンダー（スマホアプリ・予定リスト）
+$("#gappList").innerHTML = Object.entries(SHIFT).slice(0, 9).map(([d, s]) =>
+  `<div style="display:flex;gap:12px;align-items:center;margin:10px 0"><div style="width:40px;text-align:center;color:#70757a;font-size:12px">10/${d}</div><div style="flex:1;border-radius:8px;background:#0b8043;color:#fff;padding:8px 12px;font-size:14px;font-weight:600">${LABEL[s]}<br><span style="font-size:12px;font-weight:400">${TIME[s]}</span></div></div>`).join("");
+
+// ---------------------------------------------------------------- スマホの画面（時刻で切り替え）
+const T = {
+  s1cal: 5.6, // S1: 自分のカレンダーにシフト（iOS カレンダー）
+  home: 21.9, tapMe: 23.4, acct: 23.6, scr: [27.0, 28.4], hlCal: [28.4, 34.4],
+  tapIos: 42.0, sheet1: 42.3, tapSearch: 47.6, sheet2: 47.9, tapOk: 53.2, ical: 53.5,
+  phoneOut: 62.0, gapp: 85.0, gappOut: 89.8,
+};
+function renderPhone(t) {
+  // 表示区間: S1（カレンダー）・S2〜S3（アプリ→iOS）・S4 終盤（Google アプリ）
+  const vis = Math.max(
+    Math.min(P(t, 5.8, 0.5), 1 - P(t, T.phoneOut, 0.4)),
+    Math.min(P(t, T.gapp, 0.5), 1 - P(t, T.gappOut, 0.4))
+  );
+  $("#phoneWrap").style.opacity = vis;
+  $("#phoneWrap").style.visibility = vis <= 0.001 ? "hidden" : "visible";
+  // S4 の終盤はスマホを左下に小さく出す（パソコンの横）
+  const small = t >= T.gapp - 0.5;
+  $("#phoneCam").style.transform = small ? "translate(400px,380px) scale(0.62)" : `translateX(${(1 - P(t, 5.8, 0.6)) * 120}px)`;
+  const s1 = t < T.home, gapp = t >= T.gapp - 0.5;
+  const showCal = s1 || (t >= T.ical && !gapp);
+  $("#sCal").style.display = showCal ? "block" : "none";
+  $("#sGapp").style.display = gapp ? "block" : "none";
+  $("#sCal").style.transform = !s1 ? `translateY(${(1 - P(t, T.ical, 0.4, eio)) * 100}%)` : "none";
+  // S1: 予定が1つずつ出る／調整中の見本（11月）はこの画面では出さない
+  document.querySelectorAll("#icalGrid .pill").forEach((el, i) => {
+    el.style.opacity = s1 ? P(t, 6.4 + i * 0.12, 0.3) : t >= T.ical ? P(t, T.ical + 0.8 + i * 0.1, 0.3) : 1;
+  });
+  // アプリ（勤務表 → アカウント設定）
+  const inApp = !s1 && t < T.ical + 0.5 && !gapp;
+  $("#sHome").style.display = inApp ? "block" : "none";
+  $("#sAcct").style.display = inApp ? "block" : "none";
+  const k = P(t, T.acct, 0.4, eio);
+  $("#sHome").style.transform = `translateX(${-30 * k}%)`;
+  $("#sAcct").style.transform = `translateX(${(1 - k) * 100}%)`;
+  const cal = $("#calCard");
+  $("#acctSc").style.transform = `translateY(${-kfScroll(t) * (cal.offsetTop - 10)}px)`;
+  // iOS の照会カレンダーを追加
+  const sheetOn = t >= T.sheet1 && t < T.ical + 0.4 && !gapp;
+  $("#sSheet").style.display = sheetOn ? "block" : "none";
+  $("#sheet1").style.display = t < T.sheet2 ? "block" : "none";
+  $("#sheet2").style.display = t >= T.sheet2 ? "block" : "none";
+  $("#sheet1").style.transform = `translateY(${(1 - P(t, T.sheet1, 0.4, eio)) * 100}%)`;
+  $("#sSheet .dim").style.opacity = P(t, T.sheet1, 0.3);
+  // 強調枠
+  $("#screen").querySelectorAll(".hbox").forEach((e) => e.remove());
+  const box = (sel, a, b) => {
+    if (t < a || t > b) return;
+    const el = $(sel, $("#screen")), sc = $("#screen").getBoundingClientRect(), r = el.getBoundingClientRect(), s = sc.width / 430;
+    const d = document.createElement("div"); d.className = "hbox";
+    Object.assign(d.style, { left: (r.left - sc.left) / s - 6 + "px", top: (r.top - sc.top) / s - 6 + "px", width: r.width / s + 12 + "px", height: r.height / s + 12 + "px", opacity: Math.min(P(t, a, 0.25), 1 - P(t, b - 0.3, 0.3)) });
+    $("#screen").appendChild(d);
+  };
+  box("#calCard", ...T.hlCal);
+  box("#meBtn", 22.4, 23.3);
+}
+function kfScroll(t) { return P(t, T.scr[0], T.scr[1] - T.scr[0], eio); }
+
+// 指（スマホ）
+const FINGER = [[22.3, [300, 500]], [23.0, "#meBtn"], [T.tapMe, "#meBtn", 1], [24.5, [260, 600]],
+  [40.6, [260, 600]], [41.6, "#iosBtn"], [T.tapIos, "#iosBtn", 1], [46.8, "#searchBtn"], [T.tapSearch, "#searchBtn", 1], [52.6, "#okBtn"], [T.tapOk, "#okBtn", 1], [54.2, [300, 600]]];
+const FINGER_ON = [[22.2, 24.8], [40.5, 54.4]];
+function posInScreen(sel) {
+  const el = $(sel, $("#screen"));
+  if (!el || !el.offsetParent) return null;
+  const scr = $("#screen").getBoundingClientRect(), r = el.getBoundingClientRect(), s = scr.width / 430;
+  return [(r.left + r.width / 2 - scr.left) / s, (r.top + r.height / 2 - scr.top) / s];
+}
+const lastPos = {};
+const resolve = (tg, i) => { if (Array.isArray(tg)) return tg; const p = posInScreen(tg); if (p) lastPos[i] = p; return lastPos[i] || [215, 600]; };
+function renderFinger(t) {
+  const vis = FINGER_ON.reduce((m, [a, b]) => Math.max(m, P(t, a, 0.25) * (1 - P(t, b - 0.25, 0.25))), 0);
+  const f = $("#finger"), rp = $("#ripple");
+  f.style.opacity = vis;
+  let i = FINGER.findIndex((x) => x[0] > t);
+  if (i === -1) i = FINGER.length;
+  let x, y;
+  if (i === 0 || i === FINGER.length) [x, y] = resolve(FINGER[Math.max(0, i - 1)][1], Math.max(0, i - 1));
+  else {
+    const a = resolve(FINGER[i - 1][1], i - 1), b = resolve(FINGER[i][1], i), k = eio(clamp((t - FINGER[i - 1][0]) / (FINGER[i][0] - FINGER[i - 1][0])));
+    x = a[0] + (b[0] - a[0]) * k; y = a[1] + (b[1] - a[1]) * k;
+  }
+  let press = 0, rip = null;
+  for (const fr of FINGER) if (fr[2]) {
+    const d = t - fr[0];
+    if (d > -0.12 && d < 0.18) press = Math.max(press, 1 - Math.abs(d - 0.03) / 0.15);
+    if (d >= 0 && d < 0.5) rip = d / 0.5;
+  }
+  f.style.transform = `translate(${x}px,${y}px) scale(${1 - 0.18 * press})`;
+  f.style.background = `rgba(37,99,235,${0.28 + 0.3 * press})`;
+  rp.style.transform = `translate(${x}px,${y}px) scale(${rip == null ? 1 : 1 + rip * 1.6})`;
+  rp.style.opacity = rip == null || vis <= 0 ? 0 : 1 - rip;
+}
+
+// ---------------------------------------------------------------- パソコン（Google）
+const G = { click: 70.4, open: 70.8, add: 76.8, rename: 82.6 };
+let gKey = "";
+const atCache = {};
+function renderPC(t) {
+  if (t < 62 || t > 91) return;
+  const google = t >= G.open;
+  $("#pApp").style.display = google ? "none" : "block";
+  $("#pGoogle").style.display = google ? "block" : "none";
+  $("#pcUrl").textContent = google ? "🔒 calendar.google.com" : "🔒 oominami-payroll … ／ アカウント設定";
+  const added = t >= G.add + 0.2;
+  const key = String(added);
+  if (key !== gKey) { gKey = key; gGrid(added); }
+  $("#gDlg").style.display = added ? "none" : "block";
+  $("#gDim").style.display = added ? "none" : "block";
+  $("#gName").innerHTML = !added ? "" : t < G.rename ? "☑ webcal://oominami-payroll.shinse…" : "☑ <b>オオミナミ シフト</b>";
+  // 名前の変化を赤枠で
+  $("#pc").querySelectorAll(".hbox").forEach((e) => e.remove());
+  const hl = (sel, a, b) => {
+    if (t < a || t > b) return;
+    const el = $(sel), pc = $("#pc").getBoundingClientRect(), r = el.getBoundingClientRect(), s = $("#stage").getBoundingClientRect().width / 1920;
+    const d = document.createElement("div"); d.className = "hbox";
+    Object.assign(d.style, { left: (r.left - pc.left) / s - 6 + "px", top: (r.top - pc.top) / s - 6 + "px", width: r.width / s + 12 + "px", height: r.height / s + 12 + "px", opacity: Math.min(P(t, a, 0.25), 1 - P(t, b - 0.3, 0.3)) });
+    $("#pc").appendChild(d);
+  };
+  hl("#gName", 79.0, 84.4);
+  // マウスカーソル
+  const st = $("#stage").getBoundingClientRect(), sc = st.width / 1920;
+  const at = (sel) => {
+    // 非表示になった要素（閉じたダイアログ）は位置が取れないので、最後に取れた位置を使う
+    const r = $(sel).getBoundingClientRect();
+    if (r.width > 0) atCache[sel] = [(r.left + r.width / 2 - st.left) / sc, (r.top + r.height / 2 - st.top) / sc + 4];
+    return atCache[sel] || [1500, 900];
+  };
+  const K = [[65.0, [1500, 900]], [69.6, at("#pGoogleBtn")], [70.9, at("#pGoogleBtn")], [76.0, at("#gAdd")], [77.4, at("#gAdd")], [78.6, [1600, 800]]];
+  let p = K[0][1];
+  for (let i = 1; i < K.length; i++) if (t >= K[i - 1][0]) {
+    const q = eio(clamp((t - K[i - 1][0]) / (K[i][0] - K[i - 1][0])));
+    p = [K[i - 1][1][0] + (K[i][1][0] - K[i - 1][1][0]) * q, K[i - 1][1][1] + (K[i][1][1] - K[i - 1][1][1]) * q];
+  }
+  const c = $("#cursor");
+  c.style.transform = `translate(${p[0]}px,${p[1]}px) scale(${[G.click, G.add].some((x) => t > x - 0.1 && t < x + 0.15) ? 0.85 : 1})`;
+  c.style.opacity = Math.min(P(t, 65, 0.3), 1 - P(t, 79, 0.3));
+}
+
+// ---------------------------------------------------------------- 共通
+const animEls = [...document.querySelectorAll("[data-a]")].map((el) => {
+  const [a, b] = el.dataset.a.split(",").map(Number);
+  return { el, a, b, fx: el.dataset.fx || "up" };
+});
+function renderAnims(t) {
+  for (const { el, a, b, fx } of animEls) {
+    const pi = P(t, a, fx === "pop" ? 0.55 : 0.5, fx === "pop" ? back : eo), po = P(t, b, 0.35, (x) => x * x);
+    const o = clamp(P(t, a, 0.4) * (1 - po));
+    el.style.opacity = o;
+    el.style.visibility = o <= 0.001 ? "hidden" : "visible";
+    let tr = "";
+    if (fx === "up") tr = `translateY(${(1 - pi) * 46 - po * 20}px)`;
+    if (fx === "left") tr = `translateX(${(1 - pi) * -60 - po * 30}px)`;
+    if (fx === "right") tr = `translateX(${(1 - pi) * 120 + po * 60}px)`;
+    if (fx === "pop") tr = `scale(${0.85 + 0.15 * pi - po * 0.05})`;
+    el.style.transform = tr;
+  }
+}
+function renderBg(t) {
+  const s = Math.sin, c = Math.cos;
+  $("#blob1").style.transform = `translate(${-160 + 120 * s(t * 0.21)}px,${-220 + 90 * c(t * 0.17)}px)`;
+  $("#blob2").style.transform = `translate(${1300 + 140 * c(t * 0.19)}px,${560 + 80 * s(t * 0.23)}px)`;
+  $("#blob3").style.transform = `translate(${760 + 160 * s(t * 0.13)}px,${760 + 70 * c(t * 0.29)}px)`;
+  $("#grid").style.transform = `translateY(${-(t * 6) % 34}px)`;
+}
+function renderSpecial(t) {
+  const w = P(t, 4.6, 0.7, eio);
+  $("#op").style.clipPath = `inset(0 0 ${w * 100}% 0)`;
+  $("#op").style.display = w >= 1 ? "none" : "block";
+  const e = P(t, 104.0, 0.7, eio);
+  $("#end").style.clipPath = `inset(${(1 - e) * 100}% 0 0 0)`;
+  $("#end").style.display = e <= 0 ? "none" : "block";
+  $("#progress").style.width = `${(t / DUR) * 100}%`;
+}
+window.renderAt = function (t) {
+  renderBg(t); renderAnims(t); renderSpecial(t);
+  renderPhone(t); renderFinger(t); renderPC(t);
+};
+window.DUR = DUR;
+const params = new URLSearchParams(location.search);
+if (!params.has("render")) {
+  const fit = () => { const s = Math.min(innerWidth / 1920, innerHeight / 1080); $("#stage").style.transform = `scale(${s})`; $("#stage").style.marginRight = `${1920 * s - 1920}px`; $("#stage").style.marginBottom = `${1080 * s - 1080}px`; };
+  fit(); addEventListener("resize", fit);
+  const start = performance.now() - (Number(params.get("t")) || 0) * 1000;
+  const loop = (now) => { renderAt(((now - start) / 1000) % DUR); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+} else document.body.style.display = "block";
+</script>
+</body>
+</html>

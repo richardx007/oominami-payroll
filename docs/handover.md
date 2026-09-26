@@ -3591,6 +3591,9 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - VOICEVOX エンジン（約1.9GB）は `tools/guide-movies/voicevox/engine/` に置いてある（**git 管理外**。この Mac にだけある。
   別の環境では README の「準備」で公式配布から取得）。
 - VOICEVOX の「ずんだもん」を使った動画には「VOICEVOX:ずんだもん」のクレジットが必要（動画内に表記済み）。
+- 2026-09-26 に3本目「シフトを自分のカレンダーに表示する」（従業員向け・`movies/shift-calendar`）を追加。オーナー提供のスクリーンショットには
+  本人の購読URL（トークン）が写っていたため、画面は模型で再現しURLは架空にした（README「実際の画面写真を参考にするとき」）。
+  アプリへの登録（公開対象: 従業員）はオーナーが行う。
 - ffmpeg の書き出しは作成日時が入らないので、アプリに登録する動画は `-metadata creation_time=...` を付ける（ツールの `light` 手順で自動）。
 - ついでに `eslint.config.mjs` に `.open-next/**`・`.wrangler/**` を除外に追加した。デプロイ後に `npx eslint .` がビルド出力（39MB）を読んで
   メモリ不足で落ちていたため。残る7件のエラーは既存（`set-state-in-effect` 等。今回の変更とは無関係）。
