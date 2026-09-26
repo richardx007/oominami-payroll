@@ -95,6 +95,10 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     };
   }
 
+  // 締め・締め解除・支払済みは給与に直結する操作なので必ず記録する
+  // (2026-09-26 に締めたのにログに残っていないとオーナー指摘があり追加)
+  await logActivity("締め処理", `${period.label}を締めた(${rows.length}名分の明細を作成)`);
+
   revalidatePath("/admin/close");
   revalidatePath("/admin");
   return {
@@ -145,6 +149,8 @@ export async function reopenPeriod(periodKey: string): Promise<ActionResult> {
   if (error) {
     return { ok: false, message: "締め解除に失敗しました: " + error.message };
   }
+
+  await logActivity("締め解除", `${period.label}の締めを解除した`);
 
   revalidatePath("/admin/close");
   revalidatePath("/admin");
@@ -364,6 +370,8 @@ export async function markPaid(periodKey: string): Promise<ActionResult> {
   if (error || !data || data.length === 0) {
     return { ok: false, message: "更新できませんでした(先に締めてください)" };
   }
+
+  await logActivity("支払済み", `${period.label}を支払済みにした`);
 
   revalidatePath("/admin/close");
   revalidatePath("/admin");

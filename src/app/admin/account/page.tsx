@@ -11,7 +11,7 @@ export default async function AdminAccountPage() {
   const me = await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: profile }, { data: subs }, { data: settings }, calendarFeedUrl] = await Promise.all([
+  const [{ data: profile }, { data: subs }, { data: settings }, calendarFeedUrl, { data: reminder }] = await Promise.all([
     supabase.from("employees").select("furigana").eq("id", me.id).maybeSingle(),
     supabase.from("push_subscriptions").select("endpoint").eq("employee_id", me.id),
     supabase
@@ -24,6 +24,11 @@ export default async function AdminAccountPage() {
         "notify_business_calendar",
       ]),
     getMyCalendarFeedUrl(),
+    supabase
+      .from("shift_reminder_settings")
+      .select("minutes_before")
+      .eq("employee_id", me.id)
+      .maybeSingle(),
   ]);
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
@@ -38,6 +43,7 @@ export default async function AdminAccountPage() {
         isAdmin
         vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null}
         registeredEndpoints={(subs ?? []).map((r) => r.endpoint)}
+        shiftReminderMinutes={reminder?.minutes_before ?? null}
         calendarFeedUrl={calendarFeedUrl}
         notifyInEnabled={settingsMap.get("notify_missing_punch_in") !== "false"}
         notifyOutEnabled={settingsMap.get("notify_missing_punch_out") !== "false"}

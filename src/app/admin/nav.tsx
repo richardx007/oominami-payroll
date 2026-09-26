@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,12 +17,13 @@ const primaryLinks = [
 ];
 // スマホでは下部の余白がないため、ハンバーガー(その他)に収める。
 // 「従業員」は PC サイドバーでは給与明細の直後に並ぶ(primaryLinks の後 = moreLinks 先頭)。
-const moreLinks = [
+// dividerBefore: この項目の前に区切り線を入れる(営業系と設定系の境目)
+const moreLinks: { href: string; label: string; icon: typeof HomeIcon; dividerBefore?: boolean }[] = [
   { href: "/admin/employees", label: "従業員", icon: PeopleIcon },
   { href: "/admin/notices", label: "配信", icon: SendIcon },
   { href: "/admin/calendar", label: "営業カレンダー", icon: CalendarIcon },
   { href: "/admin/calendar/patterns", label: "営業と勤務時間", icon: ClockIcon },
-  { href: "/admin/settings", label: "設定", icon: GearIcon },
+  { href: "/admin/settings", label: "設定", icon: GearIcon, dividerBefore: true },
   { href: "/admin/tax-table", label: "税額表", icon: TableIcon },
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },
 ];
@@ -144,8 +145,9 @@ export function AdminSidebarNav() {
           moreLinks.map((l) => {
             const Icon = l.icon;
             return (
+              <Fragment key={l.href}>
+              {l.dividerBefore && <div className="my-1 ml-6 mr-3 border-t border-white/25" aria-hidden="true" />}
               <Link
-                key={l.href}
                 href={l.href}
                 className={`${sidebarItemClass} pl-6 ${
                   isActive(pathname, l.href)
@@ -159,6 +161,7 @@ export function AdminSidebarNav() {
                   {l.label}
                 </span>
               </Link>
+              </Fragment>
             );
           })}
 
@@ -337,18 +340,19 @@ export function AdminBottomNav() {
                   href={l.href}
                   onClick={() => setMenuOpen(false)}
                   className={`flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium active:opacity-70 ${
-                    active ? "bg-white/10 text-white" : "text-blue-50"
-                  }`}
+                    l.dividerBefore ? "border-t border-white/25" : ""
+                  } ${active ? "bg-white/10 text-white" : "text-blue-50"}`}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
                   {l.label}
                 </Link>
               );
             })}
+            {/* 区切り線の下は関連情報(勤務ルール・ホームページ・アプリの解説) */}
             <a
               href="/work-rules"
               onClick={() => setMenuOpen(false)}
-              className="flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+              className="flex touch-manipulation items-center gap-2 border-t border-white/25 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
             >
               <DocumentIcon className="h-5 w-5 shrink-0" />
               勤務ルール

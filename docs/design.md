@@ -847,6 +847,20 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
 - **Service Worker**: `push` / `notificationclick` を追加。**`fetch` は依然として横取りしない**
   ので、ナビゲーションへの影響は無い（下記の重要な教訓を参照）。
 
+### 🔔 シフト開始前通知（従業員向け・Web Push・2026-09-26追加）
+本人がアカウント設定 > 通知 >「シフトの通知」で「シフトの開始時間の N 分前に通知する」（5〜720分）を
+オンにすると、**確定済みの月のシフト**の開始 N 分前に**本人の端末だけ**へ通知する。未打刻通知と同じ設計。
+
+- **設定**: `shift_reminder_settings`（従業員ごと1行。行が無い=オフ。RLSで本人のみ読み書き）。
+- **検出**: `collect_shift_reminders()`。開始日時は `collect_punch_alerts()` と同じ求め方
+  （個別時刻 > その日の枠設定 `work_setting_at` > 既定値。5時前の開始は翌日）。
+  調整中の月（`is_shift_draft`）・出勤打刻済みの日・退職者は対象外。開始時刻を過ぎたら送らない。
+- **重複防止**: `shift_reminders`（従業員, 業務日, 開始日時）。通知後にシフト時刻が変わったら新しい時刻で再通知。
+- **定期実行**: pg_cron `shift-reminders`（**毎分**。N分前のずれを1分以内にするため）。対象が無ければ
+  SQLだけで終わり Worker は起こさない。送信口は `POST /api/notify/shift-reminder`。
+- **Vault**: `notify_secret` は共用。送信先URLは `notify_shift_reminder_url` があればそれを使い、
+  無ければ `notify_url`（…/api/notify/punch）の末尾を置き換えて組み立てる（追加登録は不要）。
+
 ### 🔔 初回ログイン通知（Web Push・2026-08-08追加）
 新しい従業員が**初回パスワード設定を完了した瞬間**、管理者の端末へPush通知を送る
 （「○○さんが初回パスワード設定を完了し、利用を開始しました」）。未打刻通知と同じ設計方針を踏襲。

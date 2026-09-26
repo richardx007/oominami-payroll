@@ -166,8 +166,11 @@ export async function sendTestPushToThisDevice(endpoint: string): Promise<Action
   }
   return {
     ok: true,
+    // 送信先(Apple/Google)と状態コードを添える。届かないときに「送信は受理された=端末側の設定の問題」
+    // と切り分けるため(2026-09-26 Chrome の PWA で届かない件の調査で追加)。
     message:
-      "テスト通知を送りました。数秒待っても届かない場合は、「この端末への通知を解除する」→「この端末で通知を受け取る」で登録し直してください。",
+      "テスト通知を送りました。数秒待っても届かない場合は、「この端末への通知を解除する」→「この端末で通知を受け取る」で登録し直してください。" +
+      `（送信先 ${new URL(sub.endpoint).host} / 状態コード ${res.status}）`,
   };
 }
 
@@ -207,6 +210,40 @@ export async function updateNotifyTypeSettings(formData: FormData): Promise<Acti
 
   revalidatePath("/admin/account");
   return { ok: true, message: "通知設定を更新しました" };
+}
+
+/**
+ * 自分のシフト開始前通知(「開始の N 分前に通知」)を保存する(管理者・従業員共通)。
+ * オフは行を消す。送信は pg_cron の run_shift_reminder_job() が行う。
+ */
+export async function updateMyShiftReminder(formData: FormData): Promise<ActionResult> {
+  const me = await requireEmployee();
+  const enabled = formData.get("shift_reminder_enabled") === "on";
+  const supabase = await createClient();
+
+  if (!enabled) {
+    const { error } = await supabase
+      .from("shift_reminder_settings")
+      .delete()
+      .eq("employee_id", me.id);
+    if (error) return { ok: false, message: "保存に失敗しました" };
+    await logActivity("通知設定", "シフト開始前の通知: 無効");
+  } else {
+    const minutes = Number(formData.get("shift_reminder_minutes"));
+    if (!Number.isInteger(minutes) || minutes < 5 || minutes > 720) {
+      return { ok: false, message: "分数は5〜720の整数で入力してください" };
+    }
+    const { error } = await supabase.from("shift_reminder_settings").upsert(
+      { employee_id: me.id, minutes_before: minutes, updated_at: new Date().toISOString() },
+      { onConflict: "employee_id" }
+    );
+    if (error) return { ok: false, message: "保存に失敗しました" };
+    await logActivity("通知設定", `シフト開始前の通知: ${minutes}分前`);
+  }
+
+  revalidatePath("/account");
+  revalidatePath("/admin/account");
+  return { ok: true, message: "通知設定を保存しました" };
 }
 
 /**

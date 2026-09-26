@@ -7,6 +7,7 @@ import {
   deleteMyPushSubscription,
   sendTestPushToThisDevice,
   updateNotifyTypeSettings,
+  updateMyShiftReminder,
   rotateMyCalendarToken,
 } from "./actions";
 import QRCode from "qrcode";
@@ -34,6 +35,7 @@ export function AccountSettingsView({
   notifyOutEnabled,
   notifyFirstLoginEnabled,
   notifyBusinessCalendarEnabled,
+  shiftReminderMinutes,
   calendarFeedUrl,
 }: {
   name: string;
@@ -48,6 +50,8 @@ export function AccountSettingsView({
   notifyOutEnabled?: boolean;
   notifyFirstLoginEnabled?: boolean;
   notifyBusinessCalendarEnabled?: boolean;
+  /** シフト開始前通知の分数(未設定=オフは null) */
+  shiftReminderMinutes: number | null;
   /** シフトのカレンダー購読URL(https)。取得失敗時は null */
   calendarFeedUrl: string | null;
 }) {
@@ -57,6 +61,7 @@ export function AccountSettingsView({
       <DeviceNotificationSection
         vapidPublicKey={vapidPublicKey}
         registeredEndpoints={registeredEndpoints}
+        shiftReminderSection={<ShiftReminderForm minutes={shiftReminderMinutes} />}
         notifyTypeSection={
           isAdmin ? (
             <NotifyTypeForm
@@ -152,10 +157,13 @@ function ProfileForm({
 function DeviceNotificationSection({
   vapidPublicKey,
   registeredEndpoints,
+  shiftReminderSection,
   notifyTypeSection,
 }: {
   vapidPublicKey: string | null;
   registeredEndpoints: string[];
+  /** 本人のシフト開始前通知の設定(管理者・従業員共通) */
+  shiftReminderSection?: ReactNode;
   /** 管理者のみ。「通知」枠の内側にネストして表示する通知対象スイッチ */
   notifyTypeSection?: ReactNode;
 }) {
@@ -382,8 +390,65 @@ function DeviceNotificationSection({
         </p>
       )}
 
+      {shiftReminderSection}
       {notifyTypeSection}
     </section>
+  );
+}
+
+/** 自分のシフト開始前通知(「開始の N 分前に通知する」)。「通知」枠の内側に表示する。 */
+function ShiftReminderForm({ minutes }: { minutes: number | null }) {
+  const [enabled, setEnabled] = useState(minutes !== null);
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+      <h3 className="font-semibold text-gray-800">シフトの通知</h3>
+      <p className="mt-1 text-sm text-gray-500">
+        確定したシフトの開始時刻が近づくと、登録した端末に通知します（出勤打刻済みの日は通知しません）。
+      </p>
+      <form
+        action={(fd) =>
+          startTransition(async () => setResult(await updateMyShiftReminder(fd)))
+        }
+        className="mt-4 space-y-2"
+      >
+        <label className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            name="shift_reminder_enabled"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          シフトの開始時間の
+          <input
+            type="number"
+            name="shift_reminder_minutes"
+            inputMode="numeric"
+            min={5}
+            max={720}
+            step={5}
+            defaultValue={minutes ?? 60}
+            disabled={!enabled}
+            className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-right text-base disabled:bg-gray-100 disabled:text-gray-400"
+          />
+          分前に通知する
+        </label>
+        {result && (
+          <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
+    </div>
   );
 }
 
