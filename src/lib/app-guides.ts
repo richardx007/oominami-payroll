@@ -14,8 +14,10 @@ export type AppGuide = {
   url: string | null;
   video_path: string | null;
   video_size: number | null;
-  /** 動画ファイルの作成日時（ISO）。設定画面の一覧の2行目に出す */
+  /** 動画ファイルの作成日時（ISO）。登録時に動画から自動で読む（lib/mp4-meta.ts）。設定画面の一覧の2行目に出す */
   video_created_at: string | null;
+  /** 最後に保存した日時（URL の項目は一覧の2行目に「更新日時」として出す） */
+  updated_at: string;
   summary: string;
   for_admin: boolean;
   for_employee: boolean;
@@ -23,7 +25,7 @@ export type AppGuide = {
 };
 
 export const APP_GUIDE_COLUMNS =
-  "id, title, url, video_path, video_size, video_created_at, summary, for_admin, for_employee, sort_order";
+  "id, title, url, video_path, video_size, video_created_at, summary, for_admin, for_employee, sort_order, updated_at";
 
 export const GUIDE_TITLE_MAX = 60;
 export const GUIDE_SUMMARY_MAX = 400;
@@ -59,22 +61,6 @@ export function linkKind(url: string): "drive" | "youtube" | "web" {
     // 不正な URL は保存時に弾いているので通常ここには来ない
   }
   return "web";
-}
-
-const JST_MS = 9 * 60 * 60 * 1000;
-
-/** ISO → datetime-local の値（日本時間 "2026-09-26T15:20"） */
-export function isoToJstInput(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const t = Date.parse(iso);
-  return Number.isNaN(t) ? "" : new Date(t + JST_MS).toISOString().slice(0, 16);
-}
-
-/** datetime-local の値（日本時間）→ ISO。空・不正なら null */
-export function jstInputToIso(v: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return null;
-  const t = Date.parse(`${v}:00+09:00`);
-  return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
 /** "2026/9/26 15:20"（日本時間） */

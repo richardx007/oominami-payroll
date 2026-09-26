@@ -12,14 +12,13 @@ import {
   GUIDE_VIDEO_MAX,
   GUIDE_VIDEO_TYPES,
   formatJstDateTime,
-  isoToJstInput,
-  jstInputToIso,
   STORAGE_FREE_BYTES,
   type AppGuide,
 } from "@/lib/app-guides";
 import { deleteAppGuide, discardGuideVideo, moveAppGuide, saveAppGuide } from "./actions";
 import type { ActionResult } from "../employees/actions";
 import { zebraRowClass } from "@/lib/table";
+import { readMp4CreationTime } from "@/lib/mp4-meta";
 
 const inputClass =
   "w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm";
@@ -112,11 +111,11 @@ function GuideRow({ guide, index, first, last }: { guide: AppGuide; index: numbe
           <span className="block truncate" title={guide.summary}>
             {guide.summary || <span className="text-gray-400">—</span>}
           </span>
-          {guide.video_path && (
-            <span className="mt-0.5 block whitespace-nowrap text-xs text-gray-500">
-              作成日時: {guide.video_created_at ? formatJstDateTime(guide.video_created_at) : "未登録"}
-            </span>
-          )}
+          <span className="mt-0.5 block whitespace-nowrap text-xs text-gray-500">
+            {guide.video_path
+              ? `作成日時: ${guide.video_created_at ? formatJstDateTime(guide.video_created_at) : "未登録"}`
+              : `更新日時: ${formatJstDateTime(guide.updated_at)}`}
+          </span>
         </td>
         <td className="whitespace-nowrap px-3 py-2 text-right">
           <span className="inline-flex gap-1">
@@ -155,8 +154,9 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
   const [kind, setKind] = useState<Kind>(guide && !guide.video_path ? "url" : "video");
   const [url, setUrl] = useState(guide?.url ?? "");
   const [file, setFile] = useState<File | null>(null);
-  // 動画ファイルの作成日時（日本時間の datetime-local の値）
-  const [createdAt, setCreatedAt] = useState(isoToJstInput(guide?.video_created_at));
+  // 動画ファイルの作成日時（ISO）。動画を選ぶと自動で読む。source は画面の説明用
+  const [createdAt, setCreatedAt] = useState<string | null>(guide?.video_created_at ?? null);
+  const [createdSource, setCreatedSource] = useState<"video" | "file" | null>(null);
   const [summary, setSummary] = useState(guide?.summary ?? "");
   const [forAdmin, setForAdmin] = useState(guide?.for_admin ?? true);
   const [forEmployee, setForEmployee] = useState(guide?.for_employee ?? false);
@@ -179,8 +179,12 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
       return;
     }
     setFile(f);
-    // ブラウザからはファイルの作成日時そのものは取れないため、最終更新日時を初期値にする（手で直せる）
-    if (f) setCreatedAt(isoToJstInput(new Date(f.lastModified).toISOString()));
+    if (!f) return;
+    // 作成日時: 動画の中に記録された日時（mvhd）。記録がない動画（ffmpeg 書き出しなど）はファイルの更新日時
+    readMp4CreationTime(f).then((d) => {
+      setCreatedAt((d ?? new Date(f.lastModified)).toISOString());
+      setCreatedSource(d ? "video" : "file");
+    });
   }
 
   function save() {
@@ -215,7 +219,7 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
         url,
         video_path: videoPath,
         video_size: videoSize,
-        video_created_at: kind === "video" ? jstInputToIso(createdAt) : null,
+        video_created_at: kind === "video" ? createdAt : null,
         summary,
         for_admin: forAdmin,
         for_employee: forEmployee,
@@ -291,17 +295,14 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
           />
           {file && <p className="text-xs text-gray-600">選んだファイル: {file.name}（{formatBytes(file.size)}）</p>}
           <p className="text-xs text-gray-500">mp4 で {formatBytes(GUIDE_VIDEO_MAX)} まで。</p>
-          {/* iOS の日時入力は指定幅より広く描画されるため、横に並べず1行で置く */}
-          <label className="block pt-1">
-            <span className="mb-1 block text-xs font-medium text-gray-500">動画ファイルの作成日時</span>
-            <input
-              type="datetime-local"
-              value={createdAt}
-              onChange={(e) => setCreatedAt(e.target.value)}
-              className={`${inputClass} appearance-none bg-white`}
-            />
-            <span className="mt-1 block text-xs text-gray-500">動画を選ぶと、ファイルの更新日時が入ります。違う場合は直してください。</span>
-          </label>
+          <p className="text-sm text-gray-700">
+            作成日時: {createdAt ? formatJstDateTime(createdAt) : "（動画を選ぶと自動で入ります）"}
+            {file && createdSource && (
+              <span className="ml-1 text-xs text-gray-500">
+                {createdSource === "video" ? "（動画に記録された作成日時）" : "（動画に記録がないため、ファイルの更新日時）"}
+              </span>
+            )}
+          </p>
         </div>
       ) : (
         <label className="block">
@@ -313,6 +314,7 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
             placeholder="https://..."
             className={inputClass}
           />
+          <span className="mt-1 block text-xs text-gray-500">更新日時は、保存したときに自動で記録されます。</span>
           {guide?.video_path && (
             <span className="mt-1 block text-xs text-orange-700">保存すると、アプリに保存していた動画は削除されます。</span>
           )}

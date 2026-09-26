@@ -2674,10 +2674,12 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
 ### 26.2 画面
 - 登録: 設定画面の最後「アプリの解説」（`admin/settings/guides.tsx`、アンカー `#app-guides`）。タイトル・URL・概略・公開対象（管理者／従業員のチェック）。
   一覧は1項目1行の表（公開対象｜🎬/🔗 タイトル｜解説の冒頭｜↑↓編集。縞模様は `zebraRowClass`）。「編集」でその行の下にフォームを開く。
-  動画の項目は解説の下（2行目）に「作成日時」（`video_created_at`。マイグレーション `20260926020000_app_guide_video_created_at.sql`）。
-  動画を選ぶとファイルの**最終更新日時**を初期値に入れ、手で直せる（ブラウザからはファイルの作成日時そのものは取れない）。
-  入力は日本時間の datetime-local（`isoToJstInput` / `jstInputToIso`。テスト `lib/app-guides.test.ts`）。
-  追加・編集・削除（確認つき）・↑↓で並べ替え。サーバー処理は `admin/settings/actions.ts` の `saveAppGuide` / `deleteAppGuide` / `moveAppGuide`（操作ログに記録）。
+  一覧の2行目（解説の下）: 動画の項目は「作成日時」（`video_created_at`。マイグレーション `20260926020000_app_guide_video_created_at.sql`）、
+  URL の項目は「更新日時」（`updated_at`＝保存した日時）。どちらも**自動**で、手入力はしない（2026-09-26 オーナー依頼）。
+  - 動画の作成日時は、動画を選んだときに MP4/MOV の `moov > mvhd` の creation_time を読む（`lib/mp4-meta.ts` の `readMp4CreationTime`。
+    ボックスの見出しと mvhd の先頭だけを slice で読むので大きな動画でも軽い。テスト `lib/mp4-meta.test.ts`）。
+    iPhone・カメラの動画には入っている。**ffmpeg で書き出した動画は `-metadata creation_time=...` を付けないと 0** で、
+    そのときはファイルの更新日時（`File.lastModified`）を使い、画面にその旨を出す。
 - 表示: 管理者 `/admin/guides`（`for_admin` の行）、従業員 `/guides`（`for_employee` の行）。共通部品 `components/AppGuideList.tsx`。
   各行はタイトルと解説だけ（2026-09-26: 冒頭の説明文・「▶ 動画を見る」・公開対象の表示はオーナー依頼で削除。URL の項目だけ「〜で開く ↗」を添える）。
   各行はリンク先を別タブで開く（Google ドライブ／YouTube／その他で「〜で開く」の表記を変える。`lib/app-guides.ts` の `linkKind`）。
