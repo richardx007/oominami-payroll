@@ -36,6 +36,7 @@ export function AccountSettingsView({
   notifyFirstLoginEnabled,
   notifyBusinessCalendarEnabled,
   shiftReminderMinutes,
+  shiftEndReminderMinutes,
   calendarFeedUrl,
 }: {
   name: string;
@@ -52,6 +53,8 @@ export function AccountSettingsView({
   notifyBusinessCalendarEnabled?: boolean;
   /** シフト開始前通知の分数(未設定=オフは null) */
   shiftReminderMinutes: number | null;
+  /** シフト終了通知の分数(マイナスは終了後。未設定=オフは null) */
+  shiftEndReminderMinutes: number | null;
   /** シフトのカレンダー購読URL(https)。取得失敗時は null */
   calendarFeedUrl: string | null;
 }) {
@@ -61,7 +64,7 @@ export function AccountSettingsView({
       <DeviceNotificationSection
         vapidPublicKey={vapidPublicKey}
         registeredEndpoints={registeredEndpoints}
-        shiftReminderSection={<ShiftReminderForm minutes={shiftReminderMinutes} />}
+        shiftReminderSection={<ShiftReminderForm startMinutes={shiftReminderMinutes} endMinutes={shiftEndReminderMinutes} />}
         notifyTypeSection={
           isAdmin ? (
             <NotifyTypeForm
@@ -401,9 +404,16 @@ function DeviceNotificationSection({
   );
 }
 
-/** 自分のシフト開始前通知(「開始の N 分前に通知する」)。「通知」枠の内側に表示する。 */
-function ShiftReminderForm({ minutes }: { minutes: number | null }) {
-  const [enabled, setEnabled] = useState(minutes !== null);
+/** 自分のシフト通知(開始の N 分前・終了の N 分前/後)。「通知」枠の内側に表示する。 */
+function ShiftReminderForm({
+  startMinutes,
+  endMinutes,
+}: {
+  startMinutes: number | null;
+  endMinutes: number | null;
+}) {
+  const [startOn, setStartOn] = useState(startMinutes !== null);
+  const [endOn, setEndOn] = useState(endMinutes !== null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -411,36 +421,67 @@ function ShiftReminderForm({ minutes }: { minutes: number | null }) {
     <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
       <h3 className="font-semibold text-gray-800">シフトの通知</h3>
       <p className="mt-1 text-sm text-gray-500">
-        確定したシフトの開始時刻が近づくと、登録した端末に通知します（出勤打刻済みの日は通知しません）。
+        確定したシフトについて、登録した端末に通知します。
       </p>
       <form
         action={(fd) =>
           startTransition(async () => setResult(await updateMyShiftReminder(fd)))
         }
-        className="mt-4 space-y-2"
+        className="mt-4 space-y-3"
       >
-        <label className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700">
-          <input
-            type="checkbox"
-            name="shift_reminder_enabled"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300"
-          />
-          シフトの開始時間の
-          <input
-            type="number"
-            name="shift_reminder_minutes"
-            inputMode="numeric"
-            min={5}
-            max={720}
-            step={5}
-            defaultValue={minutes ?? 60}
-            disabled={!enabled}
-            className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-right text-base disabled:bg-gray-100 disabled:text-gray-400"
-          />
-          分前に通知する
-        </label>
+        <div>
+          <label className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              name="shift_reminder_enabled"
+              checked={startOn}
+              onChange={(e) => setStartOn(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            シフトの開始時間の
+            <input
+              type="number"
+              name="shift_reminder_minutes"
+              inputMode="numeric"
+              min={5}
+              max={720}
+              step={5}
+              defaultValue={startMinutes ?? 60}
+              disabled={!startOn}
+              className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-right text-base disabled:bg-gray-100 disabled:text-gray-400"
+            />
+            分前に通知する
+          </label>
+          <p className="mt-1 pl-6 text-xs text-gray-500">出勤打刻済みの日は通知しません。</p>
+        </div>
+        <div>
+          <label className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              name="shift_end_reminder_enabled"
+              checked={endOn}
+              onChange={(e) => setEndOn(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            シフトの終了時間の
+            {/* マイナスを入力するため inputMode は付けない(iPhone のテンキーにはマイナスが無い) */}
+            <input
+              type="number"
+              name="shift_end_reminder_minutes"
+              min={-720}
+              max={720}
+              step={5}
+              defaultValue={endMinutes ?? 10}
+              disabled={!endOn}
+              className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-right text-base disabled:bg-gray-100 disabled:text-gray-400"
+            />
+            分前に通知する
+          </label>
+          <p className="mt-1 pl-6 text-xs text-gray-500">
+            マイナスを入れると終了の後に通知します（例: -10 → 終了の10分後）。出勤打刻済みで、
+            退勤打刻がまだの日だけ通知します。
+          </p>
+        </div>
         {result && (
           <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
             {result.message}

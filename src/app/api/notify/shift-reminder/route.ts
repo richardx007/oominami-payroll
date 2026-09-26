@@ -1,5 +1,5 @@
 /**
- * シフト開始前通知(従業員向け)の送信口。Supabase の pg_cron から毎分、送るものがある時だけ POST される。
+ * シフト開始前・終了前後の通知(従業員向け)の送信口。Supabase の pg_cron から毎分、送るものがある時だけ POST される。
  * 未打刻通知(src/app/api/notify/punch)と同じ設計: DB 関数 collect_shift_reminders() が
  * 対象と本人の購読情報をまとめて渡し、ここでは Web Push の暗号化と送信だけを行う
  * (service_role キーを持たない方針のため DB は読まない)。
@@ -8,17 +8,11 @@
  */
 
 import { sendPush, type PushSubscriptionInfo } from "@/lib/web-push";
+import { buildShiftReminderMessage, type ShiftReminder } from "@/lib/shift-reminder-notify";
 
 // 🔴 edge runtime を指定しない(@opennextjs/cloudflare デプロイのため。punch通知と同じ理由)。
 
-type Reminder = {
-  /** 開始時刻 "HH:MI" */
-  start: string;
-  /** 開始日 "M/D" */
-  date: string;
-  minutes_left: number;
-  subscriptions: PushSubscriptionInfo[] | null;
-};
+type Reminder = ShiftReminder & { subscriptions: PushSubscriptionInfo[] | null };
 
 export async function POST(request: Request): Promise<Response> {
   const secret = process.env.NOTIFY_SECRET?.trim();
@@ -49,12 +43,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const results = await Promise.all(
       reminders.flatMap((r) => {
-        const message = JSON.stringify({
-          title: `シフト開始の${r.minutes_left}分前です`,
-          body: `${r.date} ${r.start} からシフトです。`,
-          tag: "shift-reminder",
-          url: "/shifts",
-        });
+        const message = JSON.stringify(buildShiftReminderMessage(r));
         return (r.subscriptions ?? []).map((s) =>
           sendPush(s, message, { publicKey, privateKey, subject })
         );

@@ -213,33 +213,50 @@ export async function updateNotifyTypeSettings(formData: FormData): Promise<Acti
 }
 
 /**
- * 自分のシフト開始前通知(「開始の N 分前に通知」)を保存する(管理者・従業員共通)。
- * オフは行を消す。送信は pg_cron の run_shift_reminder_job() が行う。
+ * 自分のシフト通知(「開始の N 分前」「終了の N 分前(マイナスは N 分後)」)を保存する(管理者・従業員共通)。
+ * 両方オフなら行を消す。送信は pg_cron の run_shift_reminder_job() が行う。
  */
 export async function updateMyShiftReminder(formData: FormData): Promise<ActionResult> {
   const me = await requireEmployee();
-  const enabled = formData.get("shift_reminder_enabled") === "on";
-  const supabase = await createClient();
+  const startOn = formData.get("shift_reminder_enabled") === "on";
+  const endOn = formData.get("shift_end_reminder_enabled") === "on";
 
-  if (!enabled) {
-    const { error } = await supabase
-      .from("shift_reminder_settings")
-      .delete()
-      .eq("employee_id", me.id);
-    if (error) return { ok: false, message: "保存に失敗しました" };
-    await logActivity("通知設定", "シフト開始前の通知: 無効");
-  } else {
-    const minutes = Number(formData.get("shift_reminder_minutes"));
-    if (!Number.isInteger(minutes) || minutes < 5 || minutes > 720) {
-      return { ok: false, message: "分数は5〜720の整数で入力してください" };
+  let start: number | null = null;
+  let end: number | null = null;
+  if (startOn) {
+    start = Number(formData.get("shift_reminder_minutes"));
+    if (!Number.isInteger(start) || start < 5 || start > 720) {
+      return { ok: false, message: "開始の通知の分数は5〜720の整数で入力してください" };
     }
-    const { error } = await supabase.from("shift_reminder_settings").upsert(
-      { employee_id: me.id, minutes_before: minutes, updated_at: new Date().toISOString() },
-      { onConflict: "employee_id" }
-    );
-    if (error) return { ok: false, message: "保存に失敗しました" };
-    await logActivity("通知設定", `シフト開始前の通知: ${minutes}分前`);
   }
+  if (endOn) {
+    end = Number(formData.get("shift_end_reminder_minutes"));
+    if (formData.get("shift_end_reminder_minutes") === "" || !Number.isInteger(end) || end < -720 || end > 720) {
+      return { ok: false, message: "終了の通知の分数は-720〜720の整数で入力してください" };
+    }
+  }
+
+  const supabase = await createClient();
+  const { error } =
+    start === null && end === null
+      ? await supabase.from("shift_reminder_settings").delete().eq("employee_id", me.id)
+      : await supabase.from("shift_reminder_settings").upsert(
+          {
+            employee_id: me.id,
+            minutes_before: start,
+            end_minutes_before: end,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "employee_id" }
+        );
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  await logActivity(
+    "通知設定",
+    `シフトの通知: 開始=${start === null ? "無効" : `${start}分前`} / 終了=${
+      end === null ? "無効" : end >= 0 ? `${end}分前` : `${-end}分後`
+    }`
+  );
 
   revalidatePath("/account");
   revalidatePath("/admin/account");

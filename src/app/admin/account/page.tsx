@@ -26,7 +26,7 @@ export default async function AdminAccountPage() {
     getMyCalendarFeedUrl(),
     supabase
       .from("shift_reminder_settings")
-      .select("minutes_before")
+      .select("minutes_before, end_minutes_before")
       .eq("employee_id", me.id)
       .maybeSingle(),
   ]);
@@ -44,6 +44,7 @@ export default async function AdminAccountPage() {
         vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null}
         registeredEndpoints={(subs ?? []).map((r) => r.endpoint)}
         shiftReminderMinutes={reminder?.minutes_before ?? null}
+        shiftEndReminderMinutes={reminder?.end_minutes_before ?? null}
         calendarFeedUrl={calendarFeedUrl}
         notifyInEnabled={settingsMap.get("notify_missing_punch_in") !== "false"}
         notifyOutEnabled={settingsMap.get("notify_missing_punch_out") !== "false"}
