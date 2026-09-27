@@ -16,5 +16,23 @@
     "pronunciation": "ミギウエ",
     "accent_type": 0,
     "note": "未登録だと「みぎじょう」"
+  },
+  {
+    "surface": "出勤予定時間",
+    "pronunciation": "シュッキンヨテイジカン",
+    "accent_type": 7,
+    "note": "未登録だと「出勤予定／時間」と2語に分かれる（勤務時間と同じ形: よてい↘じかん）"
+  },
+  {
+    "surface": "退勤予定時間",
+    "pronunciation": "タイキンヨテイジカン",
+    "accent_type": 7,
+    "note": "同上"
+  },
+  {
+    "surface": "何分前",
+    "pronunciation": "ナンプンマエ",
+    "accent_type": 1,
+    "note": "未登録だと「なにぶんまえ」。ひらがなで「なんぷん前」と書くと3語に途切れる"
   }
 ]
