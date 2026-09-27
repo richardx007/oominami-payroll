@@ -7,7 +7,9 @@ import { CHROME, FFMPEG, toVideo } from "./common.mjs";
 export async function openMovie(m) {
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: "new" });
   const page = await browser.newPage();
-  await page.setViewport({ width: 1920, height: 1080 });
+  // 画面サイズは config.json の size（[幅, 高さ]。縦動画は [1080, 1920]）。省略時は横の 1920×1080
+  const [width, height] = m.config.size ?? [1920, 1080];
+  await page.setViewport({ width, height });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(`file://${join(m.dir, m.config.html)}?render`, { waitUntil: "load" });
