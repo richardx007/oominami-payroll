@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { punchClock, type ClockResult } from "./actions";
+import { logClockView, punchClock, reportClockError, type ClockResult } from "./actions";
 import { AccessHelp } from "@/components/AccessHelp";
 
 type Coords = { lat: number; lng: number; accuracy: number | null };
@@ -88,6 +88,9 @@ export function ClockConfirm({
       (navigator as unknown as { standalone?: boolean }).standalone === true ||
       window.matchMedia("(display-mode: standalone)").matches;
     setIsStandalone(standalone);
+    // 画面を開いたことを操作ログに残す(記録が無いときの原因の切り分け用。失敗しても打刻には影響させない)
+    logClockView({ type, fromMenu: backHref != null, standalone }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 画面表示用の時計(実際の打刻時刻はサーバーが確定する)
@@ -142,11 +145,13 @@ export function ClockConfirm({
       });
       setResult(res);
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       setResult({
         ok: false,
-        message:
-          "打刻に失敗しました: " + (e instanceof Error ? e.message : String(e)),
+        message: "打刻に失敗しました: " + msg,
       });
+      // サーバーに届かなかった失敗はサーバー側にログが残らないので、届くなら後から記録する
+      reportClockError({ type, message: msg }).catch(() => {});
     } finally {
       setPending(false);
     }

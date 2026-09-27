@@ -214,6 +214,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     d: date,
   });
   if (periodOpen === false) {
+    await logActivity("打刻失敗", `${employee.name} ${type === "in" ? "出勤" : "退勤"}: 締め済みの期間(${date})`);
     return {
       ok: false,
       message: "既に今月は締められています。管理者にご連絡ください。",
@@ -231,6 +232,8 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
       .eq("work_date", date)
       .maybeSingle();
     if (existing?.start_time) {
+      // 退勤時に出勤QRを読んだ場合など。記録が残らないと後から原因を追えないため記録する
+      await logActivity("打刻失敗", `${employee.name} 出勤: 本日はすでに出勤打刻済み(${existing.start_time.slice(0, 5)})`);
       return {
         ok: false,
         message: "本日はすでに出勤打刻済みです。退勤時に退勤QRを読み取ってください。",
@@ -289,6 +292,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
       target = todayEntry ?? null;
     }
     if (!target) {
+      await logActivity("打刻失敗", `${employee.name} 退勤: 出勤記録が見つからない(${date})`);
       return {
         ok: false,
         message: "本日の出勤記録が見つかりません。先に出勤QRを読み取ってください。",
@@ -361,3 +365,28 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     warn,
   };
 }
+
+/**
+ * QR打刻の画面を開いたことを記録する(画面の表示後にクライアントから呼ぶ)。
+ * 「打刻したはずなのに記録が無い」ときに、画面までは開いていた(ボタンを押していない・送信に失敗した)のか、
+ * 画面にすら届いていない(ログイン画面で離脱・QRを読めていない)のかを区別するため(2026-09-27 追加)。
+ */
+export async function logClockView(input: { type: string; fromMenu: boolean; standalone: boolean }): Promise<void> {
+  const employee = await requireEmployee();
+  const type = input.type === "out" ? "退勤" : "出勤";
+  await logActivity(
+    "打刻画面",
+    `${employee.name} ${type}の打刻画面を開いた(${input.fromMenu ? "アプリのメニュー" : "QR"}・${input.standalone ? "PWA" : "ブラウザ"})`
+  );
+}
+
+/**
+ * 打刻ボタンを押したがサーバーの処理まで届かなかった(通信の失敗・アプリ更新直後の古い画面など)ことを、
+ * 後から記録する。通信が戻っていないとこれも届かないので、あくまで補助。
+ */
+export async function reportClockError(input: { type: string; message: string }): Promise<void> {
+  const employee = await requireEmployee();
+  const type = input.type === "out" ? "退勤" : "出勤";
+  await logActivity("打刻失敗", `${employee.name} ${type}: 送信できなかった(${String(input.message).slice(0, 200)})`);
+}
+

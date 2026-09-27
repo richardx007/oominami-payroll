@@ -72,6 +72,7 @@ type LogRank = "routine" | "event" | "warning" | "error";
 const RANK_BY_ACTION: Record<string, LogRank> = {
   ログイン: "routine",
   打刻: "routine",
+  打刻画面: "routine",
   ログ削除: "routine",
   パスワード設定: "event",
   初回ログイン: "event",
@@ -83,6 +84,7 @@ const RANK_BY_ACTION: Record<string, LogRank> = {
   バックアップ: "routine",
   バックアップ警告: "warning",
   打刻拒否: "warning",
+  打刻失敗: "warning",
   圏外打刻: "warning",
   エラー: "error",
 };
