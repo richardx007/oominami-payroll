@@ -2739,6 +2739,10 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
 - 無料枠の目安: 保存容量1GB・通信量 月5GB。軽量化した動画（約2〜3分で10MB前後）なら20本でも容量は足り、通信量は月300回程度の再生まで。
 
 ### 26.4 解説動画（操作説明ムービー）の作り方
+**標準は縦（1080×1920・スマホ用）**（2026-09-27 オーナー決定。管理者・従業員ともスマホで見ているため）。
+文字の大きさ・配置・色・部品の決まりは `tools/guide-movies/DESIGN.md`、見本は `movies/eigyo-calendar-tate/`。
+既存の横の動画は順次この標準で作り直す。
+
 制作ツールは **`tools/guide-movies/`**（手順は同フォルダの `README.md`）。アプリとは依存関係を分けた独立した Node スクリプトで、
 `eslint`（`tools/**`）・`tsconfig`（`exclude: tools`）の対象外。作業ファイル・完成品（`work/` `out/`）と
 VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`node lib/build.mjs <動画>` で原稿の合成から
