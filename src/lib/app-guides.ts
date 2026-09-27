@@ -1,6 +1,6 @@
 /**
  * アプリの解説（操作説明の動画・資料へのリンク）。テーブル app_guides。
- * 登録は設定画面（admin/settings/guides.tsx）、一覧は /admin/guides（管理者）と /guides（従業員）、
+ * 一覧と登録は /admin/guides（管理者。管理者用・従業員用の全項目を表示し、編集もここで行う）、一覧は /guides（従業員）、
  * アプリに保存した動画の再生は /watch/[id]（画面いっぱいのプレイヤー）。
  *
  * 各項目は「URL（外部の資料・動画へのリンク）」か「動画（非公開バケット app-guides に保存）」のどちらか。
@@ -39,6 +39,9 @@ export const GUIDE_VIDEO_TYPES = ["video/mp4", "video/quicktime"];
 export const STORAGE_FREE_BYTES = 1024 * 1024 * 1024;
 /** 保存パス: ランダムなID＋拡張子（ファイル名に日本語が入ると Storage のキーとして扱いにくいため） */
 export const GUIDE_VIDEO_PATH_RE = /^[0-9a-f-]{36}\.(mp4|mov)$/;
+
+/** 管理画面の一覧のグループ（管理者用＝for_admin、従業員用＝for_employee。両方公開の項目は両方に出る） */
+export type GuideGroup = "admin" | "employee";
 
 /** 公開対象の表示（"管理者・従業員" など） */
 export function audienceLabel(g: Pick<AppGuide, "for_admin" | "for_employee">): string {

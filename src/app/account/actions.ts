@@ -226,13 +226,13 @@ export async function updateMyShiftReminder(formData: FormData): Promise<ActionR
   if (startOn) {
     start = Number(formData.get("shift_reminder_minutes"));
     if (!Number.isInteger(start) || start < 5 || start > 720) {
-      return { ok: false, message: "開始の通知の分数は5〜720の整数で入力してください" };
+      return { ok: false, message: "出勤予定時間の通知の分数は5〜720の整数で入力してください" };
     }
   }
   if (endOn) {
     end = Number(formData.get("shift_end_reminder_minutes"));
     if (formData.get("shift_end_reminder_minutes") === "" || !Number.isInteger(end) || end < -720 || end > 720) {
-      return { ok: false, message: "終了の通知の分数は-720〜720の整数で入力してください" };
+      return { ok: false, message: "退勤予定時間の通知の分数は-720〜720の整数で入力してください" };
     }
   }
 

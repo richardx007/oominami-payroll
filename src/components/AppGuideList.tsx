@@ -3,7 +3,7 @@ import { linkKind, type AppGuide } from "@/lib/app-guides";
 
 const KIND_LABEL = { drive: "Google ドライブで開く", youtube: "YouTube で開く", web: "開く" } as const;
 
-/** アプリの解説の一覧（/admin/guides・/guides で共用）。
+/** アプリの解説の一覧（従業員の /guides。管理者の /admin/guides は admin/guides/guides.tsx の表）。
  * アプリに保存した動画は同じタブの再生画面（/watch/[id]）、URL は別タブで開く */
 export function AppGuideList({ guides }: { guides: AppGuide[] }) {
   if (guides.length === 0) {

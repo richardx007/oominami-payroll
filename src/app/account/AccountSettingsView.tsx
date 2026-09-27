@@ -438,7 +438,7 @@ function ShiftReminderForm({
               onChange={(e) => setStartOn(e.target.checked)}
               className="h-4 w-4 rounded border-gray-300"
             />
-            シフトの開始時間の
+            出勤予定時間の
             <input
               type="number"
               name="shift_reminder_minutes"
@@ -463,7 +463,7 @@ function ShiftReminderForm({
               onChange={(e) => setEndOn(e.target.checked)}
               className="h-4 w-4 rounded border-gray-300"
             />
-            シフトの終了時間の
+            退勤予定時間の
             {/* マイナスを入力するため inputMode は付けない(iPhone のテンキーにはマイナスが無い) */}
             <input
               type="number"
@@ -478,7 +478,7 @@ function ShiftReminderForm({
             分前に通知する
           </label>
           <p className="mt-1 pl-6 text-xs text-gray-500">
-            マイナスを入れると終了の後に通知します（例: -10 → 終了の10分後）。出勤打刻済みで、
+            マイナスを入れると退勤予定時間の後に通知します（例: -10 → 退勤予定時間の10分後）。出勤打刻済みで、
             退勤打刻がまだの日だけ通知します。
           </p>
         </div>

@@ -23,6 +23,7 @@ tools/guide-movies/
     eigyo-calendar/   「営業カレンダーの設定方法」
     eigyo-kinmu/      「営業時間と勤務時間の設定」
     shift-calendar/   「シフトを自分のカレンダーに表示する」（従業員向け）
+    shift-notify/     「シフトの通知を受け取る」（従業員向け）
       config.json     タイトル・出力名・映像の長さ(end)・BGM の区間
       movie.html      映像
       narration.json  原稿 [[開始秒, 終了秒, "文"], ...]（映像の時刻）
@@ -75,7 +76,7 @@ node lib/snap.mjs eigyo-calendar 9 25 110 140   # 映像の時刻のコマを静
 3. `narration.json` に原稿、`config.json` にタイトル・出力名・BGM の区間を書く。
 4. `snap.mjs` で要所を静止画で確認 → `build.mjs` で書き出し → 音と映像のタイミングを抜き出しコマで確認。
 5. 🔴 VOICEVOX の利用規約により、動画内に「**VOICEVOX:ずんだもん**」のクレジットを入れる（既存の2本はまとめ画面の右下）。
-6. アプリの設定「アプリの解説」で `…_アプリ登録用.mp4` を登録する（作成日時は自動で入る）。
+6. 管理者メニュー「アプリの解説」で `…_アプリ登録用.mp4` を登録する（作成日時は自動で入る）。
 
 ### 「営業カレンダー」（eigyo-calendar）の作りについて
 

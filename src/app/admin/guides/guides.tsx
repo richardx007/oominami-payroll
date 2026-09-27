@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -14,6 +15,7 @@ import {
   formatJstDateTime,
   STORAGE_FREE_BYTES,
   type AppGuide,
+  type GuideGroup,
 } from "@/lib/app-guides";
 import { deleteAppGuide, discardGuideVideo, moveAppGuide, saveAppGuide } from "./actions";
 import type { ActionResult } from "../employees/actions";
@@ -23,89 +25,132 @@ import { readMp4CreationTime } from "@/lib/mp4-meta";
 const inputClass =
   "w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm";
 
-/** アプリの解説（操作説明の動画・資料）の登録。メニュー「アプリの解説」に表示される */
+const GROUPS: { key: GuideGroup; label: string; hint: string }[] = [
+  { key: "admin", label: "管理者用", hint: "管理者のメニュー「アプリの解説」に表示" },
+  { key: "employee", label: "従業員用", hint: "従業員のメニュー「アプリの解説」に表示" },
+];
+
+/**
+ * アプリの解説（操作説明の動画・資料）の一覧と登録（/admin/guides）。
+ * 管理者用・従業員用にグループ分けして全項目を出す（管理者は従業員用の動画もここから見られる）。
+ * 両方に公開している項目は両方のグループに出る。タイトルを押すと動画の再生画面（URL の項目は別タブ）を開く。
+ */
 export function AppGuidesForm({ guides }: { guides: AppGuide[] }) {
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<GuideGroup | null>(null);
   const used = guides.reduce((sum, g) => sum + (g.video_size ?? 0), 0);
   return (
-    <section id="app-guides" className="scroll-mt-20 rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">アプリの解説</h2>
-      <p className="mt-1 text-sm text-gray-500">
-        操作説明の動画や資料です。メニューの「アプリの解説」に、公開対象の人だけに表示されます。
+    <section className="space-y-3">
+      <p className="text-sm text-gray-500">
+        操作説明の動画や資料です。タイトルを押すと再生します。各メニューの「アプリの解説」には、公開対象の人だけに表示されます。
         動画は<b>アプリに保存</b>すると、スマホでも画面いっぱいに再生できます（1本50MBまで・mp4）。
         資料などは URL でも登録できます。
       </p>
-      <p className="mt-1 text-xs text-gray-500">
+      <p className="text-xs text-gray-500">
         アプリに保存した動画: 合計 {formatBytes(used)}（無料枠の保存容量 {formatBytes(STORAGE_FREE_BYTES)} のうち）。
         再生のたびに通信量（無料枠は月5GB）を使います。
       </p>
-      {guides.length === 0 && !adding && <p className="mt-4 text-sm text-gray-400">まだ登録されていません。</p>}
-      {guides.length > 0 && (
-        <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200">
-          <table className="w-full text-sm">
-            <thead className="bg-blue-50/70 text-left text-xs text-gray-600">
-              <tr>
-                <th className="whitespace-nowrap px-3 py-2 font-semibold">公開対象</th>
-                <th className="whitespace-nowrap px-3 py-2 font-semibold">タイトル</th>
-                <th className="px-3 py-2 font-semibold">解説</th>
-                <th className="px-3 py-2" aria-label="操作" />
-              </tr>
-            </thead>
-            <tbody>
-              {guides.map((g, i) => (
-                <GuideRow
-                  key={`${g.id}-${g.title}-${g.url}-${g.video_path}-${g.summary}-${g.for_admin}-${g.for_employee}`}
-                  guide={g}
-                  index={i}
-                  first={i === 0}
-                  last={i === guides.length - 1}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div className="mt-3 max-w-2xl">
-        {adding ? (
-          <GuideEditor guide={null} onDone={() => setAdding(false)} />
-        ) : (
-          <button
-            onClick={() => setAdding(true)}
-            className="rounded-lg border border-blue-600 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
-          >
-            ＋ 解説を追加
-          </button>
-        )}
-      </div>
+      {GROUPS.map((grp) => {
+        const rows = guides.filter((g) => (grp.key === "admin" ? g.for_admin : g.for_employee));
+        return (
+          <div key={grp.key} className="rounded-xl border border-gray-200 bg-white p-4">
+            <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
+              {grp.label}
+              <span className="ml-2 text-xs font-normal text-gray-500">{grp.hint}</span>
+            </h2>
+            {rows.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-400">まだ登録されていません。</p>
+            ) : (
+              <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200">
+                <table className="w-full text-sm">
+                  <thead className="bg-blue-50/70 text-left text-xs text-gray-600">
+                    <tr>
+                      <th className="whitespace-nowrap px-3 py-2 font-semibold">タイトル</th>
+                      <th className="px-3 py-2 font-semibold">解説</th>
+                      <th className="px-3 py-2" aria-label="操作" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((g, i) => (
+                      <GuideRow
+                        key={`${g.id}-${g.title}-${g.url}-${g.video_path}-${g.summary}-${g.for_admin}-${g.for_employee}`}
+                        guide={g}
+                        group={grp.key}
+                        index={i}
+                        first={i === 0}
+                        last={i === rows.length - 1}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="mt-3 max-w-2xl">
+              {adding === grp.key ? (
+                <GuideEditor guide={null} group={grp.key} onDone={() => setAdding(null)} />
+              ) : (
+                <button
+                  onClick={() => setAdding(grp.key)}
+                  className="rounded-lg border border-blue-600 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                >
+                  ＋ {grp.label}の解説を追加
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </section>
   );
 }
 
-/** 一覧の1行（公開対象｜タイトル｜解説の冒頭｜↑↓編集）。「編集」でその下にフォームを開く */
-function GuideRow({ guide, index, first, last }: { guide: AppGuide; index: number; first: boolean; last: boolean }) {
+/** 一覧の1行（タイトル｜解説の冒頭｜↑↓編集）。タイトルで再生画面へ、「編集」でその下にフォームを開く */
+function GuideRow({
+  guide,
+  group,
+  index,
+  first,
+  last,
+}: {
+  guide: AppGuide;
+  group: GuideGroup;
+  index: number;
+  first: boolean;
+  last: boolean;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function move(dir: -1 | 1) {
     startTransition(async () => {
-      const r = await moveAppGuide(guide.id, dir);
+      const r = await moveAppGuide(guide.id, dir, group);
       if (r.ok) router.refresh();
     });
   }
 
   const btn = "rounded-lg border px-2 py-1 text-sm disabled:opacity-30";
+  const titleCls = "font-semibold text-blue-700 underline-offset-2 hover:underline";
+  const both = guide.for_admin && guide.for_employee;
   return (
     <>
       <tr className={`${zebraRowClass(index)} border-t border-gray-100`}>
         <td className="whitespace-nowrap px-3 py-2">
-          <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">{audienceLabel(guide)}</span>
-        </td>
-        <td className="whitespace-nowrap px-3 py-2 font-semibold text-gray-800">
           <span className="mr-1" title={guide.video_path ? "アプリに保存した動画" : "URL"}>
             {guide.video_path ? "🎬" : "🔗"}
           </span>
-          {guide.title}
+          {/* 動画はアプリ内の再生画面、URL は別タブ（メニューの一覧と同じ開き方） */}
+          {guide.video_path ? (
+            <Link href={`/watch/${guide.id}`} className={titleCls}>
+              {guide.title}
+            </Link>
+          ) : (
+            <a href={guide.url ?? "#"} target="_blank" rel="noopener noreferrer" className={titleCls}>
+              {guide.title} ↗
+            </a>
+          )}
+          {both && (
+            <span className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">{audienceLabel(guide)}</span>
+          )}
         </td>
         <td className="max-w-[18rem] px-3 py-2 text-gray-600">
           <span className="block truncate" title={guide.summary}>
@@ -136,7 +181,7 @@ function GuideRow({ guide, index, first, last }: { guide: AppGuide; index: numbe
       </tr>
       {editing && (
         <tr className={zebraRowClass(index)}>
-          <td colSpan={4} className="px-3 pb-3">
+          <td colSpan={3} className="px-3 pb-3">
             <GuideEditor guide={guide} onDone={() => setEditing(false)} />
           </td>
         </tr>
@@ -148,7 +193,7 @@ function GuideRow({ guide, index, first, last }: { guide: AppGuide; index: numbe
 type Kind = "video" | "url";
 
 /** 追加・編集フォーム（guide が null なら追加） */
-function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => void }) {
+function GuideEditor({ guide, group, onDone }: { guide: AppGuide | null; group?: GuideGroup; onDone: () => void }) {
   const router = useRouter();
   const [title, setTitle] = useState(guide?.title ?? "");
   const [kind, setKind] = useState<Kind>(guide && !guide.video_path ? "url" : "video");
@@ -158,8 +203,8 @@ function GuideEditor({ guide, onDone }: { guide: AppGuide | null; onDone: () => 
   const [createdAt, setCreatedAt] = useState<string | null>(guide?.video_created_at ?? null);
   const [createdSource, setCreatedSource] = useState<"video" | "file" | null>(null);
   const [summary, setSummary] = useState(guide?.summary ?? "");
-  const [forAdmin, setForAdmin] = useState(guide?.for_admin ?? true);
-  const [forEmployee, setForEmployee] = useState(guide?.for_employee ?? false);
+  const [forAdmin, setForAdmin] = useState(guide?.for_admin ?? group !== "employee");
+  const [forEmployee, setForEmployee] = useState(guide?.for_employee ?? group === "employee");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [uploading, setUploading] = useState(false);

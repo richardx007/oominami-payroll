@@ -31,7 +31,7 @@ const moreLinks: { href: string; label: string; icon: typeof HomeIcon; dividerBe
 // 会社ホームページ(別タブで開く)
 const HOMEPAGE_URL = "https://www.oominami.com";
 
-// アプリの解説(操作説明の動画・資料へのリンク集。設定画面で登録)。関連情報／その他の最後に置く
+// アプリの解説(操作説明の動画・資料へのリンク集。一覧・登録とも同じ画面)。関連情報／その他の最後に置く
 const GUIDES_HREF = "/admin/guides";
 
 function matches(pathname: string, href: string) {
