@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>シフトの通知 操作ガイド（縦）</title>
+<style>
+:root{
+  --navy:#0f1b3d; --blue:#2563eb; --bg:#f3f5fa;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#05070f;overflow:hidden}
+body{display:grid;place-items:center}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden;background:var(--bg);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;color:var(--navy);
+  transform-origin:0 0;-webkit-font-smoothing:antialiased}
+.abs{position:absolute}
+/* 背景 */
+.blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55}
+#grid{position:absolute;inset:0;background-image:radial-gradient(#c9d3e6 1.3px,transparent 1.3px);background-size:34px 34px;opacity:.55}
+/* テロップ共通 */
+.chapter{position:absolute;left:96px;top:64px;display:flex;align-items:center;gap:16px;font-weight:800;font-size:22px;letter-spacing:.08em;color:var(--blue)}
+.chapter b{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--blue);color:#fff;font-size:22px}
+.h1{position:absolute;left:96px;font-size:62px;font-weight:900;letter-spacing:.01em;line-height:1.2}
+.h1 em{font-style:normal;color:var(--blue)}
+.tip{position:absolute;left:100px;display:flex;gap:14px;align-items:flex-start;font-size:27px;font-weight:600;color:#1e293b;line-height:1.5;max-width:860px}
+.tip i{flex:none;font-style:normal;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;box-shadow:0 4px 14px rgba(15,27,61,.12);font-size:22px;margin-top:2px}
+.kbd{display:inline-block;padding:0 12px;border-radius:10px;background:#fff;border:2px solid #cbd5e1;font-weight:800;color:var(--navy);box-shadow:0 3px 0 #cbd5e1}
+.kbd.blue{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 3px 0 #1e3a8a}
+.kbd.green{background:#16a34a;border-color:#16a34a;color:#fff;box-shadow:0 3px 0 #14532d}
+.hl{background:linear-gradient(transparent 62%,#fde68a 62%)}
+.point{position:absolute;left:96px;width:820px;display:flex;gap:18px;align-items:center;background:#fff;border-radius:22px;padding:20px 26px;box-shadow:0 14px 36px rgba(15,27,61,.10);font-size:30px;font-weight:800}
+.point .ic{flex:none;width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:28px;color:#fff}
+.point small{display:block;font-size:21px;color:#64748b;font-weight:600;margin-top:4px}
+.callout{position:absolute;left:96px;display:flex;align-items:center;gap:16px;background:#fff;border-radius:20px;padding:18px 26px;box-shadow:0 14px 36px rgba(15,27,61,.12);font-size:27px;font-weight:700;width:820px}
+.callout .n{flex:none;width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:900;font-size:22px}
+.callout small{display:block;font-size:20px;color:#64748b;font-weight:600;margin-top:2px}
+.summary{position:absolute;left:260px;width:1400px;display:flex;align-items:center;gap:30px;background:#fff;border-radius:26px;padding:30px 40px;box-shadow:0 20px 50px rgba(15,27,61,.10);font-size:34px;font-weight:800}
+.summary .ic{flex:none;width:76px;height:76px;border-radius:22px;display:grid;place-items:center;font-size:38px;color:#fff}
+.summary small{display:block;font-size:24px;color:#64748b;font-weight:600;margin-top:4px}
+.vs{position:absolute;left:100px;display:flex;gap:24px}
+.vs div{width:400px;border-radius:22px;background:#fff;padding:22px 24px;box-shadow:0 14px 36px rgba(15,27,61,.10);font-size:26px;font-weight:800;line-height:1.45}
+.vs small{display:block;font-size:20px;color:#64748b;font-weight:600;margin-top:6px}
+.vs .ok{border:4px solid #16a34a}.vs .ng{border:4px solid #dc2626}
+.ex{position:absolute;left:100px;width:820px;border-radius:20px;background:#fff;padding:18px 24px;box-shadow:0 14px 36px rgba(15,27,61,.10);font-size:24px;font-weight:700;line-height:1.6}
+.ex b{font-variant-numeric:tabular-nums;color:var(--blue)}
+.ex .row{display:flex;justify-content:space-between;border-bottom:1px dashed #e2e8f0;padding:4px 0}
+.ex .row:last-child{border:none}
+/* 電話 */
+#phoneCam{position:absolute;left:1121px;top:60px;transform-origin:0 0}
+.phone{position:relative;width:458px;height:960px;border-radius:66px;background:#0c0f1a;padding:14px;box-shadow:0 40px 90px rgba(15,27,61,.35),0 0 0 2px #2b3144 inset}
+.screen{position:relative;width:430px;height:932px;border-radius:54px;overflow:hidden;background:#f9fafb}
+.notch{position:absolute;left:50%;top:10px;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#0c0f1a;z-index:50}
+.sbar{position:absolute;left:0;right:0;top:0;height:54px;display:flex;justify-content:space-between;align-items:center;padding:8px 34px 0 42px;font-size:16px;font-weight:700;color:#111;z-index:40;background:#fff}
+.sbar.dark{background:transparent;color:#fff}
+.scr{position:absolute;left:0;right:0;top:54px;bottom:0;overflow:hidden;background:#f9fafb}
+/* アプリ（従業員） */
+.ehead{height:50px;background:#152449;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-weight:800;font-size:16px}
+.ehead .me{display:flex;align-items:center;gap:6px;color:#dbeafe;font-weight:700;font-size:15px;padding:6px 8px;border-radius:8px}
+.etabs{position:absolute;left:0;right:0;bottom:0;height:64px;background:#152449;display:grid;grid-template-columns:repeat(5,1fr);color:#bfdbfe;font-size:11px;font-weight:700;text-align:center;align-items:center}
+.acard{margin:10px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px}
+.acard h3{margin:0 0 6px;font-size:15px;border-left:4px solid #2563eb;padding-left:8px}
+.acard p{margin:4px 0;font-size:12.5px;color:#6b7280;line-height:1.55}
+.fld{border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;margin-top:4px;background:#fff}
+.abtn{display:inline-block;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:700;margin:4px 4px 0 0}
+.abtn.pri{background:#2563eb;color:#fff}
+.hint{margin-top:8px;border-radius:9px;background:#eff6ff;color:#1e40af;padding:8px 10px;font-size:12px;line-height:1.55}
+.devrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.gbtn{border-radius:9px;padding:9px 16px;font-size:13px;font-weight:700;color:#fff;background:#16a34a}
+.gbtn.off{background:#6b7280}
+.obtn{border-radius:9px;padding:8px 12px;font-size:13px;font-weight:700;color:#1d4ed8;border:1px solid #2563eb;background:#fff}
+.st{font-size:13px;color:#6b7280}
+.okm{font-size:12px;color:#15803d;margin-top:6px;line-height:1.5}
+.sub{margin-top:10px;border:1px solid #e5e7eb;border-radius:12px;background:#f9fafb;padding:11px}
+.sub h4{margin:0;font-size:14px;color:#1f2937}
+.sub .d{font-size:12px;color:#6b7280;margin-top:3px}
+.rl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:#374151;margin-top:10px}
+.cb{width:17px;height:17px;border-radius:4px;border:1.5px solid #9ca3af;background:#fff;display:grid;place-items:center;font-size:12px;color:#fff;font-weight:900}
+.cb.on{background:#2563eb;border-color:#2563eb}
+.num{width:62px;border:1px solid #d1d5db;border-radius:8px;padding:4px 8px;text-align:right;font-size:15px;background:#fff;font-variant-numeric:tabular-nums}
+.num.dis{background:#f3f4f6;color:#9ca3af}
+.num.focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.35)}
+.rn{padding-left:23px;font-size:11.5px;color:#6b7280;margin-top:3px;line-height:1.5}
+.save{display:inline-block;margin-top:10px;border-radius:9px;background:#2563eb;color:#fff;padding:8px 22px;font-size:13px;font-weight:700}
+/* iOS: ロック画面・ホーム画面・通知 */
+.lock{position:absolute;inset:0;background:linear-gradient(160deg,#1e3a8a 0%,#6d28d9 55%,#db2777 100%);color:#fff}
+.lock .date{position:absolute;left:0;right:0;top:92px;text-align:center;font-size:19px;font-weight:600;opacity:.9}
+.lock .clk{position:absolute;left:0;right:0;top:112px;text-align:center;font-size:92px;font-weight:700;letter-spacing:-.02em}
+.nstack{position:absolute;left:12px;right:12px;top:300px}
+.nt{display:flex;gap:10px;background:rgba(255,255,255,.78);backdrop-filter:blur(10px);color:#111;border-radius:20px;padding:12px 14px;margin-bottom:8px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.nt .ai{flex:none;width:38px;height:38px;border-radius:9px;background:#152449;display:grid;place-items:center;color:#fff;font-size:18px;font-weight:900}
+.nt .bd{flex:1;min-width:0}
+.nt .tt{display:flex;justify-content:space-between;font-size:14px;font-weight:700}
+.nt .tt span{font-weight:500;color:#555;font-size:12px}
+.nt .tx{font-size:13.5px;line-height:1.4;margin-top:1px}
+.hs{position:absolute;inset:0;background:linear-gradient(170deg,#0ea5e9,#6366f1 60%,#a855f7);}
+.hs .gridi{position:absolute;left:26px;right:26px;top:80px;display:grid;grid-template-columns:repeat(4,1fr);row-gap:26px;justify-items:center}
+.hs .ic{width:66px;text-align:center;color:#fff;font-size:11.5px;font-weight:600}
+.hs .ic i{display:grid;place-items:center;width:62px;height:62px;border-radius:15px;margin:0 auto 5px;font-style:normal;font-size:28px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.dock{position:absolute;left:14px;right:14px;bottom:14px;height:92px;border-radius:32px;background:rgba(255,255,255,.3);display:flex;justify-content:space-around;align-items:center}
+.dock i{display:grid;place-items:center;width:62px;height:62px;border-radius:15px;font-style:normal;font-size:28px}
+.banner{position:absolute;left:10px;right:10px;top:58px;z-index:45}
+.alertDim{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:44}
+.alert{position:absolute;left:50%;top:50%;width:280px;margin:-110px 0 0 -140px;border-radius:16px;background:rgba(242,242,247,.97);text-align:center;color:#111;z-index:45;overflow:hidden}
+.alert .b{padding:18px 16px 14px}
+.alert .t{font-size:16px;font-weight:700;line-height:1.35}
+.alert .m{font-size:12.5px;line-height:1.45;margin-top:6px}
+.alert .bt{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #c7c7cc}
+.alert .bt span{padding:12px 0;font-size:16px;color:#007aff}
+.alert .bt span+span{border-left:1px solid #c7c7cc;font-weight:700}
+/* iOS 設定 */
+.ios{position:absolute;inset:0;top:54px;background:#f2f2f7;color:#111;padding:6px 16px}
+.ios .bk{color:#007aff;font-size:16px}
+.ios .ttl{font-size:30px;font-weight:800;margin:6px 0 14px}
+.ios .grp{background:#fff;border-radius:12px;overflow:hidden}
+.ios .it{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #e5e5ea;font-size:16px}
+.ios .it:last-child{border:none}
+.tog{width:51px;height:31px;border-radius:99px;background:#e5e5ea;position:relative}
+.tog::after{content:"";position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transform:translateX(var(--k,0px))}
+.tog.on{background:#34c759}
+/* 指 */
+#finger{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(37,99,235,.28);border:3px solid rgba(255,255,255,.95);box-shadow:0 6px 18px rgba(15,27,61,.35);z-index:100;pointer-events:none}
+#ripple{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:3px solid #2563eb;z-index:99;pointer-events:none}
+.hbox{position:absolute;pointer-events:none;border-radius:12px;border:4px solid #ef4444;box-shadow:0 0 0 6px rgba(239,68,68,.22);z-index:30}
+#progress{position:absolute;left:0;bottom:0;height:6px;background:linear-gradient(90deg,#2563eb,#22c55e);z-index:200}
+/* ===== 縦（1080×1920）用の上書き（DESIGN.md）。上＝説明の文字（〜y740）、下＝スマホ ===== */
+.chapter{left:60px;font-size:28px}
+.chapter b{width:60px;height:60px;font-size:26px}
+.h1{left:60px!important;max-width:960px;font-size:56px!important}
+.tip{left:60px!important;max-width:960px!important;font-size:38px!important;line-height:1.45}
+.tip i{width:52px;height:52px;font-size:26px}
+.callout{left:60px!important;width:960px!important;font-size:36px;padding:14px 22px;line-height:1.3}
+.callout small{font-size:28px;line-height:1.35}
+.callout .n{width:54px;height:54px;font-size:26px}
+.point{left:60px!important;width:960px!important;font-size:40px;padding:16px 26px;line-height:1.25}
+.point small{font-size:29px}
+.sub{left:60px!important;max-width:960px;font-size:32px!important}
+.summary{left:40px!important;width:1000px!important;font-size:38px;padding:28px 32px;gap:24px;line-height:1.35}
+.summary small{font-size:29px;line-height:1.4}
+.summary .ic{width:72px;height:72px}
+.ex{left:60px!important;width:960px!important;font-size:34px!important;padding:22px 28px}
+.ex > div:first-child{font-size:29px!important}
+#phoneCam{left:265px!important;top:748px!important}
+.phone{zoom:1.2}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bgwrap">
+    <div class="blob" id="blob1" style="width:760px;height:760px;background:#bcd3ff"></div>
+    <div class="blob" id="blob2" style="width:620px;height:620px;background:#c8f0d8"></div>
+    <div class="blob" id="blob3" style="width:520px;height:520px;background:#ffe8a8"></div>
+    <div id="grid"></div>
+  </div>
+
+  <div class="chapter" data-a="5.3,21.2" data-fx="left"><b>01</b>通知でできること</div>
+  <div class="chapter" data-a="21.5,33.2" data-fx="left"><b>02</b>準備（スマホ）</div>
+  <div class="chapter" data-a="33.5,69.0" data-fx="left"><b>03</b>通知をオンにする</div>
+  <div class="chapter" data-a="69.3,111.6" data-fx="left"><b>04</b>出勤予定時間・退勤予定時間の通知</div>
+
+  <!-- S1 できること -->
+  <div class="h1" style="top:140px" data-a="5.5,21.2" data-fx="up">シフトの時間を<em>通知</em>でお知らせ</div>
+  <div class="point" style="top:240px" data-a="6.0,21.2" data-fx="left"><span class="ic" style="background:#2563eb">⏰</span><div>出勤予定時間の前に<small>「そろそろ出勤」を知らせます</small></div></div>
+  <div class="point" style="top:385px" data-a="8.4,21.2" data-fx="left"><span class="ic" style="background:#f97316">🏁</span><div>退勤予定時間の前後に<small>退勤の打刻忘れを防げます</small></div></div>
+  <div class="point" style="top:530px" data-a="11.3,21.2" data-fx="left"><span class="ic" style="background:#16a34a">🔔</span><div>アプリを閉じていても届く<small>ロック画面に表示されます</small></div></div>
+  <div class="tip" style="top:680px" data-a="16.3,21.2" data-fx="up"><i>📱</i><span>使う<span class="hl">端末ごとに、最初に1回だけ</span>オンにします</span></div>
+
+  <!-- S2 準備 -->
+  <div class="h1" style="top:140px;font-size:56px" data-a="21.7,33.2" data-fx="up">アプリを<em>ホーム画面</em>に追加しておく</div>
+  <div class="point" style="top:290px" data-a="22.2,33.2" data-fx="left"><span class="ic" style="background:#152449">¥</span><div>スマホでは、あらかじめ<br>ホーム画面に追加<small>ホーム画面の「給与管理」アイコンから開きます</small></div></div>
+  <div class="point" style="top:520px" data-a="27.5,33.2" data-fx="left"><span class="ic" style="background:#f97316"><svg viewBox="0 0 24 24" width="32" height="32" fill="#fff"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h2v2h-2zm4 0h4v2h-4zm-4 4h2v4h-2zm4 0h2v2h-2zm2 2h2v2h-2zm-2 2h2v0z"/><path d="M6 6h2v2H6zm10 0h2v2h-2zM6 16h2v2H6z"/></svg></span><div>まだの人は、控室のQRコードから<small>読み取って、ホーム画面にアイコンを追加してください</small></div></div>
+
+  <!-- S3 通知をオンにする -->
+  <div class="h1" style="top:140px;font-size:56px" data-a="33.7,69.0" data-fx="up">この端末で<em>通知を受け取る</em></div>
+  <div class="callout" style="top:250px" data-a="33.9,60.7" data-fx="left"><span class="n">1</span><div>右上の自分の名前 → アカウント設定<small>パソコンは左下の名前から</small></div></div>
+  <div class="callout" style="top:370px" data-a="38.5,60.7" data-fx="left"><span class="n">2</span><div>「この端末で通知を受け取る」<small>「通知」の欄の緑のボタン</small></div></div>
+  <div class="callout" style="top:490px" data-a="43.5,60.7" data-fx="left"><span class="n">3</span><div>確認の画面で <span class="kbd blue">許可</span> を押す<small>「許可しない」を押さないように注意</small></div></div>
+  <div class="callout" style="top:610px" data-a="49.7,60.7" data-fx="left"><span class="n">4</span><div>「登録済み」→ テスト通知で確認<small>「この端末にテスト通知を送る」</small></div></div>
+  <div class="tip" style="top:260px;color:#b91c1c" data-a="61.1,69.0" data-fx="up"><i>⚠️</i><span>「許可しない」を押したとき</span></div>
+  <div class="tip" style="top:350px" data-a="61.6,69.0" data-fx="up"><i>⚙️</i><span>iPhoneの<b>設定 → 通知 → 給与管理</b><br>→「通知を許可」をオン</span></div>
+  <div class="tip" style="top:500px" data-a="64.5,69.0" data-fx="up"><i>↻</i><span>そのあと、アプリの画面を開き直す</span></div>
+
+  <!-- S4 出勤・退勤予定時間 -->
+  <div class="h1" style="top:140px;font-size:52px" data-a="69.5,104.2" data-fx="up">通知の<em>タイミング</em>を設定する</div>
+  <div class="callout" style="top:250px" data-a="74.9,92.5" data-fx="left"><span class="n" style="background:#2563eb">出</span><div>出勤予定時間の <span class="kbd">60</span> 分前<small>出勤の打刻を済ませた日は通知しません</small></div></div>
+  <div class="callout" style="top:390px" data-a="86.5,92.5" data-fx="left"><span class="n" style="background:#f97316">退</span><div>退勤予定時間の <span class="kbd">10</span> 分前<small>出勤打刻済みで、<br>退勤打刻がまだの日だけ</small></div></div>
+  <div class="ex" style="top:250px" data-a="92.7,104.2" data-fx="up">
+    <div style="font-size:21px;color:#64748b;margin-bottom:4px">退勤予定時間 17:00 のとき</div>
+    <div class="row"><span>「10」を入れると</span><span><b>16:50</b>（10分前）</span></div>
+    <div class="row"><span>「0」を入れると</span><span><b>17:00</b>（ちょうど）</span></div>
+    <div class="row"><span>「<span style="color:#dc2626">-10</span>」を入れると</span><span><b>17:10</b>（10分後）</span></div>
+  </div>
+  <div class="tip" style="top:620px" data-a="99.7,104.2" data-fx="up"><i>💾</i><span>最後に <span class="kbd blue">保存する</span></span></div>
+  <div class="h1" style="top:140px;font-size:52px" data-a="104.5,111.6" data-fx="up">時間になると<em>通知が届く</em></div>
+  <div class="tip" style="top:260px" data-a="105.0,111.6" data-fx="up"><i>✅</i><span>確定したシフトが対象です</span></div>
+  <div class="tip" style="top:345px" data-a="105.6,111.6" data-fx="up"><i>👆</i><span>通知をタップすると、<br>アプリのシフト画面が開きます</span></div>
+
+  <!-- スマホ -->
+  <div id="phoneWrap" style="position:absolute;inset:0;pointer-events:none">
+    <div id="phoneCam"><div class="phone"><div class="screen" id="screen">
+      <div class="notch"></div>
+      <div class="sbar" id="sbar"><span>7:00</span><span>●●● 🔋</span></div>
+
+      <!-- ロック画面 -->
+      <div class="lock" id="sLock">
+        <div class="date" id="lockDate">10月2日 金曜日</div>
+        <div class="clk" id="lockClk">7:00</div>
+        <div class="nstack" id="nstack"></div>
+      </div>
+
+      <!-- ホーム画面 -->
+      <div class="hs" id="sHS" style="display:none">
+        <div class="gridi">
+          <div class="ic"><i style="background:#fff">📅</i>カレンダー</div>
+          <div class="ic"><i style="background:#fff">📷</i>カメラ</div>
+          <div class="ic"><i style="background:#fbbf24">🗒</i>メモ</div>
+          <div class="ic"><i style="background:#8e8e93">⚙️</i>設定</div>
+          <div class="ic"><i style="background:#22c55e">💬</i>メッセージ</div>
+          <div class="ic" id="appIcon"><i style="background:#152449;color:#fff;font-weight:900;font-size:26px">¥</i>給与管理</div>
+          <div class="ic"><i style="background:#fff">🗺</i>マップ</div>
+          <div class="ic"><i style="background:#ef4444">🎵</i>ミュージック</div>
+        </div>
+        <div class="dock"><i style="background:#22c55e">📞</i><i style="background:#fff">🧭</i><i style="background:#3b82f6">✉️</i><i style="background:#f97316">🎧</i></div>
+      </div>
+
+      <!-- アプリ：勤務表 -->
+      <div class="scr" id="sApp" style="display:none">
+        <div class="ehead"><span>給与管理</span><span class="me" id="meBtn">山田 花子 👤</span></div>
+        <div style="padding:12px 12px 80px"><div style="font-size:17px;font-weight:900;color:#1e40af">勤務表　2026年10月</div><div id="homeRows"></div></div>
+        <div class="etabs"><div>▦<br>シフト</div><div style="color:#fff">🗓<br>勤務表</div><div>¥<br>日別</div><div>¥<br>給与明細</div><div>≡<br>その他</div></div>
+      </div>
+
+      <!-- アプリ：アカウント設定 -->
+      <div class="scr" id="sAcct" style="display:none">
+        <div class="ehead"><span>給与管理</span><span class="me">山田 花子 👤</span></div>
+        <div id="acctSc" style="position:absolute;left:0;right:0;top:50px">
+          <div style="padding:12px 12px 0;font-size:20px;font-weight:900">アカウント設定</div>
+          <div class="acard"><h3>プロフィール</h3><div style="font-size:12px;color:#6b7280">氏名</div><div class="fld">山田 花子</div><div style="font-size:12px;color:#6b7280;margin-top:6px">ニックネーム</div><div class="fld">はなこ</div><span class="abtn pri" style="margin-top:8px">保存する</span></div>
+          <div class="acard" id="notifCard"><h3>通知</h3>
+            <p>通知は端末ごとに許可が必要です。受け取りたい端末それぞれで登録してください。</p>
+            <div class="hint" id="hint">ボタンを押すと通知の許可を求めるダイアログが出ます。「許可」を選んでください。Mac では、先に「システム設定 → 通知」でブラウザ（またはこのアプリ）の通知がオンになっている必要があります。</div>
+            <div class="devrow" id="devRow"></div>
+            <div class="okm" id="devMsg"></div>
+            <div class="sub" id="shiftCard"><h4>シフトの通知</h4><div class="d">確定したシフトについて、登録した端末に通知します。</div>
+              <div class="rl" id="rStart"><span class="cb" id="cbStart"></span>出勤予定時間の<span class="num" id="numStart">60</span>分前に通知する</div>
+              <div class="rn">出勤打刻済みの日は通知しません。</div>
+              <div class="rl" id="rEnd"><span class="cb" id="cbEnd"></span>退勤予定時間の<span class="num" id="numEnd">10</span>分前に通知する</div>
+              <div class="rn">マイナスを入れると退勤予定時間の後に通知します（例: -10 → 退勤予定時間の10分後）。出勤打刻済みで、退勤打刻がまだの日だけ通知します。</div>
+              <div class="okm" id="saveMsg" style="font-size:13px"></div>
+              <span class="save" id="saveBtn">保存する</span>
+            </div>
+          </div>
+          <div class="acard"><h3>カレンダー連携</h3><p>自分のシフトを、スマホやパソコンのカレンダーに自動で表示できます。</p></div>
+        </div>
+      </div>
+
+      <!-- iOS 設定 → 通知 → 給与管理 -->
+      <div class="ios" id="sSet" style="display:none">
+        <div class="bk">‹ 通知</div>
+        <div class="ttl">給与管理</div>
+        <div class="grp"><div class="it"><span>通知を許可</span><span class="tog" id="setTog"></span></div></div>
+        <div style="font-size:13px;color:#8e8e93;margin:10px 6px">オンにしたら、ホーム画面の「給与管理」を開き直してください。</div>
+      </div>
+
+      <!-- 通知の許可ダイアログ -->
+      <div class="alertDim" id="aDim" style="display:none"></div>
+      <div class="alert" id="alert" style="display:none"><div class="b"><div class="t">“給与管理”は通知を送信します。よろしいですか？</div><div class="m">通知方法は、テキスト、サウンド、アイコンバッジが利用できる可能性があります。通知方法は“設定”で設定できます。</div></div>
+        <div class="bt"><span>許可しない</span><span id="allowBtn">許可</span></div></div>
+
+      <!-- アプリ使用中に上から出る通知 -->
+      <div class="banner" id="banner" style="display:none"><div class="nt"><span class="ai">¥</span><div class="bd"><div class="tt">テスト通知<span>今</span></div><div class="tx">この端末で通知を受け取れています。</div></div></div></div>
+
+      <div id="ripple"></div><div id="finger"></div>
+    </div></div></div>
+  </div>
+
+  <!-- オープニング -->
+  <div id="op" class="abs" style="inset:0;background:radial-gradient(900px 1200px at 30% 30%,#1e3a8a,#0f1b3d);z-index:150">
+    <div class="abs" style="left:80px;top:560px;font-size:30px;font-weight:800;letter-spacing:.3em;color:#93c5fd" data-a="0.3,99" data-fx="up">従業員向け 操作ガイド</div>
+    <div class="abs" style="left:70px;top:620px;width:960px;font-size:110px;line-height:1.2;font-weight:900;color:#fff" data-a="0.6,99" data-fx="up">シフトの通知を<br>受け取る</div>
+    <div class="abs" style="left:80px;top:944px;display:flex;flex-direction:column;align-items:flex-start;gap:22px;font-size:38px;font-weight:800;color:#0f1b3d">
+      <span style="background:#fff;border-radius:18px;padding:16px 30px" data-a="1.4,99" data-fx="pop">① できること・準備</span>
+      <span style="background:#bbf7d0;border-radius:18px;padding:16px 30px" data-a="1.8,99" data-fx="pop">② 通知をオンにする</span>
+      <span style="background:#fed7aa;border-radius:18px;padding:16px 30px" data-a="2.2,99" data-fx="pop">③ 出勤・退勤予定時間の通知</span>
+    </div>
+    <div class="abs" style="left:80px;top:1400px;font-size:28px;color:#cbd5e1;font-weight:600" data-a="2.8,99" data-fx="up">約 2 分</div>
+  </div>
+
+  <!-- まとめ -->
+  <div id="end" class="abs" style="inset:0;background:#f3f5fa;z-index:160">
+    <div class="abs" style="left:0;width:1080px;top:200px;text-align:center;font-size:64px;font-weight:900" data-a="112.3,999" data-fx="up">まとめ</div>
+    <div class="summary" style="top:380px" data-a="112.8,999" data-fx="left"><span class="ic" style="background:#2563eb">👤</span><div>右上の名前 → <span class="hl">この端末で通知を受け取る</span><small>スマホはホーム画面に追加したアイコンから開く</small></div></div>
+    <div class="summary" style="top:700px" data-a="114.8,999" data-fx="left"><span class="ic" style="background:#16a34a">✓</span><div>確認の画面で「許可」→ テスト通知で確認<small>「許可しない」を押したら、iPhoneの設定 → 通知 からオン</small></div></div>
+    <div class="summary" style="top:1020px" data-a="116.8,999" data-fx="left"><span class="ic" style="background:#f97316">⏰</span><div>シフトの通知：出勤予定時間・退勤予定時間<small>分数を入れて「保存する」（マイナスは退勤予定時間の後）</small></div></div>
+    <div class="abs" style="left:0;width:1080px;top:1560px;text-align:center;font-size:26px;font-weight:800;color:#64748b;letter-spacing:.2em" data-a="118.5,999" data-fx="fade">オオミナミ　シフトの通知</div>
+    <div class="abs" style="right:48px;bottom:30px;font-size:20px;font-weight:600;color:#94a3b8" data-a="112.4,999" data-fx="fade">ナレーション　VOICEVOX:ずんだもん</div>
+  </div>
+
+  <div id="progress"></div>
+</div>
+
+<script>
+const DUR = 123;
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const back = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const P = (t, a, d = 0.5, f = eo) => f(clamp((t - a) / d));
+
+// 勤務表（見本）
+const ROWS = [[1, "早番", "8:00〜17:00"], [2, "早番", "8:00〜17:00"], [3, "遅番", "15:00〜0:00"], [5, "早番", "8:00〜17:00"], [7, "早番", "8:00〜17:00"], [9, "遅番", "15:00〜0:00"], [10, "遅番", "15:00〜0:00"], [12, "早番", "8:00〜17:00"], [14, "深夜", "0:00〜9:00"], [16, "早番", "8:00〜17:00"]];
+$("#homeRows").innerHTML = ROWS.map(([d, s, tm]) =>
+  `<div style="display:flex;justify-content:space-between;padding:9px 4px;border-bottom:1px solid #e5e7eb;font-size:14px"><span>10/${d}</span><span style="font-weight:700">${s}</span><span style="color:#6b7280">${tm}</span></div>`).join("");
+
+// ロック画面の通知（アプリの実際の文面: src/lib/shift-reminder-notify.ts）
+const nt = (title, body, when) => `<div class="nt"><span class="ai">¥</span><div class="bd"><div class="tt">給与管理<span>${when}</span></div><div class="tx"><b>${title}</b><br>${body}</div></div></div>`;
+const LOCK1 = [nt("シフト開始の60分前です", "10/2 8:00 からシフトです。", "今")];
+const LOCK1b = [nt("シフト終了の10分前です", "10/2 17:00 終了のシフトです。退勤の打刻をお忘れなく。", "今")];
+
+// ---------------------------------------------------------------- スマホの画面（時刻で切り替え）
+const T = {
+  lock1: [5.6, 21.3], lockB: 12.0, hs: 21.3, tapIcon: 25.6, app: 25.9,
+  tapMe: 36.6, acct: 36.8, tapOn: 42.6, alert: 43.0, tapAllow: 48.6, on: 48.9,
+  tapTest: 58.2, banner: 59.0, bannerOut: 60.6,
+  set: 61.2, tapTog: 65.0, setOut: 68.9,
+  tapStart: 76.6, focusStart: [77.4, 81.0], tapEnd: 88.2, tapSave: 102.4, saved: 102.7,
+  lock2: 104.4,
+};
+// スクロール位置（[時刻, 先頭に合わせる要素 or 0]）
+const SCROLL = [[36.8, 0], [38.6, 0], [40.0, "#notifCard"], [69.8, "#notifCard"], [71.4, "#shiftCard"]];
+function scrollY(t) {
+  // #notifCard・#shiftCard とも offsetParent は #acctSc（非表示中は 0 になるが見えないので問題ない）
+  const y = (tg) => (tg === 0 ? 0 : $(tg).offsetTop - 10);
+  let v = y(SCROLL[0][1]);
+  for (let i = 1; i < SCROLL.length; i++) if (t >= SCROLL[i - 1][0]) {
+    const k = eio(clamp((t - SCROLL[i - 1][0]) / (SCROLL[i][0] - SCROLL[i - 1][0])));
+    v = y(SCROLL[i - 1][1]) + (y(SCROLL[i][1]) - y(SCROLL[i - 1][1])) * k;
+  }
+  return v;
+}
+function show(id, on) { $(id).style.display = on ? "block" : "none"; }
+let nKey = "";
+function renderPhone(t) {
+  const vis = Math.min(P(t, 5.6, 0.5), 1 - P(t, 111.4, 0.4));
+  $("#phoneWrap").style.opacity = vis;
+  $("#phoneWrap").style.visibility = vis <= 0.001 ? "hidden" : "visible";
+  $("#phoneCam").style.transform = `translateX(${(1 - P(t, 5.6, 0.6)) * 120}px)`;
+
+  const lock1 = t < T.hs, lock2 = t >= T.lock2;
+  const hs = t >= T.hs && t < T.app + 0.3;
+  const setOn = t >= T.set && t < T.setOut;
+  const app = t >= T.app && t < T.acct + 0.5;
+  const acct = t >= T.acct && !lock2 && !setOn;
+  show("#sLock", lock1 || lock2);
+  show("#sHS", hs);
+  show("#sApp", app);
+  show("#sAcct", acct);
+  show("#sSet", setOn);
+  $("#sbar").className = "sbar" + (lock1 || lock2 || hs ? " dark" : "");
+  $("#sbar").style.background = setOn ? "#f2f2f7" : "";
+  const late = lock2 || (lock1 && t >= T.lockB);
+  $("#sbar").firstElementChild.textContent = late ? "16:50" : lock1 || hs ? "7:00" : "10:43";
+  // ロック画面（朝: 出勤予定時間の通知 → 夕方: 退勤予定時間の通知が上に重なる）
+  $("#lockClk").textContent = late ? "16:50" : "7:00";
+  const key = late ? "b" : "a";
+  if (key !== nKey) { nKey = key; $("#nstack").innerHTML = key === "a" ? LOCK1.join("") : LOCK1b.join("") + LOCK1.join("").replace(">今<", ">7:00<"); }
+  const drop = (a) => `translateY(${(1 - P(t, a, 0.5, back)) * -60}px)`;
+  const first = $("#nstack").firstElementChild;
+  if (first) { const at = lock2 ? T.lock2 + 1.2 : key === "b" ? T.lockB : 6.6; first.style.opacity = P(t, at, 0.35); first.style.transform = drop(at); }
+  // ホーム画面 → アプリが開く
+  $("#sApp").style.transform = t < T.acct ? `scale(${0.3 + 0.7 * P(t, T.app, 0.35, eio)})` : `translateX(${-30 * P(t, T.acct, 0.4, eio)}%)`;
+  $("#sApp").style.transformOrigin = "40% 25%";
+  $("#sApp").style.opacity = t < T.acct ? P(t, T.app, 0.2) : 1;
+  $("#sAcct").style.transform = t < T.acct + 1 ? `translateX(${(1 - P(t, T.acct, 0.4, eio)) * 100}%)` : "none";
+  $("#acctSc").style.transform = `translateY(${-scrollY(t)}px)`;
+  // 通知の欄（登録前 → 登録済み）
+  const on = t >= T.on;
+  show("#hint", !on);
+  $("#devRow").innerHTML = on
+    ? `<span class="gbtn off">この端末への通知を解除する</span><span class="st">登録済み</span><span class="obtn" id="testBtn">この端末にテスト通知を送る</span>`
+    : `<span class="gbtn" id="onBtn">${t >= T.tapOn ? "処理中..." : "この端末で通知を受け取る"}</span><span class="st">未登録</span>`;
+  $("#devMsg").textContent = t >= T.tapTest + 0.3 ? "テスト通知を送りました。数秒待っても届かない場合は、…" : on ? "この端末で通知を受け取れるようになりました" : "";
+  $("#devMsg").style.display = on ? "block" : "none";
+  // 許可ダイアログ
+  const al = t >= T.alert && t < T.on;
+  show("#aDim", al); show("#alert", al);
+  $("#alert").style.transform = `scale(${1.15 - 0.15 * P(t, T.alert, 0.3)})`;
+  $("#alert").style.opacity = P(t, T.alert, 0.2);
+  // テスト通知のバナー
+  show("#banner", t >= T.banner && t < T.bannerOut + 0.4);
+  $("#banner").style.transform = `translateY(${(1 - P(t, T.banner, 0.4, eo)) * -130 - P(t, T.bannerOut, 0.4) * 130}px)`;
+  // iOS 設定
+  $("#sSet").style.transform = `translateX(${(1 - P(t, T.set, 0.4, eio)) * 100}%)`;
+  const tg = P(t, T.tapTog + 0.05, 0.2);
+  $("#setTog").className = "tog" + (tg > 0.5 ? " on" : "");
+  $("#setTog").style.setProperty("--k", `${tg * 20}px`);
+  // シフトの通知
+  const sOn = t >= T.tapStart, eOn = t >= T.tapEnd;
+  $("#cbStart").className = "cb" + (sOn ? " on" : ""); $("#cbStart").textContent = sOn ? "✓" : "";
+  $("#cbEnd").className = "cb" + (eOn ? " on" : ""); $("#cbEnd").textContent = eOn ? "✓" : "";
+  $("#numStart").className = "num" + (sOn ? "" : " dis") + (t >= T.focusStart[0] && t < T.focusStart[1] ? " focus" : "");
+  $("#numEnd").className = "num" + (eOn ? "" : " dis");
+  $("#saveMsg").textContent = t >= T.saved ? "通知設定を保存しました" : "";
+  // 強調枠
+  $("#screen").querySelectorAll(".hbox").forEach((e) => e.remove());
+  const box = (sel, a, b) => {
+    if (t < a || t > b) return;
+    const el = $(sel, $("#screen")); if (!el || !el.offsetParent) return;
+    const sc = $("#screen").getBoundingClientRect(), r = el.getBoundingClientRect(), s = sc.width / 430;
+    const d = document.createElement("div"); d.className = "hbox";
+    Object.assign(d.style, { left: (r.left - sc.left) / s - 6 + "px", top: (r.top - sc.top) / s - 6 + "px", width: r.width / s + 12 + "px", height: r.height / s + 12 + "px", opacity: Math.min(P(t, a, 0.25), 1 - P(t, b - 0.3, 0.3)) });
+    $("#screen").appendChild(d);
+  };
+  box("#appIcon", 22.6, 25.4);
+  box("#meBtn", 34.2, 36.5);
+  box("#notifCard", 40.2, 42.0);
+  box("#shiftCard", 71.6, 74.6);
+  box("#rEnd", 92.8, 99.2);
+  box("#nstack", 105.8, 111.2);
+}
+
+// 指（スマホ）
+const FINGER = [
+  [23.6, [300, 700]], [24.8, "#appIcon"], [T.tapIcon, "#appIcon", 1], [26.4, [300, 700]],
+  [34.6, [300, 500]], [35.8, "#meBtn"], [T.tapMe, "#meBtn", 1], [37.6, [260, 600]],
+  [41.0, [260, 700]], [42.0, "#onBtn"], [T.tapOn, "#onBtn", 1], [46.8, [300, 700]], [48.0, "#allowBtn"], [T.tapAllow, "#allowBtn", 1], [49.4, [300, 700]],
+  [55.2, [300, 700]], [57.4, "#testBtn"], [T.tapTest, "#testBtn", 1], [58.8, [300, 750]],
+  [62.2, [300, 500]], [64.2, "#setTog"], [T.tapTog, "#setTog", 1], [65.8, [300, 500]],
+  [75.0, [300, 700]], [76.0, "#cbStart"], [T.tapStart, "#cbStart", 1], [77.0, "#numStart"], [77.3, "#numStart", 1], [78.4, [320, 750]],
+  [87.0, [300, 750]], [87.8, "#cbEnd"], [T.tapEnd, "#cbEnd", 1], [89.4, [320, 800]],
+  [100.6, [320, 800]], [101.8, "#saveBtn"], [T.tapSave, "#saveBtn", 1], [103.2, [320, 800]],
+];
+const FINGER_ON = [[23.5, 26.3], [34.5, 37.6], [40.9, 49.5], [55.1, 58.9], [62.1, 65.9], [74.9, 78.6], [86.9, 89.6], [100.5, 103.4]];
+function posInScreen(sel) {
+  const el = $(sel, $("#screen"));
+  if (!el || !el.offsetParent) return null;
+  const scr = $("#screen").getBoundingClientRect(), r = el.getBoundingClientRect(), s = scr.width / 430;
+  return [(r.left + r.width / 2 - scr.left) / s, (r.top + r.height / 2 - scr.top) / s];
+}
+const lastPos = {};
+const resolve = (tg, i) => { if (Array.isArray(tg)) return tg; const p = posInScreen(tg); if (p) lastPos[i] = p; return lastPos[i] || [215, 600]; };
+function renderFinger(t) {
+  const vis = FINGER_ON.reduce((m, [a, b]) => Math.max(m, P(t, a, 0.25) * (1 - P(t, b - 0.25, 0.25))), 0);
+  const f = $("#finger"), rp = $("#ripple");
+  f.style.opacity = vis;
+  let i = FINGER.findIndex((x) => x[0] > t);
+  if (i === -1) i = FINGER.length;
+  let x, y;
+  if (i === 0 || i === FINGER.length) [x, y] = resolve(FINGER[Math.max(0, i - 1)][1], Math.max(0, i - 1));
+  else {
+    const a = resolve(FINGER[i - 1][1], i - 1), b = resolve(FINGER[i][1], i), k = eio(clamp((t - FINGER[i - 1][0]) / (FINGER[i][0] - FINGER[i - 1][0])));
+    x = a[0] + (b[0] - a[0]) * k; y = a[1] + (b[1] - a[1]) * k;
+  }
+  let press = 0, rip = null;
+  for (const fr of FINGER) if (fr[2]) {
+    const d = t - fr[0];
+    if (d > -0.12 && d < 0.18) press = Math.max(press, 1 - Math.abs(d - 0.03) / 0.15);
+    if (d >= 0 && d < 0.5) rip = d / 0.5;
+  }
+  f.style.transform = `translate(${x}px,${y}px) scale(${1 - 0.18 * press})`;
+  f.style.background = `rgba(37,99,235,${0.28 + 0.3 * press})`;
+  rp.style.transform = `translate(${x}px,${y}px) scale(${rip == null ? 1 : 1 + rip * 1.6})`;
+  rp.style.opacity = rip == null || vis <= 0 ? 0 : 1 - rip;
+}
+
+// ---------------------------------------------------------------- 共通
+const animEls = [...document.querySelectorAll("[data-a]")].map((el) => {
+  const [a, b] = el.dataset.a.split(",").map(Number);
+  return { el, a, b, fx: el.dataset.fx || "up" };
+});
+function renderAnims(t) {
+  for (const { el, a, b, fx } of animEls) {
+    const pi = P(t, a, fx === "pop" ? 0.55 : 0.5, fx === "pop" ? back : eo), po = P(t, b, 0.35, (x) => x * x);
+    const o = clamp(P(t, a, 0.4) * (1 - po));
+    el.style.opacity = o;
+    el.style.visibility = o <= 0.001 ? "hidden" : "visible";
+    let tr = "";
+    if (fx === "up") tr = `translateY(${(1 - pi) * 46 - po * 20}px)`;
+    if (fx === "left") tr = `translateX(${(1 - pi) * -60 - po * 30}px)`;
+    if (fx === "right") tr = `translateX(${(1 - pi) * 120 + po * 60}px)`;
+    if (fx === "pop") tr = `scale(${0.85 + 0.15 * pi - po * 0.05})`;
+    el.style.transform = tr;
+  }
+}
+function renderBg(t) {
+  const s = Math.sin, c = Math.cos;
+  $("#blob1").style.transform = `translate(${-160 + 120 * s(t * 0.21)}px,${-220 + 90 * c(t * 0.17)}px)`;
+  $("#blob2").style.transform = `translate(${560 + 140 * c(t * 0.19)}px,${1260 + 80 * s(t * 0.23)}px)`;
+  $("#blob3").style.transform = `translate(${100 + 160 * s(t * 0.13)}px,${1500 + 70 * c(t * 0.29)}px)`;
+  $("#grid").style.transform = `translateY(${-(t * 6) % 34}px)`;
+}
+function renderSpecial(t) {
+  const w = P(t, 4.6, 0.7, eio);
+  $("#op").style.clipPath = `inset(0 0 ${w * 100}% 0)`;
+  $("#op").style.display = w >= 1 ? "none" : "block";
+  const e = P(t, 111.8, 0.7, eio);
+  $("#end").style.clipPath = `inset(${(1 - e) * 100}% 0 0 0)`;
+  $("#end").style.display = e <= 0 ? "none" : "block";
+  $("#progress").style.width = `${(t / DUR) * 100}%`;
+}
+window.renderAt = function (t) {
+  renderBg(t); renderAnims(t); renderSpecial(t);
+  renderPhone(t); renderFinger(t);
+};
+window.DUR = DUR;
+const params = new URLSearchParams(location.search);
+if (!params.has("render")) {
+  const fit = () => { const s = Math.min(innerWidth / 1080, innerHeight / 1920); $("#stage").style.transform = `scale(${s})`; $("#stage").style.marginRight = `${1080 * s - 1080}px`; $("#stage").style.marginBottom = `${1920 * s - 1920}px`; };
+  fit(); addEventListener("resize", fit);
+  const start = performance.now() - (Number(params.get("t")) || 0) * 1000;
+  const loop = (now) => { renderAt(((now - start) / 1000) % DUR); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+} else document.body.style.display = "block";
+</script>
+</body>
+</html>

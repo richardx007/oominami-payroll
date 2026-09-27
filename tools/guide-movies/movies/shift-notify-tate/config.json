@@ -1,0 +1,28 @@
+{
+  "title": "シフトの通知を受け取る（縦・スマホ用）",
+  "html": "movie.html",
+  "narration": "narration.json",
+  "end": 123,
+  "output": "シフトの通知_従業員ガイド_縦",
+  "bgm": {
+    "full": [
+      [
+        4.6,
+        111.6
+      ]
+    ],
+    "arp": [
+      [
+        0.2,
+        null,
+        0.4
+      ]
+    ],
+    "riser": null,
+    "cymbal": null
+  },
+  "size": [
+    1080,
+    1920
+  ]
+}

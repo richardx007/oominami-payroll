@@ -27,6 +27,9 @@ tools/guide-movies/
     shift-calendar/   「シフトを自分のカレンダーに表示する」（従業員向け）
     shift-notify/     「シフトの通知を受け取る」（従業員向け）
     eigyo-calendar-tate/ 「営業カレンダーの設定方法」の縦（スマホ用・1080×1920）
+    eigyo-kinmu-tate/    「営業時間と勤務時間の設定」の縦
+    shift-calendar-tate/ 「シフトを自分のカレンダーに表示する」の縦
+    shift-notify-tate/   「シフトの通知を受け取る」の縦
       config.json     タイトル・出力名・映像の長さ(end)・BGM の区間
       movie.html      映像
       narration.json  原稿 [[開始秒, 終了秒, "文"], ...]（映像の時刻）
