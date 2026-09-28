@@ -5,7 +5,8 @@ import puppeteer from "puppeteer-core";
 import { CHROME, FFMPEG, toVideo } from "./common.mjs";
 
 export async function openMovie(m) {
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: "new" });
+  // GPU を使うと、まれに描画途中（縮小した画面がタイル状に並ぶ）のコマが撮れるため、ソフトウェア描画にする（2026-09-28）
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: "new", args: ["--disable-gpu"] });
   const page = await browser.newPage();
   // 画面サイズは config.json の size（[幅, 高さ]。縦動画は [1080, 1920]）。省略時は横の 1920×1080
   const [width, height] = m.config.size ?? [1920, 1080];
@@ -27,8 +28,12 @@ export async function renderVideo(m, warp, out) {
   ff.stderr.on("data", (d) => (err += d));
   const n = Math.round(warp.total * FPS);
   for (let i = 0; i < n; i++) {
-    await page.evaluate((t) => window.renderAt(t), toVideo(warp, i / FPS));
-    const buf = await page.screenshot({ type: "jpeg", quality: 95 });
+    // 描画が画面に反映されてから撮る（2フレーム待つ）。撮るたびに画面サイズを切り替えないよう captureBeyondViewport は切る
+    await page.evaluate(
+      (t) => (window.renderAt(t), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))),
+      toVideo(warp, i / FPS)
+    );
+    const buf = await page.screenshot({ type: "jpeg", quality: 95, captureBeyondViewport: false });
     if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once("drain", r));
     if (i % 600 === 0) console.log(`  コマ ${i}/${n}`);
   }
