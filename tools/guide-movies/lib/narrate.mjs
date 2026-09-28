@@ -1,9 +1,9 @@
-// ナレーション: VOICEVOX で原稿を1文ずつ合成する。話者は config.json の speaker（省略時はずんだもん ノーマル）。辞書（dictionary.json）も登録する
+// ナレーション: VOICEVOX で原稿を1文ずつ合成する。話者は config.json の speaker（省略時は麒ヶ島宗麟）。辞書（dictionary.json）も登録する
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readJson, ROOT, VOICEVOX_URL } from "./common.mjs";
 
-export const SPEAKER = 3; // 既定の話者: ずんだもん（ノーマル）。53 = 麒ヶ島宗麟
+export const SPEAKER = 53; // 既定の話者: 麒ヶ島宗麟（2026-09-28 に ずんだもん ノーマル＝3 から変更）
 const TUNING = { speedScale: 1.12, intonationScale: 1.15, prePhonemeLength: 0.05, postPhonemeLength: 0.1, outputSamplingRate: 48000 };
 
 export async function engineVersion() {

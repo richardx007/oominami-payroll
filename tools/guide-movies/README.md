@@ -12,7 +12,7 @@
 | 部品 | 内容 |
 |---|---|
 | 映像 | 1920×1080 の HTML アニメーション（`movies/<名前>/movie.html`）。`renderAt(t)` に映像の時刻 t（秒）を渡すと1コマを描く。ヘッドレス Chrome で 30fps で1コマずつ撮影し、ffmpeg で H.264 にする |
-| ナレーション | VOICEVOX エンジンの「ずんだもん（ノーマル）」。原稿は `movies/<名前>/narration.json` |
+| ナレーション | VOICEVOX エンジンの「麒ヶ島宗麟」（話者ID 53。2026-09-28 に ずんだもん から変更）。動画ごとに変えるときは `config.json` に `"speaker": <ID>`（ID はエンジンの `/speakers`）。原稿は `movies/<名前>/narration.json` |
 | 時間配分 | 各文が「映像のこの区間で話す」を持つ。文が区間に収まらなければ、**その区間だけ映像を引き伸ばす**（`lib/warp.mjs`） |
 | BGM | 自作の合成音（外部音源なし）。楽器の出入りは `config.json` の `bgm` で指定（`lib/bgm.mjs`） |
 | 合成 | ナレーション中は BGM を自動で下げ、全体 −16 LUFS（`lib/render.mjs`） |
@@ -47,6 +47,7 @@ tools/guide-movies/
      zip として展開した中身を `voicevox/engine/` に置く（`voicevox/engine/run` があればよい。2026-09 は 0.25.2 を使用）。
    - 初回だけ `xattr -dr com.apple.quarantine voicevox/engine` が必要な場合がある。
    - エンジンはビルドの間だけ自動で起動・停止する（既に 50021 番で動いていればそれを使う）。
+   - VOICEVOX アプリが入っている Mac なら、代わりに `VOICEVOX_ENGINE=/Applications/VOICEVOX.app/Contents/Resources/vv-engine/run` でアプリ内のエンジンを使える。
 
 ## 作り直す
 
@@ -81,7 +82,7 @@ node lib/snap.mjs eigyo-calendar 9 25 110 140   # 映像の時刻のコマを静
    - `DUR`（映像の長さ）と `config.json` の `end` を合わせる。
 3. `narration.json` に原稿、`config.json` にタイトル・出力名・BGM の区間を書く。
 4. `snap.mjs` で要所を静止画で確認 → `build.mjs` で書き出し → 音と映像のタイミングを抜き出しコマで確認。
-5. 🔴 VOICEVOX の利用規約により、動画内に「**VOICEVOX:ずんだもん**」のクレジットを入れる（既存の2本はまとめ画面の右下）。
+5. 🔴 VOICEVOX の利用規約により、動画内に「**VOICEVOX:麒ヶ島宗麟**」のクレジットを入れる（まとめ画面の右下）。話者を変えたらクレジットも変える。
 6. 管理者メニュー「アプリの解説」で `…_アプリ登録用.mp4` を登録する（作成日時は自動で入る）。
 
 ### 「営業カレンダー」（eigyo-calendar）の作りについて

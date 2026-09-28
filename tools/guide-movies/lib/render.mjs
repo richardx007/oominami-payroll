@@ -18,6 +18,25 @@ export async function openMovie(m) {
   return { browser, page, errors };
 }
 
+/**
+ * 1コマを撮る。まれに描画途中（縮小した画面がタイル状に並ぶ）の絵が撮れ、待ちや --disable-gpu でも無くならないため、
+ * 2回続けて同じ絵（JPEG が完全一致）になるまで撮り直す（2026-09-28）
+ */
+async function stableShot(page, i) {
+  const shot = async () => Buffer.from(await page.screenshot({ type: "jpeg", quality: 95, captureBeyondViewport: false }));
+  let prev = await shot();
+  for (let k = 0; k < 5; k++) {
+    const cur = await shot();
+    if (cur.equals(prev)) {
+      if (k > 0) console.log(`  コマ ${i}: 撮り直し ${k} 回で一致`);
+      return cur;
+    }
+    prev = cur;
+  }
+  console.warn(`  ⚠️ コマ ${i}: 5回撮り直しても一致しない（最後の絵を使う）`);
+  return prev;
+}
+
 /** 実時間で 30fps のコマを撮り、ffmpeg で H.264（音なし）にする */
 export async function renderVideo(m, warp, out) {
   const FPS = 30;
@@ -33,7 +52,7 @@ export async function renderVideo(m, warp, out) {
       (t) => (window.renderAt(t), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))),
       toVideo(warp, i / FPS)
     );
-    const buf = await page.screenshot({ type: "jpeg", quality: 95, captureBeyondViewport: false });
+    const buf = await stableShot(page, i);
     if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once("drain", r));
     if (i % 600 === 0) console.log(`  コマ ${i}/${n}`);
   }
