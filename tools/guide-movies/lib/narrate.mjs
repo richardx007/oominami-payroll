@@ -1,9 +1,9 @@
-// ナレーション: VOICEVOX（ずんだもん ノーマル）で原稿を1文ずつ合成する。辞書（dictionary.json）も登録する
+// ナレーション: VOICEVOX で原稿を1文ずつ合成する。話者は config.json の speaker（省略時はずんだもん ノーマル）。辞書（dictionary.json）も登録する
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readJson, ROOT, VOICEVOX_URL } from "./common.mjs";
 
-export const SPEAKER = 3; // ずんだもん（ノーマル）
+export const SPEAKER = 3; // 既定の話者: ずんだもん（ノーマル）。53 = 麒ヶ島宗麟
 const TUNING = { speedScale: 1.12, intonationScale: 1.15, prePhonemeLength: 0.05, postPhonemeLength: 0.1, outputSamplingRate: 48000 };
 
 export async function engineVersion() {
@@ -34,10 +34,11 @@ export async function registerDictionary() {
  * 「通しの日と」の「ひ」のように無声化した「ヒ」は「人（ひと）」に聞こえるので、母音を有声に書き換える。
  */
 export async function narrate(m, { kanaOnly = false } = {}) {
+  const speaker = m.config.speaker ?? SPEAKER;
   await registerDictionary();
   for (let i = 0; i < m.narration.length; i++) {
     const text = m.narration[i][2];
-    const q = await (await fetch(`${VOICEVOX_URL}/audio_query?speaker=${SPEAKER}&text=${encodeURIComponent(text)}`, { method: "POST" })).json();
+    const q = await (await fetch(`${VOICEVOX_URL}/audio_query?speaker=${speaker}&text=${encodeURIComponent(text)}`, { method: "POST" })).json();
     console.log(String(i).padStart(2), q.kana);
     if (kanaOnly) continue;
     for (const ph of q.accent_phrases)
@@ -48,7 +49,7 @@ export async function narrate(m, { kanaOnly = false } = {}) {
         }
       });
     Object.assign(q, TUNING);
-    const wav = await (await fetch(`${VOICEVOX_URL}/synthesis?speaker=${SPEAKER}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(q) })).arrayBuffer();
+    const wav = await (await fetch(`${VOICEVOX_URL}/synthesis?speaker=${speaker}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(q) })).arrayBuffer();
     writeFileSync(join(m.work, "nar", `${String(i).padStart(2, "0")}.wav`), Buffer.from(wav));
   }
 }
