@@ -104,7 +104,7 @@ export function AppGuidesForm({ guides }: { guides: AppGuide[] }) {
   );
 }
 
-/** 一覧の1行（タイトル｜解説の冒頭｜↑↓編集）。タイトルで再生画面へ、「編集」でその下にフォームを開く */
+/** 一覧の1行（タイトル｜解説の冒頭＋動画のファイル名・作成日時・サイズ｜↑↓編集）。タイトルで再生画面へ、「編集」でその下にフォームを開く */
 function GuideRow({
   guide,
   group,
@@ -158,12 +158,13 @@ function GuideRow({
             {guide.summary || <span className="text-gray-400">—</span>}
           </span>
           {guide.video_path ? (
-            <span className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-gray-500">
-              <span className="whitespace-nowrap">
-                作成日時: {guide.video_created_at ? formatJstDateTime(guide.video_created_at) : "未登録"}
-              </span>
-              <span className="min-w-0 max-w-full truncate" title={guide.video_file_name ?? undefined}>
+            <span className="mt-0.5 block text-xs text-gray-500">
+              <span className="block truncate" title={guide.video_file_name ?? undefined}>
                 ファイル名: {guide.video_file_name ?? "未記録"}
+              </span>
+              <span className="block whitespace-nowrap">
+                作成日時: {guide.video_created_at ? formatJstDateTime(guide.video_created_at) : "未登録"}
+                {guide.video_size != null && `　${formatBytes(guide.video_size)}`}
               </span>
             </span>
           ) : (
