@@ -11,6 +11,9 @@
 # 必要な Secrets（このリポジトリの Settings > Secrets and variables > Actions）:
 #   SUPABASE_DB_PASSWORD … SupabaseのDBパスワード（そのまま。URLエンコード不要）
 #   BACKUP_REPO_TOKEN    … バックアップ先リポジトリへ push できる Personal Access Token
+#   ── 業務管理(oominami-business)のレシートを Google ドライブへコピーする receipts ジョブ用 ──
+#   SUPABASE_S3_ACCESS_KEY_ID / SUPABASE_S3_SECRET_ACCESS_KEY … Supabase Storage の S3 アクセスキー
+#   GDRIVE_RCLONE_TOKEN  … rclone の Google ドライブ認証トークン(JSON。docs/disaster-recovery.md §2.3)
 #
 # 接続文字列は下の DB_HOST/DB_PORT/DB_USER から組み立てる。手で組み立てると
 # ユーザー名の付け忘れ（Session pooler は `postgres.<project-ref>` が必須）や
@@ -200,3 +203,97 @@ jobs:
           SQL_TEXT="insert into public.activity_logs (actor_name, action, detail) values ('自動バックアップ', 'エラー', :'detail');"
           psql "$DB_URL" -v ON_ERROR_STOP=1 \
             -v detail="自動バックアップに失敗しました。GitHub Actions のログを確認してください: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" <<< "$SQL_TEXT"
+
+  # ------------------------------------------------------------------
+  # 業務管理(oominami-business)のレシート画像を Google ドライブへコピーする。
+  # pg_dump では Storage のファイルは取れないため、expense-receipts バケットの中身を
+  # rclone で Supabase Storage(S3 互換)→ Google ドライブへコピーする。
+  # ・rclone copy + --ignore-existing: 新しいファイルだけを足す。**コピー元で消えてもコピー先は消さない**
+  #   (sync は使わない)。レシートは上書き・削除できない設計なので、既にあるファイルは比べる必要がない。
+  # ・ドライブの権限は drive.file(rclone が自分で作ったファイル・フォルダだけ見える)。
+  #   コピー先フォルダは rclone が初回に作る。そのアカウントの他のファイルには触れない。
+  # ・DB のバックアップ(dump)とは別ジョブ。ドライブ側の不具合で DB のバックアップを止めないため。
+  # ------------------------------------------------------------------
+  receipts:
+    runs-on: ubuntu-latest
+    env:
+      # Supabase Storage の S3 互換エンドポイント(秘密情報ではない)
+      S3_ENDPOINT: https://zvrwkmriosaldjqpxdwi.storage.supabase.co/storage/v1/s3
+      S3_REGION: ap-northeast-1
+      SRC: supa:expense-receipts
+      DEST: gdrive:oominami-backups/expense-receipts
+    steps:
+      - name: rclone を用意
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rclone
+          rclone version | head -1
+
+      # 設定ファイルは作らず、環境変数(RCLONE_CONFIG_<名前>_<項目>)で rclone のリモートを定義する
+      - name: レシートを Google ドライブへコピー
+        env:
+          RCLONE_CONFIG_SUPA_TYPE: s3
+          RCLONE_CONFIG_SUPA_PROVIDER: Other
+          RCLONE_CONFIG_SUPA_ENDPOINT: ${{ env.S3_ENDPOINT }}
+          RCLONE_CONFIG_SUPA_REGION: ${{ env.S3_REGION }}
+          RCLONE_CONFIG_SUPA_FORCE_PATH_STYLE: "true"
+          RCLONE_CONFIG_SUPA_ACCESS_KEY_ID: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_SUPA_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_S3_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_SCOPE: drive.file
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_RCLONE_TOKEN }}
+        run: |
+          set -euo pipefail
+          for v in RCLONE_CONFIG_SUPA_ACCESS_KEY_ID RCLONE_CONFIG_SUPA_SECRET_ACCESS_KEY RCLONE_CONFIG_GDRIVE_TOKEN; do
+            if [ -z "${!v:-}" ]; then echo "Secrets が未設定です: $v" >&2; exit 1; fi
+          done
+          SRC_COUNT=$(rclone size "$SRC" --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["count"])')
+          rclone copy "$SRC" "$DEST" --ignore-existing --stats-one-line --stats 0 -v 2>&1 | tail -n 20
+          SIZE_JSON=$(rclone size "$DEST" --json)
+          COUNT=$(printf %s "$SIZE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["count"])')
+          BYTES=$(printf %s "$SIZE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["bytes"])')
+          MB=$(python3 -c "print(f'{$BYTES/1024/1024:.1f}')")
+          # コピー元にあるのにコピー先に無いファイルが残っていたら失敗にする(取りこぼしに気づくため)
+          if [ "$COUNT" -lt "$SRC_COUNT" ]; then
+            echo "コピー先の件数($COUNT)がコピー元($SRC_COUNT)より少ない" >&2
+            exit 1
+          fi
+          RESULT="レシート ${COUNT}件 / ${MB}MB(Supabase 側 ${SRC_COUNT}件)"
+          echo "RECEIPTS_RESULT=$RESULT" >> "$GITHUB_ENV"
+          echo "レシートのバックアップ: $RESULT" >> "$GITHUB_STEP_SUMMARY"
+
+      # 以下、操作ログへの記録(dump ジョブと同じ組み立て。ジョブ間で環境変数は引き継げないため再度作る)
+      - name: 操作ログ用の接続文字列を組み立て
+        if: always()
+        continue-on-error: true
+        env:
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [ -n "${DB_PASSWORD:-}" ] || exit 0
+          DB_PASSWORD=$(printf %s "$DB_PASSWORD" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          export DB_PASSWORD
+          ENC=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["DB_PASSWORD"], safe=""))')
+          URL="postgresql://${DB_USER}:${ENC}@${DB_HOST}:${DB_PORT}/postgres"
+          echo "::add-mask::$URL"
+          echo "DB_URL=$URL" >> "$GITHUB_ENV"
+
+      - name: 操作ログに記録
+        if: success()
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          [ -n "${DB_URL:-}" ] || exit 0
+          SQL_TEXT="insert into public.activity_logs (actor_name, action, detail) values ('自動バックアップ', 'レシートのバックアップ', :'detail');"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -v detail="${RECEIPTS_RESULT:-}" <<< "$SQL_TEXT"
+
+      - name: 失敗を操作ログに記録
+        if: failure()
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          [ -n "${DB_URL:-}" ] || exit 0
+          SQL_TEXT="insert into public.activity_logs (actor_name, action, detail) values ('自動バックアップ', 'エラー', :'detail');"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -v detail="レシートの Google ドライブへのバックアップに失敗しました。GitHub Actions のログを確認してください: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" <<< "$SQL_TEXT"

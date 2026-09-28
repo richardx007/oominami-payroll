@@ -19,6 +19,7 @@
 | Supabase の各種設定 | Supabase ダッシュボードのみ → 本書 §4 に手順 | 中（手作業で再設定） |
 | Cloudflare の設定 | Cloudflare ダッシュボードのみ → 本書 §5 に手順 | 中（手作業で再設定） |
 | 勤務ルール文書（Storage） | Supabase Storage のみ | 小（再アップロードで可） |
+| 業務管理のレシート画像（Storage `expense-receipts`） | **Google ドライブ（毎日自動・§2.3）** | 大（紙の原本が無いと経費の証憑が失われる） |
 
 **Supabase の無料プランには自動バックアップが無い**（Pro以上のみ）。公式ドキュメントでも
 無料プランは `db dump` で自分でエクスポートしオフサイト保管することが推奨されている。
@@ -116,6 +117,39 @@ GitHub を見に行かなくても、**管理画面の「操作ログ」に毎�
 > 直結は IPv4 だと有料アドオンが必要）。**Transaction pooler（6543）では `pg_dump` が動かない**ため、
 > 必ず **5432 の Session pooler** を使う。
 
+## 2.3 業務管理のレシート画像のバックアップ（Google ドライブ・2026-09-28〜）
+
+同じ DB を共用している業務管理（`oominami-business`）のレシート画像は、Storage のファイルなので
+`pg_dump` では取れない。`backup.yml` の **`receipts` ジョブ**（DB の `dump` ジョブとは別ジョブ）が、
+毎日 `expense-receipts` バケットの中身を rclone で **店用の Google アカウントのドライブ** の
+`oominami-backups/expense-receipts/` へコピーする。
+
+- `rclone copy --ignore-existing`: 新しいファイルだけを足す。**Supabase 側で消えてもドライブからは消さない**（`sync` は使わない）
+- ドライブの権限は `drive.file`（rclone が作ったファイル・フォルダだけが見える）。コピー先フォルダは初回に rclone が作る。
+  **ドライブ上でこのフォルダを手で作り直したり移動したりしない**（rclone から見えなくなり、別のフォルダを作ってしまう）
+- コピー後、ドライブ側の件数が Supabase 側より少なければ失敗にする（取りこぼし検知）
+- 結果は操作ログに `レシートのバックアップ`（件数・容量）、失敗は `エラー` で残る
+
+### 必要な Secrets（`SUPABASE_DB_PASSWORD` は dump ジョブと共用。操作ログへの記録に使う）
+
+| 名前 | 値・作り方 |
+|---|---|
+| `SUPABASE_S3_ACCESS_KEY_ID` | Supabase ダッシュボード > Project Settings > **Storage** > S3 Connection > **New access key** の Access key ID |
+| `SUPABASE_S3_SECRET_ACCESS_KEY` | 同上の Secret access key（**作成時に一度しか表示されない**） |
+| `GDRIVE_RCLONE_TOKEN` | 手元の Mac で `rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlLmZpbGUifQ"`（= scope `drive.file`）を実行 → ブラウザで**店用の Google アカウント**でログイン・許可 → 表示された `{"access_token":...}` の JSON 全体 |
+
+> ⚠️ S3 アクセスキーは RLS を通らず**全バケットを読み書きできる**。GitHub Secrets とパスワードマネージャ以外に置かない。
+> 漏れたらダッシュボードで削除して作り直す。
+
+登録は `gh secret set <名前> -R richardx007/oominami-payroll`（値は貼り付けを求められる）。
+
+### 復元（Supabase 側のレシートが失われたとき）
+
+ドライブの `oominami-backups/expense-receipts/` の中身は、Storage と同じ `{経費ID}/{ファイルID}.jpg` の並び。
+新しいプロジェクトに `expense-receipts` バケット（業務管理のマイグレーションで作られる）を用意し、
+同じ環境変数で rclone を設定して `rclone copy gdrive:oominami-backups/expense-receipts supa:expense-receipts`
+（コピー元とコピー先を逆にするだけ）。`expense_receipts` テーブルの行は DB のバックアップ（`data.sql`）に入っている。
+
 ---
 
 ## 3. データを復元する
@@ -198,6 +232,8 @@ psql "<新プロジェクトの接続文字列>" -f data.sql
 - Supabase の **service role key**（現在アプリでは未使用だが、復旧作業で必要になりうる）
 - **Gmail のアプリパスワード**（`GMAIL_APP_PASSWORD`。再発行も可能）
 - GitHub の **Personal Access Token**（バックアップ用。再発行も可能）
+- Supabase Storage の **S3 アクセスキー**（レシートのバックアップ用。§2.3。再発行も可能）
+- レシートのコピー先の **店用 Google アカウント**のログイン情報（ドライブのトークンは §2.3 の手順で作り直せる）
 - Supabase / Cloudflare / GitHub の各アカウント情報
 
 ---
@@ -213,6 +249,7 @@ psql "<新プロジェクトの接続文字列>" -f data.sql
       メール送信機能は `GMAIL_APP_PASSWORD` を設定しなかったため未検証）
       **テストが終わったら、必ず §7.5 の待機状態（Git 連携を外す・`workers.dev` をオフ）に戻すこと。**
 - [ ] バックアップの Actions が失敗していないか（失敗時はメールが届き、操作ログにも `エラー` が残る）
+- [ ] 操作ログに毎日 `レシートのバックアップ` が出ているか、たまにドライブの `oominami-backups/expense-receipts/` を開いて画像が見られるか（§2.3）
 - [ ] 操作ログに `バックアップ警告` が出ていないか（トークンの期限が近い。§2.2 で再発行）
 - [ ] Supabase の無料プロジェクトは **7日間アクセスが無いと一時停止**する。
       日常的に使っていれば問題ないが、長期休業時は注意
