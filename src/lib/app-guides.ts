@@ -16,6 +16,8 @@ export type AppGuide = {
   video_size: number | null;
   /** 動画ファイルの作成日時（ISO）。登録時に動画から自動で読む（lib/mp4-meta.ts）。設定画面の一覧の2行目に出す */
   video_created_at: string | null;
+  /** アップロードした動画の元のファイル名。設定画面の一覧の2行目に作成日時と並べて出す（追加前に登録した動画は null） */
+  video_file_name: string | null;
   /** 最後に保存した日時（URL の項目は一覧の2行目に「更新日時」として出す） */
   updated_at: string;
   summary: string;
@@ -25,10 +27,12 @@ export type AppGuide = {
 };
 
 export const APP_GUIDE_COLUMNS =
-  "id, title, url, video_path, video_size, video_created_at, summary, for_admin, for_employee, sort_order, updated_at";
+  "id, title, url, video_path, video_size, video_created_at, video_file_name, summary, for_admin, for_employee, sort_order, updated_at";
 
 export const GUIDE_TITLE_MAX = 60;
 export const GUIDE_SUMMARY_MAX = 400;
+/** 動画のファイル名の上限（DB の app_guides_video_file_name_check と同じ） */
+export const GUIDE_FILE_NAME_MAX = 255;
 
 /** 動画を保存する Storage バケット（非公開。マイグレーション 20260926010000_app_guide_videos.sql） */
 export const GUIDE_VIDEO_BUCKET = "app-guides";

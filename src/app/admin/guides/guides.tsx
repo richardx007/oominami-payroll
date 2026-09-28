@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   audienceLabel,
   formatBytes,
+  GUIDE_FILE_NAME_MAX,
   GUIDE_SUMMARY_MAX,
   GUIDE_TITLE_MAX,
   GUIDE_VIDEO_BUCKET,
@@ -72,7 +73,7 @@ export function AppGuidesForm({ guides }: { guides: AppGuide[] }) {
                   <tbody>
                     {rows.map((g, i) => (
                       <GuideRow
-                        key={`${g.id}-${g.title}-${g.url}-${g.video_path}-${g.summary}-${g.for_admin}-${g.for_employee}`}
+                        key={`${g.id}-${g.title}-${g.url}-${g.video_path}-${g.video_file_name}-${g.summary}-${g.for_admin}-${g.for_employee}`}
                         guide={g}
                         group={grp.key}
                         index={i}
@@ -156,11 +157,20 @@ function GuideRow({
           <span className="block truncate" title={guide.summary}>
             {guide.summary || <span className="text-gray-400">—</span>}
           </span>
-          <span className="mt-0.5 block whitespace-nowrap text-xs text-gray-500">
-            {guide.video_path
-              ? `作成日時: ${guide.video_created_at ? formatJstDateTime(guide.video_created_at) : "未登録"}`
-              : `更新日時: ${formatJstDateTime(guide.updated_at)}`}
-          </span>
+          {guide.video_path ? (
+            <span className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-gray-500">
+              <span className="whitespace-nowrap">
+                作成日時: {guide.video_created_at ? formatJstDateTime(guide.video_created_at) : "未登録"}
+              </span>
+              <span className="min-w-0 max-w-full truncate" title={guide.video_file_name ?? undefined}>
+                ファイル名: {guide.video_file_name ?? "未記録"}
+              </span>
+            </span>
+          ) : (
+            <span className="mt-0.5 block whitespace-nowrap text-xs text-gray-500">
+              更新日時: {formatJstDateTime(guide.updated_at)}
+            </span>
+          )}
         </td>
         <td className="whitespace-nowrap px-3 py-2 text-right">
           <span className="inline-flex gap-1">
@@ -265,6 +275,8 @@ function GuideEditor({ guide, group, onDone }: { guide: AppGuide | null; group?:
         video_path: videoPath,
         video_size: videoSize,
         video_created_at: kind === "video" ? createdAt : null,
+        // 新しい動画を選んだときはその名前、そのままなら記録済みの名前（DB の上限に合わせて切る）
+        video_file_name: kind === "video" ? (file ? file.name.slice(0, GUIDE_FILE_NAME_MAX) : guide?.video_file_name ?? null) : null,
         summary,
         for_admin: forAdmin,
         for_employee: forEmployee,
@@ -330,7 +342,10 @@ function GuideEditor({ guide, group, onDone }: { guide: AppGuide | null; group?:
       {kind === "video" ? (
         <div className="space-y-1">
           {guide?.video_path && !file && (
-            <p className="text-sm text-gray-700">保存済みの動画（{formatBytes(guide.video_size ?? 0)}）。差し替える場合は新しいファイルを選んでください。</p>
+            <p className="text-sm text-gray-700">
+              保存済みの動画（{guide.video_file_name ? `${guide.video_file_name}・` : ""}
+              {formatBytes(guide.video_size ?? 0)}）。差し替える場合は新しいファイルを選んでください。
+            </p>
           )}
           <input
             type="file"

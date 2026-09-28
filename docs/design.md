@@ -2702,8 +2702,9 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
 | `20260926000000_app_guides.sql` | `app_guides` 作成・RLS |
 | `20260926010000_app_guide_videos.sql` | `url` を任意に、`video_path`/`video_size` 追加、非公開バケット `app-guides`・Storage の RLS |
 | `20260926020000_app_guide_video_created_at.sql` | `video_created_at` 追加 |
+| `20260928000000_app_guide_video_file_name.sql` | `video_file_name` 追加（255字まで。2026-09-28） |
 
-- `app_guides(id, title, url, video_path, video_size, video_created_at, summary, for_admin, for_employee, sort_order, created_at, updated_at, updated_by)`。
+- `app_guides(id, title, url, video_path, video_size, video_created_at, video_file_name, summary, for_admin, for_employee, sort_order, created_at, updated_at, updated_by)`。
   - タイトル60字・概略400字。`url` は `http(s)://` で始まる1000字まで。**`url` と `video_path` のどちらかが必須**（`app_guides_link_check`）。
   - 公開対象は `for_admin`/`for_employee`（両方可・少なくとも1つ。`app_guides_check`）。
   - `updated_at` は保存のたびにサーバーアクションが入れる（URL の項目の「更新日時」として表示）。
@@ -2719,7 +2720,8 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
   各グループに「＋ 管理者用の解説を追加」などのボタン（公開対象の初期値がそのグループ）。
 - 一覧は**1項目1行の表**: 🎬/🔗 タイトル｜解説の冒頭（1行で省略）｜↑↓編集。明細は縞模様（`zebraRowClass`）。
   **タイトルを押すと再生画面 `/watch/[id]`**（URL の項目は別タブ）。↑↓はグループの中で隣と入れ替える（`moveAppGuide(id, dir, group)`）。
-  解説の下（明細2行目）に、動画は「作成日時」、URL は「更新日時」。「編集」でその行の下にフォームを開く。
+  解説の下（明細2行目）に、動画は「作成日時」と「ファイル名」（アップロードした元の名前。2026-09-28 オーナー依頼）を並べ、URL は「更新日時」。
+  ファイル名の列の追加前に登録した動画は「未記録」（動画を差し替えると記録される）。「編集」でその行の下にフォームを開く。
   見出しの下に、アプリに保存した動画の合計サイズ（無料枠1GBの目安）を出す。
 - フォーム: タイトル／内容（🎬 動画をアプリに保存｜🔗 URL）／概略／公開対象（管理者・従業員のチェック）。追加・編集・削除（確認つき）・↑↓で並べ替え。
 - **日時はどちらも自動**（手入力の欄は無い。2026-09-26 オーナー依頼）。
@@ -2729,7 +2731,7 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
     ⚠️ **ffmpeg で書き出した動画は `-metadata creation_time=...` を付けないと 0**（解説動画は付けて書き出すこと。§26.4）。
   - URL: 保存した日時（`updated_at`）。
 - 動画は**ブラウザから Storage へ直接アップロード**し（`@/lib/supabase/client`、パスは `ランダムID.mp4`）、サーバーアクション
-  `saveAppGuide` はパス・大きさ・作成日時だけ記録する。Workers を通すと CPU 時間（無料プラン10ms）とサーバーアクションの
+  `saveAppGuide` はパス・大きさ・作成日時・元のファイル名だけ記録する（Storage のパスはランダムIDなので、元の名前は `video_file_name` に残す）。Workers を通すと CPU 時間（無料プラン10ms）とサーバーアクションの
   `bodySizeLimit`（5MB）に当たるため。保存に失敗したらアップロード済みの動画を消す（`discardGuideVideo`）。
   差し替え・URL への切替・項目の削除のときは前の動画を消す。
 - サーバーアクション（`admin/guides/actions.ts`）: `saveAppGuide` / `deleteAppGuide` / `moveAppGuide` / `discardGuideVideo`。操作ログに記録。
