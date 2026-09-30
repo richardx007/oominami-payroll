@@ -37,6 +37,7 @@ export function AccountSettingsView({
   notifyBusinessCalendarEnabled,
   shiftReminderMinutes,
   shiftEndReminderMinutes,
+  shiftChangeEnabled = true,
   calendarFeedUrl,
 }: {
   name: string;
@@ -55,6 +56,8 @@ export function AccountSettingsView({
   shiftReminderMinutes: number | null;
   /** シフト終了通知の分数(マイナスは終了後。未設定=オフは null) */
   shiftEndReminderMinutes: number | null;
+  /** 従業員のみ使用。確定月のシフトをリーダ・管理者に変更されたときの通知(既定オン) */
+  shiftChangeEnabled?: boolean;
   /** シフトのカレンダー購読URL(https)。取得失敗時は null */
   calendarFeedUrl: string | null;
 }) {
@@ -64,7 +67,14 @@ export function AccountSettingsView({
       <DeviceNotificationSection
         vapidPublicKey={vapidPublicKey}
         registeredEndpoints={registeredEndpoints}
-        shiftReminderSection={<ShiftReminderForm startMinutes={shiftReminderMinutes} endMinutes={shiftEndReminderMinutes} />}
+        shiftReminderSection={
+          <ShiftReminderForm
+            startMinutes={shiftReminderMinutes}
+            endMinutes={shiftEndReminderMinutes}
+            // 管理者はシフト表の対象外なので、変更通知の項目は従業員にだけ出す
+            shiftChange={isAdmin ? null : shiftChangeEnabled}
+          />
+        }
         notifyTypeSection={
           isAdmin ? (
             <NotifyTypeForm
@@ -408,9 +418,12 @@ function DeviceNotificationSection({
 function ShiftReminderForm({
   startMinutes,
   endMinutes,
+  shiftChange,
 }: {
   startMinutes: number | null;
   endMinutes: number | null;
+  /** シフト変更通知の現在値。null なら項目を出さない(管理者) */
+  shiftChange: boolean | null;
 }) {
   const [startOn, setStartOn] = useState(startMinutes !== null);
   const [endOn, setEndOn] = useState(endMinutes !== null);
@@ -482,6 +495,24 @@ function ShiftReminderForm({
             退勤打刻がまだの日だけ通知します。
           </p>
         </div>
+        {shiftChange !== null && (
+          <div>
+            {/* チェックを外したことをサーバーで区別できるよう、項目があることを hidden で送る */}
+            <input type="hidden" name="shift_change_present" value="1" />
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                name="shift_change_enabled"
+                defaultChecked={shiftChange}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              シフト変更通知
+            </label>
+            <p className="mt-1 pl-6 text-xs text-gray-500">
+              確定した月の自分のシフトが、リーダや管理者によって変更されたときに通知します。
+            </p>
+          </div>
+        )}
         {result && (
           <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
             {result.message}

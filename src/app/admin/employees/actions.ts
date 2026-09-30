@@ -808,3 +808,32 @@ export async function toggleEmployeeStatus(
     message: newStatus === "retired" ? "退職処理しました" : "在籍に戻しました",
   };
 }
+
+/** 従業員の権限を「従業員 ⇔ リーダ」で切り替える(管理者は対象外)。 */
+export async function setEmployeeLeader(
+  employeeId: string,
+  isLeader: boolean
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("employees")
+    .update({ is_leader: isLeader })
+    .eq("id", employeeId)
+    .eq("is_admin", false)
+    .select("employee_no, name")
+    .maybeSingle();
+
+  if (error || !data) return { ok: false, message: "権限の変更に失敗しました" };
+
+  await logActivity(
+    "権限変更",
+    `${data.employee_no} ${data.name} の権限を${isLeader ? "リーダ" : "従業員"}にしました`
+  );
+  revalidatePath("/admin/employees");
+  return {
+    ok: true,
+    message: `${data.name} さんの権限を${isLeader ? "リーダ" : "従業員"}にしました`,
+  };
+}

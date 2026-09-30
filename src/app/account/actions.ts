@@ -220,6 +220,11 @@ export async function updateMyShiftReminder(formData: FormData): Promise<ActionR
   const me = await requireEmployee();
   const startOn = formData.get("shift_reminder_enabled") === "on";
   const endOn = formData.get("shift_end_reminder_enabled") === "on";
+  // シフト変更通知(従業員の画面にだけある項目)。null = 既定(オン)のまま / 項目なし
+  const shiftChange =
+    formData.get("shift_change_present") === "1"
+      ? formData.get("shift_change_enabled") === "on"
+      : null;
 
   let start: number | null = null;
   let end: number | null = null;
@@ -238,13 +243,14 @@ export async function updateMyShiftReminder(formData: FormData): Promise<ActionR
 
   const supabase = await createClient();
   const { error } =
-    start === null && end === null
+    start === null && end === null && shiftChange === null
       ? await supabase.from("shift_reminder_settings").delete().eq("employee_id", me.id)
       : await supabase.from("shift_reminder_settings").upsert(
           {
             employee_id: me.id,
             minutes_before: start,
             end_minutes_before: end,
+            shift_change: shiftChange,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "employee_id" }
@@ -255,7 +261,7 @@ export async function updateMyShiftReminder(formData: FormData): Promise<ActionR
     "通知設定",
     `シフトの通知: 開始=${start === null ? "無効" : `${start}分前`} / 終了=${
       end === null ? "無効" : end >= 0 ? `${end}分前` : `${-end}分後`
-    }`
+    }${shiftChange === null ? "" : ` / 変更通知=${shiftChange ? "有効" : "無効"}`}`
   );
 
   revalidatePath("/account");

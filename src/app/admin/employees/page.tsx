@@ -10,6 +10,7 @@ export type EmployeeRow = {
   nickname: string | null;
   email: string;
   is_admin: boolean;
+  is_leader: boolean;
   status: string;
   auth_user_id: string | null;
   invited_at: string | null;
@@ -30,7 +31,7 @@ export default async function EmployeesPage() {
   const { data: employees } = await supabase
     .from("employees")
     .select(
-      `id, employee_no, name, furigana, nickname, email, is_admin, status, auth_user_id, invited_at, color,
+      `id, employee_no, name, furigana, nickname, email, is_admin, is_leader, status, auth_user_id, invited_at, color,
        wage_rates ( hourly_wage, effective_from ),
        lunch_allowance_rates ( lunch_allowance, effective_from ),
        tax_settings ( tax_category, dependents, effective_from )`

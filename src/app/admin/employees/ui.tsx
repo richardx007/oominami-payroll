@@ -19,6 +19,7 @@ import {
   deleteTaxSetting,
   updateEmployeeProfile,
   toggleEmployeeStatus,
+  setEmployeeLeader,
   countEmployeeWorkEntries,
   deleteEmployee,
   type ActionResult,
@@ -1092,6 +1093,11 @@ function EmployeeTableRow({
               管理者
             </span>
           )}
+          {emp.is_leader && (
+            <span className="ml-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">
+              リーダ
+            </span>
+          )}
         </td>
         <td className="whitespace-nowrap px-4 py-3">
           <span
@@ -1228,6 +1234,38 @@ function EmployeeTableRow({
                   ※ メールアドレスを変更すると「未登録」に戻り、再度の招待が必要になります
                 </p>
               </form>
+
+              {/* 権限: 従業員 ⇔ リーダ(管理者は対象外)。リーダは他の人のシフトを
+                  確定月でも変更でき、シフトの調整中/確定を切り替えられる */}
+              {!emp.is_admin && (
+                <div className="mb-5 space-y-2">
+                  <h4 className="text-xs font-semibold text-gray-500">権限</h4>
+                  <div className="inline-flex overflow-hidden rounded-lg border border-gray-300">
+                    {([
+                      [false, "従業員"],
+                      [true, "リーダ"],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        disabled={pending || emp.is_leader === value}
+                        onClick={() => onRunKeepOpen(() => setEmployeeLeader(emp.id, value))}
+                        className={`px-4 py-1.5 text-sm font-medium transition ${
+                          emp.is_leader === value
+                            ? "bg-blue-600 text-white"
+                            : "bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    ※ リーダは他の人のシフトを直接変更でき（確定済みの月も可。変更は本人に通知されます）、
+                    シフトの「調整中／確定」を切り替えられます
+                  </p>
+                </div>
+              )}
 
               {!emp.is_admin && (
                 <div className="border-t-2 border-dashed border-gray-300 pt-4">

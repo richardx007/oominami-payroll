@@ -138,6 +138,7 @@ export function ShiftSchedule({
   editableEmployeeId = null,
   timesheetBasePath,
   timesheetSelfOnly = false,
+  notifyOnConfirmedEdit = false,
 }: {
   period: Period;
   /** シフト枠の定義(適用開始日ごと)。日付ごとに slotsResolver で引く */
@@ -195,6 +196,11 @@ export function ShiftSchedule({
    * false なら全員の行にアイコンを出す(管理者)。
    */
   timesheetSelfOnly?: boolean;
+  /**
+   * 確定月に他人の予定を変更できる人(管理者・リーダ)の画面か。確定月の編集パネルに
+   * 「変更すると本人に通知されます」と出す(通知そのものは DB のトリガーが行う)。
+   */
+  notifyOnConfirmedEdit?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -439,11 +445,13 @@ export function ShiftSchedule({
 
   /** 自分の予定のロック/解除(本人のみ)。枠ボタンと同じく楽観的更新にする。 */
   async function runLock(workDate: string, locked: boolean) {
-    if (!setLock || !editableEmployeeId) return;
-    const key = `${editableEmployeeId}|${workDate}`;
+    // ロックは本人の行だけ(リーダの画面では editableEmployeeId が null なので meId を使う)
+    const ownerId = meId;
+    if (!setLock || !ownerId) return;
+    const key = `${ownerId}|${workDate}`;
     setLocalLocks((prev) =>
       locked
-        ? [...prev, { employee_id: editableEmployeeId, work_date: workDate }]
+        ? [...prev, { employee_id: ownerId, work_date: workDate }]
         : prev.filter((l) => `${l.employee_id}|${l.work_date}` !== key)
     );
     setResult(null);
@@ -673,6 +681,7 @@ export function ShiftSchedule({
             timesheetHref={timesheetHref}
             onAssign={runAssign}
             onLock={setLock ? runLock : undefined}
+            notifyNote={notifyOnConfirmedEdit && mode === "confirmed"}
           />
         ) : (
           <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">
@@ -698,7 +707,7 @@ export function ShiftSchedule({
             </p>
             <p className="mt-2 text-center text-sm text-gray-500">
               {mode === "draft"
-                ? "従業員はシフトを変更できなくなります。"
+                ? "従業員はシフトを変更できなくなります（リーダ・管理者は変更でき、変更は本人に通知されます）。"
                 : "従業員が自分の希望を入力できるようになります。"}
             </p>
             <div className="mt-4 flex flex-col gap-2">
@@ -1038,6 +1047,7 @@ function DayPanel({
   timesheetHref,
   onAssign,
   onLock,
+  notifyNote = false,
 }: {
   date: string;
   slots: Record<SlotKey, SlotDef>;
@@ -1066,6 +1076,8 @@ function DayPanel({
   ) => void;
   /** 本人のロック切替(従業員画面のみ) */
   onLock?: (workDate: string, locked: boolean) => void;
+  /** 確定月の変更が本人に通知されることを示す(管理者・リーダの確定月) */
+  notifyNote?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-blue-200 bg-white p-4">
@@ -1075,6 +1087,11 @@ function DayPanel({
           シフト{canAssign ? "編集" : "予定"}
         </span>
       </h3>
+      {editable && canAssign && notifyNote && (
+        <p className="mt-1 text-xs text-amber-700">
+          確定済みの月です。他の人の予定を変更すると、その人に通知されます。
+        </p>
+      )}
 
       {!editable ? (
         <div className="mt-3 grid grid-cols-[3.5rem_auto_1fr] items-baseline gap-x-3 gap-y-2">
@@ -1193,13 +1210,14 @@ function DayPanel({
                 customEnd={c?.end ?? null}
                 style={styleFor(m.id, date)}
                 // 枠を押せない条件: 他人の行 / 割当不可(確定モード) /
-                // ロックされた日(本人以外=管理者。本人は自分の意思表示なので動かせてよい)
-                readOnly={!canEdit || !canAssign || (locked && !onLock)}
+                // ロックされた日(本人以外=管理者・リーダ。本人は自分の意思表示なので動かせてよい)
+                readOnly={!canEdit || !canAssign || (locked && m.id !== meId)}
                 locked={locked}
                 // 自分のロックはオレンジ、他人のロックは黒で区別する
                 lockIsMine={!!meId && m.id === meId}
-                // ロックを切り替えられるのは本人だけ(管理者には onLock を渡さない)
-                onLock={onLock && canEdit ? onLock : undefined}
+                // ロックを切り替えられるのは本人だけ(管理者には onLock を渡さない。
+                // リーダは全員の行を編集できるが、ロックは自分の行だけ)
+                onLock={onLock && canEdit && m.id === meId ? onLock : undefined}
                 timesheetHref={timesheetHref(m.id, date)}
                 onAssign={onAssign}
               />

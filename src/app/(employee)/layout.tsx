@@ -63,6 +63,7 @@ export default async function EmployeeLayout({
           >
             <PersonIcon className="h-4 w-4 shrink-0" />
             <span className="truncate">{employee.nickname || employee.name}</span>
+            {employee.is_leader && <LeaderBadge />}
           </Link>
           {employee.is_admin && (
             <Link
@@ -97,6 +98,7 @@ export default async function EmployeeLayout({
               className="flex items-center gap-1.5 text-blue-100 hover:text-white"
             >
               <span>{employee.nickname || employee.name}</span>
+              {employee.is_leader && <LeaderBadge />}
               <PersonIcon className="h-4 w-4 shrink-0" />
             </Link>
             {employee.is_admin && (
@@ -119,5 +121,19 @@ export default async function EmployeeLayout({
       {/* スマホ用の下部タブナビ */}
       <EmployeeNav {...navProps} />
     </div>
+  );
+}
+
+/**
+ * リーダの称号マーク(名前の横に出す金色の星)。
+ * 濃紺のヘッダー上で目立ち、かつ名前より小さく控えめにする。
+ */
+function LeaderBadge() {
+  return (
+    <span title="リーダ" aria-label="リーダ" className="inline-flex shrink-0 items-center">
+      <svg className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5-4.8-4.6 6.6-.9z" />
+      </svg>
+    </span>
   );
 }

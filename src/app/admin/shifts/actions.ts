@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin, requireEmployee } from "@/lib/auth";
+import { requireEmployee } from "@/lib/auth";
 import { logActivity } from "@/lib/log";
 import { normalizeSlotTime, type ShiftMode } from "@/lib/shifts";
 
@@ -19,8 +19,10 @@ const assignSchema = z.object({
 });
 
 /**
- * 操作してよいかを判定する。管理者は常に可。従業員は「調整中」の月の自分の行だけ操作できる
+ * 操作してよいかを判定する。管理者・リーダは全員分を常に可(確定月も可)。
+ * 従業員は「調整中」の月の自分の行だけ操作できる
  * (最終的な担保は RLS。ここは画面に分かりやすい理由を返すためのチェック)。
+ * 変更の操作ログと、確定月の本人への変更通知は DB のトリガー(shift_assignments_on_change)が行う。
  */
 async function canEditShift(
   employeeId: string,
@@ -28,11 +30,12 @@ async function canEditShift(
 ): Promise<ActionResult> {
   const me = await requireEmployee();
   const supabase = await createClient();
+  const canEditOthers = me.is_admin || me.is_leader;
 
-  // 本人がロックした日は、管理者であっても変更できない(最終的な担保は RLS の
-  // shift_assignments_admin。ここは画面に分かりやすい理由を返すためのチェック)。
+  // 本人がロックした日は、管理者・リーダであっても変更できない(最終的な担保は RLS の
+  // shift_assignments_admin / _leader。ここは画面に分かりやすい理由を返すためのチェック)。
   // 本人は自分のロックを外せばよいので、本人の操作はここでは止めない。
-  if (me.is_admin && employeeId !== me.id) {
+  if (canEditOthers && employeeId !== me.id) {
     const { data: locked } = await supabase.rpc("is_shift_locked", {
       p_employee_id: employeeId,
       d: workDate,
@@ -45,7 +48,7 @@ async function canEditShift(
       };
     }
   }
-  if (me.is_admin) return { ok: true, message: "" };
+  if (canEditOthers) return { ok: true, message: "" };
 
   if (employeeId !== me.id) {
     return { ok: false, message: "他の人のシフトは変更できません" };
@@ -54,7 +57,7 @@ async function canEditShift(
   if (!draft) {
     return {
       ok: false,
-      message: "この月のシフトは確定済みです。変更は管理者にご連絡ください。",
+      message: "この月のシフトは確定済みです。変更は管理者またはリーダにご連絡ください。",
     };
   }
   return { ok: true, message: "" };
@@ -161,7 +164,7 @@ export async function clearShift(
 }
 
 /**
- * シフトのモード(確定/調整中)を月ごとに切り替える。管理者のみ。
+ * シフトのモード(確定/調整中)を月ごとに切り替える。管理者・リーダのみ。
  * 調整中にすると従業員が自分の希望を入力できるようになり、確定にすると
  * 従業員は変更できなくなる(かわりに全員が全員のシフトを閲覧できる)。
  */
@@ -169,7 +172,10 @@ export async function setShiftMode(
   periodKey: string,
   status: ShiftMode
 ): Promise<ActionResult> {
-  await requireAdmin();
+  const me = await requireEmployee();
+  if (!me.is_admin && !me.is_leader) {
+    return { ok: false, message: "切り替えの権限がありません" };
+  }
   if (!/^\d{4}-\d{2}$/.test(periodKey)) {
     return { ok: false, message: "期間の指定が不正です" };
   }

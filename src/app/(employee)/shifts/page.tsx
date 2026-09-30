@@ -8,6 +8,7 @@ import {
   assignShift,
   clearShift,
   setShiftLock,
+  setShiftMode,
 } from "@/app/admin/shifts/actions";
 
 export default async function EmployeeShiftsPage({
@@ -30,13 +31,17 @@ export default async function EmployeeShiftsPage({
   // 調整中の月は自分の希望だけを入力できるようにする。
   // ※カレンダー・日別パネルの表示は確定モードと同じく全員分。他の人と希望が
   //   ぶつかっていることが分かれば当人同士で調整できるため、隠すのは編集操作だけ。
+  // リーダはメンバー間のシフト調整を行うため、月のモードに関わらず全員の予定を変更でき、
+  // 調整中⇔確定も切り替えられる(確定月に他人の予定を変えると本人に通知される)。
   const draft = shiftData.mode === "draft";
+  const leader = me.is_leader;
+  const canAssign = draft || leader;
 
   return (
     <ShiftSchedule
       period={period}
       slotVersions={shiftData.slotVersions}
-        overnightDates={shiftData.overnightDates}
+      overnightDates={shiftData.overnightDates}
       roster={shiftData.roster}
       assignments={shiftData.assignments}
       locks={shiftData.locks}
@@ -53,11 +58,15 @@ export default async function EmployeeShiftsPage({
       // 確定モードでも自分の行は出す(枠は押せないが「変更不可」の設定/解除はできる)。
       // 管理者はロックを外せない仕様のため、本人がいつでも外せないと解除手段が無くなる。
       editable
-      editableEmployeeId={me.id}
+      editableEmployeeId={leader ? null : me.id}
       meId={me.id}
-      assign={draft ? assignShift : undefined}
-      clear={draft ? clearShift : undefined}
+      assign={canAssign ? assignShift : undefined}
+      clear={canAssign ? clearShift : undefined}
+      // ロックを切り替えられるのは本人の行だけ(リーダも他人のロックは外せない)
       setLock={setShiftLock}
+      canSwitchMode={leader}
+      setMode={leader ? setShiftMode : undefined}
+      notifyOnConfirmedEdit={leader}
     />
   );
 }

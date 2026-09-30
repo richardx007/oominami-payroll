@@ -14,7 +14,7 @@ export default async function EmployeeAccountPage() {
     getMyCalendarFeedUrl(),
     supabase
       .from("shift_reminder_settings")
-      .select("minutes_before, end_minutes_before")
+      .select("minutes_before, end_minutes_before, shift_change")
       .eq("employee_id", me.id)
       .maybeSingle(),
   ]);
@@ -31,6 +31,8 @@ export default async function EmployeeAccountPage() {
         registeredEndpoints={(subs ?? []).map((r) => r.endpoint)}
         shiftReminderMinutes={reminder?.minutes_before ?? null}
         shiftEndReminderMinutes={reminder?.end_minutes_before ?? null}
+        // 行が無い・未設定(null)は既定のオン
+        shiftChangeEnabled={reminder?.shift_change ?? true}
         calendarFeedUrl={calendarFeedUrl}
       />
     </div>

@@ -50,6 +50,7 @@ export default async function AdminHomePage({
         mode={shiftData.mode}
         canSwitchMode
         setMode={setShiftMode}
+        notifyOnConfirmedEdit
       />
     </div>
   );
