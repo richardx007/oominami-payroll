@@ -129,7 +129,7 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 |---------|------|-----------|
 | `employees` | 従業員（管理者含む） | id, employee_no, name, furigana(ふりがな・任意), nickname(ニックネーム・任意), color(シフト表の識別色・任意), email, auth_user_id, is_admin, is_leader(リーダ。管理者とは排他。2026-09-30), status(active/retired) |
 | `shift_assignments` | 勤務予定/希望（1日3枠A/B/Cの交代制・1従業員1日1枠） | employee_id, work_date, slot(A/B/C), custom_start, custom_end, unique(employee_id,work_date)。RLS は月のモードで変わる（§13）|
-| `shift_modes` | シフトの月ごとのモード（確定/調整中。§13） | period_key("YYYY-MM"), status(draft/confirmed), updated_at。RLS=閲覧は全ログインユーザー・変更は管理者のみ |
+| `shift_modes` | シフトの月ごとのモード（確定/調整中。§13） | period_key("YYYY-MM"), status(draft/confirmed), updated_at。RLS=閲覧は全ログインユーザー・変更は管理者とリーダ（2026-09-30〜） |
 | `wage_rates` | 時給履歴（値上げ対応） | employee_id, hourly_wage, effective_from |
 | `lunch_allowance_rates` | 昼食補助額の履歴（従業員ごと。`wage_rates`と同形。§17） | employee_id, lunch_allowance, effective_from |
 | `tax_settings` | 税区分履歴 | employee_id, tax_category(kou/otsu), dependents, effective_from |
@@ -335,12 +335,12 @@ app/
     page.tsx             ホーム=シフト表(2026-07-19に旧ダッシュボードから置換)。ShiftSchedule を editable＋
                          canSwitchMode(モード切替可)で表示。
                          右上に状態バッジ。旧 DashboardCalendar(勤務者数カレンダー)は廃止。
-    shifts/              シフト表の共有部品(ShiftSchedule.tsx=管理者は常に編集可/従業員は「調整中」の月だけ
-                         自分の希望を編集可。§13)と
+    shifts/              シフト表の共有部品(ShiftSchedule.tsx=管理者・リーダは常に全員分を編集可/従業員は「調整中」の月だけ
+                         自分の希望を編集可。§13・§8.5.1)と
                          サーバーアクション(assignShift/clearShift)。カレンダーの各日にニックネームを色付きチップで表示、
                          予実相違(get_shift_status が match 以外)の従業員名を太字の赤字にする。従業員側は
                          (employee)/shifts/page.tsx が同じ ShiftSchedule を使う(確定の月は読み取り専用、
-                         調整中の月は editableEmployeeId=自分 で編集可)。詳しくは「8. 勤務予定・シフト管理」「13. シフトのモード」
+                         調整中の月は editableEmployeeId=自分 で編集可。リーダは editableEmployeeId=null で全員分を編集可)。詳しくは「8. 勤務予定・シフト管理」「13. シフトのモード」
     timesheet/           管理者用の勤務表（page/actions）。従業員用 TimesheetCalendar を共用し、
                          右上の従業員セレクトで対象を切替(?e=)、管理者は任意従業員の勤務記録を CRUD。
                          RLS の work_entries_admin(ALL/is_admin) により締め済みでも編集可(closed=false固定)
@@ -1835,10 +1835,10 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
 シフト調整を「まず各従業員が自分の希望を入力 → ぶつかった所・足りない所だけを調整 → 管理者が確定」
 という流れで回せるようにする。モードは**月ごと**に `shift_modes` で保持する。
 
-| モード | 従業員 | 管理者 |
-|---|---|---|
-| **確定**(`confirmed`) | 閲覧のみ | 全員分を編集できる |
-| **調整中**(`draft`) | **自分の希望だけ**を入力・変更できる | 全員分を編集できる |
+| モード | 従業員 | リーダ（2026-09-30〜。§8.5.1） | 管理者 |
+|---|---|---|---|
+| **確定**(`confirmed`) | 閲覧のみ | 全員分を編集できる（他人の予定を変えると本人に通知） | 全員分を編集できる（同左） |
+| **調整中**(`draft`) | **自分の希望だけ**を入力・変更できる | 全員分を編集できる | 全員分を編集できる |
 
 **表示はどちらのモードでも常に全員分**（2026-07-27の方針変更）。調整中に他の人の希望が
 見えることは意図的で、希望がぶつかっていることが分かれば当人同士で調整できるため。
@@ -1848,7 +1848,7 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
   モードを切り替えてもデータの移し替えは起きず、**RLS の判定だけが変わる**。
   そのため確定後に「もともとの希望は何だったか」は辿れない（2026-07-27にオーナー了承済み）。
 - 1従業員1日1枠の制約は調整中も維持する（「早番でも遅番でも可」のような複数希望は持てない）。
-- モードを切り替えられるのは管理者のみ。**画面のモードバッジ自体がボタン**で、タップすると
+- モードを切り替えられるのは管理者とリーダ（リーダは2026-09-30〜）。**画面のモードバッジ自体がボタン**で、タップすると
   確認ダイアログ（「確定しますか？」/「調整中に戻しますか？」＋はい・キャンセル）を経て切り替わる。
   誤タップで従業員の編集可否が変わるのを防ぐため確認を必須にしている。
 
@@ -1869,6 +1869,7 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
   調整中でも変えない。
 - **書き込み**: `shift_assignments_self_draft_{insert,update,delete}` ポリシー（**本人 かつ 調整中の月**）。
   管理者は既存の `shift_assignments_admin`（ALL/`is_admin()`）で常に操作できる。
+  リーダは `shift_assignments_leader`（ALL/`is_leader()`・対象は在籍中の非管理者。2026-09-30）で常に操作できる。
 - サーバーアクションの `canEditShift()` は**画面に分かりやすい理由を返すためのもの**で、
   最終的な担保は RLS。
 - 画面側は `editableEmployeeId` prop で制御する。調整中の従業員画面では自分以外の行を
@@ -1882,7 +1883,8 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
 ### 13.3.1 🔒 従業員によるロック（変更不可。2026-08-02追加）
 
 **従業員本人が自分の予定に「変更不可」のロックをかけられる。ロックされた日は
-管理者であってもシフトを追加・変更・削除できない**（本人が外すまで。**確定モードになった後も有効**）。
+管理者・リーダであってもシフトを追加・変更・削除できない**（本人が外すまで。**確定モードになった後も有効**）。
+リーダも他人のロックは解除できない（2026-09-30。`shift_assignments_leader` に同じ条件を入れている）。
 
 - **2つの意味を1つの仕組みで表す**（どちらもロックの有無だけで表現できる）:
   - ロックのみ（枠なし）＝「**この日は勤務不可**」→ 管理者がシフトを入れられない
@@ -1956,7 +1958,7 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
   保存中はサーバー props からの同期を見送り、未反映の操作が消えてちらつくのを防ぐ、
   `admin/page.tsx`（管理者）、`(employee)/shifts/page.tsx`（従業員）。
 - アクション: `admin/shifts/actions.ts`（`canEditShift()`/`setShiftMode()`。`assignShift`/`clearShift` は
-  管理者専用から「管理者 or 調整中の本人」に緩和）。
+  管理者専用から「管理者 or 調整中の本人」に緩和。2026-09-30 にリーダを追加し、`setShiftMode()` もリーダ可）。
 - テスト: `lib/shifts.test.ts`（既定モードの判定）。
 
 ---
