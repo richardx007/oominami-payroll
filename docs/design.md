@@ -127,7 +127,7 @@ Supabase（PostgreSQL）。全テーブルで RLS（行レベルセキュリテ�
 
 | テーブル | 用途 | 主なカラム |
 |---------|------|-----------|
-| `employees` | 従業員（管理者含む） | id, employee_no, name, furigana(ふりがな・任意), nickname(ニックネーム・任意), color(シフト表の識別色・任意), email, auth_user_id, is_admin, status(active/retired) |
+| `employees` | 従業員（管理者含む） | id, employee_no, name, furigana(ふりがな・任意), nickname(ニックネーム・任意), color(シフト表の識別色・任意), email, auth_user_id, is_admin, is_leader(リーダ。管理者とは排他。2026-09-30), status(active/retired) |
 | `shift_assignments` | 勤務予定/希望（1日3枠A/B/Cの交代制・1従業員1日1枠） | employee_id, work_date, slot(A/B/C), custom_start, custom_end, unique(employee_id,work_date)。RLS は月のモードで変わる（§13）|
 | `shift_modes` | シフトの月ごとのモード（確定/調整中。§13） | period_key("YYYY-MM"), status(draft/confirmed), updated_at。RLS=閲覧は全ログインユーザー・変更は管理者のみ |
 | `wage_rates` | 時給履歴（値上げ対応） | employee_id, hourly_wage, effective_from |
@@ -868,6 +868,19 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
 - **Vault**: `notify_secret` は共用。送信先URLは `notify_shift_reminder_url` があればそれを使い、
   無ければ `notify_url`（…/api/notify/punch）の末尾を置き換えて組み立てる（追加登録は不要）。
 
+### 🔔 シフト変更通知（従業員向け・Web Push・2026-09-30追加）
+**確定済みの月**に、自分のシフト予定が**本人以外（リーダ・管理者）**によって変更されたら本人の端末へ通知する。
+
+- **設定**: アカウント設定 > 通知 >「シフトの通知」の「シフト変更通知」（従業員の画面だけに出る）。
+  `shift_reminder_settings.shift_change`（**null・行なし=オン**。既定オン）。
+- **検出**: `shift_assignments` の AFTER トリガー `shift_assignments_on_change()` が、確定月（`not is_shift_draft`）かつ
+  操作者≠本人のとき `shift_change_notices` に「変更前→変更後」（`shift_text()` で「遅番(16:00〜)」等に整形）を積む。
+- **まとめて1通**: 枠→変則出勤→変則退勤と続けて変えると何通も飛ぶため、pg_cron `shift-change-notices`（毎分）の
+  `collect_shift_change_notices()` が**その人への最後の変更から2分たったら**1通にまとめる。同じ日の複数回の変更は
+  「最初の変更前→最後の変更後」にし、元に戻っていれば送らない。送信口は `POST /api/notify/shift-change`
+  （URLは `notify_url` の末尾を置き換え）。文面は `src/lib/shift-change-notify.ts`（本文は5日分まで、以降「ほかN日」）。
+- 送信済み（`notified_at`）は90日で削除。端末未登録の人は送信済みにだけして送らない。
+
 ### 🔔 初回ログイン通知（Web Push・2026-08-08追加）
 新しい従業員が**初回パスワード設定を完了した瞬間**、管理者の端末へPush通知を送る
 （「○○さんが初回パスワード設定を完了し、利用を開始しました」）。未打刻通知と同じ設計方針を踏襲。
@@ -1384,6 +1397,18 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
 - **横スワイプの引っかかり対策**: スワイプ要素に`touch-action: pan-y`（縦のみブラウザ・横は自前）を指定し、
   スクロール引き取り時に飛ぶ`touchcancel`でも元位置へ戻すハンドラを持たせる（ブラウザのネイティブ横スクロールと
   競合して途中で止まる事象への対処）。
+
+### 8.5.1 リーダ権限・シフト変更の操作ログ（2026-09-30追加）
+- **リーダ**（`employees.is_leader`）: ベースは従業員。従業員管理の編集パネル「権限」で**従業員⇔リーダ**を切り替える
+  （管理者は対象外。操作ログ「権限変更」）。ヘッダーの名前の横に金色の星（称号）が出る。
+- リーダのシフト画面（`/shifts`）は管理者と同じく**全員の行を編集でき、確定月でも変更できる**。
+  月の「調整中⇔確定」も切り替えられる（`setShiftMode`）。確定月の編集パネルには「変更すると本人に通知されます」と出る。
+- 本人の「変更不可」ロックは**リーダも尊重**する（他人のロック日は変更不可・ロックの解除も不可。自分のロックは自分で切替可）。
+- RLS: `shift_assignments_leader`（`is_leader()` かつ対象が在籍中の非管理者 `is_shift_member()`、他人のロック日は不可）、
+  `shift_modes_leader_insert/_update`。
+- **シフト予定の変更はすべて操作ログ「シフト」に残る**（2026-09-30。それまではモード切替だけで、予定の変更は記録していなかった）。
+  トリガー `shift_assignments_on_change()` が `log_activity()` を呼ぶ（例: `2026-10-20 RYO: 遅番 → 遅番(16:00〜)(確定月)`）。
+  同じ値の上書き・SQLでの保守作業（ログイン者なし）・従業員削除の連鎖削除は記録しない。確定月の他人による変更は §5「シフト変更通知」へ。
 
 ### 8.6 実装ファイル
 - DB: `supabase/migrations/20260719_add_shift_scheduling.sql`（適用済みスキーマの記録。シフト関連一式）。
