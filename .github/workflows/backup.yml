@@ -279,6 +279,65 @@ jobs:
           echo "::add-mask::$URL"
           echo "DB_URL=$URL" >> "$GITHUB_ENV"
 
+      # 保存期間(経費管理の設定画面。既定 3 年)を過ぎたレシート画像を Supabase Storage から消す(2026-10-04 経費管理のオーナー依頼)。
+      # ・上のコピーが成功したあとにだけ動き、**ドライブにあることを確かめたファイルだけ**を消す(ドライブからは消さない)
+      # ・対象の選び方と記録は経費管理の DB 関数(oominami-business の supabase/migrations/20261004120000_expense_receipt_retention.sql):
+      #   expense_receipts_purge_targets() … 購入日が期限より前で、まだ消していないレシートのパス
+      #   expense_receipts_mark_purged(paths) … 消したファイルを expense_receipts.purged_at に記録(画面に「期限切れ削除済み」)
+      # ・紙の原本は 7 年保管する運用(経費管理のオーナー確認済み)
+      - name: 保存期間を過ぎたレシートを Supabase から削除
+        if: success()
+        env:
+          RCLONE_CONFIG_SUPA_TYPE: s3
+          RCLONE_CONFIG_SUPA_PROVIDER: Other
+          RCLONE_CONFIG_SUPA_ENDPOINT: ${{ env.S3_ENDPOINT }}
+          RCLONE_CONFIG_SUPA_REGION: ${{ env.S3_REGION }}
+          RCLONE_CONFIG_SUPA_FORCE_PATH_STYLE: "true"
+          RCLONE_CONFIG_SUPA_ACCESS_KEY_ID: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_SUPA_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_S3_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_SCOPE: drive.file
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_RCLONE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DB_URL:-}" ]; then
+            echo "DB に接続できないため、期限切れのレシートの削除はしない" >&2
+            exit 1
+          fi
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -Atc "select storage_path from public.expense_receipts_purge_targets()" > targets.txt
+          # パスは {経費ID}/{レシートID}.jpg|png|pdf だけ。それ以外が混じっていたら何も消さずに止める
+          if grep -vqE '^[0-9a-f-]{36}/[0-9a-f-]{36}\.(jpg|png|pdf)$' targets.txt; then
+            echo "想定外のパスが対象に含まれている" >&2
+            exit 1
+          fi
+          TARGETS=$(grep -c . targets.txt || true)
+          if [ "$TARGETS" -eq 0 ]; then
+            echo "PURGE_RESULT=期限切れの削除 0件" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          # ドライブにあるものだけを消す
+          rclone lsf -R --files-only "$DEST" > drive.txt
+          grep -Fxf drive.txt targets.txt > deletable.txt || true
+          DELETABLE=$(grep -c . deletable.txt || true)
+          if [ "$DELETABLE" -gt 0 ]; then
+            rclone delete "$SRC" --files-from deletable.txt -v 2>&1 | tail -n 20
+          fi
+          # Supabase から本当に消えた(または元から無い)ものだけを記録する
+          rclone lsf -R --files-only "$SRC" > src_after.txt
+          grep -vFxf src_after.txt deletable.txt > purged.txt || true
+          SQL_TEXT="select public.expense_receipts_mark_purged(string_to_array(:'paths', E'\n'));"
+          MARKED=$(psql "$DB_URL" -v ON_ERROR_STOP=1 -At -v paths="$(cat purged.txt)" <<< "$SQL_TEXT")
+          RESULT="期限切れの削除 ${MARKED}件(対象 ${TARGETS}件"
+          if [ "$DELETABLE" -lt "$TARGETS" ]; then RESULT="${RESULT}・ドライブに無いため残した $((TARGETS - DELETABLE))件"; fi
+          RESULT="${RESULT})"
+          echo "PURGE_RESULT=$RESULT" >> "$GITHUB_ENV"
+          echo "レシート: $RESULT" >> "$GITHUB_STEP_SUMMARY"
+          # ドライブに無いものがあったら気づけるよう失敗にする(消したものの記録は済んでいる)
+          if [ "$DELETABLE" -lt "$TARGETS" ]; then
+            echo "ドライブに無いため消さなかったレシートがある" >&2
+            exit 1
+          fi
+
       - name: 操作ログに記録
         if: success()
         continue-on-error: true
@@ -286,7 +345,7 @@ jobs:
           set -uo pipefail
           [ -n "${DB_URL:-}" ] || exit 0
           SQL_TEXT="insert into public.activity_logs (actor_name, action, detail) values ('自動バックアップ', 'レシートのバックアップ', :'detail');"
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -v detail="${RECEIPTS_RESULT:-}" <<< "$SQL_TEXT"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -v detail="${RECEIPTS_RESULT:-} / ${PURGE_RESULT:-期限切れの削除なし}" <<< "$SQL_TEXT"
 
       - name: 失敗を操作ログに記録
         if: failure()
