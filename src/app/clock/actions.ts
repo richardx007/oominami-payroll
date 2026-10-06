@@ -338,13 +338,13 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     user_agent: ua,
   });
 
-  // 圏外での打刻(警告のみポリシーで通した分)は「圏外打刻」カテゴリで記録し、
-  // ログ画面でオレンジ色のバッジで目立たせる(通常の「打刻」と区別)
+  // 圏外での打刻(警告のみポリシーで通した分)は「打刻拒否」カテゴリで記録し、
+  // ログ画面でオレンジ色のバッジで目立たせる(通常の「打刻」と区別。打刻自体は記録済みである旨を明記)
   await logActivity(
-    out_of_range === true ? "圏外打刻" : "打刻",
+    out_of_range === true ? "打刻拒否" : "打刻",
     `${type === "in" ? "出勤" : "退勤"} ${time}${
       Number.isFinite(roundMin) && roundMin > 1 ? `(丸め${roundMin}分)` : ""
-    }${out_of_range === true ? ` (圏外 ${formatDistance(distance_m!)})` : ""}${
+    }${out_of_range === true ? ` (圏外 ${formatDistance(distance_m!)}・警告のみで記録)` : ""}${
       location_denied && hasBase ? " (位置なし)" : ""
     }`
   );
@@ -375,7 +375,7 @@ export async function logClockView(input: { type: string; fromMenu: boolean; sta
   const employee = await requireEmployee();
   const type = input.type === "out" ? "退勤" : "出勤";
   await logActivity(
-    "打刻画面",
+    "打刻",
     `${employee.name} ${type}の打刻画面を開いた(${input.fromMenu ? "アプリのメニュー" : "QR"}・${input.standalone ? "PWA" : "ブラウザ"})`
   );
 }

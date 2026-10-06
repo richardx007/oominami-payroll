@@ -344,7 +344,7 @@ jobs:
         run: |
           set -uo pipefail
           [ -n "${DB_URL:-}" ] || exit 0
-          SQL_TEXT="insert into public.activity_logs (actor_name, action, detail) values ('自動バックアップ', 'レシートのバックアップ', :'detail');"
+          SQL_TEXT="insert into public.activity_logs (actor_name, action, detail) values ('自動バックアップ', 'バックアップ', :'detail');"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -v detail="${RECEIPTS_RESULT:-} / ${PURGE_RESULT:-期限切れの削除なし}" <<< "$SQL_TEXT"
 
       - name: 失敗を操作ログに記録

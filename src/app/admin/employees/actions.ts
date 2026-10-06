@@ -237,7 +237,7 @@ export async function updateWage(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, message: "時給の更新に失敗しました" };
 
   await logActivity(
-    "時給変更",
+    "給与設定",
     `時給を設定: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜 ¥${d.hourly_wage}`
   );
   revalidatePath("/admin/employees");
@@ -304,7 +304,7 @@ export async function editWageRate(formData: FormData): Promise<ActionResult> {
 
   const wageLabel = await employeeLabel(supabase, d.employee_id);
   await logActivity(
-    "時給変更",
+    "給与設定",
     dateChanged
       ? `時給履歴を訂正: ${wageLabel} ${d.original_effective_from}〜 → ${d.effective_from}〜 ¥${d.hourly_wage}`
       : `時給履歴を訂正: ${wageLabel} ${d.effective_from}〜 ¥${d.hourly_wage}`
@@ -340,7 +340,7 @@ export async function deleteWageRate(
   if (error) return { ok: false, message: "時給履歴の削除に失敗しました" };
 
   await logActivity(
-    "時給変更",
+    "給与設定",
     `時給履歴を削除: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜`
   );
   revalidatePath("/admin/employees");
@@ -381,7 +381,7 @@ export async function updateLunchAllowance(
   if (error) return { ok: false, message: "昼食補助額の更新に失敗しました" };
 
   await logActivity(
-    "昼食補助変更",
+    "給与設定",
     `昼食補助額を設定: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜 ¥${d.lunch_allowance}`
   );
   revalidatePath("/admin/employees");
@@ -450,7 +450,7 @@ export async function editLunchAllowanceRate(
 
   const label = await employeeLabel(supabase, d.employee_id);
   await logActivity(
-    "昼食補助変更",
+    "給与設定",
     dateChanged
       ? `昼食補助額履歴を訂正: ${label} ${d.original_effective_from}〜 → ${d.effective_from}〜 ¥${d.lunch_allowance}`
       : `昼食補助額履歴を訂正: ${label} ${d.effective_from}〜 ¥${d.lunch_allowance}`
@@ -486,7 +486,7 @@ export async function deleteLunchAllowanceRate(
   if (error) return { ok: false, message: "昼食補助額履歴の削除に失敗しました" };
 
   await logActivity(
-    "昼食補助変更",
+    "給与設定",
     `昼食補助額履歴を削除: ${await employeeLabel(supabase, d.employee_id)} ${d.effective_from}〜`
   );
   revalidatePath("/admin/employees");

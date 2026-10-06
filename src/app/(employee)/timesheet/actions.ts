@@ -6,6 +6,7 @@ import { requireEmployee } from "@/lib/auth";
 import { standardBreakMinutes } from "@/lib/period";
 import { breakWindowsResolver, fetchWorkTimeSettings } from "@/lib/work-time";
 import { entrySchema, deleteEntryErrorMessage } from "./schema";
+import { fetchWorkEntrySnapshot, logWorkEntryChange } from "./change-log";
 
 export type ActionResult = { ok: boolean; message: string };
 
@@ -21,9 +22,10 @@ export async function upsertWorkEntry(
   const d = parsed.data;
   const supabase = await createClient();
 
-  const [{ data: locked }, workTimeSettings] = await Promise.all([
+  const [{ data: locked }, workTimeSettings, existing] = await Promise.all([
     supabase.rpc("get_timesheet_lock"),
     fetchWorkTimeSettings(supabase),
+    fetchWorkEntrySnapshot(supabase, employee.id, d.work_date),
   ]);
   const breakWindows = breakWindowsResolver(workTimeSettings)(d.work_date);
 
@@ -38,13 +40,6 @@ export async function upsertWorkEntry(
     // ロック中は出勤/退勤時刻・休憩時間をクライアントの入力値で信用せず、
     // 既存レコードの値に固定する(交通費・メモのみ更新可)。既存レコードが無い日は
     // 時刻を確定できないため新規作成を拒否する(QR打刻の利用を案内)。
-    const { data: existing } = await supabase
-      .from("work_entries")
-      .select("start_time, end_time, break_minutes")
-      .eq("employee_id", employee.id)
-      .eq("work_date", d.work_date)
-      .maybeSingle();
-
     if (!existing) {
       return {
         ok: false,
@@ -57,23 +52,21 @@ export async function upsertWorkEntry(
     break_minutes = existing.break_minutes;
   }
 
-  const { error } = await supabase.from("work_entries").upsert(
-    {
-      employee_id: employee.id,
-      work_date: d.work_date,
-      start_time,
-      end_time,
-      break_minutes,
-      transport_cost: d.transport_cost,
-      transport_mode: d.transport_mode?.trim() || null,
-      station_from: d.station_from?.trim() || null,
-      station_to: d.station_to?.trim() || null,
-      round_trip: d.round_trip === "on",
-      note: d.note || null,
-      updated_by: employee.id,
-    },
-    { onConflict: "employee_id,work_date" }
-  );
+  const row = {
+    employee_id: employee.id,
+    work_date: d.work_date,
+    start_time,
+    end_time,
+    break_minutes,
+    transport_cost: d.transport_cost,
+    transport_mode: d.transport_mode?.trim() || null,
+    station_from: d.station_from?.trim() || null,
+    station_to: d.station_to?.trim() || null,
+    round_trip: d.round_trip === "on",
+    note: d.note || null,
+    updated_by: employee.id,
+  };
+  const { error } = await supabase.from("work_entries").upsert(row, { onConflict: "employee_id,work_date" });
 
   if (error) {
     const message =
@@ -83,6 +76,7 @@ export async function upsertWorkEntry(
     return { ok: false, message };
   }
 
+  await logWorkEntryChange(employee.nickname?.trim() || employee.name, d.work_date, existing, row, false);
   revalidatePath("/timesheet");
   return { ok: true, message: "保存しました" };
 }
@@ -100,6 +94,7 @@ export async function deleteWorkEntry(workDate: string): Promise<ActionResult> {
     };
   }
 
+  const existing = await fetchWorkEntrySnapshot(supabase, employee.id, workDate);
   const { error } = await supabase
     .from("work_entries")
     .delete()
@@ -108,6 +103,7 @@ export async function deleteWorkEntry(workDate: string): Promise<ActionResult> {
 
   if (error) return { ok: false, message: deleteEntryErrorMessage(error) };
 
+  await logWorkEntryChange(employee.nickname?.trim() || employee.name, workDate, existing, null, false);
   revalidatePath("/timesheet");
   return { ok: true, message: "削除しました" };
 }

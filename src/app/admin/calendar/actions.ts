@@ -208,8 +208,8 @@ export async function saveHourPatterns(
     .map((n) => `${settings[`break_window_${n}_start`]}〜${settings[`break_window_${n}_end`]}`)
     .join(" / ");
   await logActivity(
-    "営業と勤務時間を変更",
-    `${effectiveLabel(effectiveFrom)}: ` +
+    "営業・勤務時間",
+    `変更: ${effectiveLabel(effectiveFrom)}: ` +
       rows
         .map((r) => `${DAY_TYPE_LABELS[r.day_type]} ${r.is_open ? hoursLabel(r.open_min, r.close_min, r.overnight) : "定休"}`)
         .join(" / ") +
@@ -238,7 +238,7 @@ export async function deleteHourPatterns(effectiveFrom: string, regenerate: bool
   // 営業時間・シフト枠・休憩時間をまとめて削除する
   const { data, error } = await supabase.rpc("delete_hours_version", { p_from: effectiveFrom });
   if (error || !data) return { ok: false, message: "削除に失敗しました" };
-  await logActivity("営業と勤務時間を削除", effectiveLabel(effectiveFrom));
+  await logActivity("営業・勤務時間", `削除: ${effectiveLabel(effectiveFrom)}`);
 
   let message = `${effectiveLabel(effectiveFrom)}を削除しました`;
   if (regenerate) {
@@ -349,7 +349,7 @@ export async function saveDay(input: z.input<typeof dayEditSchema>): Promise<Act
       })
       .eq("date", d.date);
     if (error) return { ok: false, message: "保存に失敗しました" };
-    await logActivity("営業カレンダー変更", `${md(d.date)} いつもどおりに戻す`);
+    await logActivity("営業カレンダー", `変更: ${md(d.date)} いつもどおりに戻す`);
   } else if (d.mode === "closed") {
     const { error } = await supabase
       .from("business_days")
@@ -365,7 +365,7 @@ export async function saveDay(input: z.input<typeof dayEditSchema>): Promise<Act
       })
       .eq("date", d.date);
     if (error) return { ok: false, message: "保存に失敗しました" };
-    await logActivity("営業カレンダー変更", `${md(d.date)} 臨時休業`);
+    await logActivity("営業カレンダー", `変更: ${md(d.date)} 臨時休業`);
   } else {
     if (!d.overnight && (d.close_min == null || d.close_min <= d.open_min)) {
       return { ok: false, message: "閉店時刻は開店時刻より後にしてください（深夜は 26:00 のように書きます）" };
@@ -385,8 +385,8 @@ export async function saveDay(input: z.input<typeof dayEditSchema>): Promise<Act
       .eq("date", d.date);
     if (error) return { ok: false, message: "保存に失敗しました" };
     await logActivity(
-      "営業カレンダー変更",
-      `${md(d.date)} 時間変更 ${hoursLabel(d.open_min, d.close_min, d.overnight)}`
+      "営業カレンダー",
+      `変更: ${md(d.date)} 時間変更 ${hoursLabel(d.open_min, d.close_min, d.overnight)}`
     );
   }
 
@@ -431,7 +431,7 @@ export async function saveEvent(input: z.input<typeof eventSchema>): Promise<Act
   if (error) return { ok: false, message: "保存に失敗しました" };
 
   const range = e.start_date === e.end_date ? md(e.start_date) : `${md(e.start_date)}〜${md(e.end_date)}`;
-  await logActivity(e.id ? "営業カレンダーのイベント変更" : "営業カレンダーのイベント追加", `${range} ${e.title}`);
+  await logActivity("営業カレンダー", `${e.id ? "イベントを変更" : "イベントを追加"}: ${range} ${e.title}`);
   revalidateCalendar();
   return { ok: true, message: `「${e.title}」を保存しました` };
 }
@@ -447,7 +447,7 @@ export async function deleteEvent(id: string): Promise<ActionResult> {
     .select("title, start_date")
     .maybeSingle();
   if (error || !data) return { ok: false, message: "削除に失敗しました" };
-  await logActivity("営業カレンダーのイベント削除", `${md(data.start_date)} ${data.title}`);
+  await logActivity("営業カレンダー", `イベントを削除: ${md(data.start_date)} ${data.title}`);
   revalidateCalendar();
   return { ok: true, message: `「${data.title}」を削除しました` };
 }

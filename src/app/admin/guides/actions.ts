@@ -96,8 +96,8 @@ export async function saveAppGuide(input: z.input<typeof guideSchema>): Promise<
   if (oldVideo && oldVideo !== row.video_path) await removeGuideVideo(supabase, oldVideo);
 
   await logActivity(
-    g.id ? "アプリの解説を変更" : "アプリの解説を追加",
-    `${g.title}（${isVideo ? `動画${g.video_file_name ? `: ${g.video_file_name}` : ""}` : "URL"}・${audienceLabel(g)}）`
+    "アプリの解説",
+    `${g.id ? "変更" : "追加"}: ${g.title}（${isVideo ? `動画${g.video_file_name ? `: ${g.video_file_name}` : ""}` : "URL"}・${audienceLabel(g)}）`
   );
   revalidateGuides();
   return { ok: true, message: `「${g.title}」を保存しました` };
@@ -115,7 +115,7 @@ export async function deleteAppGuide(id: string): Promise<ActionResult> {
     .maybeSingle();
   if (error || !data) return { ok: false, message: "削除できませんでした" };
   await removeGuideVideo(supabase, data.video_path);
-  await logActivity("アプリの解説を削除", data.title);
+  await logActivity("アプリの解説", `削除: ${data.title}`);
   revalidateGuides();
   return { ok: true, message: `「${data.title}」を削除しました` };
 }

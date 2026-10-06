@@ -39,7 +39,7 @@ export async function updateOwnProfile(formData: FormData): Promise<ActionResult
 
   if (error) return { ok: false, message: "更新に失敗しました" };
 
-  await logActivity("プロフィール更新", "本人がニックネーム・氏名・ふりがなを変更");
+  await logActivity("プロフィール", "本人がニックネーム・氏名・ふりがなを変更");
 
   revalidatePath("/account");
   revalidatePath("/admin/account");
@@ -202,7 +202,7 @@ export async function updateNotifyTypeSettings(formData: FormData): Promise<Acti
   if (error) return { ok: false, message: "保存に失敗しました" };
 
   await logActivity(
-    "notify_settings_update",
+    "通知設定",
     `未打刻通知: 出勤=${notifyIn ? "有効" : "無効"} / 退勤=${notifyOut ? "有効" : "無効"} / ` +
       `初回ログイン=${notifyFirstLogin ? "有効" : "無効"} / ` +
       `営業カレンダーの作成=${notifyBusinessCalendar ? "有効" : "無効"}`
