@@ -3725,6 +3725,7 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   一般従業員・リーダとも対象。管理者画面とカレンダーのセル内の並びは変えない。
 - 実装: `ShiftSchedule` に `selfFirst`（`meId` の行を先頭にした `panelRoster` を日別パネルに渡す）。従業員の `/shifts` だけが渡す。
 - 既存の lint エラー1件（`ShiftSchedule.tsx` の `setNowMs` を effect 内で呼ぶ `react-hooks/set-state-in-effect`）は今回の変更前からあるもので未対応。
+- コミット `60423a1`。Cloudflare Workers Builds は本番アカウント 1247… で成功（別アカウント b4c6… のビルドなし）。
 - 🔴 実機確認: 従業員（一般・リーダ）でシフト画面の日を選び、自分が一番上に出るか。
 
 ## 7. すぐ使えるコマンド集
