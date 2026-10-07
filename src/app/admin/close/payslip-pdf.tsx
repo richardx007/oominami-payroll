@@ -255,7 +255,7 @@ function PayslipSheet({
         <div className="pslip-sheet">
           <div className="pslip-head">
             <div>
-              <h1 className="pslip-title">給与明細書 別表</h1>
+              <h1 className="pslip-title">立替精算一覧</h1>
               <p className="pslip-period">{data.periodLabel}</p>
             </div>
           </div>
