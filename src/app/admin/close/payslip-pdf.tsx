@@ -114,140 +114,173 @@ function PayslipSheet({
   const reimb = data.reimbursement;
 
   return (
-    <div className="pslip-sheet">
-      {/* 見出しと支払元。支払元(2行)と印は要望どおり右上に置く */}
-      <div className="pslip-head">
-        <div>
-          <h1 className="pslip-title">給与明細書</h1>
-          <p className="pslip-period">{data.periodLabel}</p>
-        </div>
-        <div className="pslip-issuer">
-          <div className="pslip-issuer-lines">
-            <div className="pslip-issuer-line1">{issuer.line1}</div>
-            <div>{issuer.line2}</div>
+    <>
+      <div className="pslip-sheet">
+        {/* 見出しと支払元。支払元(2行)と印は要望どおり右上に置く */}
+        <div className="pslip-head">
+          <div>
+            <h1 className="pslip-title">給与明細書</h1>
+            <p className="pslip-period">{data.periodLabel}</p>
           </div>
-          {issuer.sealDataUrl && (
-            // 印。data URL なので外部読み込み(CORS)は発生しない。
-            // 寸法は設定画面で選んだ mm をそのまま指定する(16.5mm=認印 / 18mm=社印)
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={issuer.sealDataUrl}
-              alt="印"
-              className="pslip-seal"
-              style={{
-                width: `${issuer.sealSizeMm}mm`,
-                height: `${issuer.sealSizeMm}mm`,
-              }}
-            />
+          <div className="pslip-issuer">
+            <div className="pslip-issuer-lines">
+              <div className="pslip-issuer-line1">{issuer.line1}</div>
+              <div>{issuer.line2}</div>
+            </div>
+            {issuer.sealDataUrl && (
+              // 印。data URL なので外部読み込み(CORS)は発生しない。
+              // 寸法は設定画面で選んだ mm をそのまま指定する(16.5mm=認印 / 18mm=社印)
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={issuer.sealDataUrl}
+                alt="印"
+                className="pslip-seal"
+                style={{
+                  width: `${issuer.sealSizeMm}mm`,
+                  height: `${issuer.sealSizeMm}mm`,
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="pslip-to">
+          <div className="pslip-to-name">{data.name} 様</div>
+          <div className="pslip-to-sub">
+            対象期間 {slash(data.start)} 〜 {slash(data.end)}　／　支払日{" "}
+            {slash(data.paymentDate)}
+          </div>
+          {data.draft && (
+            <div className="pslip-draft">
+              ※ この明細は締め前の計算結果です(確定額ではありません)
+            </div>
           )}
         </div>
-      </div>
 
-      <div className="pslip-to">
-        <div className="pslip-to-name">{data.name} 様</div>
-        <div className="pslip-to-sub">
-          対象期間 {slash(data.start)} 〜 {slash(data.end)}　／　支払日{" "}
-          {slash(data.paymentDate)}
-        </div>
-        {data.draft && (
-          <div className="pslip-draft">
-            ※ この明細は締め前の計算結果です(確定額ではありません)
-          </div>
-        )}
-      </div>
-
-      <SheetSection title="勤務" />
-      <SheetRow label="勤務日数" value={`${r.work_days}日`} />
-      <SheetRow label="勤務時間" value={formatMinutes(r.total_minutes)} />
-      {r.night_minutes > 0 && (
-        <SheetRow
-          label="うち深夜勤務(22:00〜翌5:00)"
-          value={formatMinutes(r.night_minutes)}
-        />
-      )}
-      {r.overtime_minutes > 0 && (
-        <SheetRow
-          label="うち残業(1日8時間超)"
-          value={formatMinutes(r.overtime_minutes)}
-        />
-      )}
-
-      <SheetSection title="支給" />
-      {/* 月度の途中で時給が変わった場合は時給ごとに行を分ける(画面の一覧表と同じ扱い) */}
-      {r.wage_breakdown.map((b, i) => (
-        <div key={i}>
+        <SheetSection title="勤務" />
+        <SheetRow label="勤務日数" value={`${r.work_days}日`} />
+        <SheetRow label="勤務時間" value={formatMinutes(r.total_minutes)} />
+        {r.night_minutes > 0 && (
           <SheetRow
-            label={`基本給(時給 ${yen(b.hourly_wage)})`}
-            value={yen(b.base_pay)}
+            label="うち深夜勤務(22:00〜翌5:00)"
+            value={formatMinutes(r.night_minutes)}
           />
-          {b.night_pay > 0 && (
-            <SheetRow
-              label={`深夜勤務手当(時給25%増 ${yen(
-                Math.round(b.hourly_wage * 0.25)
-              )})`}
-              value={yen(b.night_pay)}
-            />
-          )}
-          {b.overtime_pay > 0 && (
-            <SheetRow
-              label={`残業手当(時給25%増 ${yen(
-                Math.round(b.hourly_wage * 0.25)
-              )})`}
-              value={yen(b.overtime_pay)}
-            />
-          )}
-        </div>
-      ))}
-      <SheetRow label="交通費 *" value={yen(r.transport_total)} />
-      <SheetRow label="昼食補助" value={yen(r.lunch_total)} />
-      <SheetRow label="総支給額" value={yen(r.gross_pay)} bold />
+        )}
+        {r.overtime_minutes > 0 && (
+          <SheetRow
+            label="うち残業(1日8時間超)"
+            value={formatMinutes(r.overtime_minutes)}
+          />
+        )}
 
-      <SheetSection title="控除" />
-      <SheetRow label="課税対象額(交通費を除く)" value={yen(r.taxable_amount)} />
-      <SheetRow
-        label={`源泉所得税(${r.tax_category === "kou" ? "甲欄" : "乙欄"})`}
-        value={`−${yen(r.income_tax)}`}
-      />
-      {r.advance_deduction > 0 && (
+        <SheetSection title="支給" />
+        {/* 月度の途中で時給が変わった場合は時給ごとに行を分ける(画面の一覧表と同じ扱い) */}
+        {r.wage_breakdown.map((b, i) => (
+          <div key={i}>
+            <SheetRow
+              label={`基本給(時給 ${yen(b.hourly_wage)})`}
+              value={yen(b.base_pay)}
+            />
+            {b.night_pay > 0 && (
+              <SheetRow
+                label={`深夜勤務手当(時給25%増 ${yen(
+                  Math.round(b.hourly_wage * 0.25)
+                )})`}
+                value={yen(b.night_pay)}
+              />
+            )}
+            {b.overtime_pay > 0 && (
+              <SheetRow
+                label={`残業手当(時給25%増 ${yen(
+                  Math.round(b.hourly_wage * 0.25)
+                )})`}
+                value={yen(b.overtime_pay)}
+              />
+            )}
+          </div>
+        ))}
+        <SheetRow label="交通費 *" value={yen(r.transport_total)} />
+        <SheetRow label="昼食補助" value={yen(r.lunch_total)} />
+        <SheetRow label="総支給額" value={yen(r.gross_pay)} bold />
+
+        <SheetSection title="控除" />
         <SheetRow
-          label="前払金(日当としてお支払い済み)"
-          value={`−${yen(r.advance_deduction)}`}
+          label="課税対象額(交通費を除く)"
+          value={yen(r.taxable_amount)}
         />
-      )}
+        <SheetRow
+          label={`源泉所得税(${r.tax_category === "kou" ? "甲欄" : "乙欄"})`}
+          value={`−${yen(r.income_tax)}`}
+        />
+        {r.advance_deduction > 0 && (
+          <SheetRow
+            label="前払金(日当としてお支払い済み)"
+            value={`−${yen(r.advance_deduction)}`}
+          />
+        )}
 
-      <div className="pslip-total">
-        <span className="pslip-total-label">差引支給額</span>
-        <span className="pslip-total-value">{yen(r.net_pay)}</span>
+        <div className="pslip-total">
+          <span className="pslip-total-label">差引支給額</span>
+          <span className="pslip-total-value">{yen(r.net_pay)}</span>
+        </div>
+
+        {/* 立替精算は給与の計算の外(非課税・総支給額に含めない)。お振込額 = 差引支給額 + 立替精算 */}
+        {reimb.total > 0 && (
+          <>
+            <SheetSection title="立替精算" />
+            <SheetRow
+              label="立替精算(経費の払い戻し・非課税) *"
+              value={yen(reimb.total)}
+            />
+            <div className="pslip-total">
+              <span className="pslip-total-label">お振込額</span>
+              <span className="pslip-total-value">
+                {yen(r.net_pay + reimb.total)}
+              </span>
+            </div>
+          </>
+        )}
+
+        <p className="pslip-note">
+          * 交通費{reimb.total > 0 && "・立替精算"}は課税対象外です。
+          {reimb.total > 0 &&
+            "立替精算は、立て替えた経費の払い戻しで、給与ではありません。"}
+        </p>
       </div>
 
-      {/* 立替精算は給与の計算の外(非課税・総支給額に含めない)。お振込額 = 差引支給額 + 立替精算 */}
-      {reimb.total > 0 && (
-        <>
-          <SheetSection title="立替精算" />
-          <SheetRow label="立替精算(経費の払い戻し・非課税) *" value={yen(reimb.total)} />
-          <div className="pslip-total">
-            <span className="pslip-total-label">お振込額</span>
-            <span className="pslip-total-value">{yen(r.net_pay + reimb.total)}</span>
-          </div>
-        </>
-      )}
-
-      <p className="pslip-note">
-        * 交通費{reimb.total > 0 && "・立替精算"}は課税対象外です。
-        {reimb.total > 0 && "立替精算は、立て替えた経費の払い戻しで、給与ではありません。"}
-      </p>
-
-      {/* 別表: 立替の内訳(購入日・購入先・品名・金額) */}
+      {/* 2ページ目: 別表 立替の内訳(購入日・購入先・品名・金額)。
+        1ページ目の途中で改ページしないよう、別のシート(=新しいページ)にする(2026-10-07 オーナー依頼。
+        captureSheetToPdfBlob は .pslip-sheet ごとに新しいページから始める) */}
       {reimb.items.length > 0 && (
-        <>
-          <SheetSection title="別表 立替の内訳" />
+        <div className="pslip-sheet">
+          <div className="pslip-head">
+            <div>
+              <h1 className="pslip-title">給与明細書 別表</h1>
+              <p className="pslip-period">{data.periodLabel}</p>
+            </div>
+          </div>
+          <div className="pslip-to">
+            <div className="pslip-to-name">{data.name} 様</div>
+            <div className="pslip-to-sub">支払日 {slash(data.paymentDate)}</div>
+          </div>
+          <SheetSection title="立替の内訳" />
           {reimb.items.map((i, idx) => (
-            <SheetRow key={idx} label={`${itemDate(i.purchased_on)}　${i.vendor}(${i.description})`} value={yen(i.amount)} />
+            <SheetRow
+              key={idx}
+              label={`${itemDate(i.purchased_on)}　${i.vendor}(${i.description})`}
+              value={yen(i.amount)}
+            />
           ))}
-          <SheetRow label="合計" value={yen(reimb.total)} bold />
-        </>
+          <div className="pslip-total">
+            <span className="pslip-total-label">立替精算 合計</span>
+            <span className="pslip-total-value">{yen(reimb.total)}</span>
+          </div>
+          <p className="pslip-note">
+            立て替えた経費の払い戻しで、給与ではありません(課税対象外)。1ページ目の「立替精算」の内訳です。
+          </p>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 

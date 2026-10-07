@@ -144,6 +144,9 @@ export async function captureElementToPdfBlob(
  * 3. ⚠️ **JPEGで埋め込む**。PNGを渡すと jsPDF が展開して無圧縮で埋め込むため、
  *    A4 1枚で 9MB を超える(2026-09-11に実測。メール・LINEでの共有に耐えない)。
  *    JPEG(0.95)なら 1MB 未満で、この解像度では文字・罫線は崩れない。
+ * 4. el の中に `.pslip-sheet` が複数あるときは、**シートごとに新しいページから**始める
+ *    (給与明細の2ページ目「別表 立替の内訳」。2026-10-07 オーナー依頼。途中で改ページさせないため)。
+ *    1枚のシートが A4 より長いときは、そのシートの中で従来どおり機械的に切る。
  */
 export async function captureSheetToPdfBlob(
   el: HTMLElement
@@ -158,51 +161,54 @@ export async function captureSheetToPdfBlob(
     requestAnimationFrame(() => requestAnimationFrame(resolve))
   );
 
-  const canvas = await html2canvas(el, {
-    scale: 3,
-    backgroundColor: "#ffffff",
-    useCORS: true,
-  });
-
   const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   const pageW = 210;
   const pageH = 297;
-  const pxPerMm = canvas.width / pageW;
-  const sliceHpx = Math.floor(pageH * pxPerMm);
-
-  // ⚠️ 1mm未満の端数は切り捨てて次のページを作らない。
-  // シートは min-height:297mm ちょうどで作るが、mm→px→キャンバス(scale倍)の丸めで
-  // 数pxだけはみ出ることがあり、素直に `y < canvas.height` で回すと
-  // **真っ白な2ページ目**が付く(2026-09-11に実測。切れて困る内容はこの数px には無い)。
-  const epsilon = Math.ceil(pxPerMm);
-
   const pages: string[] = [];
-  let y = 0;
   let firstPage = true;
-  while (y < canvas.height - epsilon) {
-    const h = Math.min(sliceHpx, canvas.height - y);
-    const slice = document.createElement("canvas");
-    slice.width = canvas.width;
-    slice.height = h;
-    const ctx = slice.getContext("2d");
-    if (!ctx) throw new Error("canvas context を取得できませんでした");
-    // 余白が透明にならないよう白で塗ってから貼る
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, slice.width, slice.height);
-    ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
 
-    if (!firstPage) pdf.addPage();
-    pdf.addImage(
-      slice.toDataURL("image/jpeg", 0.95),
-      "JPEG",
-      0,
-      0,
-      pageW,
-      h / pxPerMm
-    );
-    pages.push(toPreviewImage(slice));
-    firstPage = false;
-    y += h;
+  const sheets = Array.from(el.querySelectorAll<HTMLElement>(".pslip-sheet"));
+  for (const sheet of sheets.length > 0 ? sheets : [el]) {
+    const canvas = await html2canvas(sheet, {
+      scale: 3,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+    });
+    const pxPerMm = canvas.width / pageW;
+    const sliceHpx = Math.floor(pageH * pxPerMm);
+
+    // ⚠️ 1mm未満の端数は切り捨てて次のページを作らない。
+    // シートは min-height:297mm ちょうどで作るが、mm→px→キャンバス(scale倍)の丸めで
+    // 数pxだけはみ出ることがあり、素直に `y < canvas.height` で回すと
+    // **真っ白な2ページ目**が付く(2026-09-11に実測。切れて困る内容はこの数px には無い)。
+    const epsilon = Math.ceil(pxPerMm);
+
+    let y = 0;
+    while (y < canvas.height - epsilon) {
+      const h = Math.min(sliceHpx, canvas.height - y);
+      const slice = document.createElement("canvas");
+      slice.width = canvas.width;
+      slice.height = h;
+      const ctx = slice.getContext("2d");
+      if (!ctx) throw new Error("canvas context を取得できませんでした");
+      // 余白が透明にならないよう白で塗ってから貼る
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+
+      if (!firstPage) pdf.addPage();
+      pdf.addImage(
+        slice.toDataURL("image/jpeg", 0.95),
+        "JPEG",
+        0,
+        0,
+        pageW,
+        h / pxPerMm
+      );
+      pages.push(toPreviewImage(slice));
+      firstPage = false;
+      y += h;
+    }
   }
 
   return { blob: pdf.output("blob"), pages };
