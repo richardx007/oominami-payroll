@@ -3749,6 +3749,7 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   - `clock/ui.tsx`: ホーム画面アプリかどうか・位置情報の対応可否（非対応なら「取得できません」）
   - `pwa/AddToHomeScreenBanner.tsx`: 端末判定（結果はモジュール内で使い回す。毎回新しいオブジェクトを返すと描画が繰り返されるため）
 - ⚠️ `useClientValue` の read は毎回同じ値（プリミティブ等）を返すこと。既存の `login/page.tsx`・`AccessHelp.tsx` は eslint-disable のコメント付きで残している。
+- コミット `561e72c`。Cloudflare Workers Builds は本番アカウント 1247… で成功（別アカウント b4c6… のビルドなし）。
 - 🔴 実機確認: 打刻画面（位置情報の取得・打刻・完了後の案内がホーム画面アプリ/Safari で出し分けられるか）、
   アカウント設定の通知「登録済み/未登録」、シフト画面の本日の色分け、QR設定の印刷ボタン（iPhone のホーム画面アプリでは非表示）。
 
