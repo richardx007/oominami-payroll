@@ -31,6 +31,8 @@ export type PayRow = {
   advance_deduction: number;
   net_pay: number;
   tax_category: string;
+  /** 立替精算(経費の払い戻し・非課税・給与ではない。2026-10-07)。お振込額 = net_pay + これ */
+  expense_reimbursement: number;
   emp: { employee_no: string; name: string };
 };
 
@@ -67,7 +69,7 @@ async function loadReport(periodKey: string): Promise<LoadedReport> {
     .select(
       `work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay, night_pay,
        overtime_pay, transport_total, lunch_total, gross_pay, income_tax, advance_deduction,
-       net_pay, tax_category, employees ( employee_no, name )`
+       net_pay, tax_category, expense_reimbursement, employees ( employee_no, name )`
     )
     .eq("pay_period_id", payPeriod.id);
 
@@ -101,9 +103,12 @@ function hhmmCsv(minutes: number) {
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
-/** 支給一覧の CSV(BOM付き)文字列を生成。総支給額が0の人は出力対象外(給与明細画面には表示したまま) */
+/**
+ * 支給一覧の CSV(BOM付き)文字列を生成。総支給額が0の人は出力対象外(給与明細画面には表示したまま)。
+ * ただし立替精算がある人は出す。立替精算は給与と別の仕訳になるので別の列にし、総支給額・差引支給額には含めない
+ */
 function buildCsv(allRows: PayRow[]): string {
-  const rows = allRows.filter((r) => r.gross_pay !== 0);
+  const rows = allRows.filter((r) => r.gross_pay !== 0 || r.expense_reimbursement > 0);
   const totals = rows.reduce(
     (acc, r) => ({
       totalMinutes: acc.totalMinutes + r.total_minutes,
@@ -118,6 +123,7 @@ function buildCsv(allRows: PayRow[]): string {
       tax: acc.tax + r.income_tax,
       advance: acc.advance + r.advance_deduction,
       net: acc.net + r.net_pay,
+      reimbursement: acc.reimbursement + r.expense_reimbursement,
     }),
     {
       totalMinutes: 0,
@@ -132,6 +138,7 @@ function buildCsv(allRows: PayRow[]): string {
       tax: 0,
       advance: 0,
       net: 0,
+      reimbursement: 0,
     }
   );
 
@@ -154,6 +161,8 @@ function buildCsv(allRows: PayRow[]): string {
     "前払金控除",
     "差引支給額",
     "税区分",
+    "立替精算(非課税・給与外)",
+    "お振込額",
   ].join(",");
   const body = rows.map((r) =>
     [
@@ -175,6 +184,8 @@ function buildCsv(allRows: PayRow[]): string {
       r.advance_deduction,
       r.net_pay,
       r.tax_category === "kou" ? "甲" : "乙",
+      r.expense_reimbursement,
+      r.net_pay + r.expense_reimbursement,
     ].join(",")
   );
   const total = [
@@ -196,6 +207,8 @@ function buildCsv(allRows: PayRow[]): string {
     totals.advance,
     totals.net,
     "",
+    totals.reimbursement,
+    totals.net + totals.reimbursement,
   ].join(",");
   // Excelで文字化けしないよう先頭にBOMを付与
   return "﻿" + [header, ...body, total].join("\r\n") + "\r\n";
@@ -269,6 +282,8 @@ export async function previewTaxReportTestRows(): Promise<PreviewRows> {
     .filter((p) => p.result !== null)
     .map((p) => ({
       ...(p.result as NonNullable<typeof p.result>),
+      // テスト送信(締め前)では立替精算は乗せない
+      expense_reimbursement: 0,
       emp: { employee_no: p.employee_no, name: p.name },
     }))
     .sort((a, b) => a.emp.employee_no.localeCompare(b.emp.employee_no));

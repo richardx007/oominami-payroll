@@ -8,6 +8,7 @@ import { formatMinutes } from "@/lib/period";
 import type { PayslipIssuer } from "@/lib/payslip-issuer";
 import { PAYSLIP_SHEET_CSS } from "@/lib/payslip-sheet-css";
 import type { PayslipResult } from "@/lib/payroll";
+import { itemDate, type Reimbursement } from "@/lib/expense-reimbursement";
 
 /** 従業員1人分の給与明細PDFに必要なデータ(サーバーコンポーネントから受け取る) */
 export type PayslipPdfData = {
@@ -23,6 +24,8 @@ export type PayslipPdfData = {
   /** 締め前(未確定)かどうか。未確定のときは明細に注記を出す */
   draft: boolean;
   result: PayslipResult;
+  /** 立替精算(経費の払い戻し・非課税。2026-10-07)。差引支給額の下に別に出し、内訳は別表にする */
+  reimbursement: Reimbursement;
 };
 
 const yen = (n: number) => `¥${n.toLocaleString()}`;
@@ -108,6 +111,7 @@ function PayslipSheet({
   issuer: PayslipIssuer;
 }) {
   const r = data.result;
+  const reimb = data.reimbursement;
 
   return (
     <div className="pslip-sheet">
@@ -216,7 +220,33 @@ function PayslipSheet({
         <span className="pslip-total-value">{yen(r.net_pay)}</span>
       </div>
 
-      <p className="pslip-note">* 交通費は課税対象外です。</p>
+      {/* 立替精算は給与の計算の外(非課税・総支給額に含めない)。お振込額 = 差引支給額 + 立替精算 */}
+      {reimb.total > 0 && (
+        <>
+          <SheetSection title="立替精算" />
+          <SheetRow label="立替精算(経費の払い戻し・非課税) *" value={yen(reimb.total)} />
+          <div className="pslip-total">
+            <span className="pslip-total-label">お振込額</span>
+            <span className="pslip-total-value">{yen(r.net_pay + reimb.total)}</span>
+          </div>
+        </>
+      )}
+
+      <p className="pslip-note">
+        * 交通費{reimb.total > 0 && "・立替精算"}は課税対象外です。
+        {reimb.total > 0 && "立替精算は、立て替えた経費の払い戻しで、給与ではありません。"}
+      </p>
+
+      {/* 別表: 立替の内訳(購入日・購入先・品名・金額) */}
+      {reimb.items.length > 0 && (
+        <>
+          <SheetSection title="別表 立替の内訳" />
+          {reimb.items.map((i, idx) => (
+            <SheetRow key={idx} label={`${itemDate(i.purchased_on)}　${i.vendor}(${i.description})`} value={yen(i.amount)} />
+          ))}
+          <SheetRow label="合計" value={yen(reimb.total)} bold />
+        </>
+      )}
     </div>
   );
 }

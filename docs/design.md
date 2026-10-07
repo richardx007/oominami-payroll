@@ -2848,3 +2848,18 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
     注意（反映の遅れ・URLを教えない）。§22 の画面。
   - 「出退勤の時刻に通知を受け取る方法」（従業員向け・2分6秒。`movies/shift-notify-tate`）: 初めて通知をオンにする前提。iPhone の許可ダイアログ・テスト通知・
     「許可しない」を押したときの直し方 → 出勤予定時間・退勤予定時間の通知（マイナス＝退勤予定時間の後）。
+
+## 27. 立替の給与精算（2026-10-07追加）
+
+経費管理アプリ（oominami-business。同じ DB）で従業員が立て替えた経費を、給与と一緒に支払って精算する。
+設計の本体は oominami-business の `docs/payroll-reimbursement-plan.md`。
+
+- **対象**: 締めの時点で、経費管理で確認済み・未精算・購入日が締め日以前の立替（給与明細を作る従業員＝在籍中・管理者以外）。全員分を給与で精算する（オーナー判断）。
+- **締め**（`closePeriod`）: 経費管理の関数 `expense_payroll_attach(月度, 従業員ID[])` を呼び、従業員ごとの合計を `payslips.expense_reimbursement` に入れる。再締めは関数の中で付け直す。明細の保存に失敗したら `expense_payroll_detach` で戻す。
+- **締め解除**（`reopenPeriod`）: `expense_payroll_detach`。経費は元の「未精算」に戻る。
+- **支払済み**（`markPaid`）: `expense_payroll_mark_paid(月度, 支払日)`。経費は精算済み（精算日＝支払日）。失敗したら締め済みに戻す。
+- **お金の扱い**: 立替精算は給与ではない（実費の払い戻し・非課税）。総支給額・課税対象額・差引支給額（`net_pay`）には入れず、**お振込額 = 差引支給額 + 立替精算**として別に出す。税理士の確認は後日（オーナー判断で、まず作って評価する）。
+- **表示**: 締め画面の一覧（立替がある月だけ「立替精算*」「お振込額」の列。締め前は今締めたら乗る見込み）、明細 PDF・従業員の給与明細・明細メール（立替精算・お振込額と**別表「立替の内訳」**＝日付・購入先・品名・金額）、税理士 CSV（「立替精算(非課税・給与外)」「お振込額」の列。立替だけの人も出す）。
+- **読み込み**: `src/lib/expense-reimbursement.ts`。締め後は `expense_entries.payroll_period_id = 月度`、締め前は見込みの条件。経費管理の RLS で、管理者は全員分、従業員は自分が立替者の分だけ読める。
+- 給与管理は経費のテーブルを直接書き換えない（経費管理の関数を呼ぶだけ）。経費側では、給与に乗った立替の金額・立替者・確認・取消・精算をトリガーで止める。
+- マイグレーション: `supabase/migrations/20261008000100_payslips_expense_reimbursement.sql`（`payslips.expense_reimbursement`）。経費管理側は oominami-business の `20261008000000_expense_payroll_reimbursement.sql`。

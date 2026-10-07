@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
 import { adjacentPeriodKey, currentPeriod, periodFromKey } from "@/lib/period";
 import { PayslipView, type Slip } from "./ui";
+import { loadReimbursements } from "@/lib/expense-reimbursement";
 
 /**
  * 給与明細(従業員)。勤務表・日別実績と同様に、ヘッダの ＜ 月度 ＞ で月度単位に切り替える方式
@@ -32,13 +33,25 @@ export default async function PayslipsPage({
       .select(
         `work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay, night_pay,
          overtime_pay, transport_total, lunch_total, gross_pay, income_tax, advance_deduction,
-         net_pay, tax_category`
+         net_pay, tax_category, expense_reimbursement`
       )
       .eq("employee_id", employee.id)
       .eq("pay_period_id", payPeriod.id)
       .maybeSingle();
     if (data) {
-      slip = { ...data, status: payPeriod.status };
+      // 立替の内訳(この月度の給与で精算する、自分が立て替えた経費。2026-10-07)
+      const items =
+        data.expense_reimbursement > 0
+          ? ((
+              await loadReimbursements(supabase, {
+                periodId: payPeriod.id,
+                status: payPeriod.status,
+                end: period.end,
+                employeeId: employee.id,
+              })
+            ).get(employee.id)?.items ?? [])
+          : [];
+      slip = { ...data, status: payPeriod.status, reimbursementItems: items };
     }
   }
 

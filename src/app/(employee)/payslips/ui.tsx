@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
 import { adjacentPeriodKey, formatMinutes } from "@/lib/period";
 import { useSwipeNav } from "@/lib/useSwipeNav";
+import { itemDate, type ReimbursementItem } from "@/lib/expense-reimbursement";
 
 export type Slip = {
   work_days: number;
@@ -21,6 +22,10 @@ export type Slip = {
   advance_deduction: number;
   net_pay: number;
   tax_category: string;
+  /** 立替精算(経費の払い戻し・非課税。2026-10-07)。差引支給額には含めない */
+  expense_reimbursement: number;
+  /** 立替の内訳(別表) */
+  reimbursementItems: ReimbursementItem[];
   /** 表示中の月度が属する pay_periods の状態(closed/paid) */
   status: string;
 };
@@ -149,8 +154,51 @@ export function PayslipView({
                     bold
                   />
                 </div>
+                {/* 立替精算は給与ではない(立て替えた経費の払い戻し・非課税)。お振込額 = 差引支給額 + 立替精算 */}
+                {slip.expense_reimbursement > 0 && (
+                  <>
+                    <Row
+                      label="立替精算(経費の払い戻し・非課税)"
+                      value={`¥${slip.expense_reimbursement.toLocaleString()}`}
+                    />
+                    <div className="border-t border-gray-100 pt-2">
+                      <Row
+                        label="お振込額"
+                        value={`¥${(slip.net_pay + slip.expense_reimbursement).toLocaleString()}`}
+                        bold
+                      />
+                    </div>
+                  </>
+                )}
               </dl>
             </div>
+            {/* 別表: 立替の内訳 */}
+            {slip.reimbursementItems.length > 0 && (
+              <div className="border-t border-gray-200">
+                <div className="border-b border-result-200 bg-result-100 px-4 py-2 text-sm font-semibold text-gray-700">
+                  別表 立替の内訳
+                </div>
+                <ul className="divide-y divide-gray-100 px-4 text-sm">
+                  {slip.reimbursementItems.map((i, idx) => (
+                    <li key={idx} className="flex items-baseline justify-between gap-3 py-2">
+                      <span className="min-w-0">
+                        <span className="mr-2 text-gray-500">{itemDate(i.purchased_on)}</span>
+                        {i.vendor}
+                        <span className="ml-1 text-xs text-gray-500">{i.description}</span>
+                      </span>
+                      <span className="shrink-0 tabular-nums">¥{i.amount.toLocaleString()}</span>
+                    </li>
+                  ))}
+                  <li className="flex items-baseline justify-between gap-3 py-2 font-bold">
+                    <span>合計</span>
+                    <span className="tabular-nums">¥{slip.expense_reimbursement.toLocaleString()}</span>
+                  </li>
+                </ul>
+                <p className="px-4 pb-3 text-xs text-gray-500">
+                  立て替えた経費の払い戻しで、給与ではありません(所得税はかかりません)。
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

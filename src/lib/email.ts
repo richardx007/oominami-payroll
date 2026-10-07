@@ -239,6 +239,13 @@ export function buildPayslipMailText(params: {
   netPay: number;
   taxCategory: string;
   dailyRows?: PayslipDailyRow[];
+  /**
+   * 立替精算(経費の払い戻し・非課税。2026-10-07)。0 なら行を出さない。
+   * 給与ではないので差引支給額には含めず、「お振込額 = 差引支給額 + 立替精算」として別に出す
+   */
+  expenseReimbursement?: number;
+  /** 立替の内訳(購入日・購入先・品名・金額) */
+  reimbursementItems?: { purchased_on: string; vendor: string; description: string; amount: number }[];
 }): string {
   const yen = (n: number) => `${n.toLocaleString()}円`;
   const hours = toHHMM(params.totalMinutes);
@@ -247,6 +254,7 @@ export function buildPayslipMailText(params: {
   const overtimeMins = params.overtimeMinutes ?? 0;
   const overtimePay = params.overtimePay ?? 0;
   const advance = params.advanceDeduction ?? 0;
+  const reimbursement = params.expenseReimbursement ?? 0;
   return [
     `${params.name} 様`,
     "",
@@ -281,11 +289,28 @@ export function buildPayslipMailText(params: {
       ? [`前払金(日当としてお支払い済み): -${yen(advance)}`]
       : []),
     `差引支給額: ${yen(params.netPay)}`,
+    // 立替精算は給与の計算の外(非課税・総支給額に含めない)。お振込額 = 差引支給額 + 立替精算
+    ...(reimbursement > 0
+      ? [
+          `立替精算(経費の払い戻し・非課税): ${yen(reimbursement)}`,
+          `お振込額: ${yen(params.netPay + reimbursement)}`,
+        ]
+      : []),
     ...(advance > 0
       ? [
           "",
           "※前払金は、日当として既に現金でお支払いした分です。総支給額・源泉所得税は",
           "  期間全体で計算したうえで、お支払い済みの分を差引支給額から控除しています。",
+        ]
+      : []),
+    ...(reimbursement > 0 && (params.reimbursementItems ?? []).length > 0
+      ? [
+          "",
+          "【立替の内訳】(あなたが立て替えた経費の払い戻しです。給与ではありません)",
+          ...(params.reimbursementItems ?? []).map((i) => {
+            const [, m, d] = i.purchased_on.split("-");
+            return `${Number(m)}/${Number(d)} ${i.vendor}(${i.description}) ${yen(i.amount)}`;
+          }),
         ]
       : []),
     ...buildDailyDetail(params.dailyRows ?? []),

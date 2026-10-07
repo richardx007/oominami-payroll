@@ -15,6 +15,7 @@ import {
   type PayslipDailyRow,
 } from "@/lib/email";
 import type { ActionResult } from "../employees/actions";
+import { loadReimbursements } from "@/lib/expense-reimbursement";
 
 /** 締め処理: 期間をロックし、全員分の給与明細を確定保存する */
 export async function closePeriod(periodKey: string): Promise<ActionResult> {
@@ -56,6 +57,21 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     return { ok: false, message: "締め処理に失敗しました: " + periodError.message };
   }
 
+  // 立替の給与精算(2026-10-07): 確認済み・未精算の立替(購入日が締め日以前)をこの月度に乗せ、
+  // 従業員ごとの合計を明細の「立替精算」に入れる。経費のテーブルは経費管理の関数で変える(lib/expense-reimbursement.ts)。
+  // 再締めのときは関数の中で前の分を外してから付け直す
+  const { data: attached, error: attachError } = await supabase.rpc("expense_payroll_attach", {
+    p_period_id: payPeriod.id,
+    p_employee_ids: payrolls.map((p) => p.employee_id),
+  });
+  if (attachError) {
+    await supabase.from("pay_periods").update({ status: "open" }).eq("id", payPeriod.id);
+    return { ok: false, message: "立替精算の集計に失敗しました: " + attachError.message };
+  }
+  const reimbursementByEmployee = new Map(
+    ((attached ?? []) as { employee_id: string; total: number }[]).map((r) => [r.employee_id, r.total])
+  );
+
   // 明細を確定保存(再締めの場合は上書き)
   const now = new Date().toISOString();
   const rows = payrolls.map((p) => ({
@@ -76,6 +92,7 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     advance_deduction: p.result!.advance_deduction,
     net_pay: p.result!.net_pay,
     tax_category: p.result!.tax_category,
+    expense_reimbursement: reimbursementByEmployee.get(p.employee_id) ?? 0,
     finalized_at: now,
   }));
 
@@ -84,7 +101,8 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
     .upsert(rows, { onConflict: "employee_id,pay_period_id" });
 
   if (payslipError) {
-    // 明細保存に失敗したら期間を戻す
+    // 明細保存に失敗したら期間と立替精算を戻す
+    await supabase.rpc("expense_payroll_detach", { p_period_id: payPeriod.id });
     await supabase
       .from("pay_periods")
       .update({ status: "open" })
@@ -97,13 +115,19 @@ export async function closePeriod(periodKey: string): Promise<ActionResult> {
 
   // 締め・締め解除・支払済みは給与に直結する操作なので必ず記録する
   // (2026-09-26 に締めたのにログに残っていないとオーナー指摘があり追加)
-  await logActivity("締め処理", `${period.label}を締めた(${rows.length}名分の明細を作成)`);
+  const reimbursementTotal = rows.reduce((s, r) => s + r.expense_reimbursement, 0);
+  const reimbursementNote =
+    reimbursementTotal > 0 ? `、立替精算 ${reimbursementTotal.toLocaleString()}円` : "";
+  await logActivity(
+    "締め処理",
+    `${period.label}を締めた(${rows.length}名分の明細を作成${reimbursementNote})`
+  );
 
   revalidatePath("/admin/close");
   revalidatePath("/admin");
   return {
     ok: true,
-    message: `${period.label}を締めました(${rows.length}名分の明細を作成)`,
+    message: `${period.label}を締めました(${rows.length}名分の明細を作成${reimbursementNote})`,
   };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -148,6 +172,15 @@ export async function reopenPeriod(periodKey: string): Promise<ActionResult> {
 
   if (error) {
     return { ok: false, message: "締め解除に失敗しました: " + error.message };
+  }
+
+  // 立替の給与精算を外す(経費管理では元の「未精算」に戻る。再締めでまた乗る)
+  const { error: detachError } = await supabase.rpc("expense_payroll_detach", {
+    p_period_id: current.id,
+  });
+  if (detachError) {
+    await supabase.from("pay_periods").update({ status: "closed" }).eq("id", current.id);
+    return { ok: false, message: "立替精算の取り外しに失敗しました: " + detachError.message };
   }
 
   await logActivity("締め解除", `${period.label}の締めを解除した`);
@@ -215,11 +248,17 @@ export async function emailPayslips(
     .select(
       `id, employee_id, work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay,
        night_pay, overtime_pay, transport_total, lunch_total, gross_pay, income_tax,
-       advance_deduction, net_pay, tax_category, emailed_at, employees ( name, email, status )`
+       advance_deduction, net_pay, tax_category, expense_reimbursement, emailed_at, employees ( name, email, status )`
     )
     .eq("pay_period_id", payPeriod.id);
 
   // 日別明細用に当期の勤務実績・昼食補助(従業員別日額)・標準休憩時間帯を取得する
+  // 立替精算の内訳(この月度の給与に乗せた立替)
+  const reimbursements = await loadReimbursements(supabase, {
+    periodId: payPeriod.id,
+    status: "closed",
+    end: period.end,
+  });
   const [{ data: periodEntries }, { data: lunchRates }, { data: breakSettings }] =
     await Promise.all([
       supabase
@@ -320,6 +359,8 @@ export async function emailPayslips(
         netPay: p.net_pay,
         taxCategory: p.tax_category,
         dailyRows: entriesByEmployee.get(p.employee_id) ?? [],
+        expenseReimbursement: p.expense_reimbursement,
+        reimbursementItems: reimbursements.get(p.employee_id)?.items ?? [],
       }),
     });
     if (result.ok) {
@@ -365,10 +406,20 @@ export async function markPaid(periodKey: string): Promise<ActionResult> {
     .eq("start_date", period.start)
     .eq("end_date", period.end)
     .eq("status", "closed")
-    .select("id");
+    .select("id, payment_date");
 
   if (error || !data || data.length === 0) {
     return { ok: false, message: "更新できませんでした(先に締めてください)" };
+  }
+
+  // この月度の給与に乗せた立替を精算済みにする(精算日 = 給与の支払日)。失敗したら締め済みに戻す
+  const { error: paidError } = await supabase.rpc("expense_payroll_mark_paid", {
+    p_period_id: data[0].id,
+    p_paid_on: data[0].payment_date,
+  });
+  if (paidError) {
+    await supabase.from("pay_periods").update({ status: "closed" }).eq("id", data[0].id);
+    return { ok: false, message: "立替精算の精算済み登録に失敗しました: " + paidError.message };
   }
 
   await logActivity("支払済み", `${period.label}を支払済みにした`);

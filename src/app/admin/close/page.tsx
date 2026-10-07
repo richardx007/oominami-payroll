@@ -18,6 +18,7 @@ import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
 import { PAYSLIP_ISSUER_KEYS, parsePayslipIssuer } from "@/lib/payslip-issuer";
 import { zebraRowClass } from "@/lib/table";
 import { CloseActions } from "./ui";
+import { loadReimbursements } from "@/lib/expense-reimbursement";
 import { PayslipPdfButton } from "./payslip-pdf";
 
 export default async function ClosePage({
@@ -32,7 +33,7 @@ export default async function ClosePage({
   const supabase = await createClient();
   const { data: payPeriod } = await supabase
     .from("pay_periods")
-    .select("status")
+    .select("id, status")
     .eq("start_date", period.start)
     .eq("end_date", period.end)
     .maybeSingle();
@@ -46,6 +47,18 @@ export default async function ClosePage({
   const payrolls = await calculatePeriodPayroll(period, {
     ignoreIncomplete: tentative,
   });
+  // 立替の給与精算(2026-10-07)。締め後はこの月度に乗せた立替、締め前は今締めたら乗る見込み。
+  // 給与ではない(非課税の実費の払い戻し)ので、差引支給の右に「立替精算」「お振込額」として別に出す
+  const reimbursements = await loadReimbursements(supabase, {
+    periodId: payPeriod?.id ?? null,
+    status,
+    end: period.end,
+  });
+  const reimbursementOf = (employeeId: string) =>
+    reimbursements.get(employeeId) ?? { total: 0, items: [] };
+  const anyReimbursement = payrolls.some(
+    (p) => reimbursementOf(p.employee_id).total > 0
+  );
 
   // シフト予定と勤務実績で時刻が食い違う日がある従業員を洗い出す(勤務表画面と同じ突合)。
   // timediff=時刻相違 / unplanned=予定なしで勤務。該当者の勤務時間欄に⚠️を出し、
@@ -95,8 +108,12 @@ export default async function ClosePage({
   // その期間に勤務実績が1日も無い従業員は wage_breakdown が空で**1行も描画されない**ため、
   // 添字で数えると飛ばされたぶん前後の行が同じ色になってしまう
   // (2026-09-11に発生。勤務0件の原田さんが岸田さんと鈴木さんの間にいた)。
+  // 勤務が無くても立替精算がある従業員は出す(明細のPDF・お振込額を見せるため)
   const rendered = payrolls.filter(
-    (p) => !p.result || p.result.wage_breakdown.length > 0
+    (p) =>
+      !p.result ||
+      p.result.wage_breakdown.length > 0 ||
+      reimbursementOf(p.employee_id).total > 0
   );
 
   const totals = payrolls.reduce(
@@ -107,9 +124,10 @@ export default async function ClosePage({
         acc.advance += p.result.advance_deduction;
         acc.net += p.result.net_pay;
       }
+      acc.reimbursement += reimbursementOf(p.employee_id).total;
       return acc;
     },
-    { gross: 0, tax: 0, advance: 0, net: 0 }
+    { gross: 0, tax: 0, advance: 0, net: 0, reimbursement: 0 }
   );
 
   return (
@@ -191,6 +209,22 @@ export default async function ClosePage({
                 <dt>差引支給</dt>
                 <dd className="tabular-nums">¥{totals.net.toLocaleString()}</dd>
               </div>
+              {totals.reimbursement > 0 && (
+                <>
+                  <div className="flex items-baseline justify-between gap-4 font-normal text-gray-700">
+                    <dt>立替精算(非課税)</dt>
+                    <dd className="tabular-nums">
+                      ¥{totals.reimbursement.toLocaleString()}
+                    </dd>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <dt>お振込額</dt>
+                    <dd className="tabular-nums">
+                      ¥{(totals.net + totals.reimbursement).toLocaleString()}
+                    </dd>
+                  </div>
+                </>
+              )}
             </dl>
           </div>
         </div>
@@ -226,6 +260,13 @@ export default async function ClosePage({
                 <th className="px-4 py-2 text-right">所得税</th>
                 <th className="px-4 py-2 text-right">前払金</th>
                 <th className="px-4 py-2 text-right">差引支給</th>
+                {/* 立替の給与精算(経費管理で確認済みの立替)。列は立替がある月だけ出す */}
+                {anyReimbursement && (
+                  <>
+                    <th className="px-4 py-2 text-right">立替精算*</th>
+                    <th className="px-4 py-2 text-right">お振込額</th>
+                  </>
+                )}
                 {/* 従業員ごとの給与明細PDF出力ボタンの列(見出しは不要)。
                     pdf-col は一覧のPDF出力時にこの列を隠すための目印(globals.css) */}
                 <th className="pdf-col px-4 py-2 text-right">
@@ -248,7 +289,10 @@ export default async function ClosePage({
                       <td className="sticky left-0 z-10 whitespace-nowrap bg-inherit px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
                         {p.name}
                       </td>
-                      <td colSpan={16} className="px-4 py-3 text-red-600">
+                      <td
+                        colSpan={anyReimbursement ? 18 : 16}
+                        className="px-4 py-3 text-red-600"
+                      >
                         {p.error}
                       </td>
                     </tr>
@@ -257,7 +301,22 @@ export default async function ClosePage({
                 // 月度途中で時給が変わった場合、時給ごとに明細行を分ける。
                 // 時給に依存しない列(交通費・昼食補助・総支給・課税対象額・所得税・前払金・差引支給)は
                 // 分割できないので rowSpan で人単位1つにまとめる
-                const breakdown = result.wage_breakdown;
+                // 勤務が無く立替精算だけの従業員も1行出す(勤務の列は0)
+                const breakdown =
+                  result.wage_breakdown.length > 0
+                    ? result.wage_breakdown
+                    : [
+                        {
+                          work_days: 0,
+                          total_minutes: 0,
+                          night_minutes: 0,
+                          overtime_minutes: 0,
+                          hourly_wage: 0,
+                          base_pay: 0,
+                          night_pay: 0,
+                          overtime_pay: 0,
+                        },
+                      ];
                 const rowSpan = breakdown.length;
                 return breakdown.map((b, i) => (
                   <tr
@@ -366,6 +425,27 @@ export default async function ClosePage({
                         >
                           ¥{result.net_pay.toLocaleString()}
                         </td>
+                        {anyReimbursement && (
+                          <>
+                            <td
+                              rowSpan={rowSpan}
+                              className="whitespace-nowrap px-4 py-3 text-right"
+                            >
+                              {reimbursementOf(p.employee_id).total > 0
+                                ? `¥${reimbursementOf(p.employee_id).total.toLocaleString()}`
+                                : "―"}
+                            </td>
+                            <td
+                              rowSpan={rowSpan}
+                              className="whitespace-nowrap px-4 py-3 text-right font-bold"
+                            >
+                              ¥{(
+                                result.net_pay +
+                                reimbursementOf(p.employee_id).total
+                              ).toLocaleString()}
+                            </td>
+                          </>
+                        )}
                         {/* 右端: この従業員だけの給与明細をA4縦のPDFで出力する */}
                         <td
                           rowSpan={rowSpan}
@@ -382,6 +462,7 @@ export default async function ClosePage({
                               paymentDate: period.paymentDate,
                               draft,
                               result,
+                              reimbursement: reimbursementOf(p.employee_id),
                             }}
                           />
                         </td>
@@ -393,7 +474,7 @@ export default async function ClosePage({
               {rendered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={17}
+                    colSpan={anyReimbursement ? 19 : 17}
                     className="px-4 py-8 text-center text-gray-400"
                   >
                     対象の従業員がいません

@@ -3739,6 +3739,13 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - コミット `11f2dbd`。Cloudflare Workers Builds は本番アカウント 1247… で成功（別アカウント b4c6… のビルドなし）。
 - ✅ 実機確認（2026-10-07 オーナー）: 本番の日別実績で＜＞の切り替えが速くなったことを確認（「とても快適になりました」）。
 
+### 2026-10-07 の作業 その5（オーナー依頼。立替の給与精算。設計書§27）
+- 経費管理で確認済み・未精算の立替を、締めで給与明細の「立替精算」（非課税・給与外）に乗せ、支払済みで経費側も精算済みにする。お振込額 = 差引支給額 + 立替精算。
+- 締め・締め解除・支払済みから経費管理の関数（`expense_payroll_attach / detach / mark_paid`）を呼ぶ。明細一覧・PDF・従業員の明細・メール・税理士 CSV に立替精算・お振込額・別表「立替の内訳」。
+- DB: `payslips.expense_reimbursement`（`20261008000100_payslips_expense_reimbursement.sql`）を本番に適用済み。経費管理側のマイグレーションも同日に適用（バックアップを手動実行してから）。
+- **最初の実際の締めは 2026-10-25（10月度）**。それまでは締め前の明細一覧の「立替精算」見込みで確認。税理士の確認は後日。
+- lint は `.claude/skills/print-and-pdf-download/assets/PrintablePanel.tsx` の既存の1件のみ（今回の変更とは無関係）。
+
 ### 2026-10-07 の作業 その4（オーナー依頼。lint エラーの解消）
 - `npx eslint src` のエラー6件（すべて `react-hooks/set-state-in-effect` = useEffect の中で直接 setState）を解消し、**lint は0件**。
 - 共通の `src/lib/useClientValue.ts`（`useSyncExternalStore` で、ブラウザでしか読めない値を hydration の不一致なく読む）を追加し、
