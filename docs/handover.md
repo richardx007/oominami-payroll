@@ -3745,6 +3745,7 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - DB: `payslips.expense_reimbursement`（`20261008000100_payslips_expense_reimbursement.sql`）を本番に適用済み。経費管理側のマイグレーションも同日に適用（バックアップを手動実行してから）。
 - **最初の実際の締めは 2026-10-25（10月度）**。それまでは締め前の明細一覧の「立替精算」見込みで確認。税理士の確認は後日。
 - lint は `.claude/skills/print-and-pdf-download/assets/PrintablePanel.tsx` の既存の1件のみ（今回の変更とは無関係）。
+- 同日の追加（オーナー依頼）: 明細 PDF の「別表 立替の内訳」を**2ページ目**に分けた（`captureSheetToPdfBlob` は `.pslip-sheet` ごとに新しいページから始める。立替が無ければ1ページのまま）。コミット `953a8e6`、Workers Builds 成功。
 
 ### 2026-10-07 の作業 その4（オーナー依頼。lint エラーの解消）
 - `npx eslint src` のエラー6件（すべて `react-hooks/set-state-in-effect` = useEffect の中で直接 setState）を解消し、**lint は0件**。
