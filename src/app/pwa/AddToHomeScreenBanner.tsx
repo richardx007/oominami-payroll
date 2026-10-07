@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useClientValue } from "@/lib/useClientValue";
 
 /**
  * AddToHomeScreenBanner
@@ -70,14 +71,16 @@ function detectEnv() {
   return { isLine, isIOS, isAndroid, isStandalone };
 }
 
+// detectEnv() は毎回新しいオブジェクトを返すため、最初の結果を使い回す(useClientValue の注意点)
+let cachedEnv: ReturnType<typeof detectEnv> | null = null;
+const readEnv = () => (cachedEnv ??= detectEnv());
+
 export function AddToHomeScreenBanner() {
-  const [env, setEnv] = useState<ReturnType<typeof detectEnv> | null>(null);
+  // navigator/window に依存する判定はブラウザでだけ行う(SSRとの不一致を避ける)
+  const env = useClientValue<ReturnType<typeof detectEnv> | null>(readEnv, null);
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(false);
-
-  // navigator/window に依存する判定はマウント後に行う(SSRとの不一致を避ける)
-  useEffect(() => setEnv(detectEnv()), []);
 
   useEffect(() => {
     const handler = (e: Event) => {

@@ -11,6 +11,7 @@ import {
   rotateMyCalendarToken,
 } from "./actions";
 import QRCode from "qrcode";
+import { useClientValue } from "@/lib/useClientValue";
 import {
   checkPushSupport,
   getSubscription,
@@ -167,6 +168,17 @@ function ProfileForm({
  * 現時点で従業員向けの通知は無いが、今後の準備として全員に見せる。
  * ロジックは admin/settings/ui.tsx の旧 NotifySettingsForm と同じ(2026-08-06にこちらへ移動)。
  */
+/** 通知に対応していない端末・ブラウザなら理由。対応していれば null */
+function readPushUnsupported(): string | null {
+  const support = checkPushSupport();
+  return support.supported ? null : support.reason;
+}
+
+/** 通知の許可状態。通知に対応していない端末では null(許可の案内を出さない。従来どおり) */
+function readNotificationPermission(): NotificationPermission | null {
+  return checkPushSupport().supported ? Notification.permission : null;
+}
+
 function DeviceNotificationSection({
   vapidPublicKey,
   registeredEndpoints,
@@ -181,22 +193,21 @@ function DeviceNotificationSection({
   notifyTypeSection?: ReactNode;
 }) {
   const [deviceOn, setDeviceOn] = useState<boolean | null>(null);
-  const [unsupported, setUnsupported] = useState<string | null>(null);
+  // 通知に対応していない端末・ブラウザなら理由(画面に出す)。対応していれば null
+  const unsupported = useClientValue(readPushUnsupported, null);
   const [deviceBusy, setDeviceBusy] = useState(false);
   const [deviceMsg, setDeviceMsg] = useState<ActionResult | null>(null);
-  const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  // 通知の許可状態。画面を開いた時点の値を読み、登録ボタンを押した後は読み直した値で上書きする
+  const initialPermission = useClientValue(readNotificationPermission, null);
+  const [updatedPermission, setPermission] = useState<NotificationPermission | null>(null);
+  const permission = updatedPermission ?? initialPermission;
   // テスト通知の送信先(この端末の購読)。登録済みのときだけ入る
   const [endpoint, setEndpoint] = useState<string | null>(null);
   const [testBusy, setTestBusy] = useState(false);
 
   useEffect(() => {
-    const support = checkPushSupport();
-    if (!support.supported) {
-      setUnsupported(support.reason);
-      setDeviceOn(false);
-      return;
-    }
-    setPermission(Notification.permission);
+    // 非対応の端末では登録状態を調べない(画面には unsupported の理由だけを出す)
+    if (!checkPushSupport().supported) return;
     // 🔴 「登録済み」はブラウザ側の購読だけでは判定できない。サーバー保存が独立して
     //    失敗しうるため、サーバー側の一覧と突き合わせ、食い違っていれば登録し直す。
     getSubscription()

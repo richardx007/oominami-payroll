@@ -9,6 +9,7 @@ import { updateClockSettings } from "./actions";
 import type { ActionResult } from "../employees/actions";
 import { PdfPreviewDialog } from "@/components/PdfPreviewDialog";
 import { toPreviewImage } from "@/lib/pdf-capture";
+import { useClientValue } from "@/lib/useClientValue";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -237,27 +238,28 @@ export function ClockSettingsForm({
 
 /** 出勤/退勤QRの表示・印刷。URLは現在のオリジンから生成する。
  *  印刷時は QR コードのみ(会社名タイトル＋説明つき)を印刷する専用シートを出す。 */
+/** window.print() が使える環境か(iPhone/iPad のホーム画面アプリでは使えない) */
+function readPrintSupported(): boolean {
+  const isIOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isStandalone =
+    (navigator as unknown as { standalone?: boolean }).standalone === true ||
+    window.matchMedia("(display-mode: standalone)").matches;
+  return !(isIOS && isStandalone);
+}
+
 function QrCodes({ companyName }: { companyName: string }) {
   const [inUrl, setInUrl] = useState<string>("");
   const [outUrl, setOutUrl] = useState<string>("");
   const [installUrl, setInstallUrl] = useState<string>("");
-  const [mounted, setMounted] = useState(false);
+  // 印刷専用シートの portal(document.body)はブラウザでだけ作る
+  const mounted = useClientValue(() => true, false);
   const [pdfOpen, setPdfOpen] = useState(false);
   // iPhone/iPad をホーム画面に追加した状態(PWA standalone表示)では window.print() が
   // 動作しないため、その環境では「印刷」ボタン自体を表示しない(PDFダウンロードのみ案内)。
-  const [printSupported, setPrintSupported] = useState(true);
+  const printSupported = useClientValue(readPrintSupported, true);
   const sheetRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    const isIOS =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const isStandalone =
-      (navigator as unknown as { standalone?: boolean }).standalone === true ||
-      window.matchMedia("(display-mode: standalone)").matches;
-    setPrintSupported(!(isIOS && isStandalone));
-  }, []);
 
   useEffect(() => {
     const origin = window.location.origin;

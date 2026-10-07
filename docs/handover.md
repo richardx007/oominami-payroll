@@ -3739,6 +3739,19 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - コミット `11f2dbd`。Cloudflare Workers Builds は本番アカウント 1247… で成功（別アカウント b4c6… のビルドなし）。
 - ✅ 実機確認（2026-10-07 オーナー）: 本番の日別実績で＜＞の切り替えが速くなったことを確認（「とても快適になりました」）。
 
+### 2026-10-07 の作業 その4（オーナー依頼。lint エラーの解消）
+- `npx eslint src` のエラー6件（すべて `react-hooks/set-state-in-effect` = useEffect の中で直接 setState）を解消し、**lint は0件**。
+- 共通の `src/lib/useClientValue.ts`（`useSyncExternalStore` で、ブラウザでしか読めない値を hydration の不一致なく読む）を追加し、
+  次の箇所を置き換えた。画面の動きは変えていない。
+  - `admin/shifts/ShiftSchedule.tsx`: 本日の色分け用の現在時刻 → `useMinuteClock()`（1分ごと・分の頭に切り捨て）
+  - `account/AccountSettingsView.tsx`: 通知の対応可否・許可状態（非対応の端末では従来どおり許可の案内を出さない）
+  - `admin/settings/clock.tsx`: portal 用の mounted・印刷可否（iOS のホーム画面アプリでは印刷不可）
+  - `clock/ui.tsx`: ホーム画面アプリかどうか・位置情報の対応可否（非対応なら「取得できません」）
+  - `pwa/AddToHomeScreenBanner.tsx`: 端末判定（結果はモジュール内で使い回す。毎回新しいオブジェクトを返すと描画が繰り返されるため）
+- ⚠️ `useClientValue` の read は毎回同じ値（プリミティブ等）を返すこと。既存の `login/page.tsx`・`AccessHelp.tsx` は eslint-disable のコメント付きで残している。
+- 🔴 実機確認: 打刻画面（位置情報の取得・打刻・完了後の案内がホーム画面アプリ/Safari で出し分けられるか）、
+  アカウント設定の通知「登録済み/未登録」、シフト画面の本日の色分け、QR設定の印刷ボタン（iPhone のホーム画面アプリでは非表示）。
+
 ## 7. すぐ使えるコマンド集
 
 ```bash

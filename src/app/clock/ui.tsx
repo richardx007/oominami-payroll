@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { logClockView, punchClock, reportClockError, type ClockResult } from "./actions";
 import { AccessHelp } from "@/components/AccessHelp";
+import { useClientValue } from "@/lib/useClientValue";
 
 type Coords = { lat: number; lng: number; accuracy: number | null };
 
@@ -16,6 +17,14 @@ export type TransportDefault = {
 };
 
 const TRANSPORT_MODES = ["鉄道", "バス", "自転車", "その他"];
+
+/** ホーム画面アプリ(PWA standalone)として開いているか */
+function readStandalone(): boolean {
+  return (
+    (navigator as unknown as { standalone?: boolean }).standalone === true ||
+    window.matchMedia("(display-mode: standalone)").matches
+  );
+}
 
 /**
  * "HH:MM" を単位(分)で丸める(サーバーの roundTime と同じ挙動・表示用)。
@@ -63,15 +72,22 @@ export function ClockConfirm({
   const isIn = type === "in";
   const [now, setNow] = useState<string>("");
   const [coords, setCoords] = useState<Coords | null>(null);
-  const [geoStatus, setGeoStatus] = useState<
-    "idle" | "loading" | "ok" | "denied" | "unsupported"
-  >(locationEnabled ? "loading" : "idle");
+  const [geoState, setGeoStatus] = useState<"idle" | "loading" | "ok" | "denied">(
+    locationEnabled ? "loading" : "idle"
+  );
+  // 位置情報に対応していない端末は取得を試みずに「取得できません」と出す
+  const geoSupported = useClientValue(
+    () => typeof navigator !== "undefined" && !!navigator.geolocation,
+    true
+  );
+  const geoStatus =
+    locationEnabled && !geoSupported ? ("unsupported" as const) : geoState;
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<ClockResult | null>(null);
   // ホーム画面PWA(スタンドアロン)から開いているかどうか。iOSのSafariには「リンクを
   // タップすると自動でPWA側が開く」仕組みが無いため、Safariで開いている場合は
   // 「勤務表を開く」リンク(Safariが開くだけ)ではなく、ホーム画面アプリの案内文に差し替える。
-  const [isStandalone, setIsStandalone] = useState<boolean | null>(null);
+  const isStandalone = useClientValue<boolean | null>(readStandalone, null);
 
   // 交通費(最も最近の入力をデフォルト表示。開閉式で、必要な時だけ入力)
   const [showTransport, setShowTransport] = useState(false);
@@ -84,10 +100,7 @@ export function ClockConfirm({
   );
 
   useEffect(() => {
-    const standalone =
-      (navigator as unknown as { standalone?: boolean }).standalone === true ||
-      window.matchMedia("(display-mode: standalone)").matches;
-    setIsStandalone(standalone);
+    const standalone = readStandalone();
     // 画面を開いたことを操作ログに残す(記録が無いときの原因の切り分け用。失敗しても打刻には影響させない)
     logClockView({ type, fromMenu: backHref != null, standalone }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,11 +123,7 @@ export function ClockConfirm({
 
   // 位置情報を取得(基準位置が設定されている場合のみ)
   useEffect(() => {
-    if (!locationEnabled) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setGeoStatus("unsupported");
-      return;
-    }
+    if (!locationEnabled || !geoSupported) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCoords({
@@ -127,7 +136,7 @@ export function ClockConfirm({
       () => setGeoStatus("denied"),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-  }, [locationEnabled]);
+  }, [locationEnabled, geoSupported]);
 
   async function submit() {
     setPending(true);

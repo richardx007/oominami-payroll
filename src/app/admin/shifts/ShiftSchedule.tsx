@@ -1,6 +1,12 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  Fragment,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Period } from "@/lib/period";
@@ -115,6 +121,26 @@ function nicknameColor(style: NicknameStyle): string | undefined {
   return SHIFT_TEXT_COLOR;
 }
 
+/**
+ * 1分ごとに進む現在時刻(ミリ秒。分の頭に切り捨て)。サーバー描画と hydration では null を返し、
+ * サーバー/クライアントの描画差分(hydrationの不一致)を避ける。開きっぱなしの画面でも
+ * 遅刻・退勤超過の色分けが自然に切り替わるよう、1分ごとに読み直す。
+ * 以前は useEffect の中で setState していたが、lint(react-hooks/set-state-in-effect)に
+ * 指摘されるため useSyncExternalStore に置き換えた(2026-10-07)。分単位に丸めるのは、
+ * 同じ分の間は同じ値を返さないと React が描画のたびに値が変わったとみなすため
+ * (todayNicknameStyle は時:分の時刻と比べるので、判定は従来の1分ごとの更新と同じ精度)。
+ */
+function subscribeMinute(onChange: () => void) {
+  const id = setInterval(onChange, 60_000);
+  return () => clearInterval(id);
+}
+function minuteNow(): number {
+  return Math.floor(Date.now() / 60_000) * 60_000;
+}
+function useMinuteClock(): number | null {
+  return useSyncExternalStore(subscribeMinute, minuteNow, () => null);
+}
+
 export function ShiftSchedule({
   period,
   slotVersions,
@@ -215,16 +241,9 @@ export function ShiftSchedule({
   // モード切替の確認ダイアログ(管理者のみ)
   const [confirmMode, setConfirmMode] = useState(false);
 
-  // 本日のニックネーム色分け(todayNicknameStyle)に使う「現在時刻」。
-  // サーバー/クライアントでの描画差分(hydrationの不一致)を避けるため、初期値は null にして
-  // マウント後に確定させる(初回描画では本日も通常のnicknameStyleにフォールバックする)。
-  // 1分ごとに更新し、遅刻・退勤超過の表示が開きっぱなしの画面でも自然に切り替わるようにする。
-  const [nowMs, setNowMs] = useState<number | null>(null);
-  useEffect(() => {
-    setNowMs(Date.now());
-    const id = setInterval(() => setNowMs(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  // 本日のニックネーム色分け(todayNicknameStyle)に使う「現在時刻」(分単位。useMinuteClock 参照)。
+  // サーバー描画と hydration では null(本日も通常の nicknameStyle にフォールバック)。
+  const nowMs = useMinuteClock();
 
   // 深夜番(0〜5時始まり)は「業務日付」が実際の壁時計の日付より1日前になる
   // (businessDateOf()と同じ規則。打刻もこのルールでwork_dateを決めている)。
