@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { WEEKDAYS, adjacentPeriodKey, weekdayOf, type Period } from "@/lib/period";
+import { WEEKDAYS, weekdayOf, type Period } from "@/lib/period";
 import type { DailyReport } from "@/lib/daily-report";
 import {
   AdvanceToggle,
   DailySummary,
   DownloadDailyCsvButton,
   LunchReasonBadge,
+  PeriodNav,
+  PeriodNavProvider,
+  PeriodPendingArea,
 } from "./ui";
 import { DownloadPdfButton } from "@/app/admin/report/ui";
 import { zebraRowClass } from "@/lib/table";
@@ -65,28 +68,12 @@ export function DailyReportView({
   );
 
   return (
+    <PeriodNavProvider periodKey={period.key} basePath={basePath}>
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* 前月/翌月は給与明細画面と同じ ＜ 年月 ＞ のスタイル・配色に統一 */}
-        <div className="flex items-center gap-1.5">
-          <Link
-            href={`${basePath}?p=${adjacentPeriodKey(period.key, -1)}`}
-            aria-label="前月"
-            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
-          >
-            ＜
-          </Link>
-          <span className="text-lg font-extrabold tracking-tight text-blue-800">
-            {period.label}
-          </span>
-          <Link
-            href={`${basePath}?p=${adjacentPeriodKey(period.key, 1)}`}
-            aria-label="翌月"
-            className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
-          >
-            ＞
-          </Link>
-        </div>
+        {/* 前月/翌月は給与明細画面と同じ ＜ 年月 ＞ のスタイル・配色に統一。
+            押した瞬間に年月を切り替え、読み込み中は一覧を薄くする(PeriodNav 参照) */}
+        <PeriodNav />
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-bold">{title}</h1>
           {/* PDF/CSVは管理者のみ(従業員の閲覧専用画面では出さない)。
@@ -116,6 +103,7 @@ export function DailyReportView({
         </div>
       </div>
 
+      <PeriodPendingArea>
       <ul className="space-y-1 text-sm text-gray-500">
         <li>・{descriptionLines[0]}</li>
         <li>・{descriptionLines[1]}</li>
@@ -396,7 +384,9 @@ export function DailyReportView({
         </section>
       ))}
       </div>
+      </PeriodPendingArea>
     </div>
+    </PeriodNavProvider>
   );
 }
 

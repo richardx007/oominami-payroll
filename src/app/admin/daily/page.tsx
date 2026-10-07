@@ -14,19 +14,19 @@ export default async function DailyReportPage({
 }: {
   searchParams: Promise<{ p?: string; retired?: string }>;
 }) {
-  await requireAdmin();
   const { p, retired } = await searchParams;
   // 期間の指定方法は給与明細画面と揃える(月度単位・前月/翌月で移動)
   const period = (p && periodFromKey(p)) || currentPeriod();
   // 退職者を含めるかは既定オフ(仮の退職者複製が混ざって紛らわしいため。2026-08-20)
   const includeRetired = retired === "1";
 
-  const report = await loadDailyReport(
-    period.start,
-    period.end,
-    undefined,
-    includeRetired
-  );
+  // 権限確認と集計を並行して行う(月度切り替えの待ち時間を減らすため。2026-10-07)。
+  // 集計はログイン中の本人の権限(RLS)で読むので、管理者でなければ requireAdmin が
+  // リダイレクトし、集計結果は使われずに捨てられる。
+  const [, report] = await Promise.all([
+    requireAdmin(),
+    loadDailyReport(period.start, period.end, undefined, includeRetired),
+  ]);
 
   return (
     <DailyReportView

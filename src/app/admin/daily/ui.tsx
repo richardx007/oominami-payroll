@@ -1,6 +1,9 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { createContext, useContext, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { adjacentPeriodKey, periodFromKey } from "@/lib/period";
 import { buildDailyReportCsv, setAdvancePayment } from "./actions";
 
 const LUNCH_REASON_LABELS: Record<string, string> = {
@@ -409,5 +412,117 @@ export function AdvanceToggle({
       </span>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </span>
+  );
+}
+
+/**
+ * 月度切り替え(＜ 年月 ＞)の押下直後の反応。
+ *
+ * 期間はクエリ(?p=)だけが変わる同じページへの遷移のため loading.tsx が出ず、サーバーの描画が
+ * 終わるまで画面が何も変わらず「押しても反応しない」ように見えていた(2026-10-07 指摘)。
+ * 押した瞬間に年月の表示を移動先に変え、一覧を薄くしてスピナーを出す。連打した分は
+ * 表示中の年月を起点に進め、最後の移動先だけを読み込む。
+ *
+ * さらに前後の月度は表示した時点で先読み(Link の prefetch={true} = 中身ごと取得)しておき、
+ * 押したときはサーバーを待たずに切り替える(2026-10-07 オーナー判断)。
+ * ⚠️ 先読みした内容は Next.js のクライアントキャッシュに最大5分残る(staleTimes.static の既定)。
+ * その間に**他の人**が勤務表などを変えても、先読み済みの月度には反映されない(画面の再読み込みで最新になる)。
+ * 自分がこの画面で前払金を記録した場合は revalidatePath でキャッシュごと破棄されるので古くならない。
+ */
+const PeriodNavContext = createContext<{
+  pending: boolean;
+  shownKey: string;
+  go: (key: string) => void;
+  hrefOf: (key: string) => string;
+} | null>(null);
+
+export function PeriodNavProvider({
+  periodKey,
+  basePath,
+  extraQuery = "",
+  children,
+}: {
+  periodKey: string;
+  basePath: string;
+  /** p 以外に引き継ぐクエリ("&retired=1" など) */
+  extraQuery?: string;
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [target, setTarget] = useState<string | null>(null);
+  // 遷移が終わって表示中の期間が移動先に追いついたら、移動先の記録を消す
+  const shownKey = pending && target ? target : periodKey;
+
+  const hrefOf = (key: string) => `${basePath}?p=${key}${extraQuery}`;
+  function go(key: string) {
+    setTarget(key);
+    startTransition(() => router.push(hrefOf(key)));
+  }
+
+  return (
+    <PeriodNavContext.Provider value={{ pending, shownKey, go, hrefOf }}>
+      {children}
+    </PeriodNavContext.Provider>
+  );
+}
+
+export function PeriodNav() {
+  const ctx = useContext(PeriodNavContext)!;
+  const label = periodFromKey(ctx.shownKey)?.label ?? "";
+  const btn =
+    "shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100";
+  return (
+    <div className="flex items-center gap-1.5">
+      <Link
+        href={ctx.hrefOf(adjacentPeriodKey(ctx.shownKey, -1))}
+        prefetch={true}
+        aria-label="前月"
+        className={btn}
+        onClick={(e) => {
+          e.preventDefault();
+          ctx.go(adjacentPeriodKey(ctx.shownKey, -1));
+        }}
+      >
+        ＜
+      </Link>
+      <span className="text-lg font-extrabold tracking-tight text-blue-800">
+        {label}
+      </span>
+      <Link
+        href={ctx.hrefOf(adjacentPeriodKey(ctx.shownKey, 1))}
+        prefetch={true}
+        aria-label="翌月"
+        className={btn}
+        onClick={(e) => {
+          e.preventDefault();
+          ctx.go(adjacentPeriodKey(ctx.shownKey, 1));
+        }}
+      >
+        ＞
+      </Link>
+      {ctx.pending && (
+        <span
+          className="ml-1 h-5 w-5 animate-spin rounded-full border-[3px] border-gray-200 border-t-[#152449]"
+          role="status"
+          aria-label="読み込み中"
+        />
+      )}
+    </div>
+  );
+}
+
+/** 読み込み中は一覧を薄くして操作できなくする(前の月度の金額を押し間違えないように) */
+export function PeriodPendingArea({ children }: { children: React.ReactNode }) {
+  const ctx = useContext(PeriodNavContext);
+  const pending = !!ctx?.pending;
+  return (
+    <div
+      aria-busy={pending}
+      // 親の space-y-6 がこの中の要素に効かなくなるため、同じ間隔をここで付ける
+      className={`space-y-6 ${pending ? "pointer-events-none opacity-30 transition-opacity" : ""}`}
+    >
+      {children}
+    </div>
   );
 }
