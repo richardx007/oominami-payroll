@@ -60,6 +60,8 @@ export default async function EmployeeShiftsPage({
       editable
       editableEmployeeId={leader ? null : me.id}
       meId={me.id}
+      // 日別パネル(シフト編集)で自分の行を常に先頭に出す
+      selfFirst
       assign={canAssign ? assignShift : undefined}
       clear={canAssign ? clearShift : undefined}
       // ロックを切り替えられるのは本人の行だけ(リーダも他人のロックは外せない)

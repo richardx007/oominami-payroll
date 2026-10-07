@@ -139,6 +139,7 @@ export function ShiftSchedule({
   timesheetBasePath,
   timesheetSelfOnly = false,
   notifyOnConfirmedEdit = false,
+  selfFirst = false,
 }: {
   period: Period;
   /** シフト枠の定義(適用開始日ごと)。日付ごとに slotsResolver で引く */
@@ -201,6 +202,11 @@ export function ShiftSchedule({
    * 「変更すると本人に通知されます」と出す(通知そのものは DB のトリガーが行う)。
    */
   notifyOnConfirmedEdit?: boolean;
+  /**
+   * 日別パネルで本人(meId)の行を先頭に出す(従業員画面。自分の予定を探さずに入力できるように)。
+   * 2番目以降は roster の順のまま。カレンダーのセル内の並びは変えない。
+   */
+  selfFirst?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -241,6 +247,12 @@ export function ShiftSchedule({
     () => new Map(roster.map((m) => [m.id, m] as const)),
     [roster]
   );
+
+  const panelRoster = useMemo(() => {
+    if (!selfFirst || !meId) return roster;
+    const me = roster.find((m) => m.id === meId);
+    return me ? [me, ...roster.filter((m) => m.id !== meId)] : roster;
+  }, [roster, selfFirst, meId]);
 
   // 日付 → その日のシフト枠(適用開始日で変わる)
   const slotsOf = useMemo(
@@ -668,7 +680,7 @@ export function ShiftSchedule({
           <DayPanel
             date={selected}
             slots={slotsOf(selected)}
-            roster={roster}
+            roster={panelRoster}
             slotByKey={slotByKey}
             customByKey={customByKey}
             styleFor={styleFor}
