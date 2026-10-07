@@ -78,6 +78,19 @@ function formatDistance(m: number): string {
   return `約${Math.round(m)}m`;
 }
 
+/**
+ * 操作ログ用の位置メモ「距離約23m・精度±15m」。基準からの距離に加え、端末が報告する GPS の精度
+ * (誤差の見込み半径)も残す。圏内の打刻でも記録し、普段どの程度の誤差が出ているかを観察するため
+ * (2026-10-07 追加。現地での打刻が圏外として拒否されたため許容距離を 50m→150m に緩めた経緯)。
+ */
+function locationNote(distanceM: number, accuracy: number | null | undefined): string {
+  const acc =
+    typeof accuracy === "number" && Number.isFinite(accuracy)
+      ? `・精度±${Math.round(accuracy)}m`
+      : "";
+  return `距離${formatDistance(distanceM)}${acc}`;
+}
+
 /** RLSの行ポリシー違反(42501)かどうか。締め済み期間への書き込みは work_entries の
  *  RLS(is_period_open)で弾かれるため、原因不明の「登録に失敗」ではなく専用メッセージを返す */
 function isRlsViolation(error: { code?: string } | null): boolean {
@@ -180,7 +193,7 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     // 専用カテゴリ「打刻拒否」で記録する
     await logActivity(
       "打刻拒否",
-      `打刻拒否(圏外): ${employee.name} ${type === "in" ? "出勤" : "退勤"} 距離${formatDistance(distance_m!)}`
+      `打刻拒否(圏外): ${employee.name} ${type === "in" ? "出勤" : "退勤"} ${locationNote(distance_m!, input.accuracy)}`
     );
     return {
       ok: false,
@@ -339,12 +352,19 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
   });
 
   // 圏外での打刻(警告のみポリシーで通した分)は「打刻拒否」カテゴリで記録し、
-  // ログ画面でオレンジ色のバッジで目立たせる(通常の「打刻」と区別。打刻自体は記録済みである旨を明記)
+  // ログ画面でオレンジ色のバッジで目立たせる(通常の「打刻」と区別。打刻自体は記録済みである旨を明記)。
+  // 圏内の打刻でも基準からの距離と GPS 精度を残す(誤差の観察用。locationNote 参照)
   await logActivity(
     out_of_range === true ? "打刻拒否" : "打刻",
     `${type === "in" ? "出勤" : "退勤"} ${time}${
       Number.isFinite(roundMin) && roundMin > 1 ? `(丸め${roundMin}分)` : ""
-    }${out_of_range === true ? ` (圏外 ${formatDistance(distance_m!)}・警告のみで記録)` : ""}${
+    }${
+      distance_m === null
+        ? ""
+        : out_of_range === true
+          ? ` (圏外 ${locationNote(distance_m, input.accuracy)}・警告のみで記録)`
+          : ` (${locationNote(distance_m, input.accuracy)})`
+    }${
       location_denied && hasBase ? " (位置なし)" : ""
     }`
   );
