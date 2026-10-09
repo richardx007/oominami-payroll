@@ -116,11 +116,21 @@ function PayslipSheet({
   return (
     <>
       <div className="pslip-sheet">
-        {/* 見出しと支払元。支払元(2行)と印は要望どおり右上に置く */}
-        <div className="pslip-head">
+        <SheetHead title="給与明細書" periodLabel={data.periodLabel} />
+
+        {/* 宛名(左)と支払元・印(右)。支払元(2行)と印は要望どおり右側に置く */}
+        <div className="pslip-top">
           <div>
-            <h1 className="pslip-title">給与明細書</h1>
-            <p className="pslip-period">{data.periodLabel}</p>
+            <div className="pslip-to-name">{data.name} 様</div>
+            <div className="pslip-to-sub">
+              対象期間 {slash(data.start)} 〜 {slash(data.end)}　／　支払日{" "}
+              {slash(data.paymentDate)}
+            </div>
+            {data.draft && (
+              <div className="pslip-draft">
+                ※ この明細は締め前の計算結果です(確定額ではありません)
+              </div>
+            )}
           </div>
           <div className="pslip-issuer">
             <div className="pslip-issuer-lines">
@@ -142,19 +152,6 @@ function PayslipSheet({
               />
             )}
           </div>
-        </div>
-
-        <div className="pslip-to">
-          <div className="pslip-to-name">{data.name} 様</div>
-          <div className="pslip-to-sub">
-            対象期間 {slash(data.start)} 〜 {slash(data.end)}　／　支払日{" "}
-            {slash(data.paymentDate)}
-          </div>
-          {data.draft && (
-            <div className="pslip-draft">
-              ※ この明細は締め前の計算結果です(確定額ではありません)
-            </div>
-          )}
         </div>
 
         <SheetSection title="勤務" />
@@ -211,11 +208,13 @@ function PayslipSheet({
         <SheetRow
           label={`源泉所得税(${r.tax_category === "kou" ? "甲欄" : "乙欄"})`}
           value={`−${yen(r.income_tax)}`}
+          minus
         />
         {r.advance_deduction > 0 && (
           <SheetRow
             label="前払金(日当としてお支払い済み)"
             value={`−${yen(r.advance_deduction)}`}
+            minus
           />
         )}
 
@@ -232,7 +231,7 @@ function PayslipSheet({
               label="立替精算(経費の払い戻し・非課税) *"
               value={yen(reimb.total)}
             />
-            <div className="pslip-total">
+            <div className="pslip-total pslip-total--sub">
               <span className="pslip-total-label">お振込額</span>
               <span className="pslip-total-value">
                 {yen(r.net_pay + reimb.total)}
@@ -253,15 +252,12 @@ function PayslipSheet({
         captureSheetToPdfBlob は .pslip-sheet ごとに新しいページから始める) */}
       {reimb.items.length > 0 && (
         <div className="pslip-sheet">
-          <div className="pslip-head">
+          <SheetHead title="立替精算一覧" periodLabel={data.periodLabel} />
+          <div className="pslip-top">
             <div>
-              <h1 className="pslip-title">立替精算一覧</h1>
-              <p className="pslip-period">{data.periodLabel}</p>
+              <div className="pslip-to-name">{data.name} 様</div>
+              <div className="pslip-to-sub">支払日 {slash(data.paymentDate)}</div>
             </div>
-          </div>
-          <div className="pslip-to">
-            <div className="pslip-to-name">{data.name} 様</div>
-            <div className="pslip-to-sub">支払日 {slash(data.paymentDate)}</div>
           </div>
           <SheetSection title="立替の内訳" />
           {reimb.items.map((i, idx) => (
@@ -278,9 +274,28 @@ function PayslipSheet({
           <p className="pslip-note">
             立て替えた経費の払い戻しで、給与ではありません(課税対象外)。1ページ目の「立替精算」の内訳です。
           </p>
-        </div>
+          </div>
       )}
     </>
+  );
+}
+
+/** 見出し(上に紺の太線・下に金の細線)。帯で塗りつぶさないのはインク節約のため(payslip-sheet-css.ts) */
+function SheetHead({
+  title,
+  periodLabel,
+}: {
+  title: string;
+  periodLabel: string;
+}) {
+  return (
+    <div className="pslip-head">
+      <div>
+        <div className="pslip-title-en">PAY STATEMENT</div>
+        <h1 className="pslip-title">{title}</h1>
+      </div>
+      <p className="pslip-period">{periodLabel}</p>
+    </div>
   );
 }
 
@@ -292,15 +307,22 @@ function SheetRow({
   label,
   value,
   bold,
+  minus,
 }: {
   label: string;
   value: string;
   bold?: boolean;
+  /** 控除額(赤字で表示) */
+  minus?: boolean;
 }) {
   return (
     <div className={`pslip-row${bold ? " pslip-row--bold" : ""}`}>
       <span className="pslip-row-label">{label}</span>
-      <span className="pslip-row-value">{value}</span>
+      <span
+        className={`pslip-row-value${minus ? " pslip-row-value--minus" : ""}`}
+      >
+        {value}
+      </span>
     </div>
   );
 }
