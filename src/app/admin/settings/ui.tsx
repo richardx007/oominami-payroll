@@ -12,6 +12,7 @@ import {
 } from "./actions";
 import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
 import { SEAL_SIZES, type PayslipIssuer } from "@/lib/payslip-issuer";
+import { shrinkSealImage } from "@/lib/seal-image";
 import type { ActionResult } from "../employees/actions";
 
 const inputClass =
@@ -447,10 +448,41 @@ export function PayslipIssuerForm({ issuer }: { issuer: PayslipIssuer }) {
       <p className="mt-1 text-sm text-gray-500">
         給与明細画面で従業員ごとに出力するPDFの右上に印字する、支払元(2行)と印を登録します。
       </p>
+      {/* ⚠️ `action={fn}` ではなく onSubmit で送る。`action` だと React が送信後にフォームを
+          自動でリセットし、保存に失敗したときも選んだ印のファイルが外れる。そのまま
+          もう一度「保存する」を押すと印なしで「保存しました」と出て、印が保存されていない
+          ことに気づけなかった(2026-10-10 本番で発生)。 */}
       <form
-        action={(fd) =>
-          startTransition(async () => setResult(await updatePayslipIssuer(fd)))
-        }
+        onSubmit={(e) => {
+          e.preventDefault();
+          const form = e.currentTarget;
+          const fd = new FormData(form);
+          startTransition(async () => {
+            const seal = fd.get("seal");
+            if (seal instanceof File && seal.size > 0) {
+              try {
+                // 150KB を超える画像はブラウザ側で縮小してから送る(seal-image.ts)
+                fd.set("seal", await shrinkSealImage(seal));
+              } catch (err) {
+                setResult({
+                  ok: false,
+                  message:
+                    err instanceof Error ? err.message : "画像の縮小に失敗しました",
+                });
+                return;
+              }
+            }
+            const res = await updatePayslipIssuer(fd);
+            setResult(res);
+            if (res.ok) {
+              // 保存できたときだけファイル選択と「印を削除する」を空に戻す
+              const file = form.elements.namedItem("seal");
+              if (file instanceof HTMLInputElement) file.value = "";
+              const remove = form.elements.namedItem("remove_seal");
+              if (remove instanceof HTMLInputElement) remove.checked = false;
+            }
+          });
+        }}
         className="mt-4 max-w-xl space-y-3"
       >
         <div>
@@ -477,13 +509,13 @@ export function PayslipIssuerForm({ issuer }: { issuer: PayslipIssuer }) {
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-500">
-            印の画像(png・jpg / 150KB以下)
+            印の画像(png・jpg。150KBを超える画像は自動で縮小します)
           </label>
           <div className="flex flex-wrap items-center gap-3">
             <input
               type="file"
               name="seal"
-              accept="image/png,image/jpeg"
+              accept="image/png,image/jpeg,image/webp,image/gif"
               className={fileInputClass}
             />
             {issuer.sealDataUrl && (
