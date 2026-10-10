@@ -27,6 +27,47 @@ export function toPreviewImage(source: HTMLCanvasElement): string {
 }
 
 /**
+ * html2canvas が作る複製ドキュメント(iframe)に、元の画面が読み込み済みのCSSを
+ * `<style>` として直接書き込み、`<link rel="stylesheet">` は外す。
+ *
+ * ⚠️ html2canvas は `<link>` をそのまま複製し、iframe 側で**CSSを読み込み直して**から撮る。
+ * その読み込みが撮影に間に合わないと、Tailwind も globals.css も効いていない素のHTML
+ * (明朝体・罫線なし・PDF出力列まで出る)が撮れてしまう。税理士メールの添付PDFで
+ * 実際に発生した(2026-10-10。同じ画面の「PDF」ボタンでは間に合っていたため気づきにくい)。
+ * 読み込み済みのルールを書き込めば、ネットワークのタイミングに左右されない。
+ */
+function inlineStylesheets(cloneDoc: Document): void {
+  // 読み込み済みの外部CSS(href → ルール全文)。別オリジンでルールを読めないものは除く
+  const loaded = new Map<string, string>();
+  for (const sheet of Array.from(document.styleSheets)) {
+    if (!sheet.href) continue; // <style> は html2canvas 自身が中身ごと複製する
+    try {
+      loaded.set(
+        sheet.href,
+        Array.from(sheet.cssRules)
+          .map((r) => r.cssText)
+          .join("\n")
+      );
+    } catch {
+      // 読めないCSSは複製側の <link> 任せにする
+    }
+  }
+  // 元の <link> と同じ位置に <style> を置く(カスケードの順番を変えないため)
+  cloneDoc
+    .querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
+    .forEach((link) => {
+      // 複製側は about:blank の iframe なので、href は元の画面のURLを基準に解決し直す
+      const raw = link.getAttribute("href");
+      if (!raw) return;
+      const css = loaded.get(new URL(raw, document.baseURI).href);
+      if (css === undefined) return;
+      const style = cloneDoc.createElement("style");
+      style.textContent = css;
+      link.replaceWith(style);
+    });
+}
+
+/**
  * DOM要素をPDF化する共通ロジック(ブラウザ専用)。
  *
  * `admin/report/ui.tsx` の `DownloadPdfButton`(表をそのままダウンロード)が使う。
@@ -76,6 +117,7 @@ export async function captureElementToPdfBlob(
     scale,
     backgroundColor: "#ffffff",
     useCORS: true,
+    onclone: inlineStylesheets,
   });
 
   const pdf = new jsPDF({
