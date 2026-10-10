@@ -6,7 +6,9 @@ import {
   DEVICE_SESSION_COOKIE_MAX_AGE,
   canIssueDeviceToken,
   DEVICE_TOKEN_COOKIE,
+  TOUCH_MAC_COOKIE,
   deviceLabel,
+  deviceSessionMarker,
   newDeviceToken,
   sessionIdFromAccessToken,
 } from "@/lib/device";
@@ -54,7 +56,9 @@ export async function updateSession(request: NextRequest) {
       data: { session },
     } = await supabase.auth.getSession();
     const sid = sessionIdFromAccessToken(session?.access_token);
-    if (sid && request.cookies.get(DEVICE_SESSION_COOKIE)?.value !== sid) {
+    const touchMac = request.cookies.has(TOUCH_MAC_COOKIE);
+    const marker = sid ? deviceSessionMarker(sid, touchMac) : null;
+    if (sid && marker && request.cookies.get(DEVICE_SESSION_COOKIE)?.value !== marker) {
       let token = request.cookies.get(DEVICE_TOKEN_COOKIE)?.value ?? "";
       if (token.length < 32 && canIssueDeviceToken(request.headers.get("sec-fetch-dest"))) {
         token = newDeviceToken();
@@ -65,7 +69,7 @@ export async function updateSession(request: NextRequest) {
         const { error } = await supabase.rpc("device_register", {
           p_token: token,
           p_app: "payroll",
-          p_label: deviceLabel(request.headers.get("user-agent")),
+          p_label: deviceLabel(request.headers.get("user-agent"), touchMac),
         });
         // 失敗したら目印を付けない(次のリクエストでもう一度試す)。画面の表示は止めない。
         // 目印は1日で切れ、もう一度登録して端末一覧の「最終利用」を更新する
@@ -73,7 +77,7 @@ export async function updateSession(request: NextRequest) {
         else
           deviceCookies.push({
             name: DEVICE_SESSION_COOKIE,
-            value: sid,
+            value: marker,
             maxAge: DEVICE_SESSION_COOKIE_MAX_AGE,
           });
       }

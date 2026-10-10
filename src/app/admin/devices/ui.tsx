@@ -7,6 +7,8 @@ import { approveDevices, revokeDevices } from "./actions";
 export type DeviceRow = {
   id: string;
   owner_id: string;
+  /** 従業員No(共有アカウントなどは null)。一覧は従業員画面と同じ No 順(DB の device_list が並べる) */
+  owner_employee_no: string | null;
   owner_name: string;
   owner_is_admin: boolean;
   is_me: boolean;
@@ -106,6 +108,7 @@ export function DevicesView({ devices }: { devices: DeviceRow[] }) {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-500">
             <tr>
+              <th className="px-3 py-2">No</th>
               <th className="px-3 py-2">氏名</th>
               <th className="px-3 py-2">アプリ</th>
               <th className="px-3 py-2">端末</th>
@@ -121,6 +124,7 @@ export function DevicesView({ devices }: { devices: DeviceRow[] }) {
               const summary = `${d.owner_name} / ${apps} / ${d.label}`;
               return (
                 <tr key={d.ids.join(",")} className={`border-t border-gray-100 ${zebraRowClass(i)}`}>
+                  <td className="whitespace-nowrap px-3 py-2 text-gray-500">{d.owner_employee_no ?? "—"}</td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {d.owner_name}
                     {d.owner_is_admin && <span className="ml-1 text-xs text-gray-400">(管理者)</span>}
