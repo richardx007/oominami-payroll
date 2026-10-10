@@ -5,6 +5,16 @@ import type { Period } from "@/lib/period";
 import { adjacentPeriodKey, formatMinutes } from "@/lib/period";
 import { useSwipeNav } from "@/lib/useSwipeNav";
 import { itemDate, type ReimbursementItem } from "@/lib/expense-reimbursement";
+import Link from "next/link";
+import { PayslipPdfButton, type PayslipPdfData } from "@/app/admin/close/payslip-pdf";
+import type { PayslipIssuer } from "@/lib/payslip-issuer";
+import {
+  WithholdingSlipButton,
+  type WithholdingSlipData,
+} from "@/components/WithholdingSlipButton";
+
+/** 自分の給与明細PDFの元データ(確定済みの明細があるときだけ) */
+export type SlipPdf = { data: PayslipPdfData; issuer: PayslipIssuer };
 
 export type Slip = {
   work_days: number;
@@ -37,9 +47,11 @@ export type Slip = {
 export function PayslipView({
   period,
   slip,
+  pdf,
 }: {
   period: Period;
   slip: Slip | null;
+  pdf: SlipPdf | null;
 }) {
   const router = useRouter();
 
@@ -70,11 +82,15 @@ export function PayslipView({
                 <span className="text-sm font-semibold text-gray-700">
                   差引支給額
                 </span>
-                {slip.status === "paid" && (
-                  <span className="rounded bg-green-700/10 px-1.5 py-0.5 text-xs font-medium text-green-800">
-                    支払済み
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {slip.status === "paid" && (
+                    <span className="rounded bg-green-700/10 px-1.5 py-0.5 text-xs font-medium text-green-800">
+                      支払済み
+                    </span>
+                  )}
+                  {/* 自分の給与明細をPDFで保存・共有する(2026-10-10) */}
+                  {pdf && <PayslipPdfButton data={pdf.data} issuer={pdf.issuer} />}
+                </div>
               </div>
               <div className="mt-1 text-2xl font-bold tabular-nums text-gray-900">
                 ¥{slip.net_pay.toLocaleString()}
@@ -203,6 +219,41 @@ export function PayslipView({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * 源泉徴収票(支払のある年ごと)。年の途中の年は「途中経過」として出す(正式なものは年明けに)。
+ * 住所・生年月日が未入力なら、設定画面での入力を案内する。
+ */
+export function WithholdingSection({ slips }: { slips: WithholdingSlipData[] }) {
+  if (slips.length === 0) return null;
+  const missing = slips.some((s) => !s.address || !s.birthDate);
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">源泉徴収票</h2>
+      <p className="mt-1 text-xs text-gray-500">
+        その年に支払われた給与の合計です。年の途中の分は途中経過で、正式な源泉徴収票は年が明けてから出せます。
+      </p>
+      {missing && (
+        <p className="mt-2 rounded-lg bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+          住所・生年月日が未入力です。
+          <Link href="/account" className="font-medium underline">
+            アカウント設定
+          </Link>
+          で入力してから出力してください。
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {slips.map((s) => (
+          <WithholdingSlipButton
+            key={s.totals.year}
+            data={s}
+            label={`${s.totals.year}年分${s.inProgressAsOf ? "(途中経過)" : ""}`}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 

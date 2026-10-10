@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   updateEmailSettings,
+  updateEmployerInfo,
   updateShiftMonthStart,
   updatePayslipIssuer,
   updateTimesheetLock,
@@ -436,6 +437,86 @@ export function WorkRulesForm({
  * 「支払元」2行と「印」の画像を登録するフォーム。
  * 印はファイルを選んだときだけ差し替わる(何も選ばなければ現在の登録を維持)。
  */
+/** 源泉徴収票の「支払者」(所在地・名称・電話)。従業員が出力する源泉徴収票の下段に印字する */
+export function EmployerInfoForm({
+  name,
+  address,
+  phone,
+  companyName,
+}: {
+  name: string;
+  address: string;
+  phone: string;
+  companyName: string;
+}) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">源泉徴収票(支払者)</h2>
+      <p className="mt-1 text-sm text-gray-500">
+        従業員が自分で出力する源泉徴収票の「支払者」欄に印字します。
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          startTransition(async () => setResult(await updateEmployerInfo(fd)));
+        }}
+        className="mt-4 max-w-xl space-y-3"
+      >
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            住所(居所)又は所在地
+          </label>
+          <input
+            name="employer_address"
+            defaultValue={address}
+            placeholder="〒000-0000 都道府県から"
+            className={inputClass}
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">
+              氏名又は名称
+            </label>
+            <input
+              name="employer_name"
+              defaultValue={name}
+              placeholder={companyName || "屋号・会社名(代表者名)"}
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-gray-400">空欄なら会社名「{companyName || "未設定"}」を使います</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">電話番号</label>
+            <input
+              name="employer_phone"
+              type="tel"
+              defaultValue={phone}
+              placeholder="00-0000-0000"
+              className={inputClass}
+            />
+          </div>
+        </div>
+        {result && (
+          <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 export function PayslipIssuerForm({ issuer }: { issuer: PayslipIssuer }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import {
   EmailSettingsForm,
+  EmployerInfoForm,
   PayslipIssuerForm,
   ShiftMonthStartForm,
   TestSendForm,
@@ -59,6 +60,12 @@ export default async function SettingsPage() {
       />
       <TestSendForm defaultEmail={admin.email} />
       <PayslipIssuerForm issuer={issuer} />
+      <EmployerInfoForm
+        name={settingsMap.get("employer_name") ?? ""}
+        address={settingsMap.get("employer_address") ?? ""}
+        phone={settingsMap.get("employer_phone") ?? ""}
+        companyName={settingsMap.get("company_name") ?? ""}
+      />
       <ShiftMonthStartForm
         monthStart={settingsMap.get("shift_month_start") === "1"}
       />

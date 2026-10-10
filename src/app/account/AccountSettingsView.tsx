@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import {
   updateOwnProfile,
+  updateMyPersonalInfo,
   saveMyPushSubscription,
   deleteMyPushSubscription,
   sendTestPushToThisDevice,
@@ -40,6 +41,7 @@ export function AccountSettingsView({
   shiftEndReminderMinutes,
   shiftChangeEnabled = true,
   calendarFeedUrl,
+  personalInfo,
 }: {
   name: string;
   nickname: string | null;
@@ -61,10 +63,13 @@ export function AccountSettingsView({
   shiftChangeEnabled?: boolean;
   /** シフトのカレンダー購読URL(https)。取得失敗時は null */
   calendarFeedUrl: string | null;
+  /** 従業員のみ。源泉徴収票に載せる住所・電話番号・生年月日(未入力は空文字) */
+  personalInfo?: PersonalInfo;
 }) {
   return (
     <div className="space-y-6">
       <ProfileForm name={name} nickname={nickname} furigana={furigana} />
+      {!isAdmin && personalInfo && <PersonalInfoForm info={personalInfo} />}
       <DeviceNotificationSection
         vapidPublicKey={vapidPublicKey}
         registeredEndpoints={registeredEndpoints}
@@ -89,6 +94,92 @@ export function AccountSettingsView({
       />
       <CalendarFeedSection url={calendarFeedUrl} />
     </div>
+  );
+}
+
+export type PersonalInfo = {
+  postalCode: string;
+  address: string;
+  phone: string;
+  birthDate: string;
+};
+
+/** 住所・電話番号・生年月日(源泉徴収票用)の編集フォーム。従業員だけに出す */
+function PersonalInfoForm({ info }: { info: PersonalInfo }) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+  const input =
+    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">住所・連絡先</h2>
+      <p className="mt-1 text-xs text-gray-500">
+        源泉徴収票に印字します。本人と管理者だけが見られます。
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          startTransition(async () => setResult(await updateMyPersonalInfo(fd)));
+        }}
+        className="mt-4 max-w-sm space-y-3"
+      >
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">郵便番号</label>
+          <input
+            name="postal_code"
+            defaultValue={info.postalCode}
+            inputMode="numeric"
+            autoComplete="postal-code"
+            placeholder="123-4567"
+            className={input}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">住所</label>
+          <input
+            name="address"
+            defaultValue={info.address}
+            autoComplete="street-address"
+            placeholder="都道府県から建物名・部屋番号まで"
+            className={input}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">電話番号</label>
+          <input
+            name="phone"
+            type="tel"
+            defaultValue={info.phone}
+            autoComplete="tel"
+            placeholder="090-1234-5678"
+            className={input}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">生年月日</label>
+          {/* iOS Safari は日付欄が指定幅より広がるので、1行に単独で置き max-w で抑える */}
+          <input
+            name="birth_date"
+            type="date"
+            defaultValue={info.birthDate}
+            className={`${input} block max-w-[12rem] appearance-none`}
+          />
+        </div>
+        {result && (
+          <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
+    </section>
   );
 }
 

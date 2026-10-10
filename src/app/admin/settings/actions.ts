@@ -483,3 +483,42 @@ export async function updatePayslipIssuer(
   revalidatePath("/admin/close");
   return { ok: true, message: "給与明細PDFの支払元・印を保存しました" };
 }
+
+const employerInfoSchema = z.object({
+  employer_name: z.string().trim().max(100),
+  employer_address: z.string().trim().max(200),
+  employer_phone: z
+    .string()
+    .trim()
+    .regex(/^[0-9+\-() ]{0,20}$/, "電話番号は数字とハイフンで入力してください"),
+});
+
+/**
+ * 源泉徴収票の「支払者」(所在地・名称・電話)を保存する(2026-10-10)。
+ * 名称が空なら会社名(メール設定)を使う。従業員の源泉徴収票に印字するため、
+ * payslip_issuer_public() で従業員にも返すキー。
+ */
+export async function updateEmployerInfo(formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = employerInfoSchema.safeParse({
+    employer_name: formData.get("employer_name") ?? "",
+    employer_address: formData.get("employer_address") ?? "",
+    employer_phone: formData.get("employer_phone") ?? "",
+  });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0].message };
+  }
+  const d = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.from("app_settings").upsert(
+    [
+      { key: "employer_name", value: d.employer_name },
+      { key: "employer_address", value: d.employer_address },
+      { key: "employer_phone", value: d.employer_phone },
+    ],
+    { onConflict: "key" }
+  );
+  if (error) return { ok: false, message: "保存に失敗しました" };
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "保存しました" };
+}
