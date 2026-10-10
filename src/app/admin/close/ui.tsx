@@ -191,7 +191,8 @@ export function CloseActions({
               ? `送信中... ${emailProgress.sent}/${emailProgress.total}`
               : "従業員"}
           </button>
-          <SendReportButton periodKey={periodKey} />
+          {/* PDF は下の「PDF」ボタンと同じ明細一覧(id="payslip-report")を添付する */}
+          <SendReportButton periodKey={periodKey} pdfTargetId="payslip-report" />
           {/* スマホ(iOSのPWA)では window.print() が動かないため、印刷ではなくPDFダウンロード。
               対象は明細一覧の枠(close/page.tsx の id="payslip-report") */}
           <DownloadPdfButton

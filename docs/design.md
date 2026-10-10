@@ -732,7 +732,8 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
   本文末尾に追記される。本文に勤務データ表は載せない（数値は添付CSVに集約）。
 - 宛名・テスト送信機能の詳細は「15. 税理士向けメールの拡充」参照（2026-08-25に大幅拡充。宛名は
   現在2行対応。**一時期CSVに加えてPDFも添付していたが、解像度が粗く2026-08-28に撤回済み**
-  （現在の添付はCSVのみ。詳細は15.3）。
+  （2026-10-10 に画質を落とさない形で再追加。締め画面からの送信は CSV＋PDF、設定画面のテスト送信は
+  CSVのみ。詳細は15.3）。
 - 実装: `admin/report/actions.ts`（`loadReport`/`buildTaxReportCsv`/`sendTaxReport`/`sendTaxReportTest`/
   `previewTaxReportRows`/`previewTaxReportTestRows`）、`admin/report/ui.tsx`（`SendReportButton` の
   モーダル + `DownloadCsvButton` + `DownloadPdfButton`）。
@@ -2074,7 +2075,20 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
   （`sendTaxReport`）と共通の `ReportData`/添付ロジックを使うため、文面・添付ファイルの構成が
   実際の送信内容と一致する（テストの意味が保てる）。
 
-### 15.3 PDF添付は実装したが撤回（CSVのみに戻した。2026-08-28）
+### 15.3 PDF添付（2026-08-28に撤回 → 2026-10-10に再追加）
+**2026-10-10 再追加**: 締め画面の「税理士」送信で、CSVに加えて **「PDF」ボタンと同じ明細一覧
+（`id="payslip-report"`）のPDF** `payroll_YYYY-MM.pdf` を添付する。
+- 解像度はダウンロード用と同じ `scale:2`（**落とさない**のが前回の教訓）。容量はページ画像を
+  JPEG(0.92)で埋め込んで抑える（`captureElementToPdfBlob(el, { jpeg: true })`。PNGは無圧縮で数MBになる）。
+- ブラウザで作ったPDFを `blobToBase64()` で送信アクション `sendTaxReport(data, note, pdfBase64)` に渡す。
+  サーバーは先頭 `JVBERi`(=%PDF)・Base64文字種・上限400万文字を確認し、`smtp.ts` の
+  `MailAttachment.encoding:"base64"`（Base64化済みバイナリをそのまま使う）で添付する。
+- PDFの作成に失敗したら送信しない（CSVだけ黙って送るとPDF欠落に気づけないため）。
+- `wrap76()` は大きな添付でもCPUを食わないよう正規表現から slice に変更（Workers Free のCPU上限対策）。
+- 設定画面のテスト送信は画面に明細一覧が無いため、引き続きCSVのみ。
+
+以下は2026-08-28の撤回時の記録。
+
 一時期、CSVに加えて支給一覧のPDFも添付していた（実装内容は下記「実装していた内容(参考)」）。
 **オーナー確認の結果、添付PDFの解像度が粗く（にじんで見える）実用に耐えないと判断され撤回**。
 現在は**CSVのみ**を添付する（元の挙動）。`admin/report/PdfReportTable.tsx`・

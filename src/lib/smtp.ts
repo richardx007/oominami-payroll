@@ -43,15 +43,21 @@ function mimeWord(s: string): string {
 
 /** Base64 本文を 76 文字で折り返し */
 function wrap76(s: string): string {
-  return s.replace(/(.{76})/g, "$1\r\n");
+  // PDF添付(1MB前後)でも軽いよう、正規表現ではなく slice で切る
+  // (Cloudflare Workers Free プランは CPU 時間の上限が厳しい)
+  const lines: string[] = [];
+  for (let i = 0; i < s.length; i += 76) lines.push(s.slice(i, i + 76));
+  return lines.join("\r\n");
 }
 
 class SmtpError extends Error {}
 
 export type MailAttachment = {
   filename: string; // ASCII推奨
-  content: string; // テキスト内容(UTF-8)
-  contentType: string; // 例: "text/csv"
+  content: string; // テキスト内容(UTF-8)。encoding="base64" のときは Base64 化済みのバイナリ
+  contentType: string; // 例: "text/csv" / "application/pdf"
+  /** "base64" = content は Base64 化済み(PDF等のバイナリ)。省略時はテキストとして扱う */
+  encoding?: "base64";
 };
 
 export async function smtpSendMail(params: {
@@ -164,14 +170,16 @@ export async function smtpSendMail(params: {
           "Content-Transfer-Encoding: base64\r\n\r\n" +
           wrap76(b64(params.text))
       );
-      // 添付パートはテキスト(CSV等)を UTF-8 とみなして b64() でエンコードする。
+      // 添付パート。テキスト(CSV等)は UTF-8 とみなして b64() でエンコードする。
+      // バイナリ(PDF)は Base64 化済みで受け取りそのまま使う(b64() に通すと壊れる)。
       for (const att of attachments) {
+        const binary = att.encoding === "base64";
         parts.push(
           `--${boundary}\r\n` +
-            `Content-Type: ${att.contentType}; charset="UTF-8"; name="${att.filename}"\r\n` +
+            `Content-Type: ${att.contentType}; ${binary ? "" : 'charset="UTF-8"; '}name="${att.filename}"\r\n` +
             "Content-Transfer-Encoding: base64\r\n" +
             `Content-Disposition: attachment; filename="${att.filename}"\r\n\r\n` +
-            wrap76(b64(att.content))
+            wrap76(binary ? att.content : b64(att.content))
         );
       }
       message =

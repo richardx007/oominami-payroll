@@ -36,10 +36,14 @@ export function toPreviewImage(source: HTMLCanvasElement): string {
  *
  * @param sectionSelector 指定すると、ページ分割時にこのセレクタに一致する要素の
  *   「内部」では改ページしないようにする(el の子孫に対する querySelectorAll)。
+ * @param jpeg true ならページ画像を JPEG(0.92) で埋め込む。税理士へのメール添付用。
+ *   PNG は jsPDF が無圧縮で埋め込むため数MBになり、メール添付・送信処理に重すぎる。
+ *   ⚠️ 解像度(scale)は落とさないこと。添付用だけ scale を 1 にしたら文字がにじんで
+ *   実用に耐えず、一度撤回している(2026-08-28。設計書 15.3)。
  */
 export async function captureElementToPdfBlob(
   el: HTMLElement,
-  opts?: { sectionSelector?: string }
+  opts?: { sectionSelector?: string; jpeg?: boolean }
 ): Promise<PdfResult> {
   // ⚠️ html2canvas(本家)ではなく html2canvas-pro を使うこと。
   // Tailwind v4 の標準カラーは oklch() で出力されるが、本家は oklch を解釈できず
@@ -115,8 +119,8 @@ export async function captureElementToPdfBlob(
 
     if (!firstPage) pdf.addPage();
     pdf.addImage(
-      slice.toDataURL("image/png"),
-      "PNG",
+      opts?.jpeg ? slice.toDataURL("image/jpeg", 0.92) : slice.toDataURL("image/png"),
+      opts?.jpeg ? "JPEG" : "PNG",
       margin,
       margin,
       imgW,
@@ -128,6 +132,17 @@ export async function captureElementToPdfBlob(
   }
 
   return { blob: pdf.output("blob"), pages };
+}
+
+/** Blob を Base64 文字列(data: の接頭辞なし)にする。メール添付でサーバーへ渡す用 */
+export async function blobToBase64(blob: Blob): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+  return dataUrl.slice(dataUrl.indexOf(",") + 1);
 }
 
 /**

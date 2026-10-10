@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { buildTaxReportCsv, previewTaxReportRows, sendTaxReport } from "./actions";
-import { captureElementToPdfBlob } from "@/lib/pdf-capture";
+import { blobToBase64, captureElementToPdfBlob } from "@/lib/pdf-capture";
 import { PdfPreviewDialog } from "@/components/PdfPreviewDialog";
 
 // アイコンではなく文字(PDF / CSV)で見せるボタン。「税理士」ボタンと高さ・配色を揃える
@@ -138,7 +138,35 @@ export function DownloadCsvButton({ periodKey }: { periodKey: string }) {
   );
 }
 
-export function SendReportButton({ periodKey }: { periodKey: string }) {
+/**
+ * 画面の表(targetId の要素)を、DownloadPdfButton と同じ見た目の PDF にして Base64 で返す。
+ * 税理士へのメール添付用。ダウンロード用と同じ解像度で、容量を抑えるため JPEG で埋め込む。
+ */
+async function captureReportPdfBase64(targetId: string): Promise<string> {
+  const el = document.getElementById(targetId);
+  if (!el) throw new Error("出力対象が見つかりません");
+  el.classList.add("pdf-capture-target");
+  document.body.classList.add("pdf-capture-mode");
+  try {
+    const { blob } = await captureElementToPdfBlob(el, { jpeg: true });
+    return await blobToBase64(blob);
+  } finally {
+    document.body.classList.remove("pdf-capture-mode");
+    el.classList.remove("pdf-capture-target");
+  }
+}
+
+/**
+ * 税理士へ支給一覧を送るボタン。CSV に加え、pdfTargetId を渡すとその表の PDF も添付する
+ * (締め画面の「PDF」ボタンと同じ明細一覧。2026-10-10 オーナー依頼で再追加)。
+ */
+export function SendReportButton({
+  periodKey,
+  pdfTargetId,
+}: {
+  periodKey: string;
+  pdfTargetId?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(
@@ -151,12 +179,27 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
       // previewTaxReportRows は1回だけ呼び、sendTaxReport にそのまま渡す
       // (同じ重い問い合わせを2回行うと Cloudflare Workers Free プランの
       // CPU時間・サブリクエスト数の上限に引っかかりうるため)。
+      // PDF はブラウザでしか作れないため、送信前にここで作る。失敗したら送らずに知らせる
+      // (CSVだけ黙って送ると、PDFが付いていないことに気づけないため)
+      let pdfBase64: string | undefined;
+      if (pdfTargetId) {
+        try {
+          pdfBase64 = await captureReportPdfBase64(pdfTargetId);
+        } catch (e) {
+          console.error(e);
+          setResult({
+            ok: false,
+            message: "PDFの作成に失敗しました。もう一度お試しください",
+          });
+          return;
+        }
+      }
       const preview = await previewTaxReportRows(periodKey);
       if (!preview.ok) {
         setResult(preview);
         return;
       }
-      const res = await sendTaxReport(preview, note);
+      const res = await sendTaxReport(preview, note, pdfBase64);
       setResult(res);
       if (res.ok) {
         setOpen(false);
@@ -194,7 +237,7 @@ export function SendReportButton({ periodKey }: { periodKey: string }) {
               税理士へメール送信
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              支給一覧のCSVを添付して送信します。補足事項(申し送り事項)があれば入力してください。空欄でも送信できます。
+              支給一覧の{pdfTargetId ? "CSVとPDF" : "CSV"}を添付して送信します。補足事項(申し送り事項)があれば入力してください。空欄でも送信できます。
             </p>
             <textarea
               value={note}

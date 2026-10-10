@@ -313,12 +313,18 @@ function buildSignatureLine(companyName: string, managerName: string): string {
  *   (このアクション内ではDB問い合わせをしない。Cloudflare Workers Freeプランは
  *   CPU時間10ms・サブリクエスト数の上限が非常に厳しいため、同じ重い問い合わせを
  *   2回行うと上限超過でリクエストごと失敗しうる)
+ * - pdfBase64 は締め画面の「PDF」ボタンと同じ明細一覧をブラウザ側で PDF 化したもの
+ *   (html2canvas/jsPDF はブラウザ専用のため)。渡されれば CSV と一緒に添付する
  */
 export async function sendTaxReport(
   data: ReportData,
-  note: string
+  note: string,
+  pdfBase64?: string
 ): Promise<SendResult> {
   await requireAdmin();
+
+  const pdf = pdfBase64 ? checkPdfBase64(pdfBase64) : null;
+  if (pdf && !pdf.ok) return pdf;
 
   const to = await getTaxEmail();
   if (!to) {
@@ -341,7 +347,9 @@ export async function sendTaxReport(
     "いつもお世話になっております。",
     `${data.companyName}の${data.periodLabel}　給与支給一覧をお送りします。`,
     `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
-    `詳細は添付のCSVファイル(支給一覧)をご確認ください。`,
+    pdfBase64
+      ? `詳細は添付のCSVファイル・PDFファイル(支給一覧)をご確認ください。`
+      : `詳細は添付のCSVファイル(支給一覧)をご確認ください。`,
   ];
   if (trimmedNote) {
     lines.push("", "【申し送り事項】", trimmedNote);
@@ -360,8 +368,33 @@ export async function sendTaxReport(
         content: buildCsv(data.rows),
         contentType: "text/csv",
       },
+      ...(pdfBase64
+        ? [
+            {
+              filename: `payroll_${data.periodKey}.pdf`,
+              content: pdfBase64,
+              contentType: "application/pdf",
+              encoding: "base64" as const,
+            },
+          ]
+        : []),
     ],
   });
+}
+
+/** 添付PDFの上限(Base64の文字数)。実物は数百KB程度。暴走・誤送信を防ぐための上限 */
+const MAX_PDF_BASE64_LENGTH = 4_000_000;
+
+/** ブラウザから受け取った PDF(Base64) を最低限検証する */
+function checkPdfBase64(b64: string): SendResult {
+  if (b64.length > MAX_PDF_BASE64_LENGTH) {
+    return { ok: false, message: "PDFが大きすぎるため送信できませんでした" };
+  }
+  // "%PDF" を Base64 にすると "JVBERi" で始まる
+  if (!b64.startsWith("JVBERi") || !/^[A-Za-z0-9+/]+=*$/.test(b64)) {
+    return { ok: false, message: "PDFの作成に失敗しました。もう一度お試しください" };
+  }
+  return { ok: true, message: "" };
 }
 
 const testSendEmailSchema = z.email(

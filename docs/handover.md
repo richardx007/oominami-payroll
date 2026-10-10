@@ -3780,6 +3780,15 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - コミット `41dbbd7`。①コミット → ②`npm run deploy`（アカウント 1247… 確認済み）→ ③push。デプロイ後、本番で 352KB のテスト画像が縮小されて保存されることを確認し、テスト用の印は削除して戻した。
 - ✅ 実機確認済み（2026-10-10 オーナー）: 本番で印を保存し、給与明細PDFに印が表示されることを確認。
 
+### 2026-10-10 の作業 その2（オーナー報告・依頼。税理士メールの送信エラー／PDF添付の再追加。設計書§15.3）
+- 症状: 税理士へのメールが `SMTP 535 5.7.8 BadCredentials` で失敗。原因はオーナーが同日に送信元Gmail
+  (oominami2026@gmail.com)のパスワードを変更し、アプリパスワードが自動失効したこと（コードは無関係）。
+  アプリパスワードを再発行し、Cloudflare Secret `GMAIL_APP_PASSWORD` と Supabase の SMTP Settings の2か所を更新して復旧。
+  ⚠️ `! npx wrangler secret put ...`（Claude Code の `!` 実行）は対話入力できず**空の値が登録される**。
+  `! pbpaste | tr -d ' \n' | npx wrangler secret put GMAIL_APP_PASSWORD` のようにクリップボードから渡すこと。
+- PDF添付を再追加: 締め画面の「税理士」送信で CSV に加えて明細一覧のPDF(`payroll_YYYY-MM.pdf`)を添付。
+  解像度はダウンロード用と同じ scale:2、容量は JPEG 埋め込みで抑制。テスト送信はCSVのみ。
+
 ## 7. すぐ使えるコマンド集
 
 ```bash
