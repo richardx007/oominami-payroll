@@ -188,6 +188,22 @@ export async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
+ * html2canvas(本家)が文字の基準線を測るために body 直下に置く「見えない div + 1px の img」を、
+ * 本来の行内配置(inline)に戻す。
+ *
+ * ⚠️ Tailwind の初期化CSSは `img { display:block }` なので、そのままだと測定用の img が改行され、
+ * 基準線が大きく測られて**すべての文字が下にずれる**(セルの下の罫線に文字が付き、上が空く)。
+ * 源泉徴収票のテスト印字で発覚(2026-10-11)。帳票だけのページ(Tailwind なし)では再現しない。
+ * 測定用の div は style に visibility:hidden を直接持つので、それを目印にする。
+ */
+function fixFontMetricsProbe(cloneDoc: Document): void {
+  const style = cloneDoc.createElement("style");
+  style.textContent =
+    'body > div[style*="visibility: hidden"] > img { display: inline !important; max-width: none !important; }';
+  cloneDoc.head.appendChild(style);
+}
+
+/**
  * 自己完結したCSS(インラインの `<style>`)だけで組んだA4縦の帳票シートをPDFにする。
  * 給与明細書(`admin/close/payslip-pdf.tsx`)が使う。
  *
@@ -230,6 +246,7 @@ export async function captureSheetToPdfBlob(
       scale: 3,
       backgroundColor: "#ffffff",
       useCORS: true,
+      onclone: fixFontMetricsProbe,
     });
     const pxPerMm = canvas.width / pageW;
     const sliceHpx = Math.floor(pageH * pxPerMm);

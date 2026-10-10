@@ -286,7 +286,8 @@ export async function loadAllWithholdingSlips(
       employer,
       today
     ).find((x) => x.totals.year === year);
-    if (slip) {
+    // 明細はあっても支払額も税額も0円の人(勤務の無い月だけ)は出さない
+    if (slip && (slip.totals.paymentTotal > 0 || slip.totals.taxTotal > 0)) {
       rows.push({ employeeId: emp.id, employeeNo: emp.employee_no, name: emp.name, status: emp.status, slip });
     }
   }

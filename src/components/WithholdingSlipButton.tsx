@@ -342,7 +342,7 @@ const WITHHOLDING_CSS = `
 .wh-value-c{ font-size:3.3mm; text-align:center; margin-top:1mm; }
 .wh-name{ font-size:4.6mm; font-weight:700; letter-spacing:0.1em; }
 .wh-addr{ height:22mm; }
-.wh-amount td{ height:9mm; text-align:right; vertical-align:bottom; font-size:4mm; font-variant-numeric:tabular-nums; position:relative; }
+.wh-amount td{ height:9mm; text-align:right; vertical-align:bottom; font-size:4mm; line-height:1.15; padding-bottom:1.2mm; font-variant-numeric:tabular-nums; position:relative; }
 .wh-amount td.wh-center{ text-align:center; vertical-align:middle; font-size:3mm; white-space:nowrap; }
 .wh-unit{ position:absolute; top:0.6mm; right:1.2mm; font-size:2.4mm; color:#374151; }
 .wh-empty-row td{ height:7mm; }
