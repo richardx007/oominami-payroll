@@ -3788,6 +3788,16 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   `! pbpaste | tr -d ' \n' | npx wrangler secret put GMAIL_APP_PASSWORD` のようにクリップボードから渡すこと。
 - PDF添付を再追加: 締め画面の「税理士」送信で CSV に加えて明細一覧のPDF(`payroll_YYYY-MM.pdf`)を添付。
   解像度はダウンロード用と同じ scale:2、容量は JPEG 埋め込みで抑制。テスト送信はCSVのみ。
+- 🐛 添付PDFのCSSが全部外れていた(明朝体・罫線なし・PDF出力列まで出る): html2canvas は `<link>` のCSSを
+  複製iframe側で読み込み直して撮るため、その読み込みが撮影に間に合わないことがある(送信時に再現、
+  「PDF」ボタンでは間に合っていた)。`pdf-capture.ts` の `inlineStylesheets()`(onclone)で読み込み済みの
+  ルールを `<style>` として同じ位置に書き込むよう修正。
+- 🐛 あわせて「PDF」ボタンのPDFでも起きていた2点を修正(`globals.css`): ①右端の「差引支給」列が切れる
+  (表が約1600pxになり作業幅1400pxを超えていた → 締め画面の枠に `pdf-fit-content` で `width:max-content`)、
+  ②2行まとめたセル(rowSpan)の氏名・金額が半分隠れる(html2canvas が2行目の背景を後から塗る →
+  `td[rowspan]` を `position:relative; z-index:1`)。本番の Chrome で送信直前のPDFを取り出して確認済み(メールは未送信)。
+- ⚠️ 手動デプロイ後に push すると Workers Builds がもう一度デプロイし、開いたままの画面から
+  サーバーアクションを呼ぶと「This page couldn't load」になる(版ずれ)。確認は再デプロイ完了後に読み込み直してから。
 
 ## 7. すぐ使えるコマンド集
 

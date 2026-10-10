@@ -198,6 +198,13 @@ body.pdf-capture-mode .pdf-capture-target {
   max-width: none;
   background: #fff;
 }
+/* 列の多い表(給与明細一覧)は、全列が収まる幅まで広げる(A4横に縮小して貼るので切れない)。
+   1400px では「差引支給」以降が切れていた(2026-10-10。列の追加で表が約1600pxになっていた)。
+   文章の多い画面(日別など)に付けると1行が伸び切るので、表だけの枠に限って付けること */
+body.pdf-capture-mode .pdf-capture-target.pdf-fit-content {
+  width: max-content;
+  min-width: 1400px;
+}
 /* 横スクロールの枠を解除して表の全列を出す */
 body.pdf-capture-mode .pdf-capture-target .print-report {
   overflow: visible !important;
@@ -212,6 +219,13 @@ body.pdf-capture-mode .pdf-capture-target .print-report th,
 body.pdf-capture-mode .pdf-capture-target .print-report td {
   position: static !important;
   box-shadow: none !important;
+}
+/* 複数行をまとめたセル(rowSpan)は前面に出す。html2canvas は行(tr)の背景を
+   DOMの順に塗るため、2行目の背景がまとめたセルの下半分を覆い、氏名や金額が
+   半分隠れていた(2026-10-10。ブラウザの表示では起きない)。 */
+body.pdf-capture-mode .pdf-capture-target .print-report td[rowspan] {
+  position: relative !important;
+  z-index: 1;
 }
 
 /* 印刷 / PDF 出力の調整(給与明細の表が横にはみ出て切れるのを防ぐ) */

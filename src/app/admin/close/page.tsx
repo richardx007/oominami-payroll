@@ -173,7 +173,8 @@ export default async function ClosePage({
           admin/close/ui.tsx の targetId も合わせること */}
       <section
         id="payslip-report"
-        className="rounded-xl border border-gray-200 bg-white"
+        // pdf-fit-content: PDF化のとき全列が収まる幅まで広げる(globals.css)
+        className="pdf-fit-content rounded-xl border border-gray-200 bg-white"
       >
         <div className={`rounded-t-xl border-b p-4 ${bandClass}`}>
           <div>
