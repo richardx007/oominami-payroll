@@ -49,6 +49,8 @@ function groupDevices(rows: DeviceRow[]): DeviceGroup[] {
       g.approver_name = r.approver_name;
     }
   }
+  const order = { payroll: 0, business: 1 } as const;
+  for (const g of map.values()) g.apps.sort((a, b) => order[a] - order[b]);
   return Array.from(map.values());
 }
 
