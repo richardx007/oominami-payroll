@@ -2899,3 +2899,26 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
 - **読み込み**: `src/lib/expense-reimbursement.ts`。締め後は `expense_entries.payroll_period_id = 月度`、締め前は見込みの条件。経費管理の RLS で、管理者は全員分、従業員は自分が立替者の分だけ読める。
 - 給与管理は経費のテーブルを直接書き換えない（経費管理の関数を呼ぶだけ）。経費側では、給与に乗った立替の金額・立替者・確認・取消・精算をトリガーで止める。
 - マイグレーション: `supabase/migrations/20261008000100_payslips_expense_reimbursement.sql`（`payslips.expense_reimbursement`）。経費管理側は oominami-business の `20261008000000_expense_payroll_reimbursement.sql`。
+
+## 28. 端末承認制（アクセスの厳格化。2026-10-10 記録開始）
+メール・パスワードが漏れても、管理者が承認していない端末からはデータを読めないようにする仕組み。
+給与管理と経費管理(oominami-business)で共用する(DBが同じ)。
+
+- **オーナー決定(2026-10-10)**: 管理者の新しい端末は「もう1人の管理者が承認」(TOTPは後日検討)／
+  経費管理も同時に対応／まず「記録だけ」の期間を設ける。
+- **端末の識別**: 端末(ブラウザ)×アプリごとに乱数の合言葉を httpOnly Cookie `oom_dvt` に持たせ、DBには
+  SHA-256 だけを置く(`trusted_devices`)。ログイン(JWT の `session_id`)ごとの承認状態は `device_sessions`。
+  RLS は Cookie を見られないので、判定は session_id で行う。
+- **登録**: middleware がログインごとに1回 `device_register(token, app, label)` を呼ぶ(目印 Cookie `oom_dvs`=
+  登録済みの session_id。一致する間は呼ばない)。新しい端末は `pending` になり、本人以外の管理者へ
+  Push 通知(`device_notify_pending` → `/api/notify/new-device`、Vault `notify_new_device_url`)。
+- **導入時点のログイン(75件)は承認済み**として登録し、その端末が最初に来たときに `approved_how='existing'` で承認済みの端末になる。
+- **管理画面「端末」(`/admin/devices`)**: 一覧・承認・取り消し。自分の端末は承認できない(`device_approve` が拒否)。
+  操作ログはカテゴリ「端末」。
+- **段階**: `app_settings.device_enforcement` = `log`(記録だけ。現在) / `enforce`。`device_session_ok()` は
+  `log` の間は常に true。**実際に止めるのは次の段階**で、`is_admin()`・`current_employee_id()`・`ops_is_staff()`・
+  `ops_can_view_expense()` と、`auth.uid()` を直接使う RLS 4件に `device_session_ok()` を組み込む。
+  あわせて両アプリに「承認待ち」画面を作る(承認されるまでの案内・再確認)。
+- **注意**: QR打刻は Safari で開くため、ホーム画面アプリと Safari は別の端末。プライベートブラウズ等で
+  Cookie が残らない端末はログインのたびに承認待ちになる。管理者が全員端末を失った場合は、SQL で
+  `device_approve` 相当の更新を行う(災害復旧手順に追記予定)。
