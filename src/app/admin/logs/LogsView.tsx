@@ -79,6 +79,7 @@ const RANK_BY_ACTION: Record<string, LogRank> = {
   メール送信: "event",
   削除: "event",
   権限変更: "event",
+  端末: "event",
   締め処理: "event",
   締め解除: "event",
   支払済み: "event",

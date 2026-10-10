@@ -1,5 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  DEVICE_COOKIE_MAX_AGE,
+  DEVICE_SESSION_COOKIE,
+  DEVICE_TOKEN_COOKIE,
+  deviceLabel,
+  newDeviceToken,
+  sessionIdFromAccessToken,
+} from "@/lib/device";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -35,6 +43,44 @@ export async function updateSession(request: NextRequest) {
   //       各 API ルートは共有シークレットのヘッダーで自前に認証すること。
   // /calendar/embed: ホームページに iframe で埋め込む営業カレンダー(公開情報のみ。?preview=1 の
   //                  準備中の月の表示は管理者だけに許可する)
+  // 端末承認制: ログインごとに1回、この端末を登録する(device_register)。
+  // 今は「記録だけ」の段階で、承認待ちでもブロックしない(app_settings.device_enforcement='log')。
+  // /api は外部(pg_cron)から呼ばれ、ログインしている端末ではないので対象外。
+  const deviceCookies: { name: string; value: string }[] = [];
+  if (user && !request.nextUrl.pathname.startsWith("/api")) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const sid = sessionIdFromAccessToken(session?.access_token);
+    if (sid && request.cookies.get(DEVICE_SESSION_COOKIE)?.value !== sid) {
+      let token = request.cookies.get(DEVICE_TOKEN_COOKIE)?.value ?? "";
+      if (token.length < 32) {
+        token = newDeviceToken();
+        deviceCookies.push({ name: DEVICE_TOKEN_COOKIE, value: token });
+      }
+      const { error } = await supabase.rpc("device_register", {
+        p_token: token,
+        p_app: "payroll",
+        p_label: deviceLabel(request.headers.get("user-agent")),
+      });
+      // 失敗したら目印を付けない(次のリクエストでもう一度試す)。画面の表示は止めない
+      if (error) console.error("[device_register]", error.message);
+      else deviceCookies.push({ name: DEVICE_SESSION_COOKIE, value: sid });
+    }
+  }
+  const withDeviceCookies = (res: NextResponse) => {
+    for (const c of deviceCookies) {
+      res.cookies.set(c.name, c.value, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: DEVICE_COOKIE_MAX_AGE,
+      });
+    }
+    return res;
+  };
+
   const publicPaths = ["/login", "/register", "/auth", "/install", "/api", "/calendar/embed"];
   const isPublic = publicPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
@@ -66,8 +112,8 @@ export async function updateSession(request: NextRequest) {
       .maybeSingle();
     const url = request.nextUrl.clone();
     url.pathname = employee?.is_admin ? "/admin" : "/timesheet";
-    return NextResponse.redirect(url);
+    return withDeviceCookies(NextResponse.redirect(url));
   }
 
-  return supabaseResponse;
+  return withDeviceCookies(supabaseResponse);
 }

@@ -26,6 +26,8 @@ const moreLinks: { href: string; label: string; icon: typeof HomeIcon; dividerBe
   { href: "/admin/settings", label: "設定", icon: GearIcon, dividerBefore: true },
   { href: "/admin/tax-table", label: "税額表", icon: TableIcon },
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },
+  // 端末承認制(承認待ちの承認・取り消し)
+  { href: "/admin/devices", label: "端末", icon: DeviceIcon },
 ];
 
 // 会社ホームページ(別タブで開く)
@@ -595,6 +597,24 @@ function TableIcon({ className }: { className?: string }) {
     >
       <rect x="3.5" y="4" width="17" height="16" rx="2" />
       <path d="M3.5 9.5h17M9.5 9.5V20" />
+    </svg>
+  );
+}
+
+function DeviceIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="7" y="2.5" width="10" height="19" rx="2" />
+      <path d="M11 18.5h2" />
     </svg>
   );
 }
