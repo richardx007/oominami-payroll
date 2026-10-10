@@ -2939,4 +2939,14 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
   (本人と管理者だけが読める。employees には本人の更新権限を与えない方針のため別テーブル)。
 - **支払者**: 管理者の設定「源泉徴収票(支払者)」(`employer_address`/`employer_name`/`employer_phone`。
   名称が空なら会社名)。
-- 未対応: 退職者はログインできないので、退職者の源泉徴収票は管理者側から出す機能が別途必要。
+- **管理者画面「源泉徴収票」(`/admin/withholding`。2026-10-11)**: 年ごとに在職・退職の全員分を出せる
+  (退職者はログインできないため。退職者は年の途中でも「途中経過」にしない)。支払額・税額とも0円の人は出さない。
+- **権限の分離(2026-10-11)**: `employees.is_owner`(オーナー=M001)。個人情報(`employee_profiles`)は
+  本人とオーナーだけが直接読める(RLS)。システム管理者には `employee_profiles_for_admin()` が全角「＊」・
+  半角「*」の伏せ字にして返す(生年月日は "****-**-**")。オーナーは従業員画面の「個人情報」で編集できる
+  (`updateEmployeePersonalInfo`)。オーナーの付け外しはトリガーでアプリから禁止(SQL エディタでのみ)。
+  Supabase のダッシュボードから直接見れば見える(オーナーの意向で「アプリでは見せない」位置づけ)。
+- **🐛 帳票の文字が下にずれる(2026-10-11)**: html2canvas(本家)は文字の基準線を「見えない div に置いた1pxの img」
+  の位置で測るが、Tailwind の `img{display:block}` で img が改行され、全文字が下にずれていた。測定は**元の document**
+  で行われる(onclone では効かない)ので、`captureSheetToPdfBlob` の撮影中だけ元の画面に
+  `body > div[style*="visibility: hidden"] > img{display:inline}` を入れる(`fixFontMetricsProbe`)。給与明細PDFにも効く。
