@@ -15,8 +15,20 @@ import { parseUserAgent } from "./client-info";
 export const DEVICE_TOKEN_COOKIE = "oom_dvt";
 export const DEVICE_SESSION_COOKIE = "oom_dvs";
 
-/** Cookie の有効期限(秒)。Chrome の上限(400日)に合わせる */
+/** 合言葉 Cookie の有効期限(秒)。Chrome の上限(400日)に合わせる */
 export const DEVICE_COOKIE_MAX_AGE = 400 * 24 * 60 * 60;
+
+/** 登録済みの目印の有効期限(秒)。切れたらもう一度登録し、端末一覧の「最終利用」を更新する(1日1回) */
+export const DEVICE_SESSION_COOKIE_MAX_AGE = 24 * 60 * 60;
+
+/**
+ * 合言葉を新しく作ってよいリクエストか。画面そのもの(document)の読み込みのときだけ作る。
+ * 画面を開くと裏で同時に何本もリクエストが走るため、どれでも作ると合言葉が2つできて
+ * 同じ端末が2行になる(2026-10-11 に発生)。Sec-Fetch-Dest の無い古いブラウザは作ってよいことにする。
+ */
+export function canIssueDeviceToken(secFetchDest: string | null): boolean {
+  return secFetchDest === null || secFetchDest === "document";
+}
 
 /** 端末の合言葉(32バイトの乱数を base64url で43文字) */
 export function newDeviceToken(): string {

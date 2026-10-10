@@ -36,3 +36,12 @@ describe("deviceLabel", () => {
     expect(deviceLabel(null)).toBe("不明 / 不明 / 不明");
   });
 });
+
+describe("canIssueDeviceToken", () => {
+  it("画面の読み込み(document)か、ヘッダーが無いときだけ", async () => {
+    const { canIssueDeviceToken } = await import("./device");
+    expect(canIssueDeviceToken("document")).toBe(true);
+    expect(canIssueDeviceToken(null)).toBe(true);
+    expect(canIssueDeviceToken("empty")).toBe(false);
+  });
+});

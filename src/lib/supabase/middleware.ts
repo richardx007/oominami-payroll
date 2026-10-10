@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   DEVICE_COOKIE_MAX_AGE,
   DEVICE_SESSION_COOKIE,
+  DEVICE_SESSION_COOKIE_MAX_AGE,
+  canIssueDeviceToken,
   DEVICE_TOKEN_COOKIE,
   deviceLabel,
   newDeviceToken,
@@ -46,7 +48,7 @@ export async function updateSession(request: NextRequest) {
   // 端末承認制: ログインごとに1回、この端末を登録する(device_register)。
   // 今は「記録だけ」の段階で、承認待ちでもブロックしない(app_settings.device_enforcement='log')。
   // /api は外部(pg_cron)から呼ばれ、ログインしている端末ではないので対象外。
-  const deviceCookies: { name: string; value: string }[] = [];
+  const deviceCookies: { name: string; value: string; maxAge: number }[] = [];
   if (user && !request.nextUrl.pathname.startsWith("/api")) {
     const {
       data: { session },
@@ -54,18 +56,27 @@ export async function updateSession(request: NextRequest) {
     const sid = sessionIdFromAccessToken(session?.access_token);
     if (sid && request.cookies.get(DEVICE_SESSION_COOKIE)?.value !== sid) {
       let token = request.cookies.get(DEVICE_TOKEN_COOKIE)?.value ?? "";
-      if (token.length < 32) {
+      if (token.length < 32 && canIssueDeviceToken(request.headers.get("sec-fetch-dest"))) {
         token = newDeviceToken();
-        deviceCookies.push({ name: DEVICE_TOKEN_COOKIE, value: token });
+        deviceCookies.push({ name: DEVICE_TOKEN_COOKIE, value: token, maxAge: DEVICE_COOKIE_MAX_AGE });
       }
-      const { error } = await supabase.rpc("device_register", {
-        p_token: token,
-        p_app: "payroll",
-        p_label: deviceLabel(request.headers.get("user-agent")),
-      });
-      // 失敗したら目印を付けない(次のリクエストでもう一度試す)。画面の表示は止めない
-      if (error) console.error("[device_register]", error.message);
-      else deviceCookies.push({ name: DEVICE_SESSION_COOKIE, value: sid });
+      // 合言葉が無く、ここでは作れないリクエスト(裏の読み込み)は、次の画面の読み込みで登録する
+      if (token.length >= 32) {
+        const { error } = await supabase.rpc("device_register", {
+          p_token: token,
+          p_app: "payroll",
+          p_label: deviceLabel(request.headers.get("user-agent")),
+        });
+        // 失敗したら目印を付けない(次のリクエストでもう一度試す)。画面の表示は止めない。
+        // 目印は1日で切れ、もう一度登録して端末一覧の「最終利用」を更新する
+        if (error) console.error("[device_register]", error.message);
+        else
+          deviceCookies.push({
+            name: DEVICE_SESSION_COOKIE,
+            value: sid,
+            maxAge: DEVICE_SESSION_COOKIE_MAX_AGE,
+          });
+      }
     }
   }
   const withDeviceCookies = (res: NextResponse) => {
@@ -75,7 +86,7 @@ export async function updateSession(request: NextRequest) {
         secure: true,
         sameSite: "lax",
         path: "/",
-        maxAge: DEVICE_COOKIE_MAX_AGE,
+        maxAge: c.maxAge,
       });
     }
     return res;

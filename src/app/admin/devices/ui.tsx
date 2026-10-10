@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { zebraRowClass } from "@/lib/table";
-import { approveDevice, revokeDevice } from "./actions";
+import { approveDevices, revokeDevices } from "./actions";
 
 export type DeviceRow = {
   id: string;
+  owner_id: string;
   owner_name: string;
   owner_is_admin: boolean;
   is_me: boolean;
@@ -21,6 +22,36 @@ export type DeviceRow = {
 
 const APP_LABEL = { payroll: "給与", business: "経費" } as const;
 
+/**
+ * 画面の1行(=1台の端末)。iPhone はホーム画面アプリと Safari で Cookie が別なので記録上は2件になり、
+ * 給与と経費のアプリでも別件になる。見分けられないので「同じ人・同じ端末名・同じ状態」を1行にまとめる。
+ * ⚠️ 状態もキーに入れること。承認待ちの新しい端末が、承認済みの同じ名前の端末に紛れて見落とされないように。
+ */
+type DeviceGroup = DeviceRow & { ids: string[]; apps: DeviceRow["app"][]; count: number };
+
+function groupDevices(rows: DeviceRow[]): DeviceGroup[] {
+  const map = new Map<string, DeviceGroup>();
+  for (const r of rows) {
+    const key = `${r.owner_id}|${r.label}|${r.status}`;
+    const g = map.get(key);
+    if (!g) {
+      map.set(key, { ...r, ids: [r.id], apps: [r.app], count: 1 });
+      continue;
+    }
+    g.ids.push(r.id);
+    g.count++;
+    if (!g.apps.includes(r.app)) g.apps.push(r.app);
+    if (r.last_seen_at > g.last_seen_at) g.last_seen_at = r.last_seen_at;
+    if (r.created_at < g.created_at) g.created_at = r.created_at;
+    // 1件でも管理者が承認していれば「承認済み(承認者)」と出す
+    if (r.approved_how === "admin") {
+      g.approved_how = "admin";
+      g.approver_name = r.approver_name;
+    }
+  }
+  return Array.from(map.values());
+}
+
 function formatTs(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("ja-JP", {
@@ -32,7 +63,7 @@ function formatTs(iso: string | null) {
   });
 }
 
-function StatusBadge({ row }: { row: DeviceRow }) {
+function StatusBadge({ row }: { row: DeviceGroup }) {
   if (row.status === "pending") {
     return <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">承認待ち</span>;
   }
@@ -49,7 +80,8 @@ function StatusBadge({ row }: { row: DeviceRow }) {
 export function DevicesView({ devices }: { devices: DeviceRow[] }) {
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const pendingCount = devices.filter((d) => d.status === "pending").length;
+  const groups = groupDevices(devices);
+  const pendingCount = groups.filter((d) => d.status === "pending").length;
 
   function run(fn: () => Promise<{ ok: boolean; message: string }>) {
     setResult(null);
@@ -82,16 +114,24 @@ export function DevicesView({ devices }: { devices: DeviceRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {devices.map((d, i) => {
-              const summary = `${d.owner_name} / ${APP_LABEL[d.app]} / ${d.label}`;
+            {groups.map((d, i) => {
+              const apps = d.apps.map((a) => APP_LABEL[a]).join("・");
+              const summary = `${d.owner_name} / ${apps} / ${d.label}`;
               return (
-                <tr key={d.id} className={`border-t border-gray-100 ${zebraRowClass(i)}`}>
+                <tr key={d.ids.join(",")} className={`border-t border-gray-100 ${zebraRowClass(i)}`}>
                   <td className="whitespace-nowrap px-3 py-2">
                     {d.owner_name}
                     {d.owner_is_admin && <span className="ml-1 text-xs text-gray-400">(管理者)</span>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2">{APP_LABEL[d.app]}</td>
-                  <td className="px-3 py-2">{d.label || "不明"}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{apps}</td>
+                  <td className="px-3 py-2">
+                    {d.label || "不明"}
+                    {d.count > 1 && (
+                      <div className="text-xs text-gray-400">
+                        ホーム画面アプリ・ブラウザなど {d.count}件をまとめて表示
+                      </div>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <StatusBadge row={d} />
                   </td>
@@ -104,7 +144,7 @@ export function DevicesView({ devices }: { devices: DeviceRow[] }) {
                       ) : (
                         <button
                           disabled={pending}
-                          onClick={() => run(() => approveDevice(d.id, summary))}
+                          onClick={() => run(() => approveDevices(d.ids, summary))}
                           className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                         >
                           承認
@@ -113,7 +153,7 @@ export function DevicesView({ devices }: { devices: DeviceRow[] }) {
                     {d.status !== "revoked" && (
                       <button
                         disabled={pending}
-                        onClick={() => run(() => revokeDevice(d.id, summary))}
+                        onClick={() => run(() => revokeDevices(d.ids, summary))}
                         className="ml-2 rounded-lg border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                       >
                         取り消し
