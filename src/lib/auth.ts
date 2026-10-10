@@ -8,6 +8,8 @@ export type Employee = {
   nickname: string | null;
   email: string;
   is_admin: boolean;
+  /** オーナー(管理者のうち、従業員の個人情報を見て編集できる人。それ以外の管理者=システム管理者) */
+  is_owner: boolean;
   /** リーダ(従業員のみ)。他の人のシフトを確定月でも変更でき、調整中/確定を切り替えられる */
   is_leader: boolean;
   status: string;
@@ -24,7 +26,7 @@ export async function requireEmployee(): Promise<Employee> {
 
   let { data: employee } = await supabase
     .from("employees")
-    .select("id, employee_no, name, nickname, email, is_admin, is_leader, status")
+    .select("id, employee_no, name, nickname, email, is_admin, is_owner, is_leader, status")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
@@ -34,7 +36,7 @@ export async function requireEmployee(): Promise<Employee> {
     if (linked) {
       ({ data: employee } = await supabase
         .from("employees")
-        .select("id, employee_no, name, nickname, email, is_admin, is_leader, status")
+        .select("id, employee_no, name, nickname, email, is_admin, is_owner, is_leader, status")
         .eq("auth_user_id", user.id)
         .maybeSingle());
     }

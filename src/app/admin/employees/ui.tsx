@@ -20,6 +20,7 @@ import {
   updateEmployeeProfile,
   toggleEmployeeStatus,
   setEmployeeLeader,
+  updateEmployeePersonalInfo,
   countEmployeeWorkEntries,
   deleteEmployee,
   type ActionResult,
@@ -306,7 +307,14 @@ function AddEmployeePanel() {
   );
 }
 
-export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
+export function EmployeeList({
+  employees,
+  isOwner,
+}: {
+  employees: EmployeeRow[];
+  /** オーナー(個人情報を見て編集できる)。それ以外の管理者には伏せ字で見せる */
+  isOwner: boolean;
+}) {
   const [editing, setEditing] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -404,6 +412,7 @@ export function EmployeeList({ employees }: { employees: EmployeeRow[] }) {
                   }
                   onRun={run}
                   onRunKeepOpen={runKeepOpen}
+                  isOwner={isOwner}
                 />
               );
             })}
@@ -1005,6 +1014,83 @@ function TaxHistory({
   );
 }
 
+/**
+ * 個人情報(住所・電話番号・生年月日。源泉徴収票用)。オーナーは編集でき、システム管理者は伏せ字で見るだけ
+ * (伏せ字は DB の employee_profiles_for_admin() が作る。本物の値はオーナー以外の画面には届かない)。
+ */
+function PersonalInfoBlock({
+  emp,
+  isOwner,
+  pending,
+  onRun,
+}: {
+  emp: EmployeeRow;
+  isOwner: boolean;
+  pending: boolean;
+  onRun: (action: () => Promise<ActionResult>) => void;
+}) {
+  const p = emp.profile;
+  const input =
+    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+  if (!isOwner) {
+    return (
+      <div className="mb-5 space-y-1">
+        <h4 className="text-xs font-semibold text-gray-500">個人情報(源泉徴収票用)</h4>
+        {p ? (
+          <dl className="grid grid-cols-[6rem_1fr] gap-x-2 gap-y-1 text-sm">
+            <dt className="text-gray-500">郵便番号</dt>
+            <dd>{p.postal_code || "—"}</dd>
+            <dt className="text-gray-500">住所</dt>
+            <dd className="break-all">{p.address || "—"}</dd>
+            <dt className="text-gray-500">電話番号</dt>
+            <dd>{p.phone || "—"}</dd>
+            <dt className="text-gray-500">生年月日</dt>
+            <dd>{p.birth_date || "—"}</dd>
+          </dl>
+        ) : (
+          <p className="text-sm text-gray-500">未入力</p>
+        )}
+        <p className="text-xs text-gray-400">※ 個人情報はオーナーだけが見て編集できます(システム管理者には伏せ字で表示)</p>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        onRun(() => updateEmployeePersonalInfo(emp.id, fd));
+      }}
+      className="mb-5 space-y-2"
+    >
+      <h4 className="text-xs font-semibold text-gray-500">個人情報(源泉徴収票用・オーナーのみ)</h4>
+      <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
+        <input name="postal_code" defaultValue={p?.postal_code ?? ""} placeholder="郵便番号" className={input} />
+        <input name="address" defaultValue={p?.address ?? ""} placeholder="住所" className={input} />
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <input name="phone" type="tel" defaultValue={p?.phone ?? ""} placeholder="電話番号" className={input} />
+        {/* iOS Safari は日付欄が指定幅より広がるので、グリッドの1マスに単独で置く */}
+        <input
+          name="birth_date"
+          type="date"
+          defaultValue={p?.birth_date ?? ""}
+          aria-label="生年月日"
+          className={`${input} block appearance-none`}
+        />
+      </div>
+      <button
+        disabled={pending}
+        className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+      >
+        個人情報を保存
+      </button>
+    </form>
+  );
+}
+
 function EmployeeTableRow({
   emp,
   zebra,
@@ -1013,8 +1099,10 @@ function EmployeeTableRow({
   onEdit,
   onRun,
   onRunKeepOpen,
+  isOwner,
 }: {
   emp: EmployeeRow;
+  isOwner: boolean;
   /** 一覧の縞模様の背景クラス(lib/table.ts)。展開中は選択色を優先する */
   zebra: string;
   editing: boolean;
@@ -1265,6 +1353,15 @@ function EmployeeTableRow({
                     シフトの「調整中／確定」を切り替えられます
                   </p>
                 </div>
+              )}
+
+              {!emp.is_admin && (
+                <PersonalInfoBlock
+                  emp={emp}
+                  isOwner={isOwner}
+                  pending={pending}
+                  onRun={onRunKeepOpen}
+                />
               )}
 
               {!emp.is_admin && (

@@ -23,6 +23,8 @@ const moreLinks: { href: string; label: string; icon: typeof HomeIcon; dividerBe
   { href: "/admin/notices", label: "配信", icon: SendIcon },
   { href: "/admin/calendar", label: "営業カレンダー", icon: CalendarIcon },
   { href: "/admin/calendar/patterns", label: "営業と勤務時間", icon: ClockIcon },
+  // 源泉徴収票(在職・退職とも。退職者は自分で出せないため)
+  { href: "/admin/withholding", label: "源泉徴収票", icon: TableIcon },
   { href: "/admin/settings", label: "設定", icon: GearIcon, dividerBefore: true },
   { href: "/admin/tax-table", label: "税額表", icon: TableIcon },
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },

@@ -19,7 +19,7 @@ export type WithholdingSlipData = {
   furigana: string;
   postalCode: string;
   address: string;
-  /** 生年月日 "YYYY-MM-DD"(未入力は空) */
+  /** 生年月日 "YYYY-MM-DD"(未入力は空。システム管理者には伏せ字 "****-**-**") */
   birthDate: string;
   change: { kind: "就職" | "退職"; date: string } | null;
   employer: { name: string; address: string; phone: string };
@@ -271,7 +271,14 @@ function WithholdingSheet({ data }: { data: WithholdingSlipData }) {
             <td className="wh-birth">
               <div className="wh-caption">受給者生年月日</div>
               <div className="wh-value-c">
-                {data.birthDate ? <JpDate iso={data.birthDate} /> : <span className="wh-missing">(未入力)</span>}
+                {!data.birthDate ? (
+                  <span className="wh-missing">(未入力)</span>
+                ) : toJapaneseDate(data.birthDate) ? (
+                  <JpDate iso={data.birthDate} />
+                ) : (
+                  // システム管理者には伏せ字("****-**-**")で届く
+                  <span>＊＊ ＊＊年 ＊＊月 ＊＊日</span>
+                )}
               </div>
             </td>
           </tr>

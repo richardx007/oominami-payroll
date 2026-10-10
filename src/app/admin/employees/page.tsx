@@ -22,11 +22,19 @@ export type EmployeeRow = {
     dependents: number;
     effective_from: string;
   }[];
+  /** 個人情報(源泉徴収票用)。オーナーにはそのまま、システム管理者には伏せ字で届く。未入力は null */
+  profile: { postal_code: string; address: string; phone: string; birth_date: string } | null;
 };
 
 export default async function EmployeesPage() {
-  await requireAdmin();
+  const me = await requireAdmin();
   const supabase = await createClient();
+
+  // 個人情報はテーブルを直接読まず、伏せ字の判定込みの関数から取る(オーナー以外は伏せ字)
+  const { data: profiles } = await supabase.rpc("employee_profiles_for_admin");
+  const profileOf = new Map(
+    ((profiles ?? []) as (EmployeeRow["profile"] & { employee_id: string })[]).map((p) => [p.employee_id, p])
+  );
 
   const { data: employees } = await supabase
     .from("employees")
@@ -46,7 +54,10 @@ export default async function EmployeesPage() {
           従業員の登録・時給・税区分の設定を行います
         </p>
       </div>
-      <EmployeeList employees={(employees ?? []) as EmployeeRow[]} />
+      <EmployeeList
+        employees={(employees ?? []).map((e) => ({ ...e, profile: profileOf.get(e.id) ?? null })) as EmployeeRow[]}
+        isOwner={me.is_owner}
+      />
     </div>
   );
 }

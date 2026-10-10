@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { sendMail } from "@/lib/email";
 import { logActivity } from "@/lib/log";
+import { parsePersonalInfo } from "@/lib/personal-info";
 import { getSiteUrl } from "@/lib/site-url";
 
 const employeeSchema = z
@@ -807,6 +808,38 @@ export async function toggleEmployeeStatus(
     ok: true,
     message: newStatus === "retired" ? "退職処理しました" : "在籍に戻しました",
   };
+}
+
+/**
+ * 従業員の個人情報(住所・電話番号・生年月日)を保存する。**オーナーだけ**(2026-10-11)。
+ * システム管理者は伏せ字でしか見られず、編集もできない(DB の RLS でもオーナー以外は書けない)。
+ * 操作ログには値を残さない(個人情報のため)。
+ */
+export async function updateEmployeePersonalInfo(
+  employeeId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  const me = await requireAdmin();
+  if (!me.is_owner) {
+    return { ok: false, message: "個人情報を編集できるのはオーナーだけです" };
+  }
+  const parsed = parsePersonalInfo(formData);
+  if (!parsed.ok) return { ok: false, message: parsed.message };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("employee_profiles")
+    .upsert(
+      { employee_id: employeeId, ...parsed.value, updated_at: new Date().toISOString() },
+      { onConflict: "employee_id" }
+    );
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  const label = await employeeLabel(supabase, employeeId);
+  await logActivity("プロフィール", `オーナーが ${label} の住所・電話番号・生年月日を変更`);
+  revalidatePath("/admin/employees");
+  revalidatePath("/admin/withholding");
+  return { ok: true, message: "個人情報を保存しました" };
 }
 
 /** 従業員の権限を「従業員 ⇔ リーダ」で切り替える(管理者は対象外)。 */

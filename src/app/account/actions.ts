@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin, requireEmployee } from "@/lib/auth";
 import { logActivity } from "@/lib/log";
 import { sendPush } from "@/lib/web-push";
+import { parsePersonalInfo } from "@/lib/personal-info";
 import type { ActionResult } from "../admin/employees/actions";
 
 const profileSchema = z.object({
@@ -46,19 +47,6 @@ export async function updateOwnProfile(formData: FormData): Promise<ActionResult
   return { ok: true, message: "更新しました" };
 }
 
-const personalInfoSchema = z.object({
-  postal_code: z
-    .string()
-    .trim()
-    .regex(/^(\d{3}-?\d{4})?$/, "郵便番号は 123-4567 の形で入力してください"),
-  address: z.string().trim().max(200, "住所が長すぎます"),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^[0-9+\-() ]{0,20}$/, "電話番号は数字とハイフンで入力してください"),
-  birth_date: z.union([z.literal(""), z.iso.date("生年月日の形式が正しくありません")]),
-});
-
 /**
  * 本人が住所・電話番号・生年月日を保存する(源泉徴収票に載せる。2026-10-10)。
  * employees ではなく employee_profiles に保存する(employees には本人の更新権限を与えない方針のため)。
@@ -67,32 +55,12 @@ const personalInfoSchema = z.object({
 export async function updateMyPersonalInfo(formData: FormData): Promise<ActionResult> {
   const me = await requireEmployee();
 
-  const parsed = personalInfoSchema.safeParse({
-    postal_code: formData.get("postal_code") ?? "",
-    address: formData.get("address") ?? "",
-    phone: formData.get("phone") ?? "",
-    birth_date: formData.get("birth_date") ?? "",
-  });
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0].message };
-  }
-  const d = parsed.data;
-  if (d.birth_date && (d.birth_date < "1900-01-01" || d.birth_date > new Date().toISOString().slice(0, 10))) {
-    return { ok: false, message: "生年月日を確認してください" };
-  }
+  const parsed = parsePersonalInfo(formData);
+  if (!parsed.ok) return { ok: false, message: parsed.message };
 
-  // 郵便番号はハイフン付きにそろえる
-  const postal = d.postal_code.replace(/^(\d{3})-?(\d{4})$/, "$1-$2");
   const supabase = await createClient();
   const { error } = await supabase.from("employee_profiles").upsert(
-    {
-      employee_id: me.id,
-      postal_code: postal,
-      address: d.address,
-      phone: d.phone,
-      birth_date: d.birth_date || null,
-      updated_at: new Date().toISOString(),
-    },
+    { employee_id: me.id, ...parsed.value, updated_at: new Date().toISOString() },
     { onConflict: "employee_id" }
   );
   if (error) return { ok: false, message: "保存に失敗しました" };

@@ -114,6 +114,59 @@ export async function buildPayslipResult(period: Period, slip: StoredSlip): Prom
   };
 }
 
+/** 源泉徴収票の宛先(支払を受ける者)の個人情報。システム管理者には伏せ字で届く(birthDate も "****-**-**") */
+export type SlipProfile = { postalCode: string; address: string; birthDate: string };
+
+type SlipSubject = { name: string; furigana: string; status: string };
+
+/** 支払のある年ごとに源泉徴収票のデータを組み立てる(新しい順) */
+function buildSlips(
+  payments: SlipPayment[],
+  subject: SlipSubject,
+  profile: SlipProfile,
+  firstWorkDate: string | null,
+  lastWorkDate: string | null,
+  employer: IssuerInfo["employer"],
+  today: string
+): WithholdingSlipData[] {
+  const thisYear = Number(today.slice(0, 4));
+  return slipYears(payments).map((year) => ({
+    totals: computeWithholdingTotals(payments, year),
+    // 退職済みの人は年の途中でも確定(退職後1か月以内に交付する義務があるため)
+    inProgressAsOf: year >= thisYear && subject.status === "active" ? today : null,
+    name: subject.name,
+    furigana: subject.furigana,
+    postalCode: profile.postalCode,
+    address: profile.address,
+    birthDate: profile.birthDate,
+    change: midYearChange(year, firstWorkDate, lastWorkDate, subject.status !== "active"),
+    employer,
+  }));
+}
+
+type PayslipRow = {
+  employee_id: string;
+  gross_pay: number;
+  transport_total: number;
+  income_tax: number;
+  tax_category: string;
+  pay_periods: unknown;
+};
+
+function toPayment(s: PayslipRow): SlipPayment {
+  const pp = s.pay_periods as { payment_date: string };
+  return {
+    payment_date: pp.payment_date,
+    gross_pay: s.gross_pay,
+    transport_total: s.transport_total,
+    income_tax: s.income_tax,
+    tax_category: s.tax_category,
+  };
+}
+
+const PAYSLIP_SELECT =
+  "employee_id, gross_pay, transport_total, income_tax, tax_category, pay_periods!inner(payment_date)";
+
 /** 本人の源泉徴収票(支払のある年ごと・新しい順) */
 export async function loadWithholdingSlips(
   supabase: SupabaseClient,
@@ -123,10 +176,7 @@ export async function loadWithholdingSlips(
 ): Promise<WithholdingSlipData[]> {
   const [{ data: slips }, { data: me }, { data: profile }, { data: first }, { data: last }] =
     await Promise.all([
-      supabase
-        .from("payslips")
-        .select("gross_pay, transport_total, income_tax, tax_category, pay_periods!inner(payment_date)")
-        .eq("employee_id", employee.id),
+      supabase.from("payslips").select(PAYSLIP_SELECT).eq("employee_id", employee.id),
       supabase.from("employees").select("furigana").eq("id", employee.id).maybeSingle(),
       supabase
         .from("employee_profiles")
@@ -149,27 +199,96 @@ export async function loadWithholdingSlips(
         .maybeSingle(),
     ]);
 
-  const payments: SlipPayment[] = (slips ?? []).map((s) => {
-    const pp = s.pay_periods as unknown as { payment_date: string };
-    return {
-      payment_date: pp.payment_date,
-      gross_pay: s.gross_pay,
-      transport_total: s.transport_total,
-      income_tax: s.income_tax,
-      tax_category: s.tax_category,
-    };
-  });
-
-  const thisYear = Number(today.slice(0, 4));
-  return slipYears(payments).map((year) => ({
-    totals: computeWithholdingTotals(payments, year),
-    inProgressAsOf: year >= thisYear ? today : null,
-    name: employee.name,
-    furigana: me?.furigana ?? "",
-    postalCode: profile?.postal_code ?? "",
-    address: profile?.address ?? "",
-    birthDate: profile?.birth_date ?? "",
-    change: midYearChange(year, first?.work_date ?? null, last?.work_date ?? null, employee.status !== "active"),
+  return buildSlips(
+    ((slips ?? []) as PayslipRow[]).map(toPayment),
+    { name: employee.name, furigana: me?.furigana ?? "", status: employee.status },
+    {
+      postalCode: profile?.postal_code ?? "",
+      address: profile?.address ?? "",
+      birthDate: profile?.birth_date ?? "",
+    },
+    first?.work_date ?? null,
+    last?.work_date ?? null,
     employer,
-  }));
+    today
+  );
+}
+
+/** 管理者が見る、従業員ごとの源泉徴収票(在職・退職とも)。個人情報はオーナー以外には伏せ字で届く */
+export type AdminSlipRow = {
+  employeeId: string;
+  employeeNo: string;
+  name: string;
+  status: string;
+  slip: WithholdingSlipData;
+};
+
+export async function loadAllWithholdingSlips(
+  supabase: SupabaseClient,
+  year: number,
+  employer: IssuerInfo["employer"],
+  today: string
+): Promise<{ years: number[]; rows: AdminSlipRow[] }> {
+  // Supabase は1回の取得が最大1000行なので、明細・勤務記録は1000行ずつ分けて全件取る
+  const fetchAll = async <T,>(
+    query: (from: number, to: number) => PromiseLike<{ data: T[] | null }>
+  ): Promise<T[]> => {
+    const PAGE = 1000;
+    const out: T[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data } = await query(from, from + PAGE - 1);
+      out.push(...(data ?? []));
+      if ((data ?? []).length < PAGE) return out;
+    }
+  };
+  const [slips, { data: emps }, { data: profiles }, entries] = await Promise.all([
+    fetchAll<PayslipRow>((a, b) => supabase.from("payslips").select(PAYSLIP_SELECT).order("id").range(a, b)),
+    supabase
+      .from("employees")
+      .select("id, employee_no, name, furigana, status")
+      .eq("is_admin", false)
+      .order("employee_no"),
+    supabase.rpc("employee_profiles_for_admin"),
+    fetchAll<{ employee_id: string; work_date: string }>((a, b) =>
+      supabase.from("work_entries").select("employee_id, work_date").order("id").range(a, b)
+    ),
+  ]);
+
+  const payments = new Map<string, SlipPayment[]>();
+  for (const s of slips) {
+    const list = payments.get(s.employee_id) ?? [];
+    list.push(toPayment(s));
+    payments.set(s.employee_id, list);
+  }
+  const profileOf = new Map(
+    ((profiles ?? []) as { employee_id: string; postal_code: string; address: string; birth_date: string }[]).map(
+      (p) => [p.employee_id, { postalCode: p.postal_code, address: p.address, birthDate: p.birth_date }]
+    )
+  );
+  const firstOf = new Map<string, string>();
+  const lastOf = new Map<string, string>();
+  for (const e of entries) {
+    const f = firstOf.get(e.employee_id);
+    if (!f || e.work_date < f) firstOf.set(e.employee_id, e.work_date);
+    const l = lastOf.get(e.employee_id);
+    if (!l || e.work_date > l) lastOf.set(e.employee_id, e.work_date);
+  }
+
+  const allPayments = Array.from(payments.values()).flat();
+  const rows: AdminSlipRow[] = [];
+  for (const emp of emps ?? []) {
+    const slip = buildSlips(
+      payments.get(emp.id) ?? [],
+      { name: emp.name, furigana: emp.furigana ?? "", status: emp.status },
+      profileOf.get(emp.id) ?? { postalCode: "", address: "", birthDate: "" },
+      firstOf.get(emp.id) ?? null,
+      lastOf.get(emp.id) ?? null,
+      employer,
+      today
+    ).find((x) => x.totals.year === year);
+    if (slip) {
+      rows.push({ employeeId: emp.id, employeeNo: emp.employee_no, name: emp.name, status: emp.status, slip });
+    }
+  }
+  return { years: slipYears(allPayments), rows };
 }
