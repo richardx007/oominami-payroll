@@ -113,7 +113,7 @@ export function DevicePendingView({
                 id="pair-code"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                maxLength={6}
+                // maxLength は付けない(「123 456」のように空白入りで貼り付けると、数字を取り出す前に切り詰められるため)
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="000000"

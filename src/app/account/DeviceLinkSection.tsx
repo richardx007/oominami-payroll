@@ -13,6 +13,7 @@ export function DeviceLinkSection() {
   const [code, setCode] = useState<{ code: string; expiresAt: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -22,6 +23,17 @@ export function DeviceLinkSection() {
   }, [code]);
 
   const left = code ? Math.max(0, Math.round((code.expiresAt - now) / 1000)) : 0;
+
+  // タップでコピーする(承認待ちの端末にそのまま貼り付けられるよう、数字6桁だけ)
+  async function copy(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // コピーできないブラウザでは、表示を長押しして手でコピーしてもらう
+    }
+  }
 
   function show() {
     setError(null);
@@ -45,11 +57,30 @@ export function DeviceLinkSection() {
       </p>
       {code && left > 0 ? (
         <div className="space-y-2">
-          <div className="rounded-lg bg-blue-50 py-3 text-center font-mono text-4xl font-bold tracking-[0.2em] tabular-nums">
-            {code.code.slice(0, 3)} {code.code.slice(3)}
+          {/* 3桁ずつの間は余白(文字のスペースではない)で空ける。手でコピーしても数字6桁だけになる */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => copy(code.code)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                copy(code.code);
+              }
+            }}
+            aria-label={`確認コード ${code.code}(タップでコピー)`}
+            className="block w-full cursor-pointer select-all rounded-lg bg-blue-50 py-3 text-center font-mono text-4xl font-bold tracking-[0.2em] tabular-nums active:bg-blue-100"
+          >
+            <span>{code.code.slice(0, 3)}</span>
+            <span className="ml-[0.4em]">{code.code.slice(3)}</span>
           </div>
           <p className="text-center text-xs text-gray-500 tabular-nums">
-            あと {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} 有効
+            {copied ? (
+              <span className="font-medium text-green-700">コピーしました</span>
+            ) : (
+              "タップでコピーできます"
+            )}
+            {" ・ "}あと {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} 有効
           </p>
           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
             このコードは他の人に教えないでください。お店や管理者が聞くことはありません。
