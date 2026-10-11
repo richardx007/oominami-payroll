@@ -105,13 +105,22 @@ function actionClass(action: string) {
   return RANK_CLASS[rank];
 }
 
+const UNKNOWN_ACTOR = "(不明)";
+
 export function LogsView({ logs }: { logs: LogRow[] }) {
   const categories = useMemo(() => {
     const set = new Set(logs.map((l) => l.action));
     return Array.from(set).sort((a, b) => a.localeCompare(b, "ja"));
   }, [logs]);
 
+  // 操作したアカウント(actor_name)。名前の無いログ(未ログインの操作など)は「(不明)」にまとめる
+  const actors = useMemo(() => {
+    const set = new Set(logs.map((l) => l.actor_name ?? UNKNOWN_ACTOR));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "ja"));
+  }, [logs]);
+
   const [category, setCategory] = useState<string>("all");
+  const [actor, setActor] = useState<string>("all");
   // 既定で「8日以前」(今日を含め9日目以降)の日は閉じた状態にする。
   // 一度でも手動でトグルした日はこの初期値を上書きして扱う(toggleDayで反転するだけなので自然に上書きされる)。
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(() => {
@@ -123,8 +132,13 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
   });
 
   const filtered = useMemo(
-    () => (category === "all" ? logs : logs.filter((l) => l.action === category)),
-    [logs, category]
+    () =>
+      logs.filter(
+        (l) =>
+          (category === "all" || l.action === category) &&
+          (actor === "all" || (l.actor_name ?? UNKNOWN_ACTOR) === actor)
+      ),
+    [logs, category, actor]
   );
 
   const days = useMemo(() => {
@@ -163,6 +177,22 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
           {categories.map((c) => (
             <option key={c} value={c}>
               {c}
+            </option>
+          ))}
+        </select>
+        <label className="ml-2 text-sm text-gray-500" htmlFor="log-actor">
+          アカウント:
+        </label>
+        <select
+          id="log-actor"
+          value={actor}
+          onChange={(e) => setActor(e.target.value)}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+        >
+          <option value="all">すべて</option>
+          {actors.map((a) => (
+            <option key={a} value={a}>
+              {a}
             </option>
           ))}
         </select>
@@ -218,7 +248,7 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
                                 </span>
                               </td>
                               <td className="whitespace-nowrap px-3 py-2.5 text-gray-700">
-                                {log.actor_name ?? "(不明)"}
+                                {log.actor_name ?? UNKNOWN_ACTOR}
                               </td>
                               <td className="whitespace-nowrap px-3 py-2.5 text-gray-600">
                                 {log.detail}
