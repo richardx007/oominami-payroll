@@ -6,6 +6,8 @@ import { DeviceHint } from "./pwa/DeviceHint";
 export const metadata: Metadata = {
   title: "給与管理システム",
   description: "従業員勤務表・給与計算システム",
+  // src/app/manifest.webmanifest/route.ts(/install では引き継ぎ札付きに差し替える)
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {

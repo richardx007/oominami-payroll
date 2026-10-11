@@ -2,11 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { requireEmployee } from "@/lib/auth";
 import { AccountSettingsView } from "@/app/account/AccountSettingsView";
 import { getMyCalendarFeedUrl } from "@/lib/calendar-feed-url";
+import { DeviceLinkSection } from "@/app/account/DeviceLinkSection";
 
 /** 従業員用アカウント設定画面。プロフィール編集と、この端末での通知登録ができる。 */
 export default async function EmployeeAccountPage() {
   const me = await requireEmployee();
   const supabase = await createClient();
+  // 端末承認制でブロックの対象の人だけ「別の端末を承認する」を出す(試験運用中は対象者だけ)
+  const enforcedPromise = supabase.rpc("device_enforced");
 
   const [{ data: profile }, { data: subs }, calendarFeedUrl, { data: reminder }, { data: personal }] = await Promise.all([
     supabase.from("employees").select("furigana").eq("id", me.id).maybeSingle(),
@@ -24,6 +27,8 @@ export default async function EmployeeAccountPage() {
       .eq("employee_id", me.id)
       .maybeSingle(),
   ]);
+
+  const { data: enforced } = await enforcedPromise;
 
   return (
     <div className="space-y-4">
@@ -47,6 +52,7 @@ export default async function EmployeeAccountPage() {
           birthDate: personal?.birth_date ?? "",
         }}
       />
+      {enforced === true && <DeviceLinkSection />}
     </div>
   );
 }

@@ -2923,6 +2923,35 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
   Cookie が残らない端末はログインのたびに承認待ちになる。管理者が全員端末を失った場合は、SQL で
   `device_approve` 相当の更新を行う(災害復旧手順に追記予定)。
 
+### 28.1 試験運用と、承認の手間を減らす仕組み（2026-10-11）
+マイグレーション `20261011150000_device_enforce_test.sql`・`20261011160000_login_employee_status.sql`。
+見本(画面の流れ): https://claude.ai/artifact/NgFNEQoBYqPsUiYmzxnue5
+
+- **試験運用**: `device_enforce_test` に入れたアカウントだけ、全体が `log` のままでも実際にブロックする
+  (`device_enforced()`)。RLS の土台 `current_employee_id`・`is_admin`・`is_owner`・`is_leader`・`ops_is_staff`・
+  `ops_can_view_expense` と、`employees`・`ops_shared_accounts` の本人ポリシーに `device_session_ok()` を組み込み済み
+  (対象でない人は常に true なので影響なし)。追加・削除は SQL:
+  `insert into device_enforce_test(auth_user_id, note) select auth_user_id, '試験' from employees where employee_no='2';`
+- **画面**: middleware は承認されていない端末(対象者のみ)を `/device-pending` へ移す。目印 Cookie は
+  承認済みか対象外のときだけ付ける(承認待ちの間は毎回確かめる)。承認待ちの画面は確認コードの入力と、
+  5秒おきの承認確認(管理者が承認すると自動で切り替わる)。ログイン画面の在職確認は `login_employee_status()`
+  (承認されていない端末から employees が読めないため)。端末の合言葉はログイン前(ログイン画面を開いたとき)から持たせる。
+- **登録直後の自動承認(`approved_how='invite'`)**: アカウント作成(auth.users.created_at)から24時間以内の端末は
+  自動で承認し、管理者へ「自動で承認しました」と通知。管理者・取り消された端末がある人は対象外。
+  招待リンクを Gmail アプリ内のブラウザで開く人がいるため「最初の1台だけ」にはしていない。
+  ⚠️ パスワード再設定と初回登録はどちらも認証方法が `otp` で見分けられないため、メールのリンクではなく作成日時で判定する。
+- **確認コード(`code`)**: 承認済みの端末のアカウント設定「別の端末を承認する」で6桁を出す
+  (`device_pair_code_create`。10分・1回限り・最新の1つだけ有効・1時間に10回まで)。承認待ちの端末で入力
+  (`device_pair_code_redeem`。5回まちがえたら無効)。アカウント設定の欄は対象者にだけ出す。
+- **引き継ぎ札(`handoff`)**: `/install` を承認済みの端末で開くと `device_handoff_create` が札を作り、
+  マニフェストのリンクを `/manifest.webmanifest?h=札` にする(マニフェストはルートハンドラ
+  `src/app/manifest.webmanifest/route.ts`。札付きなら start_url=`/?h=札`、id は "/" 固定)。
+  ホーム画面アプリを初めて開くと middleware が札を Cookie `oom_hof` に預け、ログイン後の登録で承認待ちなら
+  `device_handoff_redeem`。24時間・1回限り。札が `<head>` に入るよう `htmlLimitedBots: /.*/`(generateMetadata は /install だけ)。
+  **iPhone が実際にこの start_url を使うかは実機確認待ち。**
+- **未対応**: 経費管理(oominami-business)の承認待ち画面・確認コード。試験対象の人が経費管理を開くと、
+  承認されていない端末ではデータが見えない(画面の案内は無い)。全体の `enforce` の前に作る。
+
 ## 29. 従業員の書類ダウンロード（給与明細PDF・源泉徴収票。2026-10-10）
 - **給与明細PDF**: 従業員の「給与明細」画面の見出し右の「PDF」。管理者の給与明細画面と同じ帳票
   (`admin/close/payslip-pdf.tsx` の `PayslipPdfButton`)。金額は確定済みの payslips の値。時給が月度の途中で

@@ -61,12 +61,12 @@ export default function LoginPage() {
     // ここで status を確認し、退職済みならセッションを破棄する。
     // 「退職済みのため」とは案内せず、通常の認証エラーと同じ文言にする
     // (在職状況を外部から推測されないようにするため)。
-    const { data: me } = await supabase
-      .from("employees")
-      .select("status")
-      .eq("auth_user_id", signInData.user?.id ?? "")
-      .maybeSingle();
-    if (!me || me.status !== "active") {
+    // employees を直接読まず関数で確かめる(承認されていない端末からは employees が読めず、
+    // 「見つからない」扱いでログアウトしてしまい、承認待ちの画面にたどり着けないため)
+    const { data: status } = signInData.user
+      ? await supabase.rpc("login_employee_status")
+      : { data: null };
+    if (status !== "active") {
       await supabase.auth.signOut();
       setError("メールアドレスまたはパスワードが正しくありません");
       setLoading(false);

@@ -37,6 +37,8 @@ export async function POST(request: Request): Promise<Response> {
     owner_name?: string;
     app?: string;
     label?: string;
+    /** 'pending' = 承認待ち(既定) / 'auto' = 登録直後のため自動で承認した */
+    kind?: string;
     subscriptions?: PushSubscriptionInfo[];
   };
   try {
@@ -52,12 +54,22 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: true, sent: 0 });
   }
 
-  const message = JSON.stringify({
-    title: "新しい端末の承認待ち",
-    body: `${ownerName}さんが新しい端末(${payload.label || "不明な端末"})から${appName}にログインしました。心当たりがあれば承認してください。`,
-    tag: "new-device",
-    url: "/admin/devices",
-  });
+  const device = payload.label || "不明な端末";
+  const message = JSON.stringify(
+    payload.kind === "auto"
+      ? {
+          title: "端末を自動で承認しました",
+          body: `${ownerName}さんの新しい端末(${device})を、登録直後のため自動で承認しました(${appName})。心当たりがなければ「端末」画面で取り消してください。`,
+          tag: "new-device",
+          url: "/admin/devices",
+        }
+      : {
+          title: "新しい端末の承認待ち",
+          body: `${ownerName}さんが新しい端末(${device})から${appName}にログインしました。心当たりがあれば承認してください。`,
+          tag: "new-device",
+          url: "/admin/devices",
+        }
+  );
 
   try {
     const results = await Promise.all(

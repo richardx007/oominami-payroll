@@ -15,7 +15,7 @@ export type DeviceRow = {
   app: "payroll" | "business";
   label: string;
   status: "pending" | "approved" | "revoked";
-  approved_how: "existing" | "admin" | null;
+  approved_how: "existing" | "admin" | "invite" | "code" | "handoff" | null;
   approved_at: string | null;
   approver_name: string | null;
   created_at: string;
@@ -67,6 +67,14 @@ function formatTs(iso: string | null) {
   });
 }
 
+/** 管理者の承認以外の承認のしかた(管理者の承認は承認者の名前を出す) */
+const APPROVED_HOW_LABEL: Partial<Record<NonNullable<DeviceRow["approved_how"]>, string>> = {
+  existing: "承認済み(導入時から利用)",
+  invite: "承認済み(登録直後・自動)",
+  code: "承認済み(確認コード)",
+  handoff: "承認済み(ホーム画面に追加)",
+};
+
 function StatusBadge({ row }: { row: DeviceGroup }) {
   if (row.status === "pending") {
     return <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">承認待ち</span>;
@@ -76,7 +84,8 @@ function StatusBadge({ row }: { row: DeviceGroup }) {
   }
   return (
     <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-      {row.approved_how === "existing" ? "承認済み(導入時から利用)" : `承認済み${row.approver_name ? `(${row.approver_name})` : ""}`}
+      {APPROVED_HOW_LABEL[row.approved_how ?? "admin"] ??
+        `承認済み${row.approver_name ? `(${row.approver_name})` : ""}`}
     </span>
   );
 }

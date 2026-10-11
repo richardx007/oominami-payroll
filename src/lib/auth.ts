@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { DEVICE_PENDING_PATH } from "@/lib/device";
 
 export type Employee = {
   id: string;
@@ -42,7 +43,13 @@ export async function requireEmployee(): Promise<Employee> {
     }
   }
 
-  if (!employee) redirect("/login?error=no_employee");
+  if (!employee) {
+    // 端末承認制: 承認されていない端末からは employees が読めない。その場合は承認待ちの画面へ
+    // (middleware が先に移すが、ログイン直後の登録前のリクエストなどで漏れたときの保険)
+    const { data: ok } = await supabase.rpc("device_session_ok");
+    if (ok === false) redirect(DEVICE_PENDING_PATH);
+    redirect("/login?error=no_employee");
+  }
 
   // 退職済みの従業員はここでも弾く(ログイン画面の水際チェックの保険。
   // 例えばログイン後に退職処理された場合、既存セッションが残っていると

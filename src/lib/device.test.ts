@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { deviceLabel, newDeviceToken, sessionIdFromAccessToken } from "./device";
+import {
+  deviceLabel,
+  isDeviceGateExempt,
+  isHandoffToken,
+  newDeviceToken,
+  sessionIdFromAccessToken,
+} from "./device";
 
 function jwt(payload: object) {
   const b64 = (o: object) =>
@@ -52,5 +58,30 @@ describe("deviceLabel(iPad)", () => {
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15";
     expect(deviceLabel(ua, true)).toBe("iPad / iPadOS / Safari 26");
     expect(deviceLabel(ua, false)).toBe("Mac / macOS / Safari 26");
+  });
+});
+
+describe("isHandoffToken", () => {
+  it("48文字の16進だけ通す", () => {
+    expect(isHandoffToken("a".repeat(48))).toBe(true);
+    expect(isHandoffToken("0123456789abcdef".repeat(3))).toBe(true);
+    expect(isHandoffToken("A".repeat(48))).toBe(false);
+    expect(isHandoffToken("a".repeat(47))).toBe(false);
+    expect(isHandoffToken(null)).toBe(false);
+  });
+});
+
+describe("isDeviceGateExempt", () => {
+  it("承認待ちの画面・ログイン・公開ページは通す", () => {
+    expect(isDeviceGateExempt("/device-pending")).toBe(true);
+    expect(isDeviceGateExempt("/login")).toBe(true);
+    expect(isDeviceGateExempt("/auth/confirm")).toBe(true);
+    expect(isDeviceGateExempt("/api/notify/new-device")).toBe(true);
+  });
+  it("それ以外の画面は通さない(似た名前も)", () => {
+    expect(isDeviceGateExempt("/timesheet")).toBe(false);
+    expect(isDeviceGateExempt("/admin")).toBe(false);
+    expect(isDeviceGateExempt("/loginx")).toBe(false);
+    expect(isDeviceGateExempt("/")).toBe(false);
   });
 });

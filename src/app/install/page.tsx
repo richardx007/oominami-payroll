@@ -1,8 +1,31 @@
+import type { Metadata } from "next";
 import { AddToHomeScreenBanner } from "@/app/pwa/AddToHomeScreenBanner";
+import { createClient } from "@/lib/supabase/server";
 
-export const metadata = {
-  title: "ホーム画面に追加 | 給与管理システム",
-};
+/**
+ * 承認済みの端末でログインして開いたときは、マニフェストに引き継ぎ札を付ける(端末承認制)。
+ * ここからホーム画面に追加したアプリは、初めて開いてログインしたときに自動で承認される
+ * (iPhone はホーム画面アプリと Safari が Cookie を共有しないため、札が無いと別の端末として承認待ちになる)。
+ * 未ログイン・承認待ちの端末では札は出ない(device_handoff_create が null を返す)。
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  let manifest = "/manifest.webmanifest";
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: token } = await supabase.rpc("device_handoff_create");
+      if (typeof token === "string" && token) {
+        manifest = `/manifest.webmanifest?h=${token}`;
+      }
+    }
+  } catch {
+    // 札が作れなくても案内は出す(札なしでも確認コード・管理者の承認で使える)
+  }
+  return { title: "ホーム画面に追加 | 給与管理システム", manifest };
+}
 
 /**
  * スマホのホーム画面にアプリを追加してもらうための案内ページ。

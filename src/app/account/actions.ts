@@ -314,3 +314,20 @@ export async function rotateMyCalendarToken(): Promise<ActionResult> {
     message: "URLを作り直しました。カレンダーアプリには新しいURLで登録し直してください。",
   };
 }
+
+/**
+ * 別の端末を承認するための6桁の確認コードを出す(端末承認制)。承認済みの端末でだけ出せる
+ * (DB の device_pair_code_create が確かめる)。10分・1回限り。
+ */
+export async function createPairCode(): Promise<
+  { ok: true; code: string; expiresAt: string } | { ok: false; message: string }
+> {
+  await requireEmployee();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("device_pair_code_create");
+  if (error || !data) {
+    return { ok: false, message: error?.message ?? "コードを出せませんでした" };
+  }
+  const r = data as { code: string; expires_at: string };
+  return { ok: true, code: r.code, expiresAt: r.expires_at };
+}

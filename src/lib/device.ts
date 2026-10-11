@@ -22,6 +22,38 @@ export const DEVICE_SESSION_COOKIE = "oom_dvs2";
  */
 export const TOUCH_MAC_COOKIE = "oom_touchmac";
 
+/**
+ * 引き継ぎ札(ホーム画面に追加したときの起動先 /?h=... に付く使い捨ての札)を、ログインするまで預かる Cookie。
+ * ホーム画面アプリを初めて開くとログイン前なので、/login へ移る前にここへ移しておく。
+ */
+export const HANDOFF_COOKIE = "oom_hof";
+export const HANDOFF_COOKIE_MAX_AGE = 24 * 60 * 60;
+
+/** 承認待ちの画面 */
+export const DEVICE_PENDING_PATH = "/device-pending";
+
+/** 引き継ぎ札の形(DB の device_handoff_create が作る48文字の16進) */
+export function isHandoffToken(v: string | null | undefined): v is string {
+  return !!v && /^[0-9a-f]{48}$/.test(v);
+}
+
+/**
+ * 承認されていない端末(ブロック対象の人)でも開ける画面か。承認待ちの画面そのもの・ログイン・
+ * パスワード設定・メールのリンク・公開ページ。
+ */
+export function isDeviceGateExempt(pathname: string): boolean {
+  return [
+    DEVICE_PENDING_PATH,
+    "/login",
+    "/auth",
+    "/set-password",
+    "/register",
+    "/install",
+    "/api",
+    "/calendar/embed",
+  ].some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 /** 合言葉 Cookie の有効期限(秒)。Chrome の上限(400日)に合わせる */
 export const DEVICE_COOKIE_MAX_AGE = 400 * 24 * 60 * 60;
 

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { AccountSettingsView } from "@/app/account/AccountSettingsView";
 import { getMyCalendarFeedUrl } from "@/lib/calendar-feed-url";
+import { DeviceLinkSection } from "@/app/account/DeviceLinkSection";
 
 /**
  * 管理者用アカウント設定画面。プロフィール編集・この端末での通知登録に加え、
@@ -10,6 +11,8 @@ import { getMyCalendarFeedUrl } from "@/lib/calendar-feed-url";
 export default async function AdminAccountPage() {
   const me = await requireAdmin();
   const supabase = await createClient();
+  // 端末承認制でブロックの対象の人だけ「別の端末を承認する」を出す(試験運用中は対象者だけ)
+  const enforcedPromise = supabase.rpc("device_enforced");
 
   const [{ data: profile }, { data: subs }, { data: settings }, calendarFeedUrl, { data: reminder }] = await Promise.all([
     supabase.from("employees").select("furigana").eq("id", me.id).maybeSingle(),
@@ -33,6 +36,8 @@ export default async function AdminAccountPage() {
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
 
+  const { data: enforced } = await enforcedPromise;
+
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4">
       <h1 className="text-xl font-bold">アカウント設定</h1>
@@ -51,6 +56,7 @@ export default async function AdminAccountPage() {
         notifyFirstLoginEnabled={settingsMap.get("notify_first_login") !== "false"}
         notifyBusinessCalendarEnabled={settingsMap.get("notify_business_calendar") !== "false"}
       />
+      {enforced === true && <DeviceLinkSection />}
     </div>
   );
 }

@@ -16,6 +16,10 @@ function buildTimeJST(): string {
 }
 
 const nextConfig: NextConfig = {
+  // メタデータを <head> に入れてから返す(既定では generateMetadata の結果を後から <body> に足す)。
+  // /install のマニフェスト(引き継ぎ札付き)は <head> に無いと、iPhone が「ホーム画面に追加」で
+  // 読まないおそれがあるため。generateMetadata を使っているのは /install だけなので、他の画面には影響しない。
+  htmlLimitedBots: /.*/,
   env: {
     // ビルドのたびに更新されるアプリのバージョン(タイムスタンプ)。
     NEXT_PUBLIC_BUILD_TIME: buildTimeJST(),

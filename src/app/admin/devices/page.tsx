@@ -9,11 +9,13 @@ import { DevicesView, type DeviceRow } from "./ui";
 export default async function DevicesPage() {
   await requireAdmin();
   const supabase = await createClient();
-  const [{ data }, { data: mode }] = await Promise.all([
+  const [{ data }, { data: mode }, { data: testUsers }] = await Promise.all([
     supabase.rpc("device_list"),
     supabase.from("app_settings").select("value").eq("key", "device_enforcement").maybeSingle(),
+    supabase.rpc("device_enforce_test_list"),
   ]);
   const enforcing = mode?.value === "enforce";
+  const testNames = ((testUsers ?? []) as { name: string }[]).map((r) => r.name);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4">
@@ -31,6 +33,12 @@ export default async function DevicesPage() {
           {enforcing
             ? "現在: 承認されていない端末からはデータを見られません。"
             : "現在: 記録だけの期間です。承認待ちの端末からも今まで通り使えます(ブロックはまだしていません)。"}
+          {!enforcing && testNames.length > 0 && (
+            <>
+              <br />
+              試験中: {testNames.join("・")} さんだけ、承認されていない端末からはデータを見られません。
+            </>
+          )}
         </p>
       </div>
       <DevicesView devices={(data ?? []) as DeviceRow[]} />
