@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AddToHomeScreenBanner } from "@/app/pwa/AddToHomeScreenBanner";
 import { createClient } from "@/lib/supabase/server";
 
@@ -32,7 +33,17 @@ export async function generateMetadata(): Promise<Metadata> {
  * QRコードから直接開けるよう未ログインでもアクセス可能(公開ページ、middlewareで許可)。
  * 実際の手順案内は AddToHomeScreenBanner が端末を判定して下部に表示する。
  */
-export default function InstallPage() {
+export default async function InstallPage() {
+  // ログイン中(初回登録の直後・アカウント設定から)は、追加せずに使い始めるリンクも出す
+  let loggedIn = false;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    loggedIn = !!user;
+  } catch {}
+
   return (
     <main className="flex min-h-screen flex-col items-center bg-gray-50 px-6 pb-32 pt-16 text-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -48,6 +59,11 @@ export default function InstallPage() {
         アイコンをホーム画面に置いておくと、次回からアプリのようにワンタップで開けます。
         画面下に表示される案内にそって進めてください。
       </p>
+      {loggedIn && (
+        <Link href="/" className="mt-6 text-sm text-blue-600 underline">
+          あとで追加する(このまま使い始める)
+        </Link>
+      )}
       <AddToHomeScreenBanner />
     </main>
   );

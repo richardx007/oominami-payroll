@@ -73,7 +73,12 @@ function SetPasswordInner() {
       } catch {}
     }
 
-    router.push("/");
+    // 初回登録はホーム画面に追加の案内へ進める。そこから追加したアプリには引き継ぎ札が付き、
+    // 初めて開いたときに自動で承認される(端末承認制)。ホーム画面アプリで登録した場合は不要
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (navigator as unknown as { standalone?: boolean }).standalone === true;
+    router.push(isInitialSetup && !standalone ? "/install" : "/");
     router.refresh();
   }
 

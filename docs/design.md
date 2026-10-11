@@ -2949,6 +2949,11 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
   ホーム画面アプリを初めて開くと middleware が札を Cookie `oom_hof` に預け、ログイン後の登録で承認待ちなら
   `device_handoff_redeem`。24時間・1回限り。札が `<head>` に入るよう `htmlLimitedBots: /.*/`(generateMetadata は /install だけ)。
   **iPhone が実際にこの start_url を使うかは実機確認待ち。**
+- **試験用の設定**: `device_enforce_test` は auth_user_id か employee_id で指定できる(招待前の新入社員は
+  アカウントがまだ無いので employee_id で)。`grace_minutes` で登録直後の自動承認の時間を短くできる(null=24時間)。
+  例: `insert into device_enforce_test(employee_id, grace_minutes, note) select id, 10, '新入社員の流れ' from employees where employee_no='T01';`
+- **初回登録の後はホーム画面に追加の案内(/install)へ進む**(ホーム画面アプリで登録したときを除く)。
+  そこから追加したアプリには札が付く。ログイン中は「あとで追加する(このまま使い始める)」も出す。
 - **未対応**: 経費管理(oominami-business)の承認待ち画面・確認コード。試験対象の人が経費管理を開くと、
   承認されていない端末ではデータが見えない(画面の案内は無い)。全体の `enforce` の前に作る。
 
