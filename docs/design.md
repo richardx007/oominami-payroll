@@ -1053,6 +1053,9 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
   - 読み方: 「打刻画面」だけあって「打刻」が無い＝画面は開いたがボタンを押していない／送信できなかった。
     どちらも無い＝画面まで届いていない（QRを読めていない・ログイン画面で離脱）。
   - 2026-10-06 からカテゴリは「打刻」に統合（詳細の「…の打刻画面を開いた」で見分ける）。
+- **アカウントでの絞り込み（2026-10-11・オーナー依頼）**: 選択肢は actor_id(従業員ID)でまとめ(ニックネームを変えると記録時の
+  actor_name が変わるため)、今のニックネーム(未設定なら氏名)で出す。在職者(No順)→ 従業員以外の記録(自動バックアップ・
+  システム・未ログイン。actor_name でまとめる)→ 退職者(「(退職)」付き)の順。一覧の名前は記録時のまま。
 - **カテゴリの整理（2026-10-06・オーナー依頼）**: 似たカテゴリを1つにまとめ、何をしたかは詳細の先頭（「作成: 」「変更: 」など）に書く。
   既存のログもマイグレーション `20261006011240_activity_log_categories.sql` で書き換え済み。
 
@@ -2909,8 +2912,8 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
 - **端末の識別**: 端末(ブラウザ)×アプリごとに乱数の合言葉を httpOnly Cookie `oom_dvt` に持たせ、DBには
   SHA-256 だけを置く(`trusted_devices`)。ログイン(JWT の `session_id`)ごとの承認状態は `device_sessions`。
   RLS は Cookie を見られないので、判定は session_id で行う。
-- **登録**: middleware がログインごとに1回 `device_register(token, app, label)` を呼ぶ(目印 Cookie `oom_dvs`=
-  登録済みの session_id。一致する間は呼ばない)。新しい端末は `pending` になり、本人以外の管理者へ
+- **登録**: middleware がログインごとに1回 `device_register(token, app, label)` を呼ぶ(目印 Cookie `oom_dvs2`=
+  `session_id.t|n`(t=iPad の目印あり)、1日で切れる。一致する間は呼ばない)。新しい端末は `pending` になり、本人以外の管理者へ
   Push 通知(`device_notify_pending` → `/api/notify/new-device`、Vault `notify_new_device_url`)。
 - **導入時点のログイン(75件)は承認済み**として登録し、その端末が最初に来たときに `approved_how='existing'` で承認済みの端末になる。
 - **管理画面「端末」(`/admin/devices`)**: 一覧・承認・取り消し。自分の端末は承認できない(`device_approve` が拒否)。
