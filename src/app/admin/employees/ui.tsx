@@ -20,6 +20,7 @@ import {
   updateEmployeeProfile,
   toggleEmployeeStatus,
   setEmployeeLeader,
+  setEmployeeOwner,
   updateEmployeePersonalInfo,
   countEmployeeWorkEntries,
   deleteEmployee,
@@ -1178,7 +1179,7 @@ function EmployeeTableRow({
           )}
           {emp.is_admin && (
             <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
-              管理者
+              {emp.is_owner ? "オーナー" : "システム管理者"}
             </span>
           )}
           {emp.is_leader && (
@@ -1351,6 +1352,42 @@ function EmployeeTableRow({
                   <p className="text-xs text-gray-400">
                     ※ リーダは他の人のシフトを直接変更でき（確定済みの月も可。変更は本人に通知されます）、
                     シフトの「調整中／確定」を切り替えられます
+                  </p>
+                </div>
+              )}
+
+              {/* 管理者の権限: システム管理者 ⇔ オーナー。オーナーだけが変更でき、自分自身は変えられない */}
+              {emp.is_admin && (
+                <div className="mb-5 space-y-2">
+                  <h4 className="text-xs font-semibold text-gray-500">権限</h4>
+                  <div className="inline-flex overflow-hidden rounded-lg border border-gray-300">
+                    {([
+                      [false, "システム管理者"],
+                      [true, "オーナー"],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        disabled={pending || !isOwner || emp.is_me || emp.is_owner === value}
+                        onClick={() => onRunKeepOpen(() => setEmployeeOwner(emp.id, value))}
+                        className={`px-4 py-1.5 text-sm font-medium transition ${
+                          emp.is_owner === value
+                            ? "bg-blue-600 text-white"
+                            : "bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    ※ オーナーは従業員の個人情報(住所・電話番号・生年月日)を見て編集できます。
+                    システム管理者には伏せ字で表示されます。
+                    {!isOwner
+                      ? "変更できるのはオーナーだけです。"
+                      : emp.is_me
+                        ? "自分自身のオーナーは外せません(別のオーナーが変更します)。"
+                        : ""}
                   </p>
                 </div>
               )}

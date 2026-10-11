@@ -870,3 +870,34 @@ export async function setEmployeeLeader(
     message: `${data.name} さんの権限を${isLeader ? "リーダ" : "従業員"}にしました`,
   };
 }
+
+/**
+ * 管理者の権限を「システム管理者 ⇔ オーナー」で切り替える。オーナーだけが変更でき、自分自身は変えられない
+ * (DB のトリガー guard_employee_owner でも同じことを確かめる)。
+ */
+export async function setEmployeeOwner(
+  employeeId: string,
+  isOwner: boolean
+): Promise<ActionResult> {
+  const me = await requireAdmin();
+  if (!me.is_owner) return { ok: false, message: "オーナーだけが変更できます" };
+  if (me.id === employeeId) {
+    return { ok: false, message: "自分自身のオーナーは外せません(別のオーナーが変更してください)" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("employees")
+    .update({ is_owner: isOwner })
+    .eq("id", employeeId)
+    .eq("is_admin", true)
+    .select("employee_no, name")
+    .maybeSingle();
+
+  if (error || !data) return { ok: false, message: "権限の変更に失敗しました" };
+
+  const role = isOwner ? "オーナー" : "システム管理者";
+  await logActivity("権限変更", `${data.employee_no} ${data.name} の権限を${role}にしました`);
+  revalidatePath("/admin/employees");
+  return { ok: true, message: `${data.name} さんの権限を${role}にしました` };
+}

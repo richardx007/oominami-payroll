@@ -10,6 +10,10 @@ export type EmployeeRow = {
   nickname: string | null;
   email: string;
   is_admin: boolean;
+  /** オーナー(管理者のうち個人情報を見て編集できる人)。管理者で false はシステム管理者 */
+  is_owner: boolean;
+  /** ログイン中の本人の行か(自分のオーナーは外せないため) */
+  is_me: boolean;
   is_leader: boolean;
   status: string;
   auth_user_id: string | null;
@@ -39,7 +43,7 @@ export default async function EmployeesPage() {
   const { data: employees } = await supabase
     .from("employees")
     .select(
-      `id, employee_no, name, furigana, nickname, email, is_admin, is_leader, status, auth_user_id, invited_at, color,
+      `id, employee_no, name, furigana, nickname, email, is_admin, is_owner, is_leader, status, auth_user_id, invited_at, color,
        wage_rates ( hourly_wage, effective_from ),
        lunch_allowance_rates ( lunch_allowance, effective_from ),
        tax_settings ( tax_category, dependents, effective_from )`
@@ -55,7 +59,11 @@ export default async function EmployeesPage() {
         </p>
       </div>
       <EmployeeList
-        employees={(employees ?? []).map((e) => ({ ...e, profile: profileOf.get(e.id) ?? null })) as EmployeeRow[]}
+        employees={(employees ?? []).map((e) => ({
+          ...e,
+          is_me: e.id === me.id,
+          profile: profileOf.get(e.id) ?? null,
+        })) as EmployeeRow[]}
         isOwner={me.is_owner}
       />
     </div>

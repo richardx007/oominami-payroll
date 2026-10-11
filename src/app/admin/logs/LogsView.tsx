@@ -5,6 +5,7 @@ import { zebraRowClass } from "@/lib/table";
 
 type LogRow = {
   created_at: string;
+  actor_id: string | null;
   actor_name: string | null;
   action: string;
   detail: string | null;
@@ -107,17 +108,54 @@ function actionClass(action: string) {
 
 const UNKNOWN_ACTOR = "(不明)";
 
-export function LogsView({ logs }: { logs: LogRow[] }) {
+type EmployeeRef = {
+  id: string;
+  employee_no: string;
+  name: string;
+  nickname: string | null;
+  status: string;
+};
+
+/**
+ * 絞り込みのキー。従業員の操作は actor_id(従業員ID)でまとめる(ニックネームを変えると記録時の
+ * actor_name が変わるため)。従業員でない記録(自動バックアップ・システム・未ログイン)や、
+ * 削除済みの従業員は actor_name でまとめる。
+ */
+function actorKey(l: LogRow, employeeIds: Set<string>) {
+  return l.actor_id && employeeIds.has(l.actor_id)
+    ? `e:${l.actor_id}`
+    : `n:${l.actor_name ?? UNKNOWN_ACTOR}`;
+}
+
+/**
+ * 絞り込みの選択肢。従業員はニックネーム(未設定なら氏名)で、在職者(従業員No順)→
+ * 従業員でない記録(名前順)→ 退職者(従業員No順)の順に並べる。ログに出てくる人だけ。
+ */
+function actorOptions(logs: LogRow[], employees: EmployeeRef[]) {
+  const employeeIds = new Set(employees.map((e) => e.id));
+  const used = new Set(logs.map((l) => actorKey(l, employeeIds)));
+  const label = (e: EmployeeRef) => e.nickname?.trim() || e.name;
+  const active = employees
+    .filter((e) => e.status === "active" && used.has(`e:${e.id}`))
+    .map((e) => ({ key: `e:${e.id}`, label: label(e) }));
+  const retired = employees
+    .filter((e) => e.status !== "active" && used.has(`e:${e.id}`))
+    .map((e) => ({ key: `e:${e.id}`, label: `${label(e)}(退職)` }));
+  const others = Array.from(used)
+    .filter((k) => k.startsWith("n:"))
+    .map((k) => ({ key: k, label: k.slice(2) }))
+    .sort((a, b) => a.label.localeCompare(b.label, "ja"));
+  return [...active, ...others, ...retired];
+}
+
+export function LogsView({ logs, employees }: { logs: LogRow[]; employees: EmployeeRef[] }) {
+  const employeeIds = useMemo(() => new Set(employees.map((e) => e.id)), [employees]);
   const categories = useMemo(() => {
     const set = new Set(logs.map((l) => l.action));
     return Array.from(set).sort((a, b) => a.localeCompare(b, "ja"));
   }, [logs]);
 
-  // 操作したアカウント(actor_name)。名前の無いログ(未ログインの操作など)は「(不明)」にまとめる
-  const actors = useMemo(() => {
-    const set = new Set(logs.map((l) => l.actor_name ?? UNKNOWN_ACTOR));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "ja"));
-  }, [logs]);
+  const actors = useMemo(() => actorOptions(logs, employees), [logs, employees]);
 
   const [category, setCategory] = useState<string>("all");
   const [actor, setActor] = useState<string>("all");
@@ -136,9 +174,9 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
       logs.filter(
         (l) =>
           (category === "all" || l.action === category) &&
-          (actor === "all" || (l.actor_name ?? UNKNOWN_ACTOR) === actor)
+          (actor === "all" || actorKey(l, employeeIds) === actor)
       ),
-    [logs, category, actor]
+    [logs, category, actor, employeeIds]
   );
 
   const days = useMemo(() => {
@@ -191,8 +229,8 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
         >
           <option value="all">すべて</option>
           {actors.map((a) => (
-            <option key={a} value={a}>
-              {a}
+            <option key={a.key} value={a.key}>
+              {a.label}
             </option>
           ))}
         </select>

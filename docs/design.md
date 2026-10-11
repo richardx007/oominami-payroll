@@ -2983,7 +2983,9 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
 - **権限の分離(2026-10-11)**: `employees.is_owner`(オーナー=M001)。個人情報(`employee_profiles`)は
   本人とオーナーだけが直接読める(RLS)。システム管理者には `employee_profiles_for_admin()` が全角「＊」・
   半角「*」の伏せ字にして返す(生年月日は "****-**-**")。オーナーは従業員画面の「個人情報」で編集できる
-  (`updateEmployeePersonalInfo`)。オーナーの付け外しはトリガーでアプリから禁止(SQL エディタでのみ)。
+  (`updateEmployeePersonalInfo`)。オーナーの付け外しは従業員画面の管理者の行「権限(システム管理者/オーナー)」で、**オーナーだけ**が行える
+  (`setEmployeeOwner`。トリガー `guard_employee_owner` でも、オーナー以外の変更と自分自身の変更を拒否。
+  マイグレーション `20261011190000_owner_toggle_by_owner.sql`)。一覧のバッジも「オーナー」「システム管理者」。
   Supabase のダッシュボードから直接見れば見える(オーナーの意向で「アプリでは見せない」位置づけ)。
 - **🐛 帳票の文字が下にずれる(2026-10-11)**: html2canvas(本家)は文字の基準線を「見えない div に置いた1pxの img」
   の位置で測るが、Tailwind の `img{display:block}` で img が改行され、全文字が下にずれていた。測定は**元の document**
