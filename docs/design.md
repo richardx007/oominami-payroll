@@ -2949,6 +2949,11 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
   ホーム画面アプリを初めて開くと middleware が札を Cookie `oom_hof` に預け、ログイン後の登録で承認待ちなら
   `device_handoff_redeem`。24時間・1回限り。札が `<head>` に入るよう `htmlLimitedBots: /.*/`(generateMetadata は /install だけ)。
   **iPhone が実際にこの start_url を使うかは実機確認待ち。**
+- ⚠️ **実機で判明(2026-10-11、iOS 18.7)**: ホーム画面に追加した時点で、Safari の Cookie(ログインと端末の合言葉
+  `oom_dvt`)がホーム画面アプリへ写される。追加したアプリはログイン不要で開き、Safari と同じ端末・同じログイン
+  として扱われる(DB 上もセッション・端末とも1件のまま)。承認済みの Safari から追加すれば、札が無くても承認済み。
+  別々になるのは「追加した後」(その後のログアウト・ログインは各自)。以前の「2行になる」は、端末の記録を始める前に
+  追加済みだったアプリが別にログインしていたため。札は古い iOS や Safari のデータを消した場合などの保険として残す。
 - **試験用の設定**: `device_enforce_test` は auth_user_id か employee_id で指定できる(招待前の新入社員は
   アカウントがまだ無いので employee_id で)。`grace_minutes` で登録直後の自動承認の時間を短くできる(null=24時間)。
   例: `insert into device_enforce_test(employee_id, grace_minutes, note) select id, 10, '新入社員の流れ' from employees where employee_no='T01';`
