@@ -38,13 +38,14 @@ export function EmbedToday() {
   if (!today) return <div style={{ minHeight: 64 }} />;
 
   const open = today.status === "open";
+  // 文字の大きさ: スマホ(枠の幅 640px 未満)は元の大きさ(本文16px・札14px)、それより広い枠では大きく(24px・18px)
   return (
     <div
       style={{ color: TEXT, fontFamily: '"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif' }}
-      className="space-y-1 px-2 py-2 text-xl leading-snug sm:text-2xl"
+      className="space-y-1 px-2 py-2 text-base leading-snug sm:text-2xl"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="rounded px-2 py-0.5 text-base font-bold text-white sm:text-lg" style={{ background: PINK }}>
+        <span className="rounded px-2 py-0.5 text-sm font-bold text-white sm:text-lg" style={{ background: PINK }}>
           本日の営業
         </span>
         <span className="font-bold tabular-nums" style={{ color: today.red ? PINK : TEXT }}>
