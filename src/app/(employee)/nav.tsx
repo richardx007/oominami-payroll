@@ -310,15 +310,6 @@ export function EmployeeNav({
               管理者へ✉️
             </a>
             <a
-              href={EXPENSE_HREF}
-              onClick={() => setMenuOpen(false)}
-              className={`flex items-center gap-2 px-4 py-3 text-base ${APP_SWITCH_CLASS}`}
-            >
-              <ReceiptIcon className="h-5 w-5 shrink-0" />
-              経費の入力
-              <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
-            </a>
-            <a
               href="/work-rules"
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
@@ -354,6 +345,16 @@ export function EmployeeNav({
               <PlayCircleIcon className="h-5 w-5 shrink-0" />
               アプリの解説
             </Link>
+            {/* アプリ切り替えは「アプリの解説」の下(2026-10-12 オーナー依頼) */}
+            <a
+              href={EXPENSE_HREF}
+              onClick={() => setMenuOpen(false)}
+              className={`flex items-center gap-2 px-4 py-3 text-base ${APP_SWITCH_CLASS}`}
+            >
+              <ReceiptIcon className="h-5 w-5 shrink-0" />
+              経費の入力
+              <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
+            </a>
             {/* 区切り線の下にログアウト */}
             <form action={signOut} className="border-t-4 border-white/15">
               <button

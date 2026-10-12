@@ -281,15 +281,6 @@ export function AdminBottomNav() {
             className="absolute bottom-[calc(3.5rem+env(safe-area-inset-bottom))] right-2 min-w-[8rem] overflow-hidden rounded-xl border border-white/15 bg-[#152449] text-white shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <a
-              href={EXPENSE_HREF}
-              onClick={() => setMenuOpen(false)}
-              className={`flex touch-manipulation items-center gap-2 px-4 py-3 text-base ${APP_SWITCH_CLASS}`}
-            >
-              <ReceiptIcon className="h-5 w-5 shrink-0" />
-              経費管理へ
-              <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
-            </a>
             {moreLinks.map((l) => {
               const Icon = l.icon;
               const active = isActive(pathname, l.href);
@@ -336,6 +327,16 @@ export function AdminBottomNav() {
               <PlayCircleIcon className="h-5 w-5 shrink-0" />
               アプリの解説
             </Link>
+            {/* アプリ切り替えは「アプリの解説」の下(2026-10-12 オーナー依頼) */}
+            <a
+              href={EXPENSE_HREF}
+              onClick={() => setMenuOpen(false)}
+              className={`flex touch-manipulation items-center gap-2 px-4 py-3 text-base ${APP_SWITCH_CLASS}`}
+            >
+              <ReceiptIcon className="h-5 w-5 shrink-0" />
+              経費管理へ
+              <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
+            </a>
             {/* 区切り線の下にログアウト(ヘッダーから移設) */}
             <form action={signOut} className="border-t-4 border-white/15">
               <button
