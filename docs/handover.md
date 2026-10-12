@@ -15,6 +15,7 @@
 テスト評価フェーズ**に入っている。
 
 - 本番URL: https://oominami-payroll.shinsekai.workers.dev
+- 経費管理(別リポジトリ `richardx007/oominami-business`)も 2026-10-12 から同じアドレスの `/expense` で動く(この Worker の `worker.ts` が中継。設計書§31)
 - リポジトリ: `richardx007/oominami-payroll`
 - オーナー: richard.nishikawa@gmail.com（最初の管理者アカウント）
 

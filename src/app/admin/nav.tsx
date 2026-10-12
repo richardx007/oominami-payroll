@@ -41,6 +41,14 @@ const WORK_RULES_HREF = "/admin/work-rules";
 // 関連情報グループ(PC)／その他の区切り線の下(スマホ)の画面
 const RELATED_HREFS = [WORK_RULES_HREF, HOMEPAGE_HREF, GUIDES_HREF];
 
+// 経費管理アプリ(同じアドレスの /expense。Worker が経費管理の Worker へ中継する。2026-10-12)。
+// ログインは共通なのでそのまま開ける。給与管理の Next.js の画面ではないので Link ではなく <a> で開く
+const EXPENSE_HREF = "/expense";
+// アプリ切り替えのボタン(経費管理へ)は、ほかのメニューと区別するため経費管理のテーマ色(濃いグリーン)の地に
+// 白い枠で出す(2026-10-12 オーナー依頼)。白地に紺の反転は「選択中のメニュー」と同じ見た目になるので使わない
+const APP_SWITCH_CLASS =
+  "border border-white/40 bg-[#1b4332] font-bold text-white hover:bg-[#245a43] active:opacity-80";
+
 function matches(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
@@ -215,6 +223,13 @@ export function AdminSidebarNav() {
             </Link>
           </>
         )}
+
+        {/* アプリ切り替えは「関連情報」の下(2026-10-12 オーナー依頼) */}
+        <a href={EXPENSE_HREF} className={`${sidebarItemClass} mt-3 ${APP_SWITCH_CLASS}`}>
+          <ReceiptIcon className="h-6 w-6 shrink-0" />
+          経費管理へ
+          <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
+        </a>
     </nav>
   );
 }
@@ -266,6 +281,15 @@ export function AdminBottomNav() {
             className="absolute bottom-[calc(3.5rem+env(safe-area-inset-bottom))] right-2 min-w-[8rem] overflow-hidden rounded-xl border border-white/15 bg-[#152449] text-white shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
+            <a
+              href={EXPENSE_HREF}
+              onClick={() => setMenuOpen(false)}
+              className={`flex touch-manipulation items-center gap-2 px-4 py-3 text-base ${APP_SWITCH_CLASS}`}
+            >
+              <ReceiptIcon className="h-5 w-5 shrink-0" />
+              経費管理へ
+              <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
+            </a>
             {moreLinks.map((l) => {
               const Icon = l.icon;
               const active = isActive(pathname, l.href);
@@ -549,6 +573,43 @@ function LogIcon({ className }: { className?: string }) {
     >
       <path d="M5 3h10l4 4v14H5z" />
       <path d="M14 3v4h4M8 12h8M8 16h8M8 8h3" />
+    </svg>
+  );
+}
+
+/** アプリ切り替え(経費管理へ)の目印。左右の矢印 */
+function SwapIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 7h12l-3-3M17 17H5l3 3" />
+    </svg>
+  );
+}
+
+/** 経費管理(レシート)へのリンク用アイコン */
+function ReceiptIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 3h12v18l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21z" />
+      <path d="M9 8h6M9 12h6M9 16h3" />
     </svg>
   );
 }

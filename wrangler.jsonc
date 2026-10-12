@@ -1,9 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "oominami-payroll",
-  "main": ".open-next/worker.js",
+  // worker.ts は OpenNext の worker を包み、/expense/* を経費管理へ中継する
+  "main": "worker.ts",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  // 経費管理(oominami-business)の Worker。/expense/* をここへ中継する(worker.ts)
+  "services": [{ "binding": "EXPENSE", "service": "oominami-business" }],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
