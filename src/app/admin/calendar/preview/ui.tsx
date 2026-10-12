@@ -134,9 +134,11 @@ function TodaySection({ todayEmbedUrl }: { todayEmbedUrl: string }) {
       <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">本日の営業（ホームページのトップ用）</h2>
       <p className="mt-1 text-sm text-gray-500">
         今日の日付・曜日（祝日名）・営業時間（前日から通しなら「昨晩からの通し」、翌日まで通しなら「通し営業」）と、
-        今日のイベントを1行で表示します。営業カレンダーから自動で作られ、日付が変わると表示も変わります。
+        今日のイベント（ある日だけ2行目）を表示します。ホームページの黒い背景に合わせた明るい色です。
+        営業カレンダーから自動で作られ、日付が変わると表示も変わります。
       </p>
-      <div className="mt-3 rounded-lg border border-dashed border-gray-300 bg-white p-2">
+      {/* ホームページの背景(黒)に合わせて見る */}
+      <div className="mt-3 rounded-lg border border-dashed border-gray-300 bg-black p-2">
         <iframe
           src="/calendar/embed/today"
           title="本日の営業（プレビュー）"

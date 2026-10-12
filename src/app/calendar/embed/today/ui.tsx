@@ -6,11 +6,12 @@ import { addDaysKey, jstTodayKey, type BusinessDayRow, type CalendarEventRow } f
 import { reportEmbedHeight, TODAY_HEIGHT_MESSAGE } from "@/lib/embed-height";
 import { buildTodayBusiness, todayHoursText, type TodayBusiness } from "@/lib/today-business";
 
-// 営業カレンダーの埋め込み（PublicCalendar）と同じ色
-const BRAND = "#d81f2a";
-const OPEN = "#1f9d55";
-const EVENT = "#b8860b";
-const TEXT = "#1f2328";
+// ホームページの背景が黒いため、明るい色で出す（2026-10-12、オーナー依頼）。
+// 赤の代わりにピンク、緑は明るめ。土日祝以外の日付は白
+const PINK = "#ff7eb6";
+const OPEN = "#4ade80";
+const EVENT = "#fcd34d";
+const TEXT = "#ffffff";
 
 export function EmbedToday() {
   const [today, setToday] = useState<TodayBusiness | null>(null);
@@ -40,21 +41,24 @@ export function EmbedToday() {
   return (
     <div
       style={{ color: TEXT, fontFamily: '"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif' }}
-      className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-2 py-2 sm:text-lg"
+      className="space-y-1 px-2 py-2 text-xl leading-snug sm:text-2xl"
     >
-      <span className="rounded px-2 py-0.5 text-sm font-bold text-white" style={{ background: BRAND }}>
-        本日の営業
-      </span>
-      <span className="font-bold tabular-nums" style={{ color: today.red ? BRAND : TEXT }}>
-        {today.dateLabel}
-      </span>
-      <span className="font-bold tabular-nums" style={{ color: open ? OPEN : BRAND }}>
-        {open ? `営業時間 ${todayHoursText(today)}` : todayHoursText(today)}
-      </span>
-      {today.events.length > 0 && (
-        <span className="font-bold" style={{ color: EVENT }}>
-          {today.events.join("／")}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="rounded px-2 py-0.5 text-base font-bold text-white sm:text-lg" style={{ background: PINK }}>
+          本日の営業
         </span>
+        <span className="font-bold tabular-nums" style={{ color: today.red ? PINK : TEXT }}>
+          {today.dateLabel}
+        </span>
+        <span className="font-bold tabular-nums" style={{ color: open ? OPEN : PINK }}>
+          {open ? `営業時間 ${todayHoursText(today)}` : todayHoursText(today)}
+        </span>
+      </div>
+      {/* イベントは2行目 */}
+      {today.events.length > 0 && (
+        <div className="font-bold" style={{ color: EVENT }}>
+          {today.events.join("／")}
+        </div>
       )}
     </div>
   );
