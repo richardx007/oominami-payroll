@@ -256,7 +256,7 @@ export function PatternsForm({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">営業と勤務時間</h1>
+        <h1 className="text-xl font-bold">営業と勤務</h1>
         <p className="mt-1 text-sm text-gray-500">
           営業時間・シフト枠・休憩時間を、1つの適用開始日でセットにして管理します。
           毎月の営業カレンダーは営業時間から、シフト表・勤務表・給与計算はその日のシフト枠・休憩時間から計算されます。

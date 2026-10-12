@@ -132,20 +132,15 @@ export function CalendarManager({
           >
             ＞
           </button>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            <HeaderIconLink href="/admin/calendar/preview" label="ホームページでの見え方">
-              <EyeIcon />
-            </HeaderIconLink>
-            <HeaderIconLink href={`/admin/calendar/poster?ym=${ym}`} label="ポスター（PDF・画像）">
-              <PosterIcon />
-            </HeaderIconLink>
-            <HeaderIconLink href="/admin/calendar/patterns" label="営業と勤務時間">
-              <GearIcon />
-            </HeaderIconLink>
-            <HeaderIconLink href="#event-types" label="イベントの種類と色">
-              <PaletteIcon />
-            </HeaderIconLink>
-          </div>
+          {/* 2026-10-12: 右上は「ポスター」だけ残し、スマホでも文字を出す(見え方=メニュー「ホームページ」、
+              営業と勤務=メニュー、イベントの種類と色=この画面の下にあるため) */}
+          <Link
+            href={`/admin/calendar/poster?ym=${ym}`}
+            className="ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-700"
+          >
+            <PosterIcon />
+            ポスター
+          </Link>
         </div>
 
         {/* 状態バッジ。年月と同じ行に置くとスマホで年月が折り返すため2行目に出す */}
@@ -273,19 +268,6 @@ function FootnoteForm({ ym, initial }: { ym: string; initial: string }) {
   );
 }
 
-/** カレンダー右上のアイコンボタン（関連画面へのリンク） */
-function HeaderIconLink({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      aria-label={label}
-      title={label}
-      className="grid h-9 w-9 place-items-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:text-blue-700"
-    >
-      {children}
-    </Link>
-  );
-}
 
 const iconProps = {
   className: "h-5 w-5",
@@ -298,40 +280,11 @@ const iconProps = {
   "aria-hidden": true,
 };
 
-function EyeIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
 function PosterIcon() {
   return (
     <svg {...iconProps}>
       <rect x="5" y="3" width="14" height="18" rx="1.5" />
       <path d="M8 8h8M8 12h8M8 16h5" />
-    </svg>
-  );
-}
-
-function GearIcon() {
-  return (
-    <svg {...iconProps}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-    </svg>
-  );
-}
-
-function PaletteIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7h2A4.5 4.5 0 0 0 21 10.7C21 6.4 17 3 12 3z" />
-      <circle cx="7.5" cy="11" r="1.2" fill="currentColor" stroke="none" />
-      <circle cx="10.5" cy="7" r="1.2" fill="currentColor" stroke="none" />
-      <circle cx="15" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
     </svg>
   );
 }

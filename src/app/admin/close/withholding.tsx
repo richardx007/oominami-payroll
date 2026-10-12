@@ -27,6 +27,8 @@ export async function WithholdingSection({
   const { employer } = await loadIssuerInfo(supabase);
   const { years, rows } = await loadAllWithholdingSlips(supabase, year, employer, today);
   const yearList = years.includes(year) ? years : [year, ...years].sort((a, b) => b - a);
+  // 年の途中なら全員同じ作成日(今日)。年度の右に赤字で出す(PDF ボタンには出さない)
+  const inProgressAsOf = rows.find((r) => r.slip.inProgressAsOf)?.slip.inProgressAsOf ?? null;
 
   return (
     <section id="withholding" className="scroll-mt-20 space-y-4 rounded-xl border border-gray-200 bg-white p-4">
@@ -42,7 +44,7 @@ export async function WithholdingSection({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {yearList.map((yy) => (
           <Link
             key={yy}
@@ -57,6 +59,11 @@ export async function WithholdingSection({
             {yy}年分
           </Link>
         ))}
+        {inProgressAsOf && (
+          <span className="text-sm font-bold text-red-600">
+            {inProgressAsOf.replaceAll("-", "/")} 時点の途中経過
+          </span>
+        )}
       </div>
 
       {!employer.address && (
@@ -73,25 +80,29 @@ export async function WithholdingSection({
         <p className="text-sm text-gray-500">{year}年に支払った給与はありません。</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+          {/* 氏名の列は左右にスクロールしても固定(背景を塗らないと下の列が透けて見える) */}
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs text-gray-500">
               <tr>
-                <th className="px-3 py-2">No</th>
-                <th className="px-3 py-2">氏名</th>
+                <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 shadow-[1px_0_0_#e5e7eb]">氏名</th>
                 <th className="px-3 py-2">状態</th>
+                <th className="px-3 py-2"></th>
                 <th className="px-3 py-2 text-right">支払金額</th>
                 <th className="px-3 py-2 text-right">源泉徴収税額</th>
                 <th className="px-3 py-2">住所・生年月日</th>
-                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.employeeId} className="border-t border-gray-100">
-                  <td className="whitespace-nowrap px-3 py-2 text-gray-500">{r.employeeNo}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{r.name}</td>
+                  <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 shadow-[1px_0_0_#e5e7eb]">
+                    {r.name}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {r.status === "active" ? "在職" : <span className="text-orange-700">退職</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <WithholdingSlipButton data={r.slip} label="PDF" />
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                     ¥{r.slip.totals.paymentTotal.toLocaleString()}
@@ -105,12 +116,6 @@ export async function WithholdingSection({
                     ) : (
                       <span className="text-red-600">未入力あり</span>
                     )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
-                    <WithholdingSlipButton
-                      data={r.slip}
-                      label={r.slip.inProgressAsOf ? "PDF(途中経過)" : "PDF"}
-                    />
                   </td>
                 </tr>
               ))}

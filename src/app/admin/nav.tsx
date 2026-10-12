@@ -20,7 +20,7 @@ const moreLinks: { href: string; label: string; icon: typeof HomeIcon; dividerBe
   { href: "/admin/employees", label: "従業員", icon: PeopleIcon },
   { href: "/admin/notices", label: "配信", icon: SendIcon },
   { href: "/admin/calendar", label: "営業カレンダー", icon: CalendarIcon },
-  { href: "/admin/calendar/patterns", label: "営業と勤務時間", icon: ClockIcon },
+  { href: "/admin/calendar/patterns", label: "営業と勤務", icon: ClockIcon },
   // 2026-10-12: 源泉徴収票は給与明細画面の表の下へ、税額表は設定画面の一番下へ移し、メニューから外した
   { href: "/admin/settings", label: "設定", icon: GearIcon, dividerBefore: true },
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },
@@ -28,14 +28,18 @@ const moreLinks: { href: string; label: string; icon: typeof HomeIcon; dividerBe
   { href: "/admin/devices", label: "端末", icon: DeviceIcon },
 ];
 
-// 会社ホームページ(別タブで開く)
-const HOMEPAGE_URL = "https://www.oominami.com";
+// ホームページ(2026-10-12 から直接開かず、本日の営業・営業カレンダーの見え方と埋め込みコード、
+// 「ホームページを表示」ボタンの画面を出す。ホームページの URL はその画面で設定する)
+const HOMEPAGE_HREF = "/admin/calendar/preview";
 
 // アプリの解説(操作説明の動画・資料へのリンク集。一覧・登録とも同じ画面)。関連情報／その他の最後に置く
 const GUIDES_HREF = "/admin/guides";
 
 // 勤務ルール(管理者用。作られ方の説明と「勤務ルールの表示」ボタン。表示画面は /work-rules)。関連情報／その他の先頭に置く
 const WORK_RULES_HREF = "/admin/work-rules";
+
+// 関連情報グループ(PC)／その他の区切り線の下(スマホ)の画面
+const RELATED_HREFS = [WORK_RULES_HREF, HOMEPAGE_HREF, GUIDES_HREF];
 
 function matches(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
@@ -45,9 +49,10 @@ function isActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
   if (!matches(pathname, href)) return false;
   // より詳しいメニューが一致するならそちらだけを選択中にする
-  // (「営業と勤務時間」= /admin/calendar/patterns を開いているとき「営業カレンダー」は選択しない)
-  return ![...primaryLinks, ...moreLinks].some(
-    (l) => l.href.length > href.length && l.href.startsWith(href + "/") && matches(pathname, l.href)
+  // (「営業と勤務」= /admin/calendar/patterns、「ホームページ」= /admin/calendar/preview を開いているとき
+  //  「営業カレンダー」は選択しない)
+  return [...primaryLinks.map((l) => l.href), ...moreLinks.map((l) => l.href), ...RELATED_HREFS].some(
+    (h) => h.length > href.length && h.startsWith(href + "/") && matches(pathname, h)
   );
 }
 
@@ -114,9 +119,7 @@ export function AdminSidebarNav() {
   // (null = 未操作。レンダー中に導出するので effect での setState は不要)
   const [manageOverride, setManageOverride] = useState<boolean | null>(null);
   const manageOpen = manageOverride ?? manageActive;
-  const [relatedOpen, setRelatedOpen] = useState(
-    () => isActive(pathname, GUIDES_HREF) || isActive(pathname, WORK_RULES_HREF)
-  );
+  const [relatedOpen, setRelatedOpen] = useState(() => RELATED_HREFS.some((h) => isActive(pathname, h)));
 
   return (
     <nav className="flex flex-col gap-0.5">
@@ -138,7 +141,7 @@ export function AdminSidebarNav() {
           );
         })}
 
-        {/* 管理グループ(従業員・配信・営業カレンダー・営業と勤務時間・設定・操作ログ・端末) */}
+        {/* 管理グループ(従業員・配信・営業カレンダー・営業と勤務・設定・操作ログ・端末) */}
         <GroupToggle
           label="管理"
           open={manageOpen}
@@ -188,15 +191,17 @@ export function AdminSidebarNav() {
               <DocumentIcon className="h-6 w-6 shrink-0" />
               勤務ルール
             </Link>
-            <a
-              href={HOMEPAGE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${sidebarItemClass} pl-6 text-blue-50 hover:bg-white/10 hover:text-white`}
+            <Link
+              href={HOMEPAGE_HREF}
+              className={`${sidebarItemClass} pl-6 ${
+                isActive(pathname, HOMEPAGE_HREF)
+                  ? "bg-white text-[#152449]"
+                  : "text-blue-50 hover:bg-white/10 hover:text-white"
+              }`}
             >
               <GlobeIcon className="h-6 w-6 shrink-0" />
               ホームページ
-            </a>
+            </Link>
             <Link
               href={GUIDES_HREF}
               className={`${sidebarItemClass} pl-6 ${
@@ -247,9 +252,7 @@ export function AdminBottomNav() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const moreActive =
-    moreLinks.some((l) => isActive(pathname, l.href)) ||
-    isActive(pathname, GUIDES_HREF) ||
-    isActive(pathname, WORK_RULES_HREF);
+    moreLinks.some((l) => isActive(pathname, l.href)) || RELATED_HREFS.some((h) => isActive(pathname, h));
 
   return (
     <>
@@ -291,16 +294,16 @@ export function AdminBottomNav() {
               <DocumentIcon className="h-5 w-5 shrink-0" />
               勤務ルール
             </Link>
-            <a
-              href={HOMEPAGE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href={HOMEPAGE_HREF}
               onClick={() => setMenuOpen(false)}
-              className="flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+              className={`flex touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium active:opacity-70 ${
+                isActive(pathname, HOMEPAGE_HREF) ? "bg-white/10 text-white" : "text-blue-50"
+              }`}
             >
               <GlobeIcon className="h-5 w-5 shrink-0" />
               ホームページ
-            </a>
+            </Link>
             <Link
               href={GUIDES_HREF}
               onClick={() => setMenuOpen(false)}

@@ -76,9 +76,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // 営業カレンダーの埋め込み用ページ。ホームページ(別ドメイン)の iframe から表示できるようにする。
+        // 営業カレンダー・本日の営業(/calendar/embed/today)の埋め込み用ページ。ホームページ(別ドメイン)の iframe から表示できるようにする。
         // 公開情報(営業時間・公開イベント)だけを表示するページのため埋め込み元は限定しない。
-        source: "/calendar/embed",
+        source: "/calendar/embed/:path*",
         headers: [
           { key: "Content-Security-Policy", value: "frame-ancestors *" },
           { key: "X-Content-Type-Options", value: "nosniff" },

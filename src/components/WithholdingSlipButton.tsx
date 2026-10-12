@@ -38,18 +38,62 @@ export function WithholdingSlipButton({
   label: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
   const y = data.totals.year;
+  // 住所・生年月日が空なら、出す前に確かめる(PDF では空欄のまま出す)。
+  // システム管理者には伏せ字で届くので、伏せ字は「入力あり」として扱う
+  const missing = [!data.address && "住所", !data.birthDate && "生年月日"].filter(Boolean) as string[];
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => (missing.length > 0 ? setConfirming(true) : setOpen(true))}
         className="inline-flex h-9 items-center justify-center rounded-lg border border-blue-300 bg-white px-3 text-sm font-medium text-blue-700 hover:bg-blue-50"
       >
         {label}
       </button>
+
+      {confirming &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setConfirming(false)}
+          >
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              className="w-full max-w-sm rounded-2xl bg-white p-5 text-left shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-base font-bold text-gray-900">未入力の項目があります</p>
+              <p className="mt-2 text-sm text-gray-700">
+                {data.name} さんの{missing.join("・")}が未入力です。源泉徴収票のその欄は空欄で出力されます。
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirming(false)}
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirming(false);
+                    setOpen(true);
+                  }}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  出力
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {open &&
         createPortal(
@@ -150,7 +194,7 @@ function WithholdingSheet({ data }: { data: WithholdingSlipData }) {
             <td colSpan={2} rowSpan={2} className="wh-addr">
               <div className="wh-caption">住所又は居所</div>
               <div className="wh-postal">{data.postalCode ? `〒${data.postalCode}` : ""}</div>
-              <div className="wh-value-l">{data.address || <span className="wh-missing">(未入力)</span>}</div>
+              <div className="wh-value-l">{data.address}</div>
             </td>
             <td colSpan={2}>
               <div className="wh-caption">(受給者番号)</div>
@@ -272,7 +316,8 @@ function WithholdingSheet({ data }: { data: WithholdingSlipData }) {
               <div className="wh-caption">受給者生年月日</div>
               <div className="wh-value-c">
                 {!data.birthDate ? (
-                  <span className="wh-missing">(未入力)</span>
+                  // 未入力は空欄(出力前に確認ダイアログで知らせる)
+                  <span className="wh-blank">年　　月　　日</span>
                 ) : toJapaneseDate(data.birthDate) ? (
                   <JpDate iso={data.birthDate} />
                 ) : (
@@ -359,7 +404,6 @@ const WITHHOLDING_CSS = `
 .wh-on{ border:0.3mm solid #111111; border-radius:50%; padding:0 1.2mm; }
 .wh-off{ padding:0 1.5mm; color:#6b7280; }
 .wh-phone{ margin-left:6mm; font-size:3.2mm; }
-.wh-missing{ color:#b91c1c; font-size:3mm; }
 .wh-blank{ color:#9ca3af; }
 .wh-note{ margin:3mm 0 0; font-size:2.6mm; color:#374151; }
 `;
