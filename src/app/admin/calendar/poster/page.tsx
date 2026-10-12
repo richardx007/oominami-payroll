@@ -53,6 +53,7 @@ export default async function CalendarPosterPage({
       types={(typesRes.data ?? []) as EventTypeRow[]}
       holidays={Object.fromEntries((holidaysRes.data ?? []).map((h) => [h.date, h.name]))}
       footnote={monthRes.data?.footnote?.trim() || null}
+      basePath="/admin/calendar/poster"
     />
   );
 }

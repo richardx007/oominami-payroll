@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PdfPreviewDialog } from "@/components/PdfPreviewDialog";
 import { capturePosterImage, capturePosterPdf } from "@/lib/poster-export";
@@ -28,6 +27,8 @@ export function PosterView({
   types,
   holidays,
   footnote,
+  basePath,
+  maxYm,
 }: {
   ym: string;
   days: BusinessDayRow[];
@@ -36,6 +37,10 @@ export function PosterView({
   holidays: Record<string, string>;
   /** 月の注釈 */
   footnote: string | null;
+  /** 月の切替先(管理者 /admin/calendar/poster・従業員 /business-calendar) */
+  basePath: string;
+  /** これより先の月へは進めない(従業員は公開中の翌月まで)。未指定なら制限なし */
+  maxYm?: string;
 }) {
   const router = useRouter();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -60,19 +65,12 @@ export function PosterView({
     return () => ro.disconnect();
   }, []);
 
-  const go = (m: string) => router.push(`/admin/calendar/poster?ym=${m}`);
+  const go = (m: string) => router.push(`${basePath}?ym=${m}`);
+  const canNext = !maxYm || addMonthsYm(ym, 1) <= maxYm;
 
+  // 2026-10-12: タイトル・説明文・「← 営業カレンダー」は削除(オーナー依頼)。年月と PDF/画像 だけを上に置く
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4">
-      <div>
-        <Link href={`/admin/calendar?ym=${ym}`} className="text-sm text-blue-700 hover:underline">
-          ← 営業カレンダー
-        </Link>
-        <h1 className="mt-1 text-xl font-bold">ポスター（A4）</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          掲示用のA4ポスターをPDFまたは画像で出力します。公開しているイベントだけが載ります。
-        </p>
-      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -87,8 +85,9 @@ export function PosterView({
         </span>
         <button
           onClick={() => go(addMonthsYm(ym, 1))}
+          disabled={!canNext}
           aria-label="翌月"
-          className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100"
+          className="shrink-0 rounded-lg px-2 py-1 text-xl font-bold text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
         >
           ＞
         </button>

@@ -12,9 +12,9 @@ const mainItems = [
   { href: "/payslips", label: "給与明細", icon: YenIcon },
 ];
 
-// 営業カレンダー(このアプリの公開ページ。ホームページに埋め込んでいるものと同じ。別タブで開く)
-// 2026-09-18に旧アプリ oominami-calendar の ?poster から切り替え(フェーズ7)
-const CALENDAR_URL = "/calendar/embed";
+// 営業カレンダー(A4ポスターの画面。PDF・画像で出せる)。2026-09-18〜はホームページ埋め込み(/calendar/embed)を
+// 別タブで開いていたが、2026-10-12 からアプリ内のポスター画面に変更(オーナー依頼)
+const CALENDAR_HREF = "/business-calendar";
 // 会社ホームページ(別タブで開く)
 const HOMEPAGE_URL = "https://www.oominami.com";
 
@@ -93,7 +93,9 @@ export function EmployeeSidebarNav({
   const pathname = usePathname();
   const hasUnread = useNoticeUnread(latestNoticeAt);
   const [clockOpen, setClockOpen] = useState(false);
-  const [relatedOpen, setRelatedOpen] = useState(() => pathname.startsWith(GUIDES_HREF));
+  const [relatedOpen, setRelatedOpen] = useState(
+    () => pathname.startsWith(GUIDES_HREF) || pathname.startsWith(CALENDAR_HREF)
+  );
   const mailtoHref = buildMailtoHref(adminEmail, companyName, employeeName);
 
   return (
@@ -160,15 +162,15 @@ export function EmployeeSidebarNav({
               <DocumentIcon className="h-6 w-6 shrink-0" />
               勤務ルール
             </a>
-            <a
-              href={CALENDAR_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${sidebarItemClass} pl-6 ${sidebarIdleClass}`}
+            <Link
+              href={CALENDAR_HREF}
+              className={`${sidebarItemClass} pl-6 ${
+                pathname.startsWith(CALENDAR_HREF) ? sidebarActiveClass : sidebarIdleClass
+              }`}
             >
               <PosterIcon className="h-6 w-6 shrink-0" />
               営業カレンダー
-            </a>
+            </Link>
             <a
               href={HOMEPAGE_URL}
               target="_blank"
@@ -303,16 +305,16 @@ export function EmployeeNav({
               <DocumentIcon className="h-5 w-5 shrink-0" />
               勤務ルール
             </a>
-            <a
-              href={CALENDAR_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href={CALENDAR_HREF}
               onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+              className={`flex items-center gap-2 px-4 py-3 text-base font-medium active:opacity-70 ${
+                pathname.startsWith(CALENDAR_HREF) ? "bg-white/10 text-white" : "text-blue-50"
+              }`}
             >
               <PosterIcon className="h-5 w-5 shrink-0" />
               営業カレンダー
-            </a>
+            </Link>
             <a
               href={HOMEPAGE_URL}
               target="_blank"
