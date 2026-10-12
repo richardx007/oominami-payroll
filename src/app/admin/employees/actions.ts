@@ -838,7 +838,7 @@ export async function updateEmployeePersonalInfo(
   const label = await employeeLabel(supabase, employeeId);
   await logActivity("プロフィール", `オーナーが ${label} の住所・電話番号・生年月日を変更`);
   revalidatePath("/admin/employees");
-  revalidatePath("/admin/withholding");
+  revalidatePath("/admin/close");
   return { ok: true, message: "個人情報を保存しました" };
 }
 

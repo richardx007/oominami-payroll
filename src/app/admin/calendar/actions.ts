@@ -453,7 +453,7 @@ export async function deleteEvent(id: string): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------------------
-// イベントの種類と色（設定画面）
+// イベントの種類と色（営業カレンダー画面のカレンダーの下）
 // ---------------------------------------------------------------------------
 
 const typeSchema = z.object({
@@ -486,7 +486,6 @@ export async function saveEventType(input: z.input<typeof typeSchema>): Promise<
   if (error) return { ok: false, message: "保存に失敗しました" };
 
   await logActivity(t.id ? "イベントの種類を変更" : "イベントの種類を追加", `${t.name}（${t.color}）`);
-  revalidatePath("/admin/settings");
   revalidateCalendar();
   return { ok: true, message: `「${t.name}」を保存しました` };
 }
@@ -504,7 +503,6 @@ export async function deleteEventType(id: string): Promise<ActionResult> {
     .maybeSingle();
   if (error || !data) return { ok: false, message: "削除できませんでした（既定の種類は削除できません）" };
   await logActivity("イベントの種類を削除", data.name);
-  revalidatePath("/admin/settings");
   revalidateCalendar();
   return { ok: true, message: `「${data.name}」を削除しました。この種類のイベントは既定の種類で表示されます` };
 }

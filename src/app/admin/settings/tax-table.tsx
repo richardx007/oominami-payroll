@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { importTaxTable } from "../settings/actions";
+import { importTaxTable } from "./actions";
 import type { ActionResult } from "../employees/actions";
 import { zebraRowClass } from "@/lib/table";
 

@@ -1,15 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import {
   updateEmailSettings,
   updateEmployerInfo,
   updateShiftMonthStart,
   updatePayslipIssuer,
   updateTimesheetLock,
-  updateWorkRulesMode,
-  uploadWorkRules,
 } from "./actions";
 import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
 import { SEAL_SIZES, type PayslipIssuer } from "@/lib/payslip-issuer";
@@ -26,6 +23,7 @@ const fileInputClass =
 /**
  * シフト予定表の表示設定(1日始まり)。
  * シフト枠・休憩時間は適用開始日ごとに変わるため「営業と勤務時間」画面へ移した(2026-09-24)。
+ * 2026-10-12: この欄自体も設定画面から「営業と勤務時間」画面の下部へ移した(勤務表ロック・QR打刻も同様)。
  */
 export function ShiftMonthStartForm({ monthStart }: { monthStart: boolean }) {
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -37,11 +35,7 @@ export function ShiftMonthStartForm({ monthStart }: { monthStart: boolean }) {
         シフト予定表
       </h2>
       <p className="mt-1 text-sm text-gray-500">
-        シフト枠・休憩時間は
-        <Link href="/admin/calendar/patterns" className="text-blue-700 hover:underline">
-          「営業と勤務時間」
-        </Link>
-        で、営業時間と一緒に適用開始日ごとに設定します。
+        シフト枠・休憩時間は、この画面の上で営業時間と一緒に適用開始日ごとに設定します。
       </p>
       <form
         action={(fd) =>
@@ -135,12 +129,15 @@ export function EmailSettingsForm({
   gmailUser,
   taxName,
   taxEmail,
+  testSendTo,
 }: {
   companyName: string;
   managerName: string;
   gmailUser: string;
   taxName: string;
   taxEmail: string;
+  /** テスト送信先の初期値(ログイン中の管理者のメール) */
+  testSendTo: string;
 }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -256,20 +253,22 @@ export function EmailSettingsForm({
           {pending ? "保存中..." : "保存する"}
         </button>
       </form>
+      <TestSendBlock defaultEmail={testSendTo} />
     </section>
   );
 }
 
-/** 税理士向けメールのテスト送信。締め処理を待たず、当月の現時点情報で文面・宛名を確認できる */
-export function TestSendForm({ defaultEmail }: { defaultEmail: string }) {
+/**
+ * 税理士向けメールのテスト送信。締め処理を待たず、当月の現時点情報で文面・宛名を確認できる。
+ * 2026-10-12: 独立した「テスト送信」欄をやめ、メール設定の枠の一番下に置いた(オーナー依頼)。
+ */
+function TestSendBlock({ defaultEmail }: { defaultEmail: string }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-        テスト送信
-      </h2>
+    <div className="mt-6 border-t border-gray-200 pt-4">
+      <h3 className="text-sm font-semibold text-gray-700">テスト送信</h3>
       <p className="mt-1 text-sm text-gray-500">
         締め処理の前でも、当月の現時点の情報で税理士向けメールの宛名・文面を確認できます。
         件名の冒頭に「【テスト送信】」が付き、実際の締め処理は行われません。
@@ -318,117 +317,7 @@ export function TestSendForm({ defaultEmail }: { defaultEmail: string }) {
           {pending ? "送信中..." : "税理士向けメールのテスト送信"}
         </button>
       </form>
-    </section>
-  );
-}
-
-/** 勤務ルール文書(jpg/png/pdf)のアップロード。既存文書があれば置き換える。 */
-export function WorkRulesForm({
-  mode,
-  currentFilename,
-  previewUrl,
-}: {
-  /** メニュー「勤務ルール」の表示方法。generated=「営業と勤務時間」から組み立てた画面 / image=アップロードした文書 */
-  mode: "generated" | "image";
-  currentFilename: string | null;
-  previewUrl: string | null;
-}) {
-  const [result, setResult] = useState<ActionResult | null>(null);
-  const [pending, startTransition] = useTransition();
-  const [modeResult, setModeResult] = useState<ActionResult | null>(null);
-  const [modePending, startModeTransition] = useTransition();
-
-  return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
-        勤務ルール
-      </h2>
-      <p className="mt-1 text-sm text-gray-500">
-        従業員・管理者ともメニューの「勤務ルール」からいつでも確認できます。表示する内容を選んでください。
-      </p>
-      <form
-        action={(fd) =>
-          startModeTransition(async () => setModeResult(await updateWorkRulesMode(fd)))
-        }
-        className="mt-3 space-y-2"
-      >
-        <label className="flex items-start gap-2 text-sm">
-          <input type="radio" name="mode" value="generated" defaultChecked={mode === "generated"} className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            <span className="font-medium text-gray-800">「営業と勤務時間」の設定から作った画面</span>
-            <span className="block text-xs text-gray-500">
-              各番の勤務時間・休憩時間・深夜勤務時間を、今日有効な定義で表示します(先の定義があれば切り替えて見られます)。{" "}
-              <a href="/work-rules" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                表示を確認
-              </a>
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="radio" name="mode" value="image" defaultChecked={mode === "image"} className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            <span className="font-medium text-gray-800">アップロードした文書(下で登録)</span>
-            <span className="block text-xs text-gray-500">jpg・png・pdf をそのまま表示します。時刻は自動では変わりません。</span>
-          </span>
-        </label>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            disabled={modePending}
-            className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {modePending ? "保存中..." : "表示方法を保存する"}
-          </button>
-          {modeResult && (
-            <p className={`text-sm ${modeResult.ok ? "text-green-700" : "text-red-600"}`}>
-              {modeResult.message}
-            </p>
-          )}
-        </div>
-      </form>
-      <p className="mt-4 text-sm font-medium text-gray-700">文書のアップロード</p>
-      {currentFilename && (
-        <p className="mt-2 text-sm text-gray-600">
-          現在の登録:{" "}
-          {previewUrl ? (
-            <a
-              href={previewUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 underline hover:text-blue-700"
-            >
-              {currentFilename}
-            </a>
-          ) : (
-            currentFilename
-          )}
-        </p>
-      )}
-      <form
-        action={(fd) =>
-          startTransition(async () => setResult(await uploadWorkRules(fd)))
-        }
-        className="mt-3 flex flex-wrap items-center gap-3"
-      >
-        <input
-          type="file"
-          name="file"
-          accept="image/jpeg,image/png,application/pdf"
-          required
-          className="text-sm"
-        />
-        {result && (
-          <p className={`text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}>
-            {result.message}
-          </p>
-        )}
-        <button
-          disabled={pending}
-          className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {pending ? "アップロード中..." : "アップロードする"}
-        </button>
-      </form>
-    </section>
+    </div>
   );
 }
 

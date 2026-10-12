@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth";
-import { todayJST } from "@/lib/period";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadAllWithholdingSlips, loadIssuerInfo } from "@/lib/my-documents";
 import { WithholdingSlipButton } from "@/components/WithholdingSlipButton";
 
@@ -9,30 +7,35 @@ import { WithholdingSlipButton } from "@/components/WithholdingSlipButton";
  * 源泉徴収票(管理者)。在職・退職を問わず、年ごとに従業員の源泉徴収票を出す。
  * 退職者はログインできず自分で出せないため、ここから出して渡す(退職後1か月以内の交付義務)。
  * 住所・生年月日はオーナーにはそのまま、システム管理者には伏せ字で出る(employee_profiles_for_admin)。
+ * 2026-10-12: 独立した画面(/admin/withholding)とメニューをやめ、給与明細画面の表の下に置いた(オーナー依頼)。
+ * 年の切り替えは ?y=YYYY(給与明細の月度 ?p= はそのまま保つ)。
  */
-export default async function WithholdingPage({
-  searchParams,
+export async function WithholdingSection({
+  supabase,
+  year,
+  today,
+  periodKey,
+  isOwner,
 }: {
-  searchParams: Promise<{ y?: string }>;
+  supabase: SupabaseClient;
+  year: number;
+  today: string;
+  /** 年を切り替えても給与明細の表示月度を保つため、リンクに付ける */
+  periodKey: string;
+  isOwner: boolean;
 }) {
-  const me = await requireAdmin();
-  const supabase = await createClient();
-  const today = todayJST();
-  const { y } = await searchParams;
-  const year = Number(y) || Number(today.slice(0, 4));
-
   const { employer } = await loadIssuerInfo(supabase);
   const { years, rows } = await loadAllWithholdingSlips(supabase, year, employer, today);
   const yearList = years.includes(year) ? years : [year, ...years].sort((a, b) => b - a);
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4">
+    <section id="withholding" className="scroll-mt-20 space-y-4 rounded-xl border border-gray-200 bg-white p-4">
       <div>
-        <h1 className="text-xl font-bold">源泉徴収票</h1>
+        <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">源泉徴収票</h2>
         <p className="mt-1 text-sm text-gray-500">
           その年に給与を支払った従業員の源泉徴収票です。退職した人はログインできないので、ここから出して渡してください(退職後1か月以内)。
         </p>
-        {!me.is_owner && (
+        {!isOwner && (
           <p className="mt-2 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-600">
             システム管理者には、従業員の住所・生年月日は伏せ字(＊)で表示されます。
           </p>
@@ -43,7 +46,8 @@ export default async function WithholdingPage({
         {yearList.map((yy) => (
           <Link
             key={yy}
-            href={`/admin/withholding?y=${yy}`}
+            href={`/admin/close?p=${periodKey}&y=${yy}#withholding`}
+            scroll={false}
             className={`rounded-lg border px-3 py-1.5 text-sm ${
               yy === year
                 ? "border-blue-600 bg-blue-600 text-white"
@@ -114,6 +118,6 @@ export default async function WithholdingPage({
           </table>
         </div>
       )}
-    </div>
+    </section>
   );
 }

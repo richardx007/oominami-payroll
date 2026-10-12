@@ -8,7 +8,7 @@ import {
   type EventColor,
   type EventTypeRow,
 } from "@/lib/business-calendar-view";
-import { deleteEventType, saveEventType } from "../calendar/actions";
+import { deleteEventType, saveEventType } from "./actions";
 import type { ActionResult } from "../employees/actions";
 
 const inputClass =

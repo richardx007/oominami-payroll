@@ -5,6 +5,7 @@ import {
   adjacentPeriodKey,
   currentPeriod,
   periodFromKey,
+  todayJST,
 } from "@/lib/period";
 
 /** 分を「H:MM」表記にする(単位を省いて数字だけ・改行させない用) */
@@ -20,17 +21,19 @@ import { zebraRowClass } from "@/lib/table";
 import { CloseActions } from "./ui";
 import { loadReimbursements } from "@/lib/expense-reimbursement";
 import { PayslipPdfButton } from "./payslip-pdf";
+import { WithholdingSection } from "./withholding";
 
 export default async function ClosePage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string }>;
+  searchParams: Promise<{ p?: string; y?: string }>;
 }) {
-  await requireAdmin();
-  const { p } = await searchParams;
+  const me = await requireAdmin();
+  const { p, y } = await searchParams;
   const period = (p && periodFromKey(p)) || currentPeriod();
 
   const supabase = await createClient();
+  const today = todayJST();
   const { data: payPeriod } = await supabase
     .from("pay_periods")
     .select("id, status")
@@ -486,6 +489,15 @@ export default async function ClosePage({
           </table>
         </div>
       </section>
+
+      {/* 源泉徴収票(年ごと。?y= で切り替え、既定は今年) */}
+      <WithholdingSection
+        supabase={supabase}
+        year={Number(y) || Number(today.slice(0, 4))}
+        today={today}
+        periodKey={period.key}
+        isOwner={me.is_owner}
+      />
     </div>
   );
 }

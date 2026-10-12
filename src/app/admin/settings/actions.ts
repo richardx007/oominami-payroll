@@ -93,7 +93,7 @@ export async function updateClockSettings(
     .upsert(rows, { onConflict: "key" });
   if (error) return { ok: false, message: "保存に失敗しました" };
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/calendar/patterns");
   return { ok: true, message: "QR打刻の位置設定を保存しました" };
 }
 
@@ -115,7 +115,7 @@ export async function updateShiftMonthStart(
     );
   if (error) return { ok: false, message: "保存に失敗しました" };
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/calendar/patterns");
   revalidatePath("/admin");
   revalidatePath("/shifts");
   return { ok: true, message: "シフト予定表の設定を保存しました" };
@@ -139,7 +139,7 @@ export async function updateTimesheetLock(
 
   if (error) return { ok: false, message: "保存に失敗しました" };
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/calendar/patterns");
   revalidatePath("/timesheet");
   return {
     ok: true,
@@ -300,8 +300,8 @@ export async function importTaxTable(
       };
     }
 
-    // 2026-08-22: 税額表は設定画面から独立したメニュー(/admin/tax-table)に移動した
-    revalidatePath("/admin/tax-table");
+    // 2026-10-12: 税額表は独立メニュー(/admin/tax-table)をやめ、設定画面の一番下に戻した
+    revalidatePath("/admin/settings");
     return {
       ok: true,
       message: `${year}年分の税額表を${filteredRows.length}区分登録しました`,
@@ -315,92 +315,6 @@ export async function importTaxTable(
     };
   }
 }
-
-/**
- * メニュー「勤務ルール」の表示方法を保存する。
- * generated=「営業と勤務時間」の定義から組み立てた画面(既定) / image=アップロードした文書。
- */
-export async function updateWorkRulesMode(formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
-  const mode = formData.get("mode");
-  if (mode !== "generated" && mode !== "image") {
-    return { ok: false, message: "表示方法を選んでください" };
-  }
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("app_settings")
-    .upsert({ key: "work_rules_mode", value: mode }, { onConflict: "key" });
-  if (error) return { ok: false, message: "保存に失敗しました" };
-
-  revalidatePath("/admin/settings");
-  revalidatePath("/work-rules");
-  return {
-    ok: true,
-    message: mode === "image" ? "アップロードした文書を表示します" : "「営業と勤務時間」から作った画面を表示します",
-  };
-}
-
-const WORK_RULES_ALLOWED_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "application/pdf",
-];
-const WORK_RULES_MAX_SIZE = 20 * 1024 * 1024; // 20MB
-/** ストレージ内の固定パス(拡張子は付けない。実際の種別は work_rules_mime に保存する) */
-const WORK_RULES_STORAGE_PATH = "document";
-
-/**
- * 勤務ルール文書(jpg/png/pdf)をアップロードする。既存の文書がある場合は置き換える。
- * Supabase Storage の非公開バケット `work-rules` に固定パスで保存し(常に上書き)、
- * 元のファイル名・MIME種別・アップロード日時を app_settings に記録する
- * (従業員のハンバーガーメニュー「勤務ルール」から閲覧する際に使う)。
- */
-export async function uploadWorkRules(formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, message: "ファイルを選択してください" };
-  }
-  if (!WORK_RULES_ALLOWED_TYPES.includes(file.type)) {
-    return {
-      ok: false,
-      message: "jpg・png・pdfファイルのみアップロードできます",
-    };
-  }
-  if (file.size > WORK_RULES_MAX_SIZE) {
-    return { ok: false, message: "ファイルサイズは20MB以下にしてください" };
-  }
-
-  const supabase = await createClient();
-  const { error: uploadError } = await supabase.storage
-    .from("work-rules")
-    .upload(WORK_RULES_STORAGE_PATH, file, {
-      upsert: true,
-      contentType: file.type,
-    });
-  if (uploadError) {
-    return {
-      ok: false,
-      message: "アップロードに失敗しました: " + uploadError.message,
-    };
-  }
-
-  const rows = [
-    { key: "work_rules_path", value: WORK_RULES_STORAGE_PATH },
-    { key: "work_rules_filename", value: file.name },
-    { key: "work_rules_mime", value: file.type },
-    { key: "work_rules_uploaded_at", value: new Date().toISOString() },
-  ];
-  const { error } = await supabase
-    .from("app_settings")
-    .upsert(rows, { onConflict: "key" });
-  if (error) return { ok: false, message: "設定の保存に失敗しました" };
-
-  revalidatePath("/admin/settings");
-  return { ok: true, message: `勤務ルール(${file.name})を保存しました` };
-}
-
 
 const payslipIssuerSchema = z.object({
   payslip_payer_line1: z.string().max(100),

@@ -142,7 +142,7 @@ export function CalendarManager({
             <HeaderIconLink href="/admin/calendar/patterns" label="営業と勤務時間">
               <GearIcon />
             </HeaderIconLink>
-            <HeaderIconLink href="/admin/settings#event-types" label="イベントの種類と色">
+            <HeaderIconLink href="#event-types" label="イベントの種類と色">
               <PaletteIcon />
             </HeaderIconLink>
           </div>

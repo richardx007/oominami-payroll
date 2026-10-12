@@ -28,13 +28,20 @@ const nextConfig: NextConfig = {
     // 源泉徴収税額表を丸ごと貼り付けると既定の1MBを超える場合があるため拡張
     serverActions: { bodySizeLimit: "5mb" },
   },
+  async redirects() {
+    // 2026-10-12 のメニュー整理で無くした画面(ブックマーク・古い通知リンク用)
+    return [
+      { source: "/admin/tax-table", destination: "/admin/settings", permanent: false },
+      { source: "/admin/withholding", destination: "/admin/close", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {
         // クリックジャッキング・MIMEスニッフィング対策等の基本的なセキュリティヘッダー。
         // 給与・個人情報を扱う画面のため全パスに適用する。
         // ただしホームページに iframe で埋め込む営業カレンダー(/calendar/embed)と、
-        // PCサイドバーのモーダルで iframe 表示する勤務ルール(/work-rules)は除く(下の設定)。
+        // 勤務ルール(/work-rules。?embed=1 で同一オリジンの iframe に埋め込める)は除く(下の設定)。
         source: "/:path((?!calendar/embed|work-rules).*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
@@ -52,9 +59,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // 勤務ルール。PCサイドバーの「勤務ルール」はモーダル内の iframe で表示するため、
-        // 同じアプリ(同一オリジン)からの埋め込みだけ許可する(他サイトからは不可のまま)。
-        // ⚠️ DENY のままだとモーダルが真っ白になる(2026-09-24 発生)。
+        // 勤務ルール。以前は PCサイドバーの「勤務ルール」がモーダル内の iframe で表示していたため、
+        // 同じアプリ(同一オリジン)からの埋め込みだけ許可している(他サイトからは不可のまま)。
+        // 2026-10-12 からメニューは /admin/work-rules 経由の画面遷移になったが、埋め込みの許可は残している。
         source: "/work-rules",
         headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },

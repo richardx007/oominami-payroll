@@ -1,11 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { reloadApp } from "@/app/pwa/reloadApp";
-import { getWorkRulesUrl } from "@/app/work-rules/actions";
 import { signOut } from "./actions";
 
 // スマホの下部タブに常時出す主要メニュー
@@ -23,10 +21,8 @@ const moreLinks: { href: string; label: string; icon: typeof HomeIcon; dividerBe
   { href: "/admin/notices", label: "配信", icon: SendIcon },
   { href: "/admin/calendar", label: "営業カレンダー", icon: CalendarIcon },
   { href: "/admin/calendar/patterns", label: "営業と勤務時間", icon: ClockIcon },
-  // 源泉徴収票(在職・退職とも。退職者は自分で出せないため)
-  { href: "/admin/withholding", label: "源泉徴収票", icon: TableIcon },
+  // 2026-10-12: 源泉徴収票は給与明細画面の表の下へ、税額表は設定画面の一番下へ移し、メニューから外した
   { href: "/admin/settings", label: "設定", icon: GearIcon, dividerBefore: true },
-  { href: "/admin/tax-table", label: "税額表", icon: TableIcon },
   { href: "/admin/logs", label: "操作ログ", icon: LogIcon },
   // 端末承認制(承認待ちの承認・取り消し)
   { href: "/admin/devices", label: "端末", icon: DeviceIcon },
@@ -37,6 +33,9 @@ const HOMEPAGE_URL = "https://www.oominami.com";
 
 // アプリの解説(操作説明の動画・資料へのリンク集。一覧・登録とも同じ画面)。関連情報／その他の最後に置く
 const GUIDES_HREF = "/admin/guides";
+
+// 勤務ルール(管理者用。作られ方の説明と「勤務ルールの表示」ボタン。表示画面は /work-rules)。関連情報／その他の先頭に置く
+const WORK_RULES_HREF = "/admin/work-rules";
 
 function matches(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
@@ -115,12 +114,12 @@ export function AdminSidebarNav() {
   // (null = 未操作。レンダー中に導出するので effect での setState は不要)
   const [manageOverride, setManageOverride] = useState<boolean | null>(null);
   const manageOpen = manageOverride ?? manageActive;
-  const [relatedOpen, setRelatedOpen] = useState(() => isActive(pathname, GUIDES_HREF));
-  const [rulesOpen, setRulesOpen] = useState(false);
+  const [relatedOpen, setRelatedOpen] = useState(
+    () => isActive(pathname, GUIDES_HREF) || isActive(pathname, WORK_RULES_HREF)
+  );
 
   return (
-    <>
-      <nav className="flex flex-col gap-0.5">
+    <nav className="flex flex-col gap-0.5">
         {primaryLinks.map((l) => {
           const Icon = l.icon;
           return (
@@ -139,7 +138,7 @@ export function AdminSidebarNav() {
           );
         })}
 
-        {/* 管理グループ(従業員・配信・営業カレンダー・営業と勤務時間・設定・税額表・操作ログ) */}
+        {/* 管理グループ(従業員・配信・営業カレンダー・営業と勤務時間・設定・操作ログ・端末) */}
         <GroupToggle
           label="管理"
           open={manageOpen}
@@ -178,16 +177,17 @@ export function AdminSidebarNav() {
         />
         {relatedOpen && (
           <>
-            {/* 勤務ルールは設定画面で指定した1画像のみなので、別タブではなく
-                同ページ上のモーダルで表示する */}
-            <button
-              type="button"
-              onClick={() => setRulesOpen(true)}
-              className={`${sidebarItemClass} pl-6 text-blue-50 hover:bg-white/10 hover:text-white`}
+            <Link
+              href={WORK_RULES_HREF}
+              className={`${sidebarItemClass} pl-6 ${
+                isActive(pathname, WORK_RULES_HREF)
+                  ? "bg-white text-[#152449]"
+                  : "text-blue-50 hover:bg-white/10 hover:text-white"
+              }`}
             >
               <DocumentIcon className="h-6 w-6 shrink-0" />
               勤務ルール
-            </button>
+            </Link>
             <a
               href={HOMEPAGE_URL}
               target="_blank"
@@ -210,10 +210,7 @@ export function AdminSidebarNav() {
             </Link>
           </>
         )}
-      </nav>
-
-      {rulesOpen && <WorkRulesModal onClose={() => setRulesOpen(false)} />}
-    </>
+    </nav>
   );
 }
 
@@ -244,84 +241,15 @@ function GroupToggle({
   );
 }
 
-/** 勤務ルール画像を同ページ上に重ねて表示するモーダル。 */
-function WorkRulesModal({ onClose }: { onClose: () => void }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [isPage, setIsPage] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    getWorkRulesUrl()
-      .then((r) => {
-        if (!alive) return;
-        if ("url" in r) {
-          setUrl(r.url);
-          setIsPage(!!r.page);
-        }
-        else setError(r.error);
-      })
-      .catch(() => {
-        if (alive) setError("文書の表示に失敗しました。");
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  // このモーダルはサイドバー(AdminSidebarNav)の中でレンダーされる。サイドバーが
-  // 独自の重ね合わせコンテキストを作っていると、z-index をいくら上げても
-  // サイドバーの外(設定画面の地図など)より前面には出せない。document.body 直下に
-  // ポータルすることで、祖先の重ね合わせコンテキストの影響を受けずに確実に最前面へ出す。
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <p className="text-lg font-bold text-gray-800">勤務ルール</p>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="閉じる"
-            className="rounded-lg px-2 py-1 text-xl text-gray-500 hover:bg-gray-100"
-          >
-            ×
-          </button>
-        </div>
-        <div className="overflow-auto p-4 text-center">
-          {error ? (
-            <p className="py-8 text-sm text-gray-500">{error}</p>
-          ) : url && isPage ? (
-            // 「営業と勤務時間」から組み立てた勤務ルール画面
-            <iframe src={url} title="勤務ルール" className="h-[75vh] w-full rounded-lg border-0" />
-          ) : url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={url}
-              alt="勤務ルール"
-              className="mx-auto h-auto max-w-full"
-            />
-          ) : (
-            <p className="py-8 text-sm text-gray-500">読み込み中...</p>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 /** モバイル用の下部タブナビ(従業員画面と同じく画面下に固定)。
  *  主要4項目＋ハンバーガー(設定・ログ)を表示する。 */
 export function AdminBottomNav() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const moreActive = moreLinks.some((l) => isActive(pathname, l.href)) || isActive(pathname, GUIDES_HREF);
+  const moreActive =
+    moreLinks.some((l) => isActive(pathname, l.href)) ||
+    isActive(pathname, GUIDES_HREF) ||
+    isActive(pathname, WORK_RULES_HREF);
 
   return (
     <>
@@ -353,14 +281,16 @@ export function AdminBottomNav() {
               );
             })}
             {/* 区切り線の下は関連情報(勤務ルール・ホームページ・アプリの解説) */}
-            <a
-              href="/work-rules"
+            <Link
+              href={WORK_RULES_HREF}
               onClick={() => setMenuOpen(false)}
-              className="flex touch-manipulation items-center gap-2 border-t border-white/25 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
+              className={`flex touch-manipulation items-center gap-2 border-t border-white/25 px-4 py-3 text-base font-medium active:opacity-70 ${
+                isActive(pathname, WORK_RULES_HREF) ? "bg-white/10 text-white" : "text-blue-50"
+              }`}
             >
               <DocumentIcon className="h-5 w-5 shrink-0" />
               勤務ルール
-            </a>
+            </Link>
             <a
               href={HOMEPAGE_URL}
               target="_blank"
@@ -580,25 +510,6 @@ function ClockIcon({ className }: { className?: string }) {
     >
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7v5l3 2" />
-    </svg>
-  );
-}
-
-/** 税額表(月額表)メニュー用の表アイコン */
-function TableIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3.5" y="4" width="17" height="16" rx="2" />
-      <path d="M3.5 9.5h17M9.5 9.5V20" />
     </svg>
   );
 }

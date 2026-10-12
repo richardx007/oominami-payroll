@@ -9,6 +9,7 @@ import {
   type EventTypeRow,
 } from "@/lib/business-calendar-view";
 import { CalendarManager, type DayDetailRow, type EventDetailRow } from "./ui";
+import { EventTypesForm } from "./event-types";
 
 export default async function BusinessCalendarPage({
   searchParams,
@@ -53,7 +54,7 @@ export default async function BusinessCalendarPage({
   const holidays = Object.fromEntries((holidaysRes.data ?? []).map((h) => [h.date, h.name]));
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full max-w-6xl space-y-8">
       <CalendarManager
         ym={ym}
         today={today}
@@ -65,6 +66,8 @@ export default async function BusinessCalendarPage({
         holidays={holidays}
         holidaySyncError={syncRes.data?.last_error ?? null}
       />
+      {/* 2026-10-12: 設定画面からカレンダーの下へ移した(ヘッダーのパレットアイコンはここへ飛ぶ) */}
+      <EventTypesForm types={types} />
     </div>
   );
 }
