@@ -1,6 +1,6 @@
 # 給与管理システム 設計書
 
-最終更新: 2026-09-02
+最終更新: 2026-10-12
 対象リポジトリ: `richardx007/oominami-payroll`
 本番URL: https://oominami-payroll.shinsekai.workers.dev
 
@@ -283,6 +283,7 @@ app/
                          「管理者へ✉️」は mailto:(宛先=送信元メール, 件名「給与管理システムより」,
                          本文=会社名 管理者様/氏名です。)。お知らせに未読赤ドット
                          （localStorage `notices_seen_at` と最新お知らせ時刻を useSyncExternalStore で比較）
+    business-calendar/   従業員メニュー「営業カレンダー」= A4ポスター画面（管理者の PosterView を共用。§24.6・§30。2026-10-12）
     timesheet/           勤務表カレンダー入力（page/ui/actions/schema）。ui.tsx の TimesheetCalendar は
                          管理者の /admin/timesheet と共用（save/del アクションと基準パスを props で受ける）。
                          入力スキーマ entrySchema は schema.ts に分離（"use server" は関数しか export 不可のため）。
@@ -449,6 +450,8 @@ app/
                          表示するだけの薄いラッパー。設定画面「出勤・退勤QRコード」の下部・QR印刷ポスター/PDF
                          にこのページへのQRを掲載する（上記`settings/clock.tsx`参照）。
   calendar/embed/        ホームページ埋め込み用の営業カレンダー（未ログインで公開・iframe許可。§24.4）
+  calendar/embed/today/  ホームページのトップに埋め込む「本日の営業」（未ログインで公開・iframe許可。§24.4・§30。2026-10-12）
+  admin/work-rules/      管理者メニュー「勤務ルール」（説明＋「勤務ルールの表示」ボタン。§30。2026-10-12）
   manifest.ts            PWA マニフェスト（/manifest.webmanifest）
   pwa/
     ReloadPrompt.tsx     更新バナー（新版検知→ワンタップ更新）
@@ -1560,6 +1563,8 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
 > **その後、管理者ナビからはこの項目を削除**（「管理 > 営業カレンダー」と同名の項目が2つ並んで紛らわしいとオーナー指摘。
 > 管理者が公開ページを見るときは編集画面の 👁 アイコンから）。**従業員ナビには残す**（従業員にはこれが唯一の導線）。
 > 旧アプリ（`oominami-calendar`）は1ヶ月ほど様子を見てから停止する。
+> 🔴 **2026-10-12: 従業員ナビの「営業カレンダー」はアプリ内のポスター画面 `/business-calendar` に変更**（§24.6）。
+> 管理者ナビの「関連情報」は 勤務ルール（`/admin/work-rules`）・ホームページ（`/admin/calendar/preview`）・アプリの解説（§30）。
 - 別セッションで構築・本番稼働中の「オオミナミ営業カレンダー」(Cloudflare Workers、
   `https://oominami-calendar.shinsekai.workers.dev`)への**参照リンクのみ**を追加。**方式A(参照)**:
   給与システム側にカレンダー描画コード・Google APIキーは一切持たせない。データはカレンダー側が
@@ -2640,8 +2645,9 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
 
 ### 24.3 管理画面
 - `/admin/calendar`（サイドバー「管理」→「営業カレンダー」）: `admin/calendar/page.tsx`・`ui.tsx`・`actions.ts`。
-  - ヘッダー: 1行目に ＜ 年月 ＞ と右寄せのアイコン
-    👁 ホームページでの見え方 / 🖼 ポスター / ⚙ 営業と勤務時間 / 🎨 イベントの種類と色（設定画面 `#event-types`）、
+  - ヘッダー: 1行目に ＜ 年月 ＞ と右寄せの「🖼 ポスター」ボタン（スマホでも文字を出す。2026-10-12 に
+    👁 ホームページでの見え方 / ⚙ 営業と勤務時間 / 🎨 イベントの種類と色 のアイコンは削除。それぞれメニュー「ホームページ」・
+    メニュー「営業と勤務」・この画面の一番下で開く）、
     **2行目に状態バッジ**（準備中=黄・公開中=緑・未作成=グレー）と、その右に説明文
     「日をタップすると変更できます。●：変更あり」（`text-xs`。**iPhoneでバッジと同じ1行に収めるため短くしている**。2026-09-23）。
     🔴 **状態バッジを年月と同じ行に置かないこと**（スマホで「2026 年10 月」と折り返す。2026-09-18にオーナー指摘で2行に分離。
@@ -2660,7 +2666,8 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   - 日をタップ → PC右／スマホ下のパネル: 「いつもどおり／時間を変える／臨時休業」＋管理用メモ、イベントの追加・編集・削除。
     「いつもどおり」は今の祝日データで区分を判定し直し、定義から戻す（`is_manual=false`、メモ消去）。
   - 変更はすべて操作ログ（「営業カレンダー変更」「営業カレンダーのイベント追加」等）。
-- `/admin/calendar/patterns` **営業と勤務時間**（2026-09-24に「営業時間の定義」から改名。シフト枠・休憩時間も同じ適用開始日で
+- `/admin/calendar/patterns` **営業と勤務**（2026-09-24に「営業時間の定義」から「営業と勤務時間」へ、2026-10-12に「営業と勤務」へ改名。
+  2026-10-12 から画面の下部にシフト予定表(1日始まり)・勤務表ロック・QR打刻の位置設定(設定画面から移動)。上部の「← 営業カレンダー」は削除。シフト枠・休憩時間も同じ適用開始日で
   セットに管理する。§8.1・§10.1）: 上部に「**適用開始日：［一覧］**」（select。既定は今日使われている定義で
   「（適用中）」付き。末尾が「＋ 適用開始日を追加」＝日付を入れ、開いている定義を写して始める。同じ日付は追加不可）。
   区分ごとに1行（区分｜営業/定休｜開店｜閉店｜通し）。時刻は「10:00」形式のテキスト入力（深夜の閉店は「26:00」）。
@@ -2668,7 +2675,8 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   公開中の月が含まれるときは「ホームページの表示もすぐ変わります」と表示）。最初の定義以外は削除できる。
   下部に区分の決まり方と、入力中の定義で計算した結果例（2026年9月の連休）。
   日の「いつもどおり」もその日の適用開始日の定義を使う。
-- 設定画面「イベントの種類と色（営業カレンダー）」: `admin/settings/event-types.tsx`。
+- 「イベントの種類と色（営業カレンダー）」: `admin/calendar/event-types.tsx`。営業カレンダー画面の一番下（`#event-types`。
+  2026-10-12 に設定画面から移動）。
 
 ### 24.4 HP埋め込みとプレビュー
 - `/calendar/embed`（ログイン不要。middleware の公開パスに追加）: `app/calendar/embed/`。旧 `oominami-calendar` の
@@ -2693,12 +2701,23 @@ Googleカレンダー（`oominami2026@gmail.com`）＋別アプリ `oominami-cal
   - `?preview=1`: 管理画面のプレビュー用。サーバーアクション `loadPreviewCalendar()`（`requireAdmin`）で準備中の月（翌々月）まで表示。
   - アプリの更新バナー（`ReloadPrompt`）は埋め込みページでは出さない（`pwa/AppReloadPrompt.tsx`）。アプリ利用者の端末で
     HPを見ると iframe 内にバナーが出ていたため（2026-09-17 本番で発見・修正）。
-- `/admin/calendar/preview` ホームページでの見え方: 上記ページを iframe で表示（パソコン／スマホ幅、公開中の月だけ／準備中の月も、
+- **本日の営業 `/calendar/embed/today`**（2026-10-12）: ホームページのトップ用。`public_business_calendar()` を前日〜当日だけ読み、
+  `lib/today-business.ts`（テスト `today-business.test.ts`）で「日付（曜日・祝日名）｜営業時間（開始は前日から通しなら
+  「昨晩からの通し」、終了は当日が通しなら「通し営業」／休業日・臨時休業・準備中）」と、その日に掛かる公開イベント（2行目）を作る。
+  日付は JST の暦日。ホームページの背景が黒いので白文字・赤→ピンク(#ff7eb6)・緑は明るめ(#4ade80)・イベントは黄(#fcd34d)。
+  文字はスマホ(枠幅640px未満)=16px、それより広い枠=24px。高さ調整のメッセージは `oominami-today-height`
+  （カレンダーの `oominami-calendar-height` と分け、同じページに両方貼っても取り違えない。HPに貼り済みのカレンダーの
+  スクリプトは種類だけで判定しているため）。`next.config.ts` の `frame-ancestors *` は `/calendar/embed/:path*` に広げた。
+- `/admin/calendar/preview` **管理メニュー「ホームページ」**（2026-10-12〜。以前の「ホームページでの見え方」。ホームページを直接開くのは
+  一番下の「ホームページを表示」ボタンに移した）: 上から ホームページの URL（`app_settings.homepage_url`。未設定なら
+  https://www.oominami.com。`preview/actions.ts` の `updateHomepageUrl`）、本日の営業（黒背景のプレビュー＋埋め込み用コード）、
+  営業カレンダー（下記）、「ホームページを表示」。営業カレンダーの部分: 上記ページを iframe で表示（パソコン／スマホ幅、公開中の月だけ／準備中の月も、
   再読み込み）。iframe 内でメディアクエリが効くので実際の幅での見え方になる。プレビューの iframe も本番と同じ
   高さ自動調整で伸縮する。埋め込みコードのコピー（旧アプリと同じ
   `<iframe … style="width:100%; border:0; min-height:760px; background:transparent;">` に `id="oominami-calendar"` と
   高さ調整の `<script>`（`e.origin` を本番URLで照合）を足した形。2026-09-23 に先頭の `<style>` と `display:block` を追加）。
   プレビューのデータ（`loadPreviewCalendar()`）も月の注釈を含む。
+- 🔴 **2026-10-12: 従業員の「関連情報／その他 > 営業カレンダー」はポスター画面 `/business-calendar` に変更**（§24.6）。以下は経緯。
 - サイドバー「関連情報 > 営業カレンダー」は **2026-09-18 にこのページ（`/calendar/embed`、別タブ）へ切り替え済み**
   （旧アプリのポスター表示URLから変更。§10.3）。**同日、管理者ナビからは重複のため削除し、従業員ナビにのみ残した。**
   管理者の「管理 > 営業カレンダー」は従来どおり `/admin/calendar`。
@@ -2734,7 +2753,12 @@ pg_cron business-calendar-auto（毎日 12:00 JST＝0 3 * * * UTC。通知を日
 
 ### 24.6 A4ポスター（PDF・画像）（2026-09-18追加・フェーズ6）
 旧 `oominami-calendar` の `?poster`（iPad/iPhone/Mac Safari で連続出力まで検証済み）を移植。スキル `printable-calendar` の方式。
-- `/admin/calendar/poster?ym=YYYY-MM`（営業カレンダー右上のポスターアイコン）: `admin/calendar/poster/`
+- `/admin/calendar/poster?ym=YYYY-MM`（営業カレンダー右上の「ポスター」）: `admin/calendar/poster/`。
+  2026-10-12 にタイトル・説明文・「← 営業カレンダー」を削除（上は年月と PDF/画像 だけ）。
+- **従業員 `/business-calendar?ym=YYYY-MM`**（2026-10-12、従業員メニュー「営業カレンダー」）: `(employee)/business-calendar/page.tsx` が
+  同じ `PosterView`（props `basePath`・`maxYm`）を使う。従業員は business_days などを読めない（RLS は管理者のみ）ので
+  `public_business_calendar()` から読み、祝日の赤字は営業日の行の `holiday_name` から（未作成の月は祝日名なし）。
+  ホームページと同じく公開中の翌月までしか進めない（翌月ボタンを無効化・URL で先の月を指定しても翌月に丸める）。
   - `seasons.tsx`: 月ごとの風物詩SVGと配色（**旧アプリから無変更で移植**）。
   - `PosterCalendar.tsx`: 本体。新しいデータ（`buildCalendarView`/`layoutWeek`）に合わせて移植。**公開イベントだけ**載せる。
     臨時休業=赤枠、「休」=定休（当月のみ）、泊まり可=枠なしの濃いグレー文字（補足事項のため）、イベントは種類の色。
@@ -2993,8 +3017,13 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
   (本人と管理者だけが読める。employees には本人の更新権限を与えない方針のため別テーブル)。
 - **支払者**: 管理者の設定「源泉徴収票(支払者)」(`employer_address`/`employer_name`/`employer_phone`。
   名称が空なら会社名)。
-- **管理者画面「源泉徴収票」(`/admin/withholding`。2026-10-11)**: 年ごとに在職・退職の全員分を出せる
+- **管理者の源泉徴収票(2026-10-11)**: 年ごとに在職・退職の全員分を出せる
   (退職者はログインできないため。退職者は年の途中でも「途中経過」にしない)。支払額・税額とも0円の人は出さない。
+  2026-10-12 に独立画面 `/admin/withholding` とメニューを廃止し、給与明細画面の表の下(`admin/close/withholding.tsx`、`?y=YYYY`)へ。
+  表は 氏名(左右スクロールで固定)｜状態｜[PDF]｜支払金額｜源泉徴収税額｜住所・生年月日(No は出さない)。途中経過は年度ボタンの右に
+  赤字で「YYYY/MM/DD 時点の途中経過」、PDF ボタンの文字は「PDF」だけ。
+- **未入力の扱い(2026-10-12)**: PDF に「(未入力)」は出さず空欄。住所・生年月日が空なら [PDF] を押したときに確認ダイアログ
+  (「出力」「キャンセル」)。`WithholdingSlipButton` の変更なので従業員の画面でも同じ。システム管理者に届く伏せ字は「入力あり」扱い。
 - **権限の分離(2026-10-11)**: `employees.is_owner`(オーナー=M001)。個人情報(`employee_profiles`)は
   本人とオーナーだけが直接読める(RLS)。システム管理者には `employee_profiles_for_admin()` が全角「＊」・
   半角「*」の伏せ字にして返す(生年月日は "****-**-**")。オーナーは従業員画面の「個人情報」で編集できる
@@ -3006,3 +3035,30 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
   の位置で測るが、Tailwind の `img{display:block}` で img が改行され、全文字が下にずれていた。測定は**元の document**
   で行われる(onclone では効かない)ので、`captureSheetToPdfBlob` の撮影中だけ元の画面に
   `body > div[style*="visibility: hidden"] > img{display:inline}` を入れる(`fixFontMetricsProbe`)。給与明細PDFにも効く。
+
+## 30. 管理者メニューと画面構成の整理（2026-10-12、オーナー依頼）
+管理者の「その他」メニューが増えすぎたため、設定画面と全体を組み替えた。
+
+| 項目 | 変更前 | 変更後 |
+|---|---|---|
+| テスト送信（税理士向けメール） | 設定画面の独立した欄 | 設定画面「メール設定」の枠の一番下 |
+| イベントの種類と色 | 設定画面 | 営業カレンダー画面の一番下（`admin/calendar/event-types.tsx`） |
+| シフト予定表（1日始まり）・勤務表ロック・QR打刻の位置設定 | 設定画面 | 「営業と勤務」画面の下部（部品と保存アクションは `admin/settings/` のまま） |
+| 勤務ルール（表示方法の切替・文書アップロード） | 設定画面 | 廃止。表示は「営業と勤務」から組み立てた画面に固定 |
+| 税額表 | 独立メニュー `/admin/tax-table` | 設定画面の一番下（`admin/settings/tax-table.tsx`） |
+| 源泉徴収票 | 独立メニュー `/admin/withholding` | 給与明細画面の表の下（§29） |
+| 営業と勤務時間 | メニュー名・画面名 | 「営業と勤務」。上部の「← 営業カレンダー」は削除 |
+| 勤務ルール（メニュー） | 表示画面（PC はモーダル） | `/admin/work-rules`: 説明＋「営業と勤務」へのリンク＋「勤務ルールの表示」（/work-rules へ遷移） |
+| ホームページ（メニュー） | ホームページを別タブで直接表示 | `/admin/calendar/preview`（URL 設定・本日の営業・営業カレンダー・「ホームページを表示」。§24.4） |
+| 営業カレンダー画面の右上 | 4つのアイコン | 「ポスター」だけ（文字付き） |
+| ポスター画面 | タイトル・説明・戻るリンクあり | 年月と PDF/画像 だけ |
+| 従業員の「営業カレンダー」 | `/calendar/embed` を別タブ | ポスター画面 `/business-calendar`（§24.6） |
+
+- 設定画面に残るのは メール設定（＋テスト送信）・給与明細PDF(支払元・印)・源泉徴収票(支払者)・源泉徴収税額表 の4つ。
+- 旧URL `/admin/tax-table`→`/admin/settings`、`/admin/withholding`→`/admin/close` は `next.config.ts` の `redirects` で転送。
+- 勤務ルールの旧データ: ストレージ work-rules バケットの文書と app_settings の `work_rules_*`、`get_work_rules_meta()` は
+  参照しなくなっただけで残している（§10.2）。`work-rules/actions.ts`（`getWorkRulesUrl`）と PC サイドバーのモーダルは削除。
+  `/work-rules` は `?embed=1`（「閉じる」を出さない）と同一オリジンの iframe 許可を残している。
+- 管理者ナビの選択中の判定（`admin/nav.tsx` の `isActive`）は、関連情報の画面（`RELATED_HREFS`）も「より詳しいメニュー」として扱う
+  （`/admin/calendar/preview` を開いているとき「営業カレンダー」を選択中にしないため）。
+
