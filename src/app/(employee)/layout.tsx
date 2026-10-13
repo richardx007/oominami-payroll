@@ -51,7 +51,7 @@ export default async function EmployeeLayout({
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-[#152449] pt-[env(safe-area-inset-top)] text-white shadow-md md:flex print:hidden">
         <div className="flex items-center gap-2 px-4 py-4">
           <LogoButton />
-          <span className="text-lg font-bold">給与管理</span>
+          <span className="text-lg font-bold">給与</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3">
           <EmployeeSidebarNav {...navProps} />
@@ -91,7 +91,7 @@ export default async function EmployeeLayout({
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-1.5">
           <div className="flex items-center gap-2">
             <LogoButton />
-            <span className="text-base font-bold">給与管理</span>
+            <span className="text-base font-bold">給与</span>
           </div>
           <QrScanButton />
           <div className="flex min-w-0 items-center justify-end gap-3 text-sm">

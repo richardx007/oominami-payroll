@@ -227,7 +227,7 @@ export function AdminSidebarNav() {
         {/* アプリ切り替えは「関連情報」の下(2026-10-12 オーナー依頼) */}
         <a href={EXPENSE_HREF} className={`${sidebarItemClass} mt-3 ${APP_SWITCH_CLASS}`}>
           <ReceiptIcon className="h-6 w-6 shrink-0" />
-          経費管理へ
+          経費へ
           <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
         </a>
     </nav>
@@ -334,7 +334,7 @@ export function AdminBottomNav() {
               className={`flex touch-manipulation items-center gap-2 px-4 py-3 text-base ${APP_SWITCH_CLASS}`}
             >
               <ReceiptIcon className="h-5 w-5 shrink-0" />
-              経費管理へ
+              経費へ
               <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
             </a>
             {/* 区切り線の下にログアウト(ヘッダーから移設) */}

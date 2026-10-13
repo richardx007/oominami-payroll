@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   description: "従業員勤務表・給与計算システム",
   // src/app/manifest.webmanifest/route.ts(/install では引き継ぎ札付きに差し替える)
   manifest: "/manifest.webmanifest",
+  // iOS のホーム画面アプリ: ステータスバーを透明(文字は白)にし、その裏にヘッダーの紺を敷く。
+  // 既定("default")だと iOS 26 でステータスバーの部分に白いモヤ(すりガラス)が掛かる(2026-10-13)。
+  // 紺の帯は globals.css の body::before、ヘッダーは env(safe-area-inset-top) の分だけ下げている
+  appleWebApp: { statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
@@ -15,6 +19,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   // iOS standalone でヘッダーがステータスバーに隠れないように
   viewportFit: "cover",
+  themeColor: "#152449",
 };
 
 export default function RootLayout({

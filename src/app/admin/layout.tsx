@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { AdminBottomNav, AdminSidebarNav, LogoButton, PersonIcon } from "./nav";
 import { signOut } from "./actions";
+import { QrScanButton } from "@/app/(employee)/QrScanButton";
 
 export default async function AdminLayout({
   children,
@@ -16,7 +17,7 @@ export default async function AdminLayout({
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-[#152449] pt-[env(safe-area-inset-top)] text-white shadow-md md:flex print:hidden">
         <div className="flex items-center gap-2 px-4 py-4">
           <LogoButton />
-          <span className="text-lg font-bold">給与管理</span>
+          <span className="text-lg font-bold">給与</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3">
           <AdminSidebarNav />
@@ -43,12 +44,14 @@ export default async function AdminLayout({
 
       {/* モバイル用ヘッダー(下部タブナビは AdminBottomNav) */}
       <header className="z-30 shrink-0 bg-[#152449] pt-[env(safe-area-inset-top)] text-white shadow-md md:hidden print:hidden">
-        <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+        {/* 左=ロゴ・中央=QR読み取り(カメラ)・右=名前。従業員画面のヘッダーと同じ3列(左右1fr) */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-1.5">
           <div className="flex items-center gap-2">
             <LogoButton />
-            <span className="text-base font-bold">給与管理</span>
+            <span className="text-base font-bold">給与</span>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <QrScanButton />
+          <div className="flex min-w-0 items-center justify-end gap-3 text-sm">
             {/* モバイル: 名前の右にアイコン(iPhoneでの見え方に合わせる) */}
             <Link
               href="/admin/account"

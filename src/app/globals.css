@@ -270,3 +270,23 @@ body.pdf-capture-mode .pdf-capture-target .print-report td[rowspan] {
     overflow-wrap: anywhere;
   }
 }
+
+/*
+ * iOS のホーム画面アプリでは、ステータスバーを透明にしている(layout.tsx の appleWebApp)。
+ * ヘッダーの無い画面(ログイン・打刻など)でも時計や電池の白い文字が読めるよう、
+ * ステータスバーの高さ(env(safe-area-inset-top)。Safari のタブなど重ならない環境では 0)だけ紺の帯を敷く。
+ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: env(safe-area-inset-top);
+  background: #152449;
+  z-index: 40;
+  pointer-events: none;
+}
+@media print {
+  body::before {
+    display: none;
+  }
+}
