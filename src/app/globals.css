@@ -272,21 +272,29 @@ body.pdf-capture-mode .pdf-capture-target .print-report td[rowspan] {
 }
 
 /*
- * iOS のホーム画面アプリでは、ステータスバーを透明にしている(layout.tsx の appleWebApp)。
- * ヘッダーの無い画面(ログイン・打刻など)でも時計や電池の白い文字が読めるよう、
- * ステータスバーの高さ(env(safe-area-inset-top)。Safari のタブなど重ならない環境では 0)だけ紺の帯を敷く。
+ * iOS のホーム画面アプリでヘッダー上部に白いモヤ(すりガラス)が掛かる・ヘッダーがステータスバーの裏に潜る対策
+ * (2026-10-13 再発)。document(body)自体がスクロールできると、iOS は「ステータスバーの下を通るスクロール内容」と
+ * 判定してぼかしを重ね、ずれた分だけヘッダーが上に潜る(keihanshin-news の引き継ぎ書 6-1 と同じ原因)。
+ * 以前は body の min-height:100vh がちょうど画面と同じ高さだったが、iOS 側の 100vh の扱いで数px はみ出すと
+ * document がスクロールできてしまう。そこで html/body は 100%(=画面ちょうど)にし、アプリシェルを使う画面
+ * (スマホ幅)では document のスクロールそのものを止める。本文は .app-scroll の中だけでスクロールする。
+ * ヘッダーの無い画面(ログイン・打刻など)は従来どおり document がスクロールする。
  */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0 0 auto 0;
-  height: env(safe-area-inset-top);
-  background: #152449;
-  z-index: 40;
-  pointer-events: none;
+html,
+body {
+  height: 100%;
+}
+@media (max-width: 767px) {
+  html:has(.app-shell),
+  html:has(.app-shell) body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
 }
 @media print {
-  body::before {
-    display: none;
+  html:has(.app-shell),
+  html:has(.app-shell) body {
+    height: auto;
+    overflow: visible;
   }
 }

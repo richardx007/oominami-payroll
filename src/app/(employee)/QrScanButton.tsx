@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { parseClockQr } from "@/lib/clock-qr";
+import { ClockOpening } from "@/app/RootLoading";
 
 /**
  * ヘッダー中央のカメラボタン＋アプリ内のQR読み取り(2026-10-13 オーナー依頼)。
@@ -36,6 +37,9 @@ function QrScanner({ onClose }: { onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  // 読み取れたら打刻画面へ進む。画面が切り替わるまで、打刻画面の読み込み中表示と同じ見た目を出し続ける
+  // (ここで閉じると元の画面が一瞬見えてチラつくため。ヘッダーごと入れ替わる時点で自然に消える)
+  const [opening, setOpening] = useState(false);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -102,8 +106,8 @@ function QrScanner({ onClose }: { onClose: () => void }) {
         const type = parseClockQr(code.data, window.location.origin);
         if (type) {
           stop();
+          setOpening(true);
           router.push(`/clock?type=${type}&from=${encodeURIComponent(pathname)}`);
-          onClose();
         } else {
           setHint("出退勤のQRコードではありません。");
           clearTimeout(hintTimer);
@@ -117,6 +121,8 @@ function QrScanner({ onClose }: { onClose: () => void }) {
     return stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (opening) return <ClockOpening />;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">

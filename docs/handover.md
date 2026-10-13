@@ -3910,10 +3910,13 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   (=メニューから開いたときと同じ扱いで、完了画面に「戻る」「勤務表を開く」が出る)。それ以外のQRは「出退勤のQRコードではありません」。
 - スマホの「その他」の「出退勤の記録」(QRなしで打刻)は臨時用のため**一旦外した**(ClockSheet は PC/タブレットのサイドバー「出退勤」で引き続き使用)。
 - 要実機確認: iPhoneのホーム画面アプリでカメラ許可→読み取り→打刻まで。
-- 追修正: iPhoneのホーム画面アプリでヘッダーがステータスバーの裏に隠れ、余白を付けると白いモヤ(すりガラス)が出た(iOS 26)。
-  `layout.tsx` で `appleWebApp.statusBarStyle: "black-translucent"`・`themeColor: #152449`、ヘッダー/サイドバーに
-  `pt-[env(safe-area-inset-top)]`、`globals.css` の `body::before` でステータスバーの高さだけ紺の帯(ヘッダーの無い画面用)。
-  ※ status-bar-style はホーム画面に追加し直さないと反映されないことがある。
+- 追修正(白いモヤ・ヘッダーがステータスバーに潜る): 原因は **document(body)自体がスクロールできたこと**
+  (keihanshin-news 引き継ぎ書 6-1 と同じ。iOS は「ステータスバー下を通るスクロール内容」と判定してぼかしを重ねる)。
+  body の `min-h-screen`(100vh)が iOS で画面より数px大きくなりうるため、`html, body{height:100%}`＋スマホ幅で
+  アプリシェルのある画面は `html:has(.app-shell)` の overflow を hidden に(`globals.css`)。
+  途中で試した `black-translucent`＋紺の帯は撤回(効果なし)。ヘッダー/サイドバーの `pt-[env(safe-area-inset-top)]` は残置(重ならなければ 0)。
+- 追修正(チラつき): QR読み取り後、すぐ閉じていたため元の画面→起動ロゴ(root loading)→打刻画面と切り替わっていた。
+  読み取れたら閉じずに打刻画面と同じ灰色＋スピナー(`RootLoading.tsx` の ClockOpening)を出し、root loading も /clock のときは同じ表示に。
 - 管理画面のスマホ用ヘッダーにも中央のカメラボタン。ヘッダー/サイドバーの題名を「給与」、管理画面メニューの「経費管理へ」を「経費へ」に短縮(オーナー依頼)。
 
 ## 7. すぐ使えるコマンド集
