@@ -144,6 +144,19 @@ GitHub を見に行かなくても、**管理画面の「操作ログ」に毎�
 
 登録は `gh secret set <名前> -R richardx007/oominami-payroll`（値は貼り付けを求められる）。
 
+### 失敗したとき: Google ドライブの `403 rateLimitExceeded`（2026-10-14 に発生）
+
+`Error 403: Quota exceeded ... consumer 'project_number:202264815644'` / `rateLimitExceeded` は、rclone 標準の
+**共有クライアントID**（世界中の rclone 利用者と Drive API の上限を共有）が一時的に上限を超えただけ。設定・トークンの問題ではない。
+削除ステップの前で止まるのでデータは失われない。
+
+- 対応: Actions の該当 run で **Re-run failed jobs**（`gh run rerun <run_id> --failed`）。または翌日の自動実行を待つ（`--ignore-existing` で足りない分が入る）
+- 何日も続くとき: Google Cloud で自分用の OAuth クライアントID（デスクトップアプリ・Drive API を有効化）を作り、
+  Secrets に `GDRIVE_CLIENT_ID` / `GDRIVE_CLIENT_SECRET` を追加して `backup.yml` の receipts ジョブに
+  `RCLONE_CONFIG_GDRIVE_CLIENT_ID` / `RCLONE_CONFIG_GDRIVE_CLIENT_SECRET` として渡す。
+  トークンはそのクライアントIDで取り直す（`rclone authorize "drive" "<base64>"`。`<base64>` は `{"scope":"drive.file","client_id":"…","client_secret":"…"}` を base64 にしたもの）→ `GDRIVE_RCLONE_TOKEN` を更新。
+  （2026-10-14 時点では未実施。オーナー判断で様子見）
+
 ### 復元（Supabase 側のレシートが失われたとき）
 
 ドライブの `oominami-backups/expense-receipts/` の中身は、Storage と同じ `{経費ID}/{ファイルID}.jpg` の並び。
