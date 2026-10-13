@@ -59,7 +59,8 @@ function isActive(pathname: string, href: string) {
   // より詳しいメニューが一致するならそちらだけを選択中にする
   // (「営業と勤務」= /admin/calendar/patterns、「ホームページ」= /admin/calendar/preview を開いているとき
   //  「営業カレンダー」は選択しない)
-  return [...primaryLinks.map((l) => l.href), ...moreLinks.map((l) => l.href), ...RELATED_HREFS].some(
+  // ※ 2026-10-12 に先頭の ! が抜け、「営業と勤務」を開くと「営業カレンダー」が選択中になっていた(2026-10-13 修正)
+  return ![...primaryLinks.map((l) => l.href), ...moreLinks.map((l) => l.href), ...RELATED_HREFS].some(
     (h) => h.length > href.length && h.startsWith(href + "/") && matches(pathname, h)
   );
 }

@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { jstTodayKey, type HourPattern } from "@/lib/business-calendar-view";
 import type { WorkTimeSettingRow } from "@/lib/work-time";
-import { ShiftMonthStartForm, TimesheetLockForm } from "../../settings/ui";
+import { ClockMenuForm, ShiftMonthStartForm, TimesheetLockForm } from "../../settings/ui";
 import { ClockSettingsForm } from "../../settings/clock";
 import { PatternsForm } from "./ui";
 
@@ -11,6 +11,7 @@ const SETTING_KEYS = [
   "company_name",
   "shift_month_start",
   "lock_employee_time_edit",
+  "clock_menu_enabled",
   "clock_base_lat",
   "clock_base_lng",
   "clock_radius_m",
@@ -49,6 +50,7 @@ export default async function HourPatternsPage() {
       {/* 2026-10-12: シフト予定表・勤務表ロック・QR打刻の位置設定を設定画面から移した(オーナー依頼) */}
       <ShiftMonthStartForm monthStart={settings.get("shift_month_start") === "1"} />
       <TimesheetLockForm locked={settings.get("lock_employee_time_edit") === "true"} />
+      <ClockMenuForm enabled={settings.get("clock_menu_enabled") === "true"} />
       <ClockSettingsForm
         companyName={settings.get("company_name") ?? ""}
         lat={settings.get("clock_base_lat") ?? ""}

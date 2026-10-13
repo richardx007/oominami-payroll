@@ -193,7 +193,7 @@ export function ClockConfirm({
               {backHref && (
                 <Link
                   href={backHref}
-                  className="rounded-lg border border-[#152449] py-2.5 text-center font-medium text-[#152449] hover:bg-[#152449]/5"
+                  className="rounded-lg border-2 border-[#152449] py-2.5 text-center font-bold text-[#152449] hover:bg-[#152449]/5"
                 >
                   戻る
                 </Link>
@@ -383,7 +383,7 @@ export function ClockConfirm({
             {backHref && (
               <Link
                 href={backHref}
-                className="mt-3 block w-full rounded-xl border border-gray-300 py-3 text-center text-base font-medium text-gray-600 hover:bg-gray-50"
+                className="mt-3 block w-full rounded-xl border border-[#152449] py-3 text-center text-base font-bold text-[#152449] hover:bg-[#152449]/5"
               >
                 戻る
               </Link>

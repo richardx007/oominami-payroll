@@ -121,6 +121,30 @@ export async function updateShiftMonthStart(
   return { ok: true, message: "シフト予定表の設定を保存しました" };
 }
 
+/**
+ * 「QRコード無しの打刻」: アプリのメニューに「出退勤の記録」を出すか(2026-10-13 オーナー依頼)。
+ * 従業員も読めるよう clock_ で始まるキーにする(get_clock_settings() は clock_% だけを返す)。
+ */
+export async function updateClockMenu(formData: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const enabled = formData.get("clock_menu_enabled") === "on";
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert({ key: "clock_menu_enabled", value: enabled ? "true" : "false" }, { onConflict: "key" });
+  if (error) return { ok: false, message: "保存に失敗しました" };
+
+  revalidatePath("/admin/calendar/patterns");
+  // メニューは従業員画面のレイアウトで読むため、全画面のキャッシュを捨てる
+  revalidatePath("/", "layout");
+  return {
+    ok: true,
+    message: enabled
+      ? "アプリのメニューに「出退勤の記録」を表示します"
+      : "アプリのメニューの「出退勤の記録」を非表示にしました",
+  };
+}
+
 /** 従業員による出退勤時刻・休憩時間の編集ロックをON/OFF切替する。QR打刻自体は影響を受けない。 */
 export async function updateTimesheetLock(
   formData: FormData

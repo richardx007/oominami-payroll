@@ -15,7 +15,7 @@ export default async function EmployeeLayout({
 
   // 最新のお知らせ受信時刻(未読バッジの判定に使う)＋管理者連絡メール用の設定
   const supabase = await createClient();
-  const [{ data: latestNotice }, { data: contactRows }] = await Promise.all([
+  const [{ data: latestNotice }, { data: contactRows }, { data: clockRows }] = await Promise.all([
     supabase
       .from("notifications")
       .select("sent_at")
@@ -25,6 +25,8 @@ export default async function EmployeeLayout({
       .maybeSingle(),
     // 会社名・送信元メールは app_settings(管理者のみSELECT可)のため関数経由で取得
     supabase.rpc("get_contact_settings"),
+    // 「QRコード無しの打刻」(メニューに「出退勤の記録」を出すか。管理者の「営業と勤務」で設定)
+    supabase.rpc("get_clock_settings"),
   ]);
   const latestNoticeAt = latestNotice?.sent_at ?? null;
 
@@ -37,8 +39,13 @@ export default async function EmployeeLayout({
   const adminEmail = contact.get("gmail_user") ?? "";
   const companyName = contact.get("company_name") ?? "";
 
+  const clockMenuEnabled = ((clockRows ?? []) as { key: string; value: string }[]).some(
+    (r) => r.key === "clock_menu_enabled" && r.value === "true"
+  );
+
   const navProps = {
     latestNoticeAt,
+    clockMenuEnabled,
     adminEmail,
     companyName,
     employeeName: employee.name,

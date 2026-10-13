@@ -7,6 +7,7 @@ import {
   updateShiftMonthStart,
   updatePayslipIssuer,
   updateTimesheetLock,
+  updateClockMenu,
 } from "./actions";
 import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
 import { SEAL_SIZES, type PayslipIssuer } from "@/lib/payslip-issuer";
@@ -104,6 +105,53 @@ export function TimesheetLockForm({ locked }: { locked: boolean }) {
             className="h-4 w-4 rounded border-gray-300"
           />
           従業員による出退勤時刻・休憩時間の編集をロックする
+        </label>
+        {result && (
+          <p
+            className={`mt-2 text-sm ${result.ok ? "text-green-700" : "text-red-600"}`}
+          >
+            {result.message}
+          </p>
+        )}
+        <button
+          disabled={pending}
+          className="mt-3 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "保存中..." : "保存する"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+/** 「QRコード無しの打刻」: アプリのメニューに「出退勤の記録」を出すか(2026-10-13 オーナー依頼。営業と勤務の画面) */
+export function ClockMenuForm({ enabled }: { enabled: boolean }) {
+  const [result, setResult] = useState<ActionResult | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">
+        QRコード無しの打刻
+      </h2>
+      <p className="mt-1 text-sm text-gray-500">
+        出退勤のQRコードをかざすことなく、アプリの中だけで打刻ができるようになります。
+        この場合も位置情報のチェックは行いますが、店舗の外でも打刻ができることになります。
+      </p>
+      <form
+        action={(fd) =>
+          startTransition(async () => setResult(await updateClockMenu(fd)))
+        }
+        className="mt-4"
+      >
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            name="clock_menu_enabled"
+            defaultChecked={enabled}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          アプリのメニューに「出退勤の記録」を表示させる
         </label>
         {result && (
           <p
