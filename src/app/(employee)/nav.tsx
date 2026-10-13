@@ -219,14 +219,7 @@ export function EmployeeNav({
   const pathname = usePathname();
   const hasUnread = useNoticeUnread(latestNoticeAt);
   const [menuOpen, setMenuOpen] = useState(false);
-  // 「出退勤の記録」を選んだときに出す 出勤/退勤/キャンセル の確認ダイアログ
-  const [clockOpen, setClockOpen] = useState(false);
   const mailtoHref = buildMailtoHref(adminEmail, companyName, employeeName);
-
-  function openClock() {
-    setMenuOpen(false);
-    setClockOpen(true);
-  }
 
   // シェル(app-shell)の最下段に通常フローで置く。position:fixed は使わない
   // (iOS でスクロール中に画面途中へ取り残される不具合があるため。
@@ -279,15 +272,8 @@ export function EmployeeNav({
             className="absolute bottom-[calc(3.75rem+env(safe-area-inset-bottom))] right-2 min-w-[10rem] overflow-hidden rounded-xl border border-white/15 bg-[#152449] text-white shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 一番上に打刻の導線(QRを読まなくてもアプリから打刻できる) */}
-            <button
-              type="button"
-              onClick={openClock}
-              className="flex w-full items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
-            >
-              <ClockIcon className="h-5 w-5 shrink-0" />
-              出退勤の記録
-            </button>
+            {/* 「出退勤の記録」(QRを読まずにアプリから打刻)は臨時用のため一旦外した(2026-10-13 オーナー依頼)。
+                打刻はヘッダー中央のカメラボタン(アプリ内QR読み取り)から行う */}
             <Link
               href="/notices"
               onClick={() => setMenuOpen(false)}
@@ -368,8 +354,6 @@ export function EmployeeNav({
           </div>
         </div>
       )}
-
-      {clockOpen && <ClockSheet onClose={() => setClockOpen(false)} />}
     </nav>
   );
 }

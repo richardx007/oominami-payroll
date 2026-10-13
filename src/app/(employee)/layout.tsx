@@ -3,6 +3,7 @@ import { requireEmployee } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { EmployeeNav, EmployeeSidebarNav } from "./nav";
 import { signOut } from "./actions";
+import { QrScanButton } from "./QrScanButton";
 import { LogoButton, PersonIcon } from "@/app/admin/nav";
 
 export default async function EmployeeLayout({
@@ -86,12 +87,14 @@ export default async function EmployeeLayout({
 
       {/* モバイル用ヘッダー(下部タブナビは EmployeeNav) */}
       <header className="z-30 shrink-0 bg-[#152449] text-white shadow-md md:hidden print:hidden">
-        <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+        {/* 左=ロゴ・中央=QR読み取り(カメラ)・右=名前。中央を画面のど真ん中に置くため左右を同じ幅(1fr)にする */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-1.5">
           <div className="flex items-center gap-2">
             <LogoButton />
             <span className="text-base font-bold">給与管理</span>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <QrScanButton />
+          <div className="flex min-w-0 items-center justify-end gap-3 text-sm">
             {/* モバイル: 名前の右にアイコン(iPhoneでの見え方に合わせる) */}
             <Link
               href="/account"
