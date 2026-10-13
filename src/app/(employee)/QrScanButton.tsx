@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { parseClockQr } from "@/lib/clock-qr";
 import { ClockOpening } from "@/app/RootLoading";
@@ -26,7 +27,9 @@ export function QrScanButton() {
       >
         <CameraIcon className="h-6 w-6" />
       </button>
-      {open && <QrScanner onClose={() => setOpen(false)} />}
+      {/* body 直下に出す。ヘッダーの中に置くと、下部タブナビが読み取り画面の上に重なり
+          「キャンセル」が隠れていた(2026-10-13 iPhone 実機) */}
+      {open && createPortal(<QrScanner onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }

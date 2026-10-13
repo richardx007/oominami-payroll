@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { logClockView, punchClock, reportClockError, type ClockResult } from "./actions";
 import { AccessHelp } from "@/components/AccessHelp";
 import { useClientValue } from "@/lib/useClientValue";
@@ -84,6 +85,16 @@ export function ClockConfirm({
     locationEnabled && !geoSupported ? ("unsupported" as const) : geoState;
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<ClockResult | null>(null);
+  const router = useRouter();
+  // アプリ(メニュー・アプリ内QR読み取り)から開いた場合は、打刻できたら自動で勤務表へ移り、
+  // 今回の打刻結果をすぐ確認できるようにする(2026-10-13 オーナー依頼)。
+  // 注意書き(warn)があるときは読めるよう自動では移らず、「勤務表を開く」を押してもらう。
+  const autoToTimesheet = !!result?.ok && !result.warn && backHref != null;
+  useEffect(() => {
+    if (!autoToTimesheet) return;
+    const id = setTimeout(() => router.replace("/timesheet"), 1200);
+    return () => clearTimeout(id);
+  }, [autoToTimesheet, router]);
   // ホーム画面PWA(スタンドアロン)から開いているかどうか。iOSのSafariには「リンクを
   // タップすると自動でPWA側が開く」仕組みが無いため、Safariで開いている場合は
   // 「勤務表を開く」リンク(Safariが開くだけ)ではなく、ホーム画面アプリの案内文に差し替える。
@@ -188,17 +199,12 @@ export function ClockConfirm({
                 {result.warn}
               </p>
             )}
+            {autoToTimesheet && (
+              <p className="mt-3 text-sm text-gray-500">勤務表を開いています…</p>
+            )}
             <div className="mt-6 flex flex-col gap-2">
-              {/* アプリのメニューから開いた場合は元の画面へ戻れるようにする */}
-              {backHref && (
-                <Link
-                  href={backHref}
-                  className="rounded-lg border-2 border-[#152449] py-2.5 text-center font-bold text-[#152449] hover:bg-[#152449]/5"
-                >
-                  戻る
-                </Link>
-              )}
-              {isStandalone ? (
+              {/* アプリから開いた場合は打刻後に勤務表へ移る(上の autoToTimesheet)。元の画面への「戻る」は出さない */}
+              {isStandalone || backHref ? (
                 <Link
                   href="/timesheet"
                   className="rounded-lg bg-blue-600 py-2.5 font-medium text-white hover:bg-blue-700"
