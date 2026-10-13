@@ -3914,6 +3914,8 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   (keihanshin-news 引き継ぎ書 6-1 と同じ。iOS は「ステータスバー下を通るスクロール内容」と判定してぼかしを重ねる)。
   body の `min-h-screen`(100vh)が iOS で画面より数px大きくなりうるため、`html, body{height:100%}`＋スマホ幅で
   アプリシェルのある画面は `html:has(.app-shell)` の overflow を hidden に(`globals.css`)。
+  ✅ オーナーの実機で解消を確認(2026-10-13)。**アプリ内の「更新」では直らず、アプリを終了して起動し直すと直った**
+  (ぼかしの判定は起動時の状態が残るらしい。今後同様の修正後は「アプリを終了して開き直す」よう案内する)。
   途中で試した `black-translucent`＋紺の帯は撤回(効果なし)。ヘッダー/サイドバーの `pt-[env(safe-area-inset-top)]` は残置(重ならなければ 0)。
 - 追修正(チラつき): QR読み取り後、すぐ閉じていたため元の画面→起動ロゴ(root loading)→打刻画面と切り替わっていた。
   読み取れたら閉じずに打刻画面と同じ灰色＋スピナー(`RootLoading.tsx` の ClockOpening)を出し、root loading も /clock のときは同じ表示に。
