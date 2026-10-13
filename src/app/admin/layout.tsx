@@ -13,7 +13,7 @@ export default async function AdminLayout({
   return (
     <div className="app-shell app-shell--sidebar">
       {/* サイドバー(タブレット・PC) */}
-      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-[#152449] text-white shadow-md md:flex print:hidden">
+      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-[#152449] pt-[env(safe-area-inset-top)] text-white shadow-md md:flex print:hidden">
         <div className="flex items-center gap-2 px-4 py-4">
           <LogoButton />
           <span className="text-lg font-bold">給与管理</span>
@@ -42,7 +42,7 @@ export default async function AdminLayout({
       </aside>
 
       {/* モバイル用ヘッダー(下部タブナビは AdminBottomNav) */}
-      <header className="z-30 shrink-0 bg-[#152449] text-white shadow-md md:hidden print:hidden">
+      <header className="z-30 shrink-0 bg-[#152449] pt-[env(safe-area-inset-top)] text-white shadow-md md:hidden print:hidden">
         <div className="flex items-center justify-between gap-2 px-4 py-2.5">
           <div className="flex items-center gap-2">
             <LogoButton />

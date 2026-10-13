@@ -48,7 +48,7 @@ export default async function EmployeeLayout({
   return (
     <div className="app-shell app-shell--sidebar">
       {/* サイドバー(タブレット・PC) */}
-      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-[#152449] text-white shadow-md md:flex print:hidden">
+      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-[#152449] pt-[env(safe-area-inset-top)] text-white shadow-md md:flex print:hidden">
         <div className="flex items-center gap-2 px-4 py-4">
           <LogoButton />
           <span className="text-lg font-bold">給与管理</span>
@@ -86,7 +86,7 @@ export default async function EmployeeLayout({
       </aside>
 
       {/* モバイル用ヘッダー(下部タブナビは EmployeeNav) */}
-      <header className="z-30 shrink-0 bg-[#152449] text-white shadow-md md:hidden print:hidden">
+      <header className="z-30 shrink-0 bg-[#152449] pt-[env(safe-area-inset-top)] text-white shadow-md md:hidden print:hidden">
         {/* 左=ロゴ・中央=QR読み取り(カメラ)・右=名前。中央を画面のど真ん中に置くため左右を同じ幅(1fr)にする */}
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-1.5">
           <div className="flex items-center gap-2">
