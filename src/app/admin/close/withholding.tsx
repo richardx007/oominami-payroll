@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadAllWithholdingSlips, loadIssuerInfo } from "@/lib/my-documents";
 import { WithholdingSlipButton } from "@/components/WithholdingSlipButton";
+import { choiceState } from "@/lib/choice-styles";
 
 /**
  * 源泉徴収票(管理者)。在職・退職を問わず、年ごとに従業員の源泉徴収票を出す。
@@ -50,11 +51,8 @@ export async function WithholdingSection({
             key={yy}
             href={`/admin/close?p=${periodKey}&y=${yy}#withholding`}
             scroll={false}
-            className={`rounded-lg border px-3 py-1.5 text-sm ${
-              yy === year
-                ? "border-blue-600 bg-blue-600 text-white"
-                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-            }`}
+            aria-current={yy === year ? "page" : undefined}
+            className={`rounded-lg px-3 py-1.5 text-sm ${choiceState(yy === year)}`}
           >
             {yy}年分
           </Link>

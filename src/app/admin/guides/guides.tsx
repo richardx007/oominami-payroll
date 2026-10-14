@@ -22,6 +22,7 @@ import { deleteAppGuide, discardGuideVideo, moveAppGuide, saveAppGuide } from ".
 import type { ActionResult } from "../employees/actions";
 import { zebraRowClass } from "@/lib/table";
 import { readMp4CreationTime } from "@/lib/mp4-meta";
+import { segmentClass, segmentItemClass } from "@/lib/choice-styles";
 
 const inputClass =
   "w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm";
@@ -323,7 +324,7 @@ function GuideEditor({ guide, group, onDone }: { guide: AppGuide | null; group?:
 
       <div>
         <span className="mb-1 block text-xs font-medium text-gray-500">内容</span>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className={`grid grid-cols-2 ${segmentClass}`}>
           {(
             [
               ["video", "🎬 動画をアプリに保存"],
@@ -337,9 +338,8 @@ function GuideEditor({ guide, group, onDone }: { guide: AppGuide | null; group?:
                 setKind(k);
                 setResult(null);
               }}
-              className={`rounded-lg border px-2 py-2 text-sm font-bold ${
-                kind === k ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300 bg-white text-gray-700"
-              }`}
+              aria-pressed={kind === k}
+              className={`${segmentItemClass(kind === k)} px-2 py-2 text-sm`}
             >
               {label}
             </button>

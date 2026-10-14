@@ -26,6 +26,7 @@ import {
 } from "@/lib/business-calendar-view";
 import { deleteEvent, generateMonth, saveDay, saveEvent, saveFootnote } from "./actions";
 import type { ActionResult } from "../employees/actions";
+import { segmentClass, segmentItemClass } from "@/lib/choice-styles";
 
 export type DayDetailRow = { day_type: DayType; note: string | null };
 export type EventDetailRow = { is_public: boolean };
@@ -377,7 +378,7 @@ function DayPanel({
         <p className="text-sm text-gray-500">この月はまだ作成されていないため、営業時間は変更できません。</p>
       ) : (
         <section className="space-y-3">
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className={`grid grid-cols-3 ${segmentClass}`}>
             {(
               [
                 ["usual", "いつもどおり"],
@@ -392,13 +393,8 @@ function DayPanel({
                   setMode(m);
                   setResult(null);
                 }}
-                className={`rounded-lg border px-1 py-2.5 text-sm font-bold transition ${
-                  mode === m
-                    ? m === "closed"
-                      ? "border-red-500 bg-red-500 text-white"
-                      : "border-blue-600 bg-blue-600 text-white"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                }`}
+                aria-pressed={mode === m}
+                className={`${segmentItemClass(mode === m, m === "closed" ? "text-red-600" : undefined)} px-1 py-2 text-sm`}
               >
                 {label}
               </button>

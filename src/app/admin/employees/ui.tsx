@@ -26,6 +26,7 @@ import {
   deleteEmployee,
   type ActionResult,
 } from "./actions";
+import { segmentClass, segmentItemClass } from "@/lib/choice-styles";
 
 function TrashIcon({ className }: { className?: string }) {
   return (
@@ -349,26 +350,20 @@ export function EmployeeList({
           <AddEmployeePanel />
         </div>
         {/* 在職者/退職者の二択。既定は在職者のみ(普段の管理業務は在職者が対象のため)。 */}
-        <div className="mt-2 inline-flex overflow-hidden rounded-lg border border-blue-300 text-sm">
+        <div className={`mt-2 inline-flex text-sm ${segmentClass}`}>
           <button
             type="button"
             onClick={() => setStatusFilter("active")}
-            className={`px-3 py-1.5 font-medium ${
-              statusFilter === "active"
-                ? "bg-blue-600 text-white"
-                : "bg-white text-blue-700 hover:bg-blue-50"
-            }`}
+            aria-pressed={statusFilter === "active"}
+            className={`${segmentItemClass(statusFilter === "active")} px-3 py-1.5`}
           >
             在職者のみ
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter("retired")}
-            className={`border-l border-blue-300 px-3 py-1.5 font-medium ${
-              statusFilter === "retired"
-                ? "bg-blue-600 text-white"
-                : "bg-white text-blue-700 hover:bg-blue-50"
-            }`}
+            aria-pressed={statusFilter === "retired"}
+            className={`${segmentItemClass(statusFilter === "retired")} px-3 py-1.5`}
           >
             退職者のみ
           </button>
@@ -1329,7 +1324,7 @@ function EmployeeTableRow({
               {!emp.is_admin && (
                 <div className="mb-5 space-y-2">
                   <h4 className="text-xs font-semibold text-gray-500">権限</h4>
-                  <div className="inline-flex overflow-hidden rounded-lg border border-gray-300">
+                  <div className={`inline-flex ${segmentClass}`}>
                     {([
                       [false, "従業員"],
                       [true, "リーダ"],
@@ -1339,10 +1334,9 @@ function EmployeeTableRow({
                         type="button"
                         disabled={pending || emp.is_leader === value}
                         onClick={() => onRunKeepOpen(() => setEmployeeLeader(emp.id, value))}
-                        className={`px-4 py-1.5 text-sm font-medium transition ${
-                          emp.is_leader === value
-                            ? "bg-blue-600 text-white"
-                            : "bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        aria-pressed={emp.is_leader === value}
+                        className={`${segmentItemClass(emp.is_leader === value)} px-4 py-1.5 text-sm ${
+                          emp.is_leader === value ? "" : "disabled:opacity-50"
                         }`}
                       >
                         {label}
@@ -1360,7 +1354,7 @@ function EmployeeTableRow({
               {emp.is_admin && (
                 <div className="mb-5 space-y-2">
                   <h4 className="text-xs font-semibold text-gray-500">権限</h4>
-                  <div className="inline-flex overflow-hidden rounded-lg border border-gray-300">
+                  <div className={`inline-flex ${segmentClass}`}>
                     {([
                       [false, "システム管理者"],
                       [true, "オーナー"],
@@ -1370,10 +1364,9 @@ function EmployeeTableRow({
                         type="button"
                         disabled={pending || !isOwner || emp.is_me || emp.is_owner === value}
                         onClick={() => onRunKeepOpen(() => setEmployeeOwner(emp.id, value))}
-                        className={`px-4 py-1.5 text-sm font-medium transition ${
-                          emp.is_owner === value
-                            ? "bg-blue-600 text-white"
-                            : "bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        aria-pressed={emp.is_owner === value}
+                        className={`${segmentItemClass(emp.is_owner === value)} px-4 py-1.5 text-sm ${
+                          emp.is_owner === value ? "" : "disabled:opacity-50"
                         }`}
                       >
                         {label}

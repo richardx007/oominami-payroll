@@ -21,6 +21,7 @@ import { normalizeSlotTime, parseSlots, SLOT_KEYS, type SlotKey } from "@/lib/sh
 import { workSettingsAt, type WorkTimeSettingRow } from "@/lib/work-time";
 import { deleteHourPatterns, saveHourPatterns } from "../actions";
 import type { ActionResult } from "../../employees/actions";
+import { segmentClass, segmentItemClass } from "@/lib/choice-styles";
 
 const ORDER: DayType[] = ["weekday", "fri", "sat", "sun", "holiday", "pre_holiday"];
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -336,18 +337,20 @@ export function PatternsForm({
                   <span className={`whitespace-nowrap text-sm font-bold sm:text-base ${bad ? "text-red-600" : "text-gray-800"}`}>
                     {DAY_TYPE_LABELS[r.day_type]}
                   </span>
-                  <div className="flex overflow-hidden rounded-lg border border-gray-300 text-xs font-semibold sm:text-sm">
+                  <div className={`flex text-xs sm:text-sm ${segmentClass}`}>
                     <button
                       type="button"
                       onClick={() => update(i, { is_open: true })}
-                      className={`px-2 py-2 sm:px-3 ${r.is_open ? "bg-green-600 text-white" : "bg-white text-gray-600"}`}
+                      aria-pressed={r.is_open}
+                      className={`${segmentItemClass(r.is_open, "text-green-700")} px-2 py-1.5 sm:px-3`}
                     >
                       営業
                     </button>
                     <button
                       type="button"
                       onClick={() => update(i, { is_open: false })}
-                      className={`px-2 py-2 sm:px-3 ${!r.is_open ? "bg-gray-600 text-white" : "bg-white text-gray-600"}`}
+                      aria-pressed={!r.is_open}
+                      className={`${segmentItemClass(!r.is_open, "text-gray-900")} px-2 py-1.5 sm:px-3`}
                     >
                       定休
                     </button>

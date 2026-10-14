@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { EMBED_HEIGHT_MESSAGE, isEmbedHeightMessage, TODAY_HEIGHT_MESSAGE } from "@/lib/embed-height";
 import type { ActionResult } from "../../employees/actions";
 import { updateHomepageUrl } from "./actions";
+import { segmentClass, segmentItemClass } from "@/lib/choice-styles";
 
 // 旧 oominami-calendar の埋め込みコードに、高さを合わせるスクリプトを足した形。
 // カレンダーの中身が iframe より高いとHP側に内側のスクロールバーが出るため、
@@ -195,8 +196,7 @@ export function PreviewView({
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  const toggle = (active: boolean) =>
-    `px-3 py-1.5 text-sm font-semibold ${active ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`;
+  const toggle = (active: boolean) => `${segmentItemClass(active)} px-3 py-1.5 text-sm`;
 
   return (
     <div className="space-y-4">
@@ -221,14 +221,14 @@ export function PreviewView({
 
       <div className="flex flex-wrap items-center gap-3">
         {/* 幅を変えても iframe は貼り替えないので、高さは中身から次の通知が来るまで保つ */}
-        <div className="flex overflow-hidden rounded-lg border border-gray-300">
+        <div className={`flex ${segmentClass}`}>
           {WIDTHS.map((x) => (
             <button key={x.key} onClick={() => setWidth(x.key)} className={toggle(width === x.key)}>
               {x.label}
             </button>
           ))}
         </div>
-        <div className="flex overflow-hidden rounded-lg border border-gray-300">
+        <div className={`flex ${segmentClass}`}>
           <button
             onClick={() => {
               setWithDraft(false);

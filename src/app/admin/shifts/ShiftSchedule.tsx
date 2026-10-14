@@ -31,6 +31,7 @@ import {
 } from "@/lib/shifts";
 import { slotsResolver, type WorkTimeSettingRow } from "@/lib/work-time";
 import type { ActionResult } from "./actions";
+import { choiceState } from "@/lib/choice-styles";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -922,14 +923,13 @@ function EditRow({
               onClick={() =>
                 onAssign(m.id, date, cur === k ? null : k, cs, ce)
               }
-              className={`h-7 rounded-lg border px-2 text-xs font-bold transition ${
+              aria-pressed={cur === k}
+              className={`h-7 rounded-lg px-2 text-xs transition ${
                 readOnly
                   ? cur === k
-                    ? "border-blue-300 bg-blue-300 text-white"
-                    : "border-gray-200 bg-white text-gray-300"
-                  : cur === k
-                    ? "border-blue-600 bg-blue-600 text-white"
-                    : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                    ? `${choiceState(true)} opacity-50`
+                    : "border border-gray-200 bg-white font-bold text-gray-300"
+                  : choiceState(cur === k)
               }`}
             >
               {slots[k].label}

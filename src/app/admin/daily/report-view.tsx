@@ -12,6 +12,7 @@ import {
 } from "./ui";
 import { DownloadPdfButton } from "@/app/admin/report/ui";
 import { zebraRowClass } from "@/lib/table";
+import { choiceState } from "@/lib/choice-styles";
 
 /**
  * 分を「H:MM」表記にする。**0 は空白**にして、値のある行だけが目に入るようにする。
@@ -84,13 +85,9 @@ export function DailyReportView({
                 href={`${basePath}?p=${period.key}${includeRetired ? "" : "&retired=1"}`}
                 aria-pressed={includeRetired}
                 title="退職者(仮の退職者複製を含む)を一覧に含めるか切り替えます"
-                className={`inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium ${
-                  includeRetired
-                    ? "border-gray-400 bg-gray-200 text-gray-800"
-                    : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
-                }`}
+                className={`inline-flex h-10 items-center justify-center rounded-lg px-3 text-sm ${choiceState(includeRetired)}`}
               >
-                退職者を含む{includeRetired ? " ✓" : ""}
+                退職者を含む
               </Link>
               <DownloadPdfButton
                 targetId="daily-report"

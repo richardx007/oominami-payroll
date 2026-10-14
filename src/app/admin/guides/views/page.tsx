@@ -5,6 +5,7 @@ import { formatJstDateTime } from "@/lib/app-guides";
 import { summarizeByPerson, type GuideViewRow } from "@/lib/guide-views";
 import { zebraRowClass } from "@/lib/table";
 import { WatchCell } from "./watch-cell";
+import { choiceState } from "@/lib/choice-styles";
 
 /** 一度に出す履歴の行数(新しい順) */
 const LIMIT = 500;
@@ -59,7 +60,7 @@ export default async function GuideViewsPage({ searchParams }: { searchParams: P
   const people = current ? summarizeByPerson(rows) : [];
 
   const chip = (on: boolean) =>
-    `rounded-full border px-3 py-1 text-sm ${on ? "border-blue-600 bg-blue-600 font-bold text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`;
+    `rounded-full px-3 py-1 text-sm ${choiceState(on)}`;
   const th = "whitespace-nowrap px-3 py-2 font-semibold";
 
   return (
