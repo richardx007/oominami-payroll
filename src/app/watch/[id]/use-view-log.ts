@@ -23,7 +23,10 @@ export function useViewLog(guideId: string, videoRef: RefObject<HTMLVideoElement
       if (!viewId || watched - sent < 0.1) return;
       sent = watched;
       const duration = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : null;
-      void supabase.rpc(VIEW_PROGRESS_RPC, { p_view_id: viewId, p_watched_sec: Math.round(watched * 10) / 10, p_duration_sec: duration });
+      // rpc() は then するまで送られない(PostgREST のビルダーは遅延実行)ので、結果を待たずに then だけ付ける
+      void supabase
+        .rpc(VIEW_PROGRESS_RPC, { p_view_id: viewId, p_watched_sec: Math.round(watched * 10) / 10, p_duration_sec: duration })
+        .then(() => undefined);
     };
     void supabase.rpc(VIEW_START_RPC, { p_guide_id: guideId }).then(({ data }) => {
       viewId = typeof data === "string" ? data : null;
