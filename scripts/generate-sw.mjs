@@ -1,9 +1,10 @@
 // public/sw.js を生成する。ビルドのたびに実行し、バージョンを刻印する。
 //
 // 設計方針(重要):
-//  - この SW は fetch イベントを一切持たない。したがってナビゲーション/RSC を横取りせず、
+//  - fetch は画面の読み込み(navigate の GET)だけを見て、Cloudflare のエラー(Error 1102 等)の
+//    ときだけ復帰画面に差し替える(RECOVERY_SNIPPET)。RSC・API は横取りしないので、
 //    App Router のメニュー遷移を壊さない(Cloudflare Workers + opennext でも安全)。
-//  - 役割は「更新の検知」と「SKIP_WAITING による有効化」だけ。オフラインキャッシュは行わない。
+//  - 役割は「更新の検知」「SKIP_WAITING による有効化」「Web Push」「復帰画面」。オフラインキャッシュは行わない。
 //  - SW_VERSION が変わることで、ブラウザが新版を検知し ReloadPrompt がバナーを出す。
 //  - ただし「アプリの中身が変わったとき」だけ変える。ドキュメント(docs/, README 等)だけの
 //    コミットでも本番ビルドは走るが、利用者に関係しない更新でバナーを出さないため、
@@ -55,11 +56,84 @@ try {
 }
 if (!version) version = String(Date.now());
 
+// 画面を開けなかったときの復帰画面(2026-10-14)。経費管理(oominami-business)の
+// scripts/generate-sw.mjs にも同じものがある(経費の画面は経費の SW が受け持つため)。直すときは両方。
+const RECOVERY_SNIPPET = `// --- 画面を開けなかったときの復帰画面(2026-10-14) ---------------------------
+// Cloudflare 無料プランは1回の処理の CPU 時間に上限があり、超えると Cloudflare が処理を止めて
+// 「Worker exceeded CPU time limit.」などの英語の文字だけの画面(Error 1102)を返す。アプリの外で
+// 作られる画面なのでボタンを置けず、ホーム画面アプリには戻るボタンも無いため、元の画面へ戻れなくなる。
+// そこで画面の読み込み(navigate の GET)だけを見て、「500番台かつ HTML ではない」応答と通信エラーの
+// ときだけ、再読み込み/戻る/ホームのボタンがある画面に差し替える。それ以外(正常・リダイレクト・
+// アプリ自身のエラー画面)は受け取った応答をそのまま返す。キャッシュはしない。
+// ⚠️ 横取りするのはこの用途だけ。RSC・API・サーバーアクション・静的ファイルには触らない
+//    (fetch を広く横取りして本番障害になった過去があるため)。
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.mode !== "navigate" || req.method !== "GET") return;
+  event.respondWith(
+    (async () => {
+      let res;
+      try {
+        res = await fetch(req);
+      } catch (e) {
+        return recoveryPage(req.url, 503, "通信できませんでした");
+      }
+      const type = res.headers.get("content-type") || "";
+      if (res.status < 500 || type.includes("text/html")) return res;
+      let detail = "";
+      try {
+        detail = (await res.text()).slice(0, 200);
+      } catch (e) {
+        /* 本文が読めなくても復帰画面は出す */
+      }
+      return recoveryPage(req.url, res.status, detail);
+    })()
+  );
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+function recoveryPage(url, status, detail) {
+  const path = new URL(url).pathname;
+  const isExpense = path === "/expense" || path.startsWith("/expense/");
+  const home = isExpense ? "/expense/" : "/";
+  const color = isExpense ? "#1b4332" : "#152449";
+  const time = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+  const html =
+    '<!doctype html><html lang="ja"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">' +
+    "<title>画面を表示できませんでした</title><style>" +
+    "body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f4f6;color:#111827;" +
+    "font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',Meiryo,sans-serif}" +
+    "main{box-sizing:border-box;width:calc(100% - 32px);max-width:420px;margin:16px 0;padding:28px 24px;background:#fff;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}" +
+    "h1{margin:0 0 12px;font-size:20px}p{margin:0 0 20px;font-size:15px;line-height:1.7}" +
+    "button,a{display:block;box-sizing:border-box;width:100%;margin-top:10px;padding:14px;border-radius:12px;font-size:16px;font-weight:bold;text-align:center;text-decoration:none;cursor:pointer;font-family:inherit}" +
+    ".main{background:" + color + ";color:#fff;border:0}.sub{background:#fff;color:" + color + ";border:1px solid " + color + "}" +
+    "small{display:block;margin-top:20px;color:#6b7280;font-size:12px;line-height:1.6;word-break:break-all}" +
+    "</style></head><body><main>" +
+    "<h1>画面を表示できませんでした</h1>" +
+    "<p>サーバーが一時的に処理しきれませんでした。少し待ってから「もう一度読み込む」を押してください。" +
+    "直らないときは「前の画面に戻る」か「ホームへ」を押してください。</p>" +
+    '<button class="main" onclick="location.reload()">もう一度読み込む</button>' +
+    '<button class="sub" onclick="history.length > 1 ? history.back() : location.assign(\\'' + home + "\\')\\">前の画面に戻る</button>" +
+    '<a class="sub" href="' + home + '">ホームへ</a>' +
+    "<small>" + escapeHtml(time) + " / " + escapeHtml(status) + " " + escapeHtml(detail) + "<br>" + escapeHtml(path) + "</small>" +
+    "</main></body></html>";
+  return new Response(html, {
+    status: status,
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+  });
+}
+`;
+
 const sw = `/*
  * 最小 Service Worker (自動生成 / scripts/generate-sw.mjs)
  * -----------------------------------------------------------
- * fetch ハンドラを持たない = リクエストを一切横取りしない。
- * よってナビゲーション/RSC を壊さず、更新検知と SKIP_WAITING のみを担う。
+ * キャッシュは使わない。fetch は「画面の読み込みが Cloudflare のエラーになったとき」だけ
+ * 復帰画面に差し替える(それ以外は受け取った応答をそのまま返す)。RSC・API は横取りしない。
+ * 役割は更新検知・SKIP_WAITING・Web Push・この復帰画面。
  */
 const SW_VERSION = ${JSON.stringify(version)};
 
@@ -84,8 +158,9 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+${RECOVERY_SNIPPET}
 // --- Web Push(未打刻通知) -------------------------------------------------
-// fetch は依然として横取りしない。push/notificationclick はリクエストとは無関係の
+// push/notificationclick はリクエストとは無関係の
 // イベントなので、ナビゲーションへの影響は無い。
 self.addEventListener("push", (event) => {
   let data = {};
