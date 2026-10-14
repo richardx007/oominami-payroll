@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
+import { countPeopleByGuide } from "@/lib/guide-views";
 import { APP_GUIDE_COLUMNS, type AppGuide } from "@/lib/app-guides";
 import { AppGuidesForm } from "./guides";
 
@@ -16,10 +18,21 @@ export default async function AdminGuidesPage() {
     .order("sort_order")
     .order("created_at");
 
+  // 解説ごとの見た人数(一覧の各行に出す。行数が増えたら集計を DB 側に移す)
+  const { data: views } = await supabase.from("app_guide_views").select("guide_id, employee_id").limit(10000);
+  const viewCounts = countPeopleByGuide(
+    ((views ?? []) as { guide_id: string; employee_id: string }[]).map((v) => ({ guide_id: v.guide_id, person: v.employee_id })),
+  );
+
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4">
-      <h1 className="text-xl font-bold">アプリの解説</h1>
-      <AppGuidesForm guides={(data ?? []) as AppGuide[]} />
+      <div className="flex items-end justify-between gap-2">
+        <h1 className="text-xl font-bold">アプリの解説</h1>
+        <Link href="/admin/guides/views" className="text-sm font-medium text-blue-700 hover:underline">
+          視聴履歴 →
+        </Link>
+      </div>
+      <AppGuidesForm guides={(data ?? []) as AppGuide[]} viewCounts={viewCounts} />
     </div>
   );
 }

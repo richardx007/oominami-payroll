@@ -1,15 +1,18 @@
 "use client";
 
 import { useRef } from "react";
+import { useViewLog } from "./use-view-log";
 
 /**
  * 画面いっぱいの動画プレイヤー。黒背景に動画を縦横比を保って最大に表示する。
  * - スマホを横にしたとき（高さが低い横長）は、見出し・概略を隠して動画だけにする。
  * - 「全画面」: iPhone は video の webkitEnterFullscreen（標準プレイヤーの全画面）、それ以外は requestFullscreen。
+ * - 視聴履歴: 開いたこと・実際に再生した長さを記録する（use-view-log.ts）。
  * - 「閉じる」: アプリ内から来たら前の画面へ、それ以外はホームへ（勤務ルール画面と同じ）。
  */
-export function WatchPlayer({ title, summary, src }: { title: string; summary: string; src: string }) {
+export function WatchPlayer({ guideId, title, summary, src }: { guideId: string; title: string; summary: string; src: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  useViewLog(guideId, videoRef);
 
   function close() {
     const fromApp =

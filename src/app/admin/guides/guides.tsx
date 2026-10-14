@@ -36,7 +36,7 @@ const GROUPS: { key: GuideGroup; label: string; hint: string }[] = [
  * 管理者用・従業員用にグループ分けして全項目を出す（管理者は従業員用の動画もここから見られる）。
  * 両方に公開している項目は両方のグループに出る。タイトルを押すと動画の再生画面（URL の項目は別タブ）を開く。
  */
-export function AppGuidesForm({ guides }: { guides: AppGuide[] }) {
+export function AppGuidesForm({ guides, viewCounts }: { guides: AppGuide[]; viewCounts: Record<string, number> }) {
   const [adding, setAdding] = useState<GuideGroup | null>(null);
   const used = guides.reduce((sum, g) => sum + (g.video_size ?? 0), 0);
   return (
@@ -75,6 +75,7 @@ export function AppGuidesForm({ guides }: { guides: AppGuide[] }) {
                       <GuideRow
                         key={`${g.id}-${g.title}-${g.url}-${g.video_path}-${g.video_file_name}-${g.summary}-${g.for_admin}-${g.for_employee}`}
                         guide={g}
+                        viewCount={viewCounts[g.id] ?? 0}
                         group={grp.key}
                         index={i}
                         first={i === 0}
@@ -107,12 +108,15 @@ export function AppGuidesForm({ guides }: { guides: AppGuide[] }) {
 /** 一覧の1行（タイトル｜解説の冒頭＋動画のファイル名・作成日時・サイズ｜↑↓編集）。タイトルで再生画面へ、「編集」でその下にフォームを開く */
 function GuideRow({
   guide,
+  viewCount,
   group,
   index,
   first,
   last,
 }: {
   guide: AppGuide;
+  /** この解説の動画を開いた人数(視聴履歴) */
+  viewCount: number;
   group: GuideGroup;
   index: number;
   first: boolean;
@@ -166,6 +170,9 @@ function GuideRow({
                 作成日時: {guide.video_created_at ? formatJstDateTime(guide.video_created_at) : "未登録"}
                 {guide.video_size != null && `　${formatBytes(guide.video_size)}`}
               </span>
+              <Link href={`/admin/guides/views?guide=${guide.id}`} className="mt-0.5 block whitespace-nowrap text-blue-700 hover:underline">
+                視聴: {viewCount}人 ›
+              </Link>
             </span>
           ) : (
             <span className="mt-0.5 block whitespace-nowrap text-xs text-gray-500">

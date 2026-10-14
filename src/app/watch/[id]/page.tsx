@@ -29,5 +29,5 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
   const { data: signed } = await supabase.storage.from(GUIDE_VIDEO_BUCKET).createSignedUrl(guide.video_path, 60 * 60 * 4);
   if (!signed?.signedUrl) notFound();
 
-  return <WatchPlayer title={guide.title} summary={guide.summary} src={signed.signedUrl} />;
+  return <WatchPlayer guideId={guide.id} title={guide.title} summary={guide.summary} src={signed.signedUrl} />;
 }
