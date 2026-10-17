@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { zebraRowClass } from "@/lib/table";
+import { formatJstDate, formatJstDateTime, formatJstDateWeekday, jstYmd } from "@/lib/jst-format";
 
 type LogRow = {
   created_at: string;
@@ -11,36 +12,9 @@ type LogRow = {
   detail: string | null;
 };
 
-function formatTs(iso: string) {
-  return new Date(iso).toLocaleString("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-/** JST の日付部分("2026/07/15")。日単位グループ化に使う */
-function jstDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-}
-
 /** JSTの暦日でのUTC正午タイムスタンプ(日数差の計算専用。時刻は無視する) */
 function jstCalendarDayMs(iso: string) {
-  const ymd = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
-  const [y, m, d] = ymd.split("-").map(Number);
+  const [y, m, d] = jstYmd(iso).split("-").map(Number);
   return Date.UTC(y, m - 1, d);
 }
 
@@ -48,16 +22,6 @@ function jstCalendarDayMs(iso: string) {
 function jstDaysAgo(iso: string) {
   const today = jstCalendarDayMs(new Date().toISOString());
   return Math.round((today - jstCalendarDayMs(iso)) / 86400000);
-}
-
-function jstDateLabel(iso: string) {
-  return new Date(iso).toLocaleDateString("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    weekday: "short",
-  });
 }
 
 /**
@@ -164,7 +128,7 @@ export function LogsView({ logs, employees }: { logs: LogRow[]; employees: Emplo
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(() => {
     const initial = new Set<string>();
     for (const log of logs) {
-      if (jstDaysAgo(log.created_at) >= 8) initial.add(jstDate(log.created_at));
+      if (jstDaysAgo(log.created_at) >= 8) initial.add(formatJstDate(log.created_at));
     }
     return initial;
   });
@@ -182,7 +146,7 @@ export function LogsView({ logs, employees }: { logs: LogRow[]; employees: Emplo
   const days = useMemo(() => {
     const map = new Map<string, LogRow[]>();
     for (const log of filtered) {
-      const key = jstDate(log.created_at);
+      const key = formatJstDate(log.created_at);
       const arr = map.get(key);
       if (arr) arr.push(log);
       else map.set(key, [log]);
@@ -258,7 +222,7 @@ export function LogsView({ logs, employees }: { logs: LogRow[]; employees: Emplo
                       >
                         ▼
                       </span>
-                      {jstDateLabel(dayLogs[0].created_at)}
+                      {formatJstDateWeekday(dayLogs[0].created_at)}
                     </span>
                     <span className="text-xs font-normal text-gray-500">
                       {dayLogs.length}件
@@ -274,7 +238,7 @@ export function LogsView({ logs, employees }: { logs: LogRow[]; employees: Emplo
                               className={`border-t border-gray-100 ${zebraRowClass(i)}`}
                             >
                               <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-gray-500">
-                                {formatTs(log.created_at)}
+                                {formatJstDateTime(log.created_at)}
                               </td>
                               <td className="whitespace-nowrap px-2 py-2.5">
                                 <span
