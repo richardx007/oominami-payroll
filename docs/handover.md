@@ -3983,6 +3983,17 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - 確認: ログイン不要の一時ページ(削除済み)をオーナーの Chrome で表示・操作。シフトの枠のような小さいボタンでも ✓ が隠れないことを確認
   (シフト表で overflow-hidden なのはカレンダー部分だけで、枠ボタンのある日別パネルは切られない)。
 
+### 2026-10-18（Error 1102 の原因の特定と操作ログの画面の軽量化。オーナー報告）
+- 10/14 以降、給与管理の Worker で 1102(CPU 時間の上限超え)が毎日出ていた(UTC の 10/17 は 1,905 リクエスト中 24件)。経費管理の Worker は 0件。
+- Workers Logs を有効にした(`wrangler.jsonc` の `observability`。c09d344)。push しても自動デプロイが走らなかったため `npm run deploy` で反映。
+  ログを Claude が API で読むには、API トークンに Account / Workers Observability / Read が必要(⏳ オーナーが追加する)。
+- `wrangler tail --status error` で最初に取れた1件: **`/admin/logs`(操作ログ)、CPU 810ms**。90日分の全件(1,466件)を1件ずつ
+  `toLocaleDateString` / `new Intl.DateTimeFormat` で書式を作り直していた(手元で 144ms → 使い回すと 3ms)。
+- 対応: `src/lib/jst-format.ts`(書式を1回だけ作る。同じオプションの toLocaleString と同じ結果。テストあり)に置き換え(a5d613a・Version 0572ed87)。
+  🔴 行の多い画面で日付を書式化するときは `toLocaleString("ja-JP", {...})` を1件ごとに呼ばず、この部品を使う。
+- ほかの画面の同じ書き方は、どれも1画面で数件〜数十件なので今回は直していない。ほかに重い画面があるかは Workers Logs の CPU 時間で順位を付けて判断する(⏳)。
+- 経費管理にも1件ごとに書式を作る箇所がある(`lib/report-data.ts`・`lib/history.ts`・`lib/activity-log.ts`・`admin/history/logs-view.tsx`)。経費管理では 1102 がほぼ出ていないので、同じく Workers Logs を見てから判断する。
+
 ## 7. すぐ使えるコマンド集
 
 ```bash
