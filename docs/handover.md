@@ -3999,6 +3999,8 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - 時々出る 1102 の根本: 同じ画面でも、新しく立ち上がった実行環境で初めて表示する回は 100〜300ms かかる(Next.js 一式の準備)。
   無料プランは多少の超過を見逃すが、まれに打ち切られる(読み込み直すと通る)。Paid(月5ドル・上限30秒)にするかはオーナーの判断待ち(⏳)。
   ログの見方: API `POST /accounts/{id}/workers/observability/telemetry/query`(`$workers.cpuTimeMs`・`$metadata.trigger`)。
+- 方針(オーナー決定): **無料プランのまま続ける・メニューの先読みは止めない**。作るときのルールと月1回の確認は `docs/design.md` §32・`CLAUDE.md`。
+  集計は `node scripts/cpu-report.mjs`(両方の Worker。経費管理の Workers Logs はデプロイ後から)。
 - ほかの画面の同じ書き方は、どれも1画面で数件〜数十件なので今回は直していない。ほかに重い画面があるかは Workers Logs の CPU 時間で順位を付けて判断する(⏳)。
 - 経費管理にも1件ごとに書式を作る箇所がある(`lib/report-data.ts`・`lib/history.ts`・`lib/activity-log.ts`・`admin/history/logs-view.tsx`)。経費管理では 1102 がほぼ出ていないので、同じく Workers Logs を見てから判断する。
 
