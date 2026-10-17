@@ -7,6 +7,9 @@
   "compatibility_flags": ["nodejs_compat"],
   // 経費管理(oominami-business)の Worker。/expense/* をここへ中継する(worker.ts)
   "services": [{ "binding": "EXPENSE", "service": "oominami-business" }],
+  // Workers Logs(2026-10-18): Error 1102(CPU 時間の上限超え)がどの画面で起きたかを調べるため、
+  // リクエストごとの記録(URL・結果・CPU 時間)を Cloudflare に残す。無料プランの範囲(1日 20 万件・3日保存)。
+  "observability": { "enabled": true },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
