@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { zebraRowClass } from "@/lib/table";
 import { formatJstDate, formatJstDateTime, formatJstDateWeekday, jstYmd } from "@/lib/jst-format";
 
@@ -112,7 +113,51 @@ function actorOptions(logs: LogRow[], employees: EmployeeRef[]) {
   return [...active, ...others, ...retired];
 }
 
-export function LogsView({ logs, employees }: { logs: LogRow[]; employees: EmployeeRef[] }) {
+/**
+ * 操作ログ(90日分の全件)をブラウザから直接読む(RLS で管理者だけが読める)。
+ * サーバーで読み込んで画面に埋め込むと、件数の多さで Worker の CPU 時間が上限(無料プラン 10ms)を
+ * 大きく超えて Error 1102 になる(2026-10-18: 1,466件で 440〜630ms)ため。
+ * Supabase は1回の取得が最大1000行なので、1000行ずつ分けて全件を取る。
+ */
+async function fetchAllLogs(): Promise<LogRow[]> {
+  const supabase = createClient();
+  const PAGE = 1000;
+  const logs: LogRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("activity_logs")
+      .select("created_at, actor_id, actor_name, action, detail")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as LogRow[];
+    logs.push(...rows);
+    if (rows.length < PAGE) return logs;
+  }
+}
+
+const NO_LOGS: LogRow[] = [];
+
+export function LogsView({ employees }: { employees: EmployeeRef[] }) {
+  const [loaded, setLoaded] = useState<LogRow[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetchAllLogs().then(
+      (rows) => {
+        if (!cancelled) setLoaded(rows);
+      },
+      (e) => {
+        console.error("[logs]", e);
+        if (!cancelled) setLoadError(true);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const logs = loaded ?? NO_LOGS;
+
   const employeeIds = useMemo(() => new Set(employees.map((e) => e.id)), [employees]);
   const categories = useMemo(() => {
     const set = new Set(logs.map((l) => l.action));
@@ -124,14 +169,8 @@ export function LogsView({ logs, employees }: { logs: LogRow[]; employees: Emplo
   const [category, setCategory] = useState<string>("all");
   const [actor, setActor] = useState<string>("all");
   // 既定で「8日以前」(今日を含め9日目以降)の日は閉じた状態にする。
-  // 一度でも手動でトグルした日はこの初期値を上書きして扱う(toggleDayで反転するだけなので自然に上書きされる)。
-  const [collapsedDays, setCollapsedDays] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    for (const log of logs) {
-      if (jstDaysAgo(log.created_at) >= 8) initial.add(formatJstDate(log.created_at));
-    }
-    return initial;
-  });
+  // 手動でトグルした日だけを覚えておき、既定の開閉を反転して扱う。
+  const [toggledDays, setToggledDays] = useState<Set<string>>(() => new Set());
 
   const filtered = useMemo(
     () =>
@@ -155,7 +194,7 @@ export function LogsView({ logs, employees }: { logs: LogRow[]; employees: Emplo
   }, [filtered]);
 
   function toggleDay(key: string) {
-    setCollapsedDays((prev) => {
+    setToggledDays((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -201,14 +240,20 @@ export function LogsView({ logs, employees }: { logs: LogRow[]; employees: Emplo
       </div>
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        {days.length === 0 ? (
+        {loadError ? (
+          <p className="px-4 py-10 text-center text-sm text-red-600">
+            ログを読み込めませんでした。画面を読み込み直してください。
+          </p>
+        ) : loaded === null ? (
+          <p className="px-4 py-10 text-center text-sm text-gray-400">読み込み中…</p>
+        ) : days.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-gray-400">
             該当するログはありません。
           </p>
         ) : (
           <div className="divide-y divide-gray-100">
             {days.map(([day, dayLogs]) => {
-              const collapsed = collapsedDays.has(day);
+              const collapsed = (jstDaysAgo(dayLogs[0].created_at) >= 8) !== toggledDays.has(day);
               return (
                 <div key={day}>
                   <button
