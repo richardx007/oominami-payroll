@@ -3991,6 +3991,14 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   `toLocaleDateString` / `new Intl.DateTimeFormat` で書式を作り直していた(手元で 144ms → 使い回すと 3ms)。
 - 対応: `src/lib/jst-format.ts`(書式を1回だけ作る。同じオプションの toLocaleString と同じ結果。テストあり)に置き換え(a5d613a・Version 0572ed87)。
   🔴 行の多い画面で日付を書式化するときは `toLocaleString("ja-JP", {...})` を1件ごとに呼ばず、この部品を使う。
+- ⚠️ 日付の書式の修正だけでは足りなかった(修正後も画面の読み込みで 444ms。本番と同じ workerd で測ると書式化は 3ms まで減っていた)。
+  重さの元は 90日分・約1,500件をサーバーで読んで画面に埋め込むこと。**ログ本体はブラウザから読む**ように変更(`LogsView` の `fetchAllLogs`。
+  RLS `activity_logs_admin_select` = `is_admin()`(端末承認のチェックも JWT で効く)で守られる。1a32cf0・Version 1d81079e)。
+  オーナーが3回開いて確認: 画面の読み込み 142ms(デプロイ直後の初回)、画面内の移動 16〜33ms。
+- 🔴 行数の多い一覧をサーバーで読み込んで client component に丸ごと渡さない(Worker の CPU 時間の上限に当たる)。ブラウザから読むか、件数を絞る。
+- 時々出る 1102 の根本: 同じ画面でも、新しく立ち上がった実行環境で初めて表示する回は 100〜300ms かかる(Next.js 一式の準備)。
+  無料プランは多少の超過を見逃すが、まれに打ち切られる(読み込み直すと通る)。Paid(月5ドル・上限30秒)にするかはオーナーの判断待ち(⏳)。
+  ログの見方: API `POST /accounts/{id}/workers/observability/telemetry/query`(`$workers.cpuTimeMs`・`$metadata.trigger`)。
 - ほかの画面の同じ書き方は、どれも1画面で数件〜数十件なので今回は直していない。ほかに重い画面があるかは Workers Logs の CPU 時間で順位を付けて判断する(⏳)。
 - 経費管理にも1件ごとに書式を作る箇所がある(`lib/report-data.ts`・`lib/history.ts`・`lib/activity-log.ts`・`admin/history/logs-view.tsx`)。経費管理では 1102 がほぼ出ていないので、同じく Workers Logs を見てから判断する。
 
