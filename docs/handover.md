@@ -4004,6 +4004,12 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - ほかの画面の同じ書き方は、どれも1画面で数件〜数十件なので今回は直していない。ほかに重い画面があるかは Workers Logs の CPU 時間で順位を付けて判断する(⏳)。
 - 経費管理にも1件ごとに書式を作る箇所がある(`lib/report-data.ts`・`lib/history.ts`・`lib/activity-log.ts`・`admin/history/logs-view.tsx`)。経費管理では 1102 がほぼ出ていないので、同じく Workers Logs を見てから判断する。
 
+### 2026-10-21(Node.js の 2026年10月のセキュリティリリース。オーナー依頼)
+- https://nodejs.org/en/blog/vulnerability/october-2026-security-releases (CVE 10件。TLS のホスト名確認のすり抜け・Brotli の範囲外書き込み・`dns.resolve` など)。修正版は 22.23.4 / 24.22.1 / 26.12.1。
+- **本番は影響なし**: 本番は Cloudflare Workers(workerd)で動き、Node.js 本体は使わない(`nodejs_compat` は Node の API を workerd が真似たもの)。Supabase・GitHub Actions のバックアップ(`pg_dump`)も Node.js を使わない。
+- **影響があったのは開発用の Mac(Richards-Neo)の Node だけ**: v24.16.0 → **v24.22.1** に更新(`~/.local/node` に nodejs.org の公式版を SHASUMS256 で確かめて上書き。Homebrew・nvm ではない)。テスト 173件・`next build` が通ることを確認。デプロイし直しは不要(ビルドの道具は今回の脆弱性と関係ない)。
+- 経費管理(oominami-business)も同じ構成で影響なし(同じ Mac の Node を使う。テスト 207件・`next build` 確認)。ほかのアプリの確認結果と、iMac の家庭内サーバで動く宛先印刷(address-book)の対応は address-book の引継書。
+
 ## 7. すぐ使えるコマンド集
 
 ```bash
