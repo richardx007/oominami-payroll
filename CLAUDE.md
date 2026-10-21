@@ -43,6 +43,7 @@
 ## 注意
 - これは旧アカウント側のアプリ。新アプリ（別アカウント）とは接続名・project_refを絶対に混在させない。
 - トークンはコミットしない（この方式ではそもそもトークンを保存しない）。
+- **新しいテーブル・ビューには、同じマイグレーションで権限を明示する**(2026-10-30 から Supabase は public の新テーブルに Data API の権限を自動で付けない。付け忘れると画面で「permission denied」になる。既存のテーブルは影響なし)。形: `grant select, insert, update, delete on public.<表> to authenticated, service_role;`(使わない操作は外してよい)。テーブルを `anon` に直接開けない(ログイン前に見せるものは、これまでどおり関数で出す。例: `public_business_calendar`)。経費管理(oominami-business)と DB を共用しているので、経費の CLAUDE.md にも同じ決まりがある
 
 ## ⚠️ Cloudflare 無料プランの CPU 上限(Error 1102)
 - 無料プランのまま続ける方針(2026-10-18 オーナー決定)。1回 10ms が上限。詳細は `docs/design.md` §32。
