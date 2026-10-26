@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { flushSync } from "react-dom";
 import {
   updateEmailSettings,
   updateEmployerInfo,
@@ -9,7 +10,13 @@ import {
   updateTimesheetLock,
   updateClockMenu,
 } from "./actions";
-import { previewTaxReportTestRows, sendTaxReportTest } from "../report/actions";
+import {
+  previewTaxReportTestRows,
+  sendTaxReportTest,
+  type TestPreviewRows,
+} from "../report/actions";
+import { captureReportPdfBase64 } from "../report/ui";
+import { PayslipReport } from "../close/payslip-report";
 import { SEAL_SIZES, type PayslipIssuer } from "@/lib/payslip-issuer";
 import { shrinkSealImage } from "@/lib/seal-image";
 import type { ActionResult } from "../employees/actions";
@@ -306,19 +313,29 @@ export function EmailSettingsForm({
   );
 }
 
+/** テスト送信の添付PDFを撮るために画面外へ描画する明細一覧の id */
+const TEST_REPORT_ID = "test-payslip-report";
+
 /**
  * 税理士向けメールのテスト送信。締め処理を待たず、当月の現時点情報で文面・宛名を確認できる。
  * 2026-10-12: 独立した「テスト送信」欄をやめ、メール設定の枠の一番下に置いた(オーナー依頼)。
+ * 2026-10-26: 本番の送信と同じく明細一覧のPDFも添付する(オーナー依頼)。この画面には明細一覧が
+ * 無いので、締め画面と同じ表(PayslipReport)を送信時だけ画面外に描画して PDF にする。
+ * テスト送信では立替精算を乗せないので、表も立替なし・予定との不一致の⚠️なしで描く。
  */
 function TestSendBlock({ defaultEmail }: { defaultEmail: string }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const [report, setReport] = useState<Extract<
+    TestPreviewRows,
+    { ok: true }
+  > | null>(null);
 
   return (
     <div className="mt-6 border-t border-gray-200 pt-4">
       <h3 className="text-sm font-semibold text-gray-700">テスト送信</h3>
       <p className="mt-1 text-sm text-gray-500">
-        締め処理の前でも、当月の現時点の情報で税理士向けメールの宛名・文面を確認できます。
+        締め処理の前でも、当月の現時点の情報で税理士向けメールの宛名・文面・添付(CSV・PDF)を確認できます。
         件名の冒頭に「【テスト送信】」が付き、実際の締め処理は行われません。
       </p>
       <form
@@ -333,7 +350,33 @@ function TestSendBlock({ defaultEmail }: { defaultEmail: string }) {
               setResult(preview);
               return;
             }
-            setResult(await sendTaxReportTest(to, preview));
+            // 明細一覧を描画し終えてから撮る。PDFが作れなければ送らない
+            // (本番の送信と同じ。CSVだけ届くとPDFの欠落に気づけないため)
+            flushSync(() => setReport(preview));
+            let pdfBase64: string;
+            try {
+              pdfBase64 = await captureReportPdfBase64(TEST_REPORT_ID);
+            } catch (e) {
+              console.error(e);
+              setResult({
+                ok: false,
+                message: "PDFの作成に失敗しました。もう一度お試しください",
+              });
+              return;
+            } finally {
+              setReport(null);
+            }
+            // 表の描画用の計算結果(payrolls)はサーバーへ送り返さない
+            const data = {
+              periodLabel: preview.periodLabel,
+              companyName: preview.companyName,
+              rows: preview.rows,
+              periodStart: preview.periodStart,
+              periodEnd: preview.periodEnd,
+              paymentDate: preview.paymentDate,
+              periodKey: preview.periodKey,
+            };
+            setResult(await sendTaxReportTest(to, data, pdfBase64));
           })
         }
         className="mt-4 max-w-md space-y-3"
@@ -365,6 +408,25 @@ function TestSendBlock({ defaultEmail }: { defaultEmail: string }) {
           {pending ? "送信中..." : "税理士向けメールのテスト送信"}
         </button>
       </form>
+      {report && (
+        // 添付PDF用。画面には出さない(撮影中は globals.css の pdf-capture-mode で全幅にして撮る)
+        <div aria-hidden className="fixed top-0 -left-[10000px]">
+          <PayslipReport
+            id={TEST_REPORT_ID}
+            period={{
+              key: report.periodKey,
+              label: report.periodLabel,
+              start: report.periodStart,
+              end: report.periodEnd,
+              paymentDate: report.paymentDate,
+            }}
+            status="open"
+            payrolls={report.payrolls}
+            reimbursements={new Map()}
+            mismatchIds={new Set()}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -765,8 +765,8 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
   本文末尾に追記される。本文に勤務データ表は載せない（数値は添付CSVに集約）。
 - 宛名・テスト送信機能の詳細は「15. 税理士向けメールの拡充」参照（2026-08-25に大幅拡充。宛名は
   現在2行対応。**一時期CSVに加えてPDFも添付していたが、解像度が粗く2026-08-28に撤回済み**
-  （2026-10-10 に画質を落とさない形で再追加。締め画面からの送信は CSV＋PDF、設定画面のテスト送信は
-  CSVのみ。詳細は15.3）。
+  （2026-10-10 に画質を落とさない形で再追加。締め画面からの送信は CSV＋PDF、設定画面のテスト送信も
+  2026-10-26 から CSV＋PDF。詳細は15.3）。
 - 実装: `admin/report/actions.ts`（`loadReport`/`buildTaxReportCsv`/`sendTaxReport`/`sendTaxReportTest`/
   `previewTaxReportRows`/`previewTaxReportTestRows`）、`admin/report/ui.tsx`（`SendReportButton` の
   モーダル + `DownloadCsvButton` + `DownloadPdfButton`）。
@@ -2153,7 +2153,12 @@ QRコードを読まなくてもアプリ内から打刻できる導線。従業
   `MailAttachment.encoding:"base64"`（Base64化済みバイナリをそのまま使う）で添付する。
 - PDFの作成に失敗したら送信しない（CSVだけ黙って送るとPDF欠落に気づけないため）。
 - `wrap76()` は大きな添付でもCPUを食わないよう正規表現から slice に変更（Workers Free のCPU上限対策）。
-- 設定画面のテスト送信は画面に明細一覧が無いため、引き続きCSVのみ。
+- **2026-10-26 テスト送信にもPDFを添付**（オーナー依頼）: 設定画面には明細一覧が無いので、締め画面の表を
+  共通部品 `admin/close/payslip-report.tsx` の `PayslipReport` に切り出し、テスト送信の時だけ画面外に
+  描画して同じ `captureReportPdfBase64()` で撮る（`payroll_YYYY-MM_test.pdf`）。表の元データは
+  `previewTaxReportTestRows()` が返す `payrolls`（CSVと同じ1回の計算。サーバーの処理は増やさない）。
+  テスト送信は立替精算を乗せないので、表も立替なし・⚠️（予定との不一致）なし・明細PDFボタンの列なし。
+  PDFが作れなければ本番と同じく送らない。
 
 以下は2026-08-28の撤回時の記録。
 

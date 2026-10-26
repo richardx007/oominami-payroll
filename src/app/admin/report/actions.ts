@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { currentPeriod, periodFromKey, type Period } from "@/lib/period";
-import { calculatePeriodPayroll } from "@/lib/payroll-data";
+import { calculatePeriodPayroll, type EmployeePayroll } from "@/lib/payroll-data";
 import {
   buildTaxGreetingLines,
   getCompanyName,
@@ -270,8 +270,15 @@ export async function previewTaxReportRows(periodKey: string): Promise<PreviewRo
   };
 }
 
+export type TestPreviewRows =
+  | ({ ok: true } & ReportData & {
+      /** 添付PDFの明細一覧(締め画面と同じ表)をブラウザで描画するための計算結果 */
+      payrolls: EmployeePayroll[];
+    })
+  | { ok: false; message: string };
+
 /** テスト送信用の元データ(締め前・当月の現時点情報)。同上の理由でDB問い合わせは1回だけ */
-export async function previewTaxReportTestRows(): Promise<PreviewRows> {
+export async function previewTaxReportTestRows(): Promise<TestPreviewRows> {
   await requireAdmin();
   const period = currentPeriod();
   const [payrolls, companyName] = await Promise.all([
@@ -296,6 +303,7 @@ export async function previewTaxReportTestRows(): Promise<PreviewRows> {
     periodEnd: period.end,
     paymentDate: period.paymentDate,
     periodKey: period.key,
+    payrolls,
   };
 }
 
@@ -407,12 +415,18 @@ const testSendEmailSchema = z.email(
  *   の結果(data)を呼び出し側から受け取る。ここではDB問い合わせをしない(sendTaxReportと同じ理由)
  * - 実際の締め処理(payslips確定)は一切行わない
  * - 件名の冒頭に「【テスト送信】」を付与する
+ * - pdfBase64 は本番の送信(sendTaxReport)と同じく、明細一覧をブラウザで PDF 化したもの。
+ *   設定画面には明細一覧が無いので、画面外に同じ表を描画して作る(settings/ui.tsx)
  */
 export async function sendTaxReportTest(
   testEmail: string,
-  data: ReportData
+  data: ReportData,
+  pdfBase64?: string
 ): Promise<SendResult> {
   await requireAdmin();
+
+  const pdf = pdfBase64 ? checkPdfBase64(pdfBase64) : null;
+  if (pdf && !pdf.ok) return pdf;
 
   const parsed = testSendEmailSchema.safeParse(testEmail.trim());
   if (!parsed.success) {
@@ -431,7 +445,9 @@ export async function sendTaxReportTest(
     "いつもお世話になっております。",
     `${data.companyName}の${data.periodLabel}　給与支給一覧をお送りします。(テスト送信・締め前の現時点情報です)`,
     `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
-    `詳細は添付のCSVファイル(支給一覧)をご確認ください。`,
+    pdfBase64
+      ? `詳細は添付のCSVファイル・PDFファイル(支給一覧)をご確認ください。`
+      : `詳細は添付のCSVファイル(支給一覧)をご確認ください。`,
     "",
     // 末尾に空行を入れる(無いとメールクライアントによっては添付ファイルのプレビューが
     // 署名の右側に食い込んで体裁が崩れるため)
@@ -449,6 +465,16 @@ export async function sendTaxReportTest(
         content: buildCsv(data.rows),
         contentType: "text/csv",
       },
+      ...(pdfBase64
+        ? [
+            {
+              filename: `payroll_${data.periodKey}_test.pdf`,
+              content: pdfBase64,
+              contentType: "application/pdf",
+              encoding: "base64" as const,
+            },
+          ]
+        : []),
     ],
   });
 }

@@ -140,9 +140,10 @@ export function DownloadCsvButton({ periodKey }: { periodKey: string }) {
 
 /**
  * 画面の表(targetId の要素)を、DownloadPdfButton と同じ見た目の PDF にして Base64 で返す。
- * 税理士へのメール添付用。ダウンロード用と同じ解像度で、容量を抑えるため JPEG で埋め込む。
+ * 税理士へのメール添付用(本番の送信と、設定画面のテスト送信)。ダウンロード用と同じ解像度で、
+ * 容量を抑えるため JPEG で埋め込む。
  */
-async function captureReportPdfBase64(targetId: string): Promise<string> {
+export async function captureReportPdfBase64(targetId: string): Promise<string> {
   const el = document.getElementById(targetId);
   if (!el) throw new Error("出力対象が見つかりません");
   el.classList.add("pdf-capture-target");

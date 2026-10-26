@@ -4010,6 +4010,12 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - **影響があったのは開発用の Mac(Richards-Neo)の Node だけ**: v24.16.0 → **v24.22.1** に更新(`~/.local/node` に nodejs.org の公式版を SHASUMS256 で確かめて上書き。Homebrew・nvm ではない)。テスト 173件・`next build` が通ることを確認。デプロイし直しは不要(ビルドの道具は今回の脆弱性と関係ない)。
 - 経費管理(oominami-business)も同じ構成で影響なし(同じ Mac の Node を使う。テスト 207件・`next build` 確認)。ほかのアプリの確認結果と、iMac の家庭内サーバで動く宛先印刷(address-book)の対応は address-book の引継書。
 
+### 2026-10-26(税理士向けメールのテスト送信にPDFを添付。オーナー依頼。設計書§15.3)
+- オーナー報告「テスト送信で CSV しか付いていない」。不具合ではなく、2026-10-10 の再追加のときから**テスト送信は CSV のみの作り**だった(設定画面に明細一覧が無く、PDF を撮れないため)。
+  同日の本番送信 2件(10:15 10月度・12:16 9月度、宛先は税理士)は締め画面から送っており、作りの上では PDF 付き(PDF が作れないと送らない)。ログには添付の有無は残らない。
+- 対応: 締め画面の明細一覧を `admin/close/payslip-report.tsx`(`PayslipReport`)に切り出し、テスト送信の時だけ設定画面の画面外に描画して `payroll_YYYY-MM_test.pdf` を添付。表の元データは `previewTaxReportTestRows()` の `payrolls`(CSV と同じ1回の計算)。
+- テスト 173件・lint・型チェック・`next build` OK。
+
 ## 7. すぐ使えるコマンド集
 
 ```bash
