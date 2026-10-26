@@ -3,6 +3,11 @@ import { requireAdmin } from "@/lib/auth";
 import { EmailSettingsForm, EmployerInfoForm, PayslipIssuerForm } from "./ui";
 import { TaxTableForm, type TaxTableRow } from "./tax-table";
 import { parsePayslipIssuer } from "@/lib/payslip-issuer";
+import { adjacentPeriodKey, currentPeriod, periodFromKey } from "@/lib/period";
+import { periodStatusLabel } from "@/lib/period-status";
+
+/** テスト送信で選べる月度の数(当月度から過去へ) */
+const TEST_PERIOD_COUNT = 12;
 
 /**
  * 設定。2026-10-12 にメニュー整理(オーナー依頼)で次のように組み替えた。
@@ -16,19 +21,36 @@ export default async function SettingsPage() {
   const admin = await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: settings }, { data: taxYears }] = await Promise.all([
-    supabase.from("app_settings").select("key, value"),
-    supabase
-      .from("withholding_tax_table")
-      .select(
-        "year, min_amount, max_amount, tax_otsu, tax_kou_0, tax_kou_1, tax_kou_2, tax_kou_3, tax_kou_4, tax_kou_5, tax_kou_6, tax_kou_7, created_at"
-      )
-      .order("year", { ascending: false })
-      .order("min_amount", { ascending: true }),
-  ]);
+  const [{ data: settings }, { data: taxYears }, { data: payPeriods }] =
+    await Promise.all([
+      supabase.from("app_settings").select("key, value"),
+      supabase
+        .from("withholding_tax_table")
+        .select(
+          "year, min_amount, max_amount, tax_otsu, tax_kou_0, tax_kou_1, tax_kou_2, tax_kou_3, tax_kou_4, tax_kou_5, tax_kou_6, tax_kou_7, created_at"
+        )
+        .order("year", { ascending: false })
+        .order("min_amount", { ascending: true }),
+      supabase.from("pay_periods").select("start_date, status"),
+    ]);
 
   const settingsMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
   const issuer = parsePayslipIssuer(settings ?? []);
+
+  // テスト送信の月度(当月度から過去へ)。入力受付中/締め済み/支払済みも名前に付ける
+  const statusByStart = new Map(
+    (payPeriods ?? []).map((p) => [p.start_date, p.status])
+  );
+  const testPeriods = [];
+  for (let key = currentPeriod().key; testPeriods.length < TEST_PERIOD_COUNT; ) {
+    const period = periodFromKey(key)!;
+    const status = statusByStart.get(period.start) ?? "open";
+    testPeriods.push({
+      key,
+      label: `${period.label}(${periodStatusLabel(status)})`,
+    });
+    key = adjacentPeriodKey(key, -1);
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8">
@@ -50,6 +72,7 @@ export default async function SettingsPage() {
         taxName={settingsMap.get("tax_accountant_name") ?? ""}
         taxEmail={settingsMap.get("tax_accountant_email") ?? ""}
         testSendTo={admin.email}
+        testPeriods={testPeriods}
       />
       <PayslipIssuerForm issuer={issuer} />
       <EmployerInfoForm

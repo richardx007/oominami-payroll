@@ -214,6 +214,11 @@ body.pdf-capture-mode .pdf-capture-target .print-report {
 body.pdf-capture-mode .pdf-capture-target .pdf-col {
   display: none !important;
 }
+/* 画面でだけ見せる印(給与明細一覧の⚠️「勤務予定と不一致」など)はPDFに出さない
+   (2026-10-26 オーナー依頼。admin/close/payslip-report.tsx の .pdf-hide) */
+body.pdf-capture-mode .pdf-capture-target .pdf-hide {
+  display: none !important;
+}
 /* 画面用の固定列(氏名など)の影は、PDFでは不要なので消す */
 body.pdf-capture-mode .pdf-capture-target .print-report th,
 body.pdf-capture-mode .pdf-capture-target .print-report td {
@@ -254,8 +259,9 @@ body.pdf-capture-mode .pdf-capture-target .print-report td[rowspan] {
   .print-report {
     overflow: visible !important;
   }
-  /* 画面上の操作ボタン列(従業員ごとのPDF出力)は印刷しない */
-  .pdf-col {
+  /* 画面上の操作ボタン列(従業員ごとのPDF出力)・画面でだけ見せる印は印刷しない */
+  .pdf-col,
+  .pdf-hide {
     display: none !important;
   }
   .print-report table {

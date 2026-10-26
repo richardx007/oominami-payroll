@@ -94,6 +94,8 @@ export async function getManagerName(): Promise<string> {
 export async function sendMail(params: {
   to: string;
   cc?: string[];
+  /** true なら送信元アドレス(gmail_user)も CC に入れる(送った内容を送信元の受信箱にも残す) */
+  ccSender?: boolean;
   subject: string;
   text: string;
   attachments?: MailAttachment[];
@@ -115,6 +117,8 @@ export async function sendMail(params: {
     return { ok: false, message };
   }
 
+  const cc = [...(params.cc ?? []), ...(params.ccSender ? [user] : [])];
+
   // SMTP接続は一時的に失敗することがあるため最大2回まで再試行する
   let lastDetail = "";
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -126,14 +130,14 @@ export async function sendMail(params: {
         password,
         fromName,
         to: params.to,
-        cc: params.cc,
+        cc,
         subject: params.subject,
         text: params.text,
         attachments: params.attachments,
       });
       await logActivity(
         "メール送信",
-        `宛先 ${params.to}${params.cc?.length ? ` (CC: ${params.cc.join(",")})` : ""} / 件名 ${params.subject}`
+        `宛先 ${params.to}${cc.length ? ` (CC: ${cc.join(",")})` : ""} / 件名 ${params.subject}`
       );
       return { ok: true, message: "送信しました" };
     } catch (e) {

@@ -185,6 +185,7 @@ export function EmailSettingsForm({
   taxName,
   taxEmail,
   testSendTo,
+  testPeriods,
 }: {
   companyName: string;
   managerName: string;
@@ -193,6 +194,8 @@ export function EmailSettingsForm({
   taxEmail: string;
   /** テスト送信先の初期値(ログイン中の管理者のメール) */
   testSendTo: string;
+  /** テスト送信で選べる月度(先頭が当月度=初期値) */
+  testPeriods: TestPeriodOption[];
 }) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -308,10 +311,13 @@ export function EmailSettingsForm({
           {pending ? "保存中..." : "保存する"}
         </button>
       </form>
-      <TestSendBlock defaultEmail={testSendTo} />
+      <TestSendBlock defaultEmail={testSendTo} periods={testPeriods} />
     </section>
   );
 }
+
+/** テスト送信で選べる月度。label は「2026年11月度(入力受付中)」のように状態も付けたもの */
+export type TestPeriodOption = { key: string; label: string };
 
 /** テスト送信の添付PDFを撮るために画面外へ描画する明細一覧の id */
 const TEST_REPORT_ID = "test-payslip-report";
@@ -321,9 +327,15 @@ const TEST_REPORT_ID = "test-payslip-report";
  * 2026-10-12: 独立した「テスト送信」欄をやめ、メール設定の枠の一番下に置いた(オーナー依頼)。
  * 2026-10-26: 本番の送信と同じく明細一覧のPDFも添付する(オーナー依頼)。この画面には明細一覧が
  * 無いので、締め画面と同じ表(PayslipReport)を送信時だけ画面外に描画して PDF にする。
- * テスト送信では立替精算を乗せないので、表も立替なし・予定との不一致の⚠️なしで描く。
+ * 2026-10-26: 月度を選べるようにした(オーナー依頼)。締め前の月度は立替精算を乗せない(CSVと同じ)。
  */
-function TestSendBlock({ defaultEmail }: { defaultEmail: string }) {
+function TestSendBlock({
+  defaultEmail,
+  periods,
+}: {
+  defaultEmail: string;
+  periods: TestPeriodOption[];
+}) {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
   const [report, setReport] = useState<Extract<
@@ -335,17 +347,19 @@ function TestSendBlock({ defaultEmail }: { defaultEmail: string }) {
     <div className="mt-6 border-t border-gray-200 pt-4">
       <h3 className="text-sm font-semibold text-gray-700">テスト送信</h3>
       <p className="mt-1 text-sm text-gray-500">
-        締め処理の前でも、当月の現時点の情報で税理士向けメールの宛名・文面・添付(CSV・PDF)を確認できます。
-        件名の冒頭に「【テスト送信】」が付き、実際の締め処理は行われません。
+        選んだ月度の情報で、税理士向けメールの宛名・文面・添付(CSV・PDF)を確認できます。
+        締め前の月度は現時点の情報で作ります。件名の冒頭に「【テスト送信】」が付き、実際の締め処理は行われません。
+        送信元のCCは付きません(本番の送信だけ)。
       </p>
       <form
         action={(fd) =>
           startTransition(async () => {
             const to = String(fd.get("test_send_to") ?? "");
+            const periodKey = String(fd.get("test_period") ?? "");
             // previewTaxReportTestRows は1回だけ呼び、sendTaxReportTest にそのまま
             // 渡す(Cloudflare Workers Free プランの CPU時間・サブリクエスト数の
             // 上限対策。同じ重い問い合わせを2回行わない)。
-            const preview = await previewTaxReportTestRows();
+            const preview = await previewTaxReportTestRows(periodKey);
             if (!preview.ok) {
               setResult(preview);
               return;
@@ -376,11 +390,30 @@ function TestSendBlock({ defaultEmail }: { defaultEmail: string }) {
               paymentDate: preview.paymentDate,
               periodKey: preview.periodKey,
             };
-            setResult(await sendTaxReportTest(to, data, pdfBase64));
+            setResult(
+              await sendTaxReportTest(to, data, {
+                draft: preview.status === "open",
+                pdfBase64,
+              })
+            );
           })
         }
         className="mt-4 max-w-md space-y-3"
       >
+        <div>
+          <label className="mb-1 block text-sm font-medium">対象の月度</label>
+          <select
+            name="test_period"
+            defaultValue={periods[0]?.key}
+            className={inputClass}
+          >
+            {periods.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="mb-1 block text-sm font-medium">
             テスト送信先
@@ -420,9 +453,9 @@ function TestSendBlock({ defaultEmail }: { defaultEmail: string }) {
               end: report.periodEnd,
               paymentDate: report.paymentDate,
             }}
-            status="open"
+            status={report.status}
             payrolls={report.payrolls}
-            reimbursements={new Map()}
+            reimbursements={new Map(report.reimbursements)}
             mismatchIds={new Set()}
           />
         </div>

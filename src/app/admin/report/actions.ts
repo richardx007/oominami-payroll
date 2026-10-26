@@ -3,8 +3,9 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { currentPeriod, periodFromKey, type Period } from "@/lib/period";
+import { periodFromKey, type Period } from "@/lib/period";
 import { calculatePeriodPayroll, type EmployeePayroll } from "@/lib/payroll-data";
+import { loadReimbursements, type Reimbursement } from "@/lib/expense-reimbursement";
 import {
   buildTaxGreetingLines,
   getCompanyName,
@@ -272,15 +273,63 @@ export async function previewTaxReportRows(periodKey: string): Promise<PreviewRo
 
 export type TestPreviewRows =
   | ({ ok: true } & ReportData & {
+      /** pay_periods の状態("open" = 締め前) */
+      status: string;
       /** 添付PDFの明細一覧(締め画面と同じ表)をブラウザで描画するための計算結果 */
       payrolls: EmployeePayroll[];
+      /** 同上の立替精算(従業員ID → 立替)。締め前のテスト送信では空 */
+      reimbursements: [string, Reimbursement][];
     })
   | { ok: false; message: string };
 
-/** テスト送信用の元データ(締め前・当月の現時点情報)。同上の理由でDB問い合わせは1回だけ */
-export async function previewTaxReportTestRows(): Promise<TestPreviewRows> {
+/**
+ * テスト送信用の元データ(設定画面で選んだ月度。同上の理由でDB問い合わせは1回だけ)。
+ * - 締め前: 現時点の勤務実績で計算する(退勤未入力の日は除外)。立替精算は乗せない
+ * - 締め済み: CSV は本番の送信と同じ確定明細、PDF の表は締め画面と同じ計算(立替精算あり)
+ */
+export async function previewTaxReportTestRows(
+  periodKey: string
+): Promise<TestPreviewRows> {
   await requireAdmin();
-  const period = currentPeriod();
+  const period = periodFromKey(periodKey);
+  if (!period) return { ok: false, message: "期間の指定が不正です" };
+
+  const supabase = await createClient();
+  const { data: payPeriod } = await supabase
+    .from("pay_periods")
+    .select("id, status")
+    .eq("start_date", period.start)
+    .eq("end_date", period.end)
+    .maybeSingle();
+  const status = payPeriod?.status ?? "open";
+
+  if (payPeriod && status !== "open") {
+    const [loaded, payrolls, reimbursements, companyName] = await Promise.all([
+      loadReport(period.key),
+      calculatePeriodPayroll(period),
+      loadReimbursements(supabase, {
+        periodId: payPeriod.id,
+        status,
+        end: period.end,
+      }),
+      getCompanyName(),
+    ]);
+    if (!loaded.ok) return loaded;
+    return {
+      ok: true,
+      periodLabel: loaded.periodLabel,
+      companyName,
+      rows: loaded.rows,
+      periodStart: period.start,
+      periodEnd: period.end,
+      paymentDate: loaded.paymentDate,
+      periodKey: period.key,
+      status,
+      payrolls,
+      reimbursements: [...reimbursements],
+    };
+  }
+
   const [payrolls, companyName] = await Promise.all([
     calculatePeriodPayroll(period, { ignoreIncomplete: true }),
     getCompanyName(),
@@ -303,7 +352,9 @@ export async function previewTaxReportTestRows(): Promise<TestPreviewRows> {
     periodEnd: period.end,
     paymentDate: period.paymentDate,
     periodKey: period.key,
+    status,
     payrolls,
+    reimbursements: [],
   };
 }
 
@@ -368,6 +419,9 @@ export async function sendTaxReport(
 
   return await sendMail({
     to,
+    // 送信元(oominami2026@gmail.com など)を CC に入れ、税理士へ送った内容を手元に残す
+    // (2026-10-26 オーナー依頼。テスト送信では入れない)
+    ccSender: true,
     subject: `【給与支給一覧】${data.periodLabel}`,
     text: lines.join("\n"),
     attachments: [
@@ -411,18 +465,21 @@ const testSendEmailSchema = z.email(
 
 /**
  * 税理士向けメールのテスト送信(設定画面から実行)。
- * - 締め処理を待たず、当月(締め前でも現時点)の期間を対象にした `previewTaxReportTestRows`
+ * - 設定画面で選んだ月度(締め前なら現時点の情報)の `previewTaxReportTestRows`
  *   の結果(data)を呼び出し側から受け取る。ここではDB問い合わせをしない(sendTaxReportと同じ理由)
  * - 実際の締め処理(payslips確定)は一切行わない
  * - 件名の冒頭に「【テスト送信】」を付与する
  * - pdfBase64 は本番の送信(sendTaxReport)と同じく、明細一覧をブラウザで PDF 化したもの。
  *   設定画面には明細一覧が無いので、画面外に同じ表を描画して作る(settings/ui.tsx)
+ * - draft: 締め前の月度か(本文の「締め前の現時点情報です」の有無)
+ * - 送信元の CC は入れない(本番の送信だけ)
  */
 export async function sendTaxReportTest(
   testEmail: string,
   data: ReportData,
-  pdfBase64?: string
+  opts: { draft: boolean; pdfBase64?: string }
 ): Promise<SendResult> {
+  const { draft, pdfBase64 } = opts;
   await requireAdmin();
 
   const pdf = pdfBase64 ? checkPdfBase64(pdfBase64) : null;
@@ -443,7 +500,7 @@ export async function sendTaxReportTest(
     ...buildTaxGreetingLines(taxName),
     "",
     "いつもお世話になっております。",
-    `${data.companyName}の${data.periodLabel}　給与支給一覧をお送りします。(テスト送信・締め前の現時点情報です)`,
+    `${data.companyName}の${data.periodLabel}　給与支給一覧をお送りします。${draft ? "(テスト送信・締め前の現時点情報です)" : "(テスト送信です)"}`,
     `対象期間: ${data.periodStart.replaceAll("-", "/")}〜${data.periodEnd.replaceAll("-", "/")} / 支給日: ${data.paymentDate.replaceAll("-", "/")}`,
     pdfBase64
       ? `詳細は添付のCSVファイル・PDFファイル(支給一覧)をご確認ください。`

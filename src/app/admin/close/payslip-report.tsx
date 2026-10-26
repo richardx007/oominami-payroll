@@ -149,7 +149,8 @@ export function PayslipReport({
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 pt-2 text-xs text-gray-500">
         {anyMismatch && (
-          <span className="text-amber-600">⚠️：勤務予定と不一致あり</span>
+          // pdf-hide: 予定との不一致は画面で確認するもの。PDF(ダウンロード・税理士への添付)には出さない
+          <span className="pdf-hide text-amber-600">⚠️：勤務予定と不一致あり</span>
         )}
         <span className="ml-auto">*印は課税対象外</span>
       </div>
@@ -275,7 +276,7 @@ export function PayslipReport({
                         href={`/admin/timesheet?e=${p.employee_id}&p=${period.key}`}
                         title="勤務予定と実績が一致しない日があります。タップして勤務表で確認"
                         aria-label="勤務予定と不一致あり。勤務表で確認"
-                        className="mr-1 align-middle"
+                        className="pdf-hide mr-1 align-middle"
                       >
                         ⚠️
                       </Link>
