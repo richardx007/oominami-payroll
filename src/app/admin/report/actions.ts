@@ -10,7 +10,7 @@ import {
   buildTaxGreetingLines,
   getCompanyName,
   getManagerName,
-  getTaxEmail,
+  getTaxEmails,
   getTaxName,
   sendMail,
 } from "@/lib/email";
@@ -385,8 +385,9 @@ export async function sendTaxReport(
   const pdf = pdfBase64 ? checkPdfBase64(pdfBase64) : null;
   if (pdf && !pdf.ok) return pdf;
 
-  const to = await getTaxEmail();
-  if (!to) {
+  // カンマ区切りで複数なら全員を To に並べた1通にする(2026-10-26)
+  const to = await getTaxEmails();
+  if (to.length === 0) {
     return {
       ok: false,
       message: "税理士のメールアドレスが未設定です(設定画面で登録してください)",

@@ -213,7 +213,7 @@ export function EmailSettingsForm({
         action={(fd) =>
           startTransition(async () => setResult(await updateEmailSettings(fd)))
         }
-        className="mt-4 max-w-2xl space-y-4"
+        className="mt-4 max-w-3xl space-y-4"
       >
         {/* 会社名・責任者名 + 送信元メールを1行に横並び(スマホでは縦積み) */}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -263,9 +263,10 @@ export function EmailSettingsForm({
             </p>
           </div>
         </div>
-        {/* 税理士の氏名 + メールアドレスを1行に横並び(スマホでは縦積み) */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+        {/* 税理士の氏名 + メールアドレス。宛先は複数入れられるよう、パソコンでも幅を広く取る
+            (氏名 2 : 宛先 3。スマホでは縦積みで全幅) */}
+        <div className="grid gap-4 sm:grid-cols-5">
+          <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium">
               税理士の氏名
             </label>
@@ -281,19 +282,25 @@ export function EmailSettingsForm({
               (氏名には自動で「様」が付きます・未入力なら「税理士 御中」)
             </p>
           </div>
-          <div>
+          <div className="sm:col-span-3">
             <label className="mb-1 block text-sm font-medium">
               税理士のメールアドレス
             </label>
-            <input
+            {/* 複数のアドレスが折り返して見えるよう textarea にする(改行も区切りとして受け付ける) */}
+            <textarea
               name="tax_accountant_email"
-              type="email"
               defaultValue={taxEmail}
-              placeholder="例: zeirishi@example.com"
-              className={inputClass}
+              rows={2}
+              inputMode="email"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="例: zeirishi@example.com, jimusho@example.com"
+              className={`${inputClass} resize-none`}
             />
             <p className="mt-1 text-xs text-gray-400">
-              「税理士資料」画面からの送付先に使われます
+              給与明細画面の「税理士」ボタンからの送付先に使われます。複数のときはカンマ(,)で区切ってください
+              (全員に同じ1通が届き、お互いのアドレスも見えます)
             </p>
           </div>
         </div>

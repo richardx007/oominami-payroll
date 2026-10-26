@@ -1,6 +1,7 @@
 import { smtpSendMail, type MailAttachment } from "./smtp";
 import { createClient } from "./supabase/server";
 import { logActivity } from "./log";
+import { splitEmailList } from "./email-list";
 
 /**
  * メール送信(Gmail SMTP)
@@ -34,12 +35,12 @@ export async function getSenderEmail(): Promise<string | null> {
   return (await getSetting("gmail_user")) || process.env.GMAIL_USER || null;
 }
 
-/** 税理士の送付先アドレス(DB → 環境変数の順) */
-export async function getTaxEmail(): Promise<string | null> {
-  return (
+/** 税理士の送付先アドレス(DB → 環境変数の順)。カンマ区切りで複数可(2026-10-26)。未設定なら空 */
+export async function getTaxEmails(): Promise<string[]> {
+  return splitEmailList(
     (await getSetting("tax_accountant_email")) ||
-    process.env.TAX_ACCOUNTANT_EMAIL ||
-    null
+      process.env.TAX_ACCOUNTANT_EMAIL ||
+      null
   );
 }
 
@@ -92,7 +93,8 @@ export async function getManagerName(): Promise<string> {
 }
 
 export async function sendMail(params: {
-  to: string;
+  /** 複数なら全員を To に並べた1通にする(税理士の宛先など) */
+  to: string | string[];
   cc?: string[];
   /** true なら送信元アドレス(gmail_user)も CC に入れる(送った内容を送信元の受信箱にも残す) */
   ccSender?: boolean;
@@ -105,6 +107,8 @@ export async function sendMail(params: {
     getCompanyName(),
   ]);
   const password = process.env.GMAIL_APP_PASSWORD;
+  const toList = Array.isArray(params.to) ? params.to : [params.to];
+  const toLabel = toList.join(",");
 
   if (!user || !password) {
     const message = !user
@@ -112,7 +116,7 @@ export async function sendMail(params: {
       : "アプリパスワードが未設定です(CloudflareでGMAIL_APP_PASSWORDをSecret登録してください)";
     await logActivity(
       "エラー",
-      `メール送信失敗(未設定): 宛先 ${params.to} / 件名 ${params.subject} / ${message}`
+      `メール送信失敗(未設定): 宛先 ${toLabel} / 件名 ${params.subject} / ${message}`
     );
     return { ok: false, message };
   }
@@ -129,7 +133,7 @@ export async function sendMail(params: {
         username: user,
         password,
         fromName,
-        to: params.to,
+        to: toList,
         cc,
         subject: params.subject,
         text: params.text,
@@ -137,7 +141,7 @@ export async function sendMail(params: {
       });
       await logActivity(
         "メール送信",
-        `宛先 ${params.to}${cc.length ? ` (CC: ${cc.join(",")})` : ""} / 件名 ${params.subject}`
+        `宛先 ${toLabel}${cc.length ? ` (CC: ${cc.join(",")})` : ""} / 件名 ${params.subject}`
       );
       return { ok: true, message: "送信しました" };
     } catch (e) {
@@ -145,7 +149,7 @@ export async function sendMail(params: {
       if (lastDetail.includes("cloudflare")) {
         await logActivity(
           "エラー",
-          `メール送信失敗: 宛先 ${params.to} / 件名 ${params.subject} / Cloudflare(本番のみ送信可)`
+          `メール送信失敗: 宛先 ${toLabel} / 件名 ${params.subject} / Cloudflare(本番のみ送信可)`
         );
         return {
           ok: false,
@@ -158,7 +162,7 @@ export async function sendMail(params: {
   }
   await logActivity(
     "エラー",
-    `メール送信失敗: 宛先 ${params.to} / 件名 ${params.subject} / ${lastDetail}`
+    `メール送信失敗: 宛先 ${toLabel} / 件名 ${params.subject} / ${lastDetail}`
   );
   return { ok: false, message: `メール送信に失敗しました(${lastDetail})` };
 }

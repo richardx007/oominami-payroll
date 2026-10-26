@@ -33,6 +33,10 @@ export type ClockInput = {
   station_to?: string | null;
   round_trip?: boolean;
   transport_cost?: number | null;
+  // 操作ログ用(2026-10-26)。どこから打刻画面を開いたか(アプリのメニュー / 標準カメラでQRを読んだ)と、
+  // ホーム画面アプリ(PWA)かブラウザか。打刻の判定には使わない
+  from_menu?: boolean;
+  standalone?: boolean;
 };
 
 /** 交通費が「手段・区間1・区間2・金額(>0)」まで揃っているか(揃った時のみ保存する) */
@@ -366,6 +370,10 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
           : ` (${locationNote(distance_m, input.accuracy)})`
     }${
       location_denied && hasBase ? " (位置なし)" : ""
+    }${
+      typeof input.from_menu === "boolean" && typeof input.standalone === "boolean"
+        ? ` (${input.from_menu ? "アプリメニュー" : "標準カメラから"}・${input.standalone ? "PWA" : "ブラウザ"})`
+        : ""
     }`
   );
   revalidatePath("/timesheet");
@@ -384,20 +392,6 @@ export async function punchClock(input: ClockInput): Promise<ClockResult> {
     time,
     warn,
   };
-}
-
-/**
- * QR打刻の画面を開いたことを記録する(画面の表示後にクライアントから呼ぶ)。
- * 「打刻したはずなのに記録が無い」ときに、画面までは開いていた(ボタンを押していない・送信に失敗した)のか、
- * 画面にすら届いていない(ログイン画面で離脱・QRを読めていない)のかを区別するため(2026-09-27 追加)。
- */
-export async function logClockView(input: { type: string; fromMenu: boolean; standalone: boolean }): Promise<void> {
-  const employee = await requireEmployee();
-  const type = input.type === "out" ? "退勤" : "出勤";
-  await logActivity(
-    "打刻",
-    `${employee.name} ${type}の打刻画面を開いた(${input.fromMenu ? "アプリのメニュー" : "QR"}・${input.standalone ? "PWA" : "ブラウザ"})`
-  );
 }
 
 /**

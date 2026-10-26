@@ -10,6 +10,7 @@ import {
   SEAL_ALLOWED_TYPES,
   SEAL_MAX_SIZE,
 } from "@/lib/payslip-issuer";
+import { parseEmailList } from "@/lib/email-list";
 import type { ActionResult } from "../employees/actions";
 
 const emailSettingsSchema = z.object({
@@ -17,10 +18,8 @@ const emailSettingsSchema = z.object({
   manager_name: z.string().max(100),
   gmail_user: z.union([z.literal(""), z.email("送信元メールの形式が正しくありません")]),
   tax_accountant_name: z.string().max(200),
-  tax_accountant_email: z.union([
-    z.literal(""),
-    z.email("税理士メールの形式が正しくありません"),
-  ]),
+  // カンマ区切りで複数可(2026-10-26)。1件ずつの検証は updateEmailSettings で行う
+  tax_accountant_email: z.string().max(1000),
 });
 
 export async function updateEmailSettings(
@@ -33,6 +32,13 @@ export async function updateEmailSettings(
     return { ok: false, message: parsed.error.issues[0].message };
   }
   const d = parsed.data;
+  const taxEmails = parseEmailList(d.tax_accountant_email);
+  if (taxEmails.invalid.length > 0) {
+    return {
+      ok: false,
+      message: `税理士メールの形式が正しくありません: ${taxEmails.invalid.join(", ")}`,
+    };
+  }
   const supabase = await createClient();
 
   const rows = [
@@ -40,7 +46,8 @@ export async function updateEmailSettings(
     { key: "manager_name", value: d.manager_name.trim() },
     { key: "gmail_user", value: d.gmail_user.trim() },
     { key: "tax_accountant_name", value: d.tax_accountant_name.trim() },
-    { key: "tax_accountant_email", value: d.tax_accountant_email.trim() },
+    // 区切り方の揺れ(全角カンマ・改行など)は「, 」にそろえて保存する
+    { key: "tax_accountant_email", value: taxEmails.emails.join(", ") },
   ];
   const { error } = await supabase
     .from("app_settings")

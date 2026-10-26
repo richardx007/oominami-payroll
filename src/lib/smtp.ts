@@ -66,13 +66,16 @@ export async function smtpSendMail(params: {
   username: string;
   password: string;
   fromName: string;
-  to: string;
+  to: string[];
   cc?: string[];
   subject: string;
   text: string;
   attachments?: MailAttachment[];
 }): Promise<void> {
-  const ccList = (params.cc ?? []).filter((c) => c && c !== params.to);
+  const toList = params.to.filter((t) => t);
+  // To に入っている宛先は CC に重ねない
+  const ccList = (params.cc ?? []).filter((c) => c && !toList.includes(c));
+  const toHeader = `To: ${toList.map((t) => `<${t}>`).join(", ")}`;
   const socket = await connectTls(params.host, params.port);
   const writer = socket.writable.getWriter();
   const reader = socket.readable.getReader();
@@ -120,8 +123,10 @@ export async function smtpSendMail(params: {
     await expect([235]);
     await send(`MAIL FROM:<${params.username}>`);
     await expect([250]);
-    await send(`RCPT TO:<${params.to}>`);
-    await expect([250, 251]);
+    for (const to of toList) {
+      await send(`RCPT TO:<${to}>`);
+      await expect([250, 251]);
+    }
     // CC 宛先も配送対象として RCPT に加える
     for (const cc of ccList) {
       await send(`RCPT TO:<${cc}>`);
@@ -139,7 +144,7 @@ export async function smtpSendMail(params: {
       // 添付なし: シンプルな text/plain
       const headers = [
         `From: ${mimeWord(params.fromName)} <${params.username}>`,
-        `To: <${params.to}>`,
+        toHeader,
         ...(ccList.length ? [`Cc: ${ccList.map((c) => `<${c}>`).join(", ")}`] : []),
         `Subject: ${mimeWord(params.subject)}`,
         `Message-ID: ${messageId}`,
@@ -154,7 +159,7 @@ export async function smtpSendMail(params: {
       const boundary = `b_${crypto.randomUUID().replace(/-/g, "")}`;
       const headers = [
         `From: ${mimeWord(params.fromName)} <${params.username}>`,
-        `To: <${params.to}>`,
+        toHeader,
         ...(ccList.length ? [`Cc: ${ccList.map((c) => `<${c}>`).join(", ")}`] : []),
         `Subject: ${mimeWord(params.subject)}`,
         `Message-ID: ${messageId}`,

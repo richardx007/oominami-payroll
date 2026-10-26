@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { logClockView, punchClock, reportClockError, type ClockResult } from "./actions";
+import { punchClock, reportClockError, type ClockResult } from "./actions";
 import { AccessHelp } from "@/components/AccessHelp";
 import { useClientValue } from "@/lib/useClientValue";
 
@@ -110,13 +110,6 @@ export function ClockConfirm({
     transportDefault?.cost ? String(transportDefault.cost) : ""
   );
 
-  useEffect(() => {
-    const standalone = readStandalone();
-    // 画面を開いたことを操作ログに残す(記録が無いときの原因の切り分け用。失敗しても打刻には影響させない)
-    logClockView({ type, fromMenu: backHref != null, standalone }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // 画面表示用の時計(実際の打刻時刻はサーバーが確定する)
   useEffect(() => {
     const tick = () =>
@@ -162,6 +155,10 @@ export function ClockConfirm({
         station_to: tTo,
         round_trip: tRound,
         transport_cost: Number(tCost) || 0,
+        // 操作ログに「アプリメニュー / 標準カメラから」「PWA / ブラウザ」を残す
+        // (2026-10-26。以前は画面を開いた時点で別に記録していたが、件数が多いのでやめた)
+        from_menu: backHref != null,
+        standalone: readStandalone(),
       });
       setResult(res);
     } catch (e) {
