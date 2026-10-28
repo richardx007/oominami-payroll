@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { zebraRowClass } from "@/lib/table";
+import { DEVICE_LABEL_APP, splitDeviceLabel } from "@/lib/device";
 import { approveDevices, revokeDevices } from "./actions";
 
 export type DeviceRow = {
@@ -25,35 +26,21 @@ export type DeviceRow = {
 const APP_LABEL = { payroll: "給与", business: "経費" } as const;
 
 /**
- * 画面の1行(=1台の端末)。iPhone はホーム画面アプリと Safari で Cookie が別なので記録上は2件になり、
- * 給与と経費のアプリでも別件になる。見分けられないので「同じ人・同じ端末名・同じ状態」を1行にまとめる。
- * ⚠️ 状態もキーに入れること。承認待ちの新しい端末が、承認済みの同じ名前の端末に紛れて見落とされないように。
+ * 画面の1行 = 記録1件(端末の合言葉1つ)。iPhone はホーム画面アプリと Safari で Cookie が別なので記録上は別件になり、
+ * 給与と経費のアプリでも別件になる。以前は「同じ人・同じ端末名」を1行にまとめていたが、
+ * どの開き方で承認待ちが出たのか分からなくなるため、まとめずにそのまま出し、氏名ごとにくくる(2026-10-28)。
+ * 並び(従業員No順→承認待ち→最近使った順)は DB の device_list が決める。
  */
-type DeviceGroup = DeviceRow & { ids: string[]; apps: DeviceRow["app"][]; count: number };
+type OwnerGroup = { ownerId: string; rows: DeviceRow[] };
 
-function groupDevices(rows: DeviceRow[]): DeviceGroup[] {
-  const map = new Map<string, DeviceGroup>();
+function groupByOwner(rows: DeviceRow[]): OwnerGroup[] {
+  const groups: OwnerGroup[] = [];
   for (const r of rows) {
-    const key = `${r.owner_id}|${r.label}|${r.status}`;
-    const g = map.get(key);
-    if (!g) {
-      map.set(key, { ...r, ids: [r.id], apps: [r.app], count: 1 });
-      continue;
-    }
-    g.ids.push(r.id);
-    g.count++;
-    if (!g.apps.includes(r.app)) g.apps.push(r.app);
-    if (r.last_seen_at > g.last_seen_at) g.last_seen_at = r.last_seen_at;
-    if (r.created_at < g.created_at) g.created_at = r.created_at;
-    // 1件でも管理者が承認していれば「承認済み(承認者)」と出す
-    if (r.approved_how === "admin") {
-      g.approved_how = "admin";
-      g.approver_name = r.approver_name;
-    }
+    const last = groups[groups.length - 1];
+    if (last && last.ownerId === r.owner_id) last.rows.push(r);
+    else groups.push({ ownerId: r.owner_id, rows: [r] });
   }
-  const order = { payroll: 0, business: 1 } as const;
-  for (const g of map.values()) g.apps.sort((a, b) => order[a] - order[b]);
-  return Array.from(map.values());
+  return groups;
 }
 
 function formatTs(iso: string | null) {
@@ -69,32 +56,35 @@ function formatTs(iso: string | null) {
 
 /** 管理者の承認以外の承認のしかた(管理者の承認は承認者の名前を出す) */
 const APPROVED_HOW_LABEL: Partial<Record<NonNullable<DeviceRow["approved_how"]>, string>> = {
-  existing: "承認済み(導入時から利用)",
-  invite: "承認済み(登録直後・自動)",
-  code: "承認済み(確認コード)",
-  handoff: "承認済み(ホーム画面に追加)",
+  existing: "(導入時から利用)",
+  invite: "(登録直後・自動)",
+  code: "(確認コード)",
+  handoff: "(ホーム画面に追加)",
 };
 
-function StatusBadge({ row }: { row: DeviceGroup }) {
-  if (row.status === "pending") {
+function approverText(row: DeviceRow): string {
+  if (row.status !== "approved") return "—";
+  return APPROVED_HOW_LABEL[row.approved_how ?? "admin"] ?? row.approver_name ?? "—";
+}
+
+/** 明細行の中で改行しない */
+const cell = "whitespace-nowrap px-3 py-2";
+
+function StatusBadge({ status }: { status: DeviceRow["status"] }) {
+  if (status === "pending") {
     return <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">承認待ち</span>;
   }
-  if (row.status === "revoked") {
-    return <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">取り消し済み</span>;
+  if (status === "revoked") {
+    return <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">取り消し済</span>;
   }
-  return (
-    <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-      {APPROVED_HOW_LABEL[row.approved_how ?? "admin"] ??
-        `承認済み${row.approver_name ? `(${row.approver_name})` : ""}`}
-    </span>
-  );
+  return <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">承認済</span>;
 }
 
 export function DevicesView({ devices }: { devices: DeviceRow[] }) {
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const groups = groupDevices(devices);
-  const pendingCount = groups.filter((d) => d.status === "pending").length;
+  const groups = groupByOwner(devices);
+  const pendingCount = devices.filter((d) => d.status === "pending").length;
 
   function run(fn: () => Promise<{ ok: boolean; message: string }>) {
     setResult(null);
@@ -117,68 +107,76 @@ export function DevicesView({ devices }: { devices: DeviceRow[] }) {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-500">
             <tr>
-              <th className="px-3 py-2">No</th>
-              <th className="px-3 py-2">氏名</th>
-              <th className="px-3 py-2">アプリ</th>
-              <th className="px-3 py-2">端末</th>
-              <th className="px-3 py-2">状態</th>
-              <th className="px-3 py-2">最終利用</th>
-              <th className="px-3 py-2">初回</th>
-              <th className="px-3 py-2"></th>
+              <th className={cell}>氏名</th>
+              <th className={cell}>端末</th>
+              <th className={cell}>OS</th>
+              <th className={cell}>アプリ</th>
+              <th className={cell}>状態</th>
+              <th className={cell}>承認者</th>
+              <th className={cell}>最終利用</th>
+              <th className={cell}>初回</th>
+              <th className={cell}></th>
             </tr>
           </thead>
-          <tbody>
-            {groups.map((d, i) => {
-              const apps = d.apps.map((a) => APP_LABEL[a]).join("・");
-              const summary = `${d.owner_name} / ${apps} / ${d.label}`;
-              return (
-                <tr key={d.ids.join(",")} className={`border-t border-gray-100 ${zebraRowClass(i)}`}>
-                  <td className="whitespace-nowrap px-3 py-2 text-gray-500">{d.owner_employee_no ?? "—"}</td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    {d.owner_name}
-                    {d.owner_is_admin && <span className="ml-1 text-xs text-gray-400">(管理者)</span>}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">{apps}</td>
-                  <td className="px-3 py-2">
-                    {d.label || "不明"}
-                    {d.count > 1 && (
-                      <div className="text-xs text-gray-400">
-                        ホーム画面アプリ・ブラウザなど {d.count}件をまとめて表示
-                      </div>
+          {/* 1人ごとに tbody を分け、縞模様は人ごと(同じ人の行は同じ色) */}
+          {groups.map((g, gi) => (
+            <tbody key={g.ownerId} className={`border-t border-gray-200 ${zebraRowClass(gi)}`}>
+              {g.rows.map((d, i) => {
+                const { device, os, app } = splitDeviceLabel(d.label);
+                const summary = `${d.owner_name} / ${APP_LABEL[d.app]} / ${d.label}`;
+                return (
+                  <tr key={d.id} className={i > 0 ? "border-t border-gray-100" : ""}>
+                    {i === 0 && (
+                      <td rowSpan={g.rows.length} className={`${cell} align-top`}>
+                        {d.owner_name}
+                        {d.owner_is_admin && <span className="ml-1 text-xs text-gray-400">(管理者)</span>}
+                        <div className="text-xs text-gray-400">{d.owner_employee_no ?? "—"}</div>
+                      </td>
                     )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <StatusBadge row={d} />
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-gray-600">{formatTs(d.last_seen_at)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-gray-600">{formatTs(d.created_at)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
-                    {d.status !== "approved" &&
-                      (d.is_me ? (
-                        <span className="text-xs text-gray-500">もう1人の管理者が承認</span>
+                    <td className={cell}>{device}</td>
+                    <td className={cell}>{os}</td>
+                    <td className={cell}>
+                      {app === DEVICE_LABEL_APP ? (
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">{app}</span>
                       ) : (
+                        app
+                      )}
+                      {d.app === "business" && <span className="ml-1 text-xs text-gray-400">(経費)</span>}
+                    </td>
+                    <td className={cell}>
+                      <StatusBadge status={d.status} />
+                      {d.status !== "approved" &&
+                        (d.is_me ? (
+                          <span className="ml-2 text-xs text-gray-500">もう1人の管理者が承認</span>
+                        ) : (
+                          <button
+                            disabled={pending}
+                            onClick={() => run(() => approveDevices([d.id], summary))}
+                            className="ml-2 rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            承認
+                          </button>
+                        ))}
+                    </td>
+                    <td className={`${cell} text-gray-600`}>{approverText(d)}</td>
+                    <td className={`${cell} text-gray-600`}>{formatTs(d.last_seen_at)}</td>
+                    <td className={`${cell} text-gray-600`}>{formatTs(d.created_at)}</td>
+                    <td className={`${cell} text-right`}>
+                      {d.status !== "revoked" && (
                         <button
                           disabled={pending}
-                          onClick={() => run(() => approveDevices(d.ids, summary))}
-                          className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          onClick={() => run(() => revokeDevices([d.id], summary))}
+                          className="rounded-lg border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                         >
-                          承認
+                          取り消し
                         </button>
-                      ))}
-                    {d.status !== "revoked" && (
-                      <button
-                        disabled={pending}
-                        onClick={() => run(() => revokeDevices(d.ids, summary))}
-                        className="ml-2 rounded-lg border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        取り消し
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          ))}
         </table>
       </div>
     </div>

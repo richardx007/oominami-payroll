@@ -10,8 +10,8 @@ import type { ActionResult } from "../employees/actions";
 const idsSchema = z.array(z.uuid()).min(1).max(20);
 
 /**
- * 端末を承認する。画面では「同じ人・同じ端末名」(iPhone のホーム画面アプリと Safari など)を
- * 1行にまとめているので、まとめた分の ID をまとめて受け取る。自分の端末は不可(DB関数 device_approve が判定)。
+ * 端末を承認する。画面は1行=1件だが、ID は配列で受け取る(以前は同じ端末名をまとめて承認していた名残)。
+ * 自分の端末は不可(DB関数 device_approve が判定)。
  */
 export async function approveDevices(ids: string[], summary: string): Promise<ActionResult> {
   await requireAdmin();

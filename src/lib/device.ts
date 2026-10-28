@@ -23,6 +23,13 @@ export const DEVICE_SESSION_COOKIE = "oom_dvs2";
 export const TOUCH_MAC_COOKIE = "oom_touchmac";
 
 /**
+ * 「ホーム画面アプリ(PWA)として開いている」目印(画面側の DeviceHint が付け外しする。httpOnly ではない)。
+ * PWA かどうかは User-Agent では分からないため(client-info.ts 参照)、端末一覧の「アプリ」欄に出すのに使う。
+ * iPhone はホーム画面アプリと Safari で Cookie が別なので、目印もそれぞれに付く。
+ */
+export const STANDALONE_COOKIE = "oom_pwa";
+
+/**
  * 引き継ぎ札(ホーム画面に追加したときの起動先 /?h=... に付く使い捨ての札)を、ログインするまで預かる Cookie。
  * ホーム画面アプリを初めて開くとログイン前なので、/login へ移る前にここへ移しておく。
  */
@@ -70,11 +77,11 @@ export function canIssueDeviceToken(secFetchDest: string | null): boolean {
 }
 
 /**
- * 登録済みの目印の値。session_id に iPad の目印の有無を添える。
- * iPad の目印が後から付いたら(=値が変わったら)すぐ登録し直して、端末名を「iPad」に直す。
+ * 登録済みの目印の値。session_id に iPad・ホーム画面アプリの目印の有無を添える。
+ * 目印が後から付いたら(=値が変わったら)すぐ登録し直して、端末名を「iPad」「アプリ」に直す。
  */
-export function deviceSessionMarker(sessionId: string, touchMac: boolean): string {
-  return `${sessionId}.${touchMac ? "t" : "n"}`;
+export function deviceSessionMarker(sessionId: string, touchMac: boolean, standalone = false): string {
+  return `${sessionId}.${touchMac ? "t" : "n"}${standalone ? "a" : ""}`;
 }
 
 /** 端末の合言葉(32バイトの乱数を base64url で43文字) */
@@ -104,10 +111,11 @@ export function sessionIdFromAccessToken(token: string | undefined): string | nu
 }
 
 /**
- * 管理画面の端末一覧に出す名前(例: "iPhone / iOS 18.5 / Safari 18")。
+ * 管理画面の端末一覧に出す名前(例: "iPhone / iOS 18.5 / Safari 18"、ホーム画面アプリなら末尾に " / アプリ")。
  * touchMac: TOUCH_MAC_COOKIE がある(=Mac を名乗るタッチ画面)なら iPad として出す。
+ * standalone: STANDALONE_COOKIE がある(=ホーム画面アプリで開いている)。
  */
-export function deviceLabel(userAgent: string | null, touchMac = false): string {
+export function deviceLabel(userAgent: string | null, touchMac = false, standalone = false): string {
   const parsed = parseUserAgent(userAgent ?? "");
   const { browser } = parsed;
   let { device, os } = parsed;
@@ -115,5 +123,28 @@ export function deviceLabel(userAgent: string | null, touchMac = false): string 
     device = "iPad";
     os = "iPadOS";
   }
-  return [device, os, browser].join(" / ");
+  return [device, os, browser, ...(standalone ? [DEVICE_LABEL_APP] : [])].join(" / ");
+}
+
+/** 端末名の4つ目(ホーム画面アプリで開いている) */
+export const DEVICE_LABEL_APP = "アプリ";
+
+/**
+ * 端末名(deviceLabel が作る文字列)を一覧の欄に分ける。
+ * - 端末: Mac / Win / iPhone / iPad / Android など
+ * - OS: iOS 26 以降は User-Agent の OS 版が 18.x で止められている(Apple の仕様)ため、
+ *   Safari の版(= iOS の版)で読み替える
+ * - アプリ: ホーム画面アプリなら "アプリ"、それ以外はブラウザ名+版
+ */
+export function splitDeviceLabel(label: string): { device: string; os: string; app: string } {
+  const [rawDevice = "", rawOs = "", browser = "", mode = ""] = label.split(" / ");
+  let device = rawDevice || "不明";
+  if (device === "PC") device = rawOs === "Windows" ? "Win" : "PC";
+  else if (device === "Androidタブレット") device = "Android";
+  let os = rawOs || "不明";
+  const safari = /^Safari (\d+)$/.exec(browser);
+  if (safari && Number(safari[1]) >= 26 && /^(iOS 18[.\d]*|iPadOS)$/.test(os)) {
+    os = `${os === "iPadOS" ? "iPadOS" : "iOS"} ${safari[1]}`;
+  }
+  return { device, os, app: mode === DEVICE_LABEL_APP ? DEVICE_LABEL_APP : browser || "不明" };
 }

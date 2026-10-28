@@ -85,3 +85,27 @@ describe("isDeviceGateExempt", () => {
     expect(isDeviceGateExempt("/")).toBe(false);
   });
 });
+
+describe("deviceLabel(ホーム画面アプリ)", () => {
+  it("standalone なら末尾に アプリ", () => {
+    const ua =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1";
+    expect(deviceLabel(ua, false, true)).toBe("iPhone / iOS 18.7 / Safari 27 / アプリ");
+  });
+});
+
+describe("splitDeviceLabel", () => {
+  it("iOS 26 以降は Safari の版で OS を読み替える", async () => {
+    const { splitDeviceLabel } = await import("./device");
+    expect(splitDeviceLabel("iPhone / iOS 18.7 / Safari 27")).toEqual({ device: "iPhone", os: "iOS 27", app: "Safari 27" });
+    expect(splitDeviceLabel("iPad / iPadOS / Safari 26 / アプリ")).toEqual({ device: "iPad", os: "iPadOS 26", app: "アプリ" });
+    expect(splitDeviceLabel("iPhone / iOS 18.5 / Safari 18").os).toBe("iOS 18.5");
+  });
+  it("端末名を短くする", async () => {
+    const { splitDeviceLabel } = await import("./device");
+    expect(splitDeviceLabel("PC / Windows / Edge 140")).toEqual({ device: "Win", os: "Windows", app: "Edge 140" });
+    expect(splitDeviceLabel("Androidタブレット / Android 15 / Chrome 155").device).toBe("Android");
+    expect(splitDeviceLabel("Mac / macOS / Chrome 155")).toEqual({ device: "Mac", os: "macOS", app: "Chrome 155" });
+    expect(splitDeviceLabel("")).toEqual({ device: "不明", os: "不明", app: "不明" });
+  });
+});

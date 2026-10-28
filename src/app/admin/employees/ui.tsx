@@ -349,24 +349,31 @@ export function EmployeeList({
           <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">従業員一覧</h2>
           <AddEmployeePanel />
         </div>
-        {/* 在職者/退職者の二択。既定は在職者のみ(普段の管理業務は在職者が対象のため)。 */}
-        <div className={`mt-2 inline-flex text-sm ${segmentClass}`}>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("active")}
-            aria-pressed={statusFilter === "active"}
-            className={`${segmentItemClass(statusFilter === "active")} px-3 py-1.5`}
-          >
-            在職者のみ
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("retired")}
-            aria-pressed={statusFilter === "retired"}
-            className={`${segmentItemClass(statusFilter === "retired")} px-3 py-1.5`}
-          >
-            退職者のみ
-          </button>
+        {/* 在職者/退職者の二択。既定は在職者のみ(普段の管理業務は在職者が対象のため)。
+            右側にリーダの印の凡例 */}
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-2">
+          <div className={`inline-flex text-sm ${segmentClass}`}>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("active")}
+              aria-pressed={statusFilter === "active"}
+              className={`${segmentItemClass(statusFilter === "active")} px-3 py-1.5`}
+            >
+              在職者のみ
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("retired")}
+              aria-pressed={statusFilter === "retired"}
+              className={`${segmentItemClass(statusFilter === "retired")} px-3 py-1.5`}
+            >
+              退職者のみ
+            </button>
+          </div>
+          <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+            <LeaderEmblem />
+            リーダ
+          </span>
         </div>
         {result && (
           <p
@@ -1087,6 +1094,21 @@ function PersonalInfoBlock({
   );
 }
 
+/** リーダの印(盾に星)。一覧の右上に凡例を出す */
+function LeaderEmblem({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" role="img" aria-label="リーダ" className={`inline-block h-4 w-4 align-[-3px] ${className}`}>
+      <path
+        d="M8 1 2.5 3v4.2c0 3.4 2.3 6.3 5.5 7.8 3.2-1.5 5.5-4.4 5.5-7.8V3L8 1Z"
+        fill="#f59e0b"
+        stroke="#b45309"
+        strokeWidth="0.8"
+      />
+      <path d="m8 4.4 1.05 2.13 2.35.34-1.7 1.66.4 2.34L8 9.76l-2.1 1.11.4-2.34-1.7-1.66 2.35-.34L8 4.4Z" fill="#fff" />
+    </svg>
+  );
+}
+
 function EmployeeTableRow({
   emp,
   zebra,
@@ -1177,11 +1199,7 @@ function EmployeeTableRow({
               {emp.is_owner ? "オーナー" : "システム管理者"}
             </span>
           )}
-          {emp.is_leader && (
-            <span className="ml-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">
-              リーダ
-            </span>
-          )}
+          {emp.is_leader && <LeaderEmblem className="ml-1" />}
         </td>
         <td className="whitespace-nowrap px-4 py-3">
           <span

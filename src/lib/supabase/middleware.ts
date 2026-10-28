@@ -9,6 +9,7 @@ import {
   DEVICE_TOKEN_COOKIE,
   HANDOFF_COOKIE,
   HANDOFF_COOKIE_MAX_AGE,
+  STANDALONE_COOKIE,
   TOUCH_MAC_COOKIE,
   deviceLabel,
   deviceSessionMarker,
@@ -85,14 +86,15 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getSession();
     const sid = sessionIdFromAccessToken(session?.access_token);
     const touchMac = request.cookies.has(TOUCH_MAC_COOKIE);
-    const marker = sid ? deviceSessionMarker(sid, touchMac) : null;
+    const standalone = request.cookies.has(STANDALONE_COOKIE);
+    const marker = sid ? deviceSessionMarker(sid, touchMac, standalone) : null;
     if (sid && marker && request.cookies.get(DEVICE_SESSION_COOKIE)?.value !== marker) {
       // 合言葉が無く、ここでは作れないリクエスト(裏の読み込み)は、次の画面の読み込みで登録する
       if (token.length >= 32) {
         const { data: status, error } = await supabase.rpc("device_register", {
           p_token: token,
           p_app: "payroll",
-          p_label: deviceLabel(request.headers.get("user-agent"), touchMac),
+          p_label: deviceLabel(request.headers.get("user-agent"), touchMac, standalone),
         });
         // 失敗したら目印を付けない(次のリクエストでもう一度試す)。画面の表示は止めない。
         // 目印は1日で切れ、もう一度登録して端末一覧の「最終利用」を更新する
