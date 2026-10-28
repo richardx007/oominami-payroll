@@ -3,13 +3,15 @@ import { requireEmployee } from "@/lib/auth";
 import { AccountSettingsView } from "@/app/account/AccountSettingsView";
 import { getMyCalendarFeedUrl } from "@/lib/calendar-feed-url";
 import { DeviceLinkSection } from "@/app/account/DeviceLinkSection";
+import { PendingDeviceNotice } from "@/app/account/PendingDeviceNotice";
 
 /** 従業員用アカウント設定画面。プロフィール編集と、この端末での通知登録ができる。 */
 export default async function EmployeeAccountPage() {
   const me = await requireEmployee();
   const supabase = await createClient();
-  // 端末承認制でブロックの対象の人だけ「別の端末を承認する」を出す(試験運用中は対象者だけ)
-  const enforcedPromise = supabase.rpc("device_enforced");
+  // 端末承認制でブロックの対象の人だけ「別の端末を承認する」を出す(試験運用中は対象者だけ)。
+  // この端末が承認待ちなら、記録だけの期間でも確認コードの入力へ案内する
+  const devicePromise = supabase.rpc("device_my_status");
 
   const [{ data: profile }, { data: subs }, calendarFeedUrl, { data: reminder }, { data: personal }] = await Promise.all([
     supabase.from("employees").select("furigana").eq("id", me.id).maybeSingle(),
@@ -28,11 +30,13 @@ export default async function EmployeeAccountPage() {
       .maybeSingle(),
   ]);
 
-  const { data: enforced } = await enforcedPromise;
+  const { data: device } = await devicePromise;
+  const d = device as { approved: boolean; device_status: string | null; enforced: boolean } | null;
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">アカウント設定</h1>
+      {d?.device_status === "pending" && <PendingDeviceNotice enforced={d.enforced} />}
       <AccountSettingsView
         name={me.name}
         nickname={me.nickname}
@@ -52,7 +56,7 @@ export default async function EmployeeAccountPage() {
           birthDate: personal?.birth_date ?? "",
         }}
       />
-      {enforced === true && <DeviceLinkSection />}
+      {d?.enforced && <DeviceLinkSection />}
     </div>
   );
 }

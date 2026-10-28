@@ -23,8 +23,9 @@ export async function redeemPairCode(code: string): Promise<RedeemResult> {
 export async function isDeviceApproved(): Promise<boolean> {
   const supabase = await createClient();
   const { data } = await supabase.rpc("device_my_status");
-  const s = data as { approved?: boolean; enforced?: boolean } | null;
-  return !!s && (s.approved === true || s.enforced === false);
+  const s = data as { approved?: boolean; enforced?: boolean; device_status?: string | null } | null;
+  // 記録だけの期間に承認待ちの端末で開いている場合は、承認されるまで待つ(すぐ戻さない)
+  return !!s && (s.approved === true || (s.enforced === false && s.device_status !== "pending"));
 }
 
 export async function signOutFromPending() {

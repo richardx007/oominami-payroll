@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { isDeviceApproved, redeemPairCode, signOutFromPending } from "./actions";
 
@@ -9,10 +10,13 @@ export function DevicePendingView({
   name,
   label,
   revoked,
+  enforced,
 }: {
   name: string;
   label: string;
   revoked: boolean;
+  /** false = 記録だけの期間(承認しなくても使える。アカウント設定の案内から開いた) */
+  enforced: boolean;
 }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +99,11 @@ export function DevicePendingView({
               ? "管理者がこの端末の承認を取り消しました。心当たりがない場合は管理者に連絡してください。"
               : "あなたのアカウントを守るため、初めて使う端末は承認が必要です。"}
           </p>
+          {!enforced && !revoked && (
+            <p className="mt-2 text-left text-sm text-gray-600">
+              今は承認しなくても使えます。確認コードを入れると、この端末をすぐ承認できます。
+            </p>
+          )}
           <p className="mt-2 text-xs text-gray-400">
             {name ? `${name} さん` : ""}
             {label ? ` ・ ${label}` : ""}
@@ -146,11 +155,19 @@ export function DevicePendingView({
           </>
         )}
 
-        <form action={signOutFromPending} className="text-center">
-          <button type="submit" className="text-sm text-gray-500 underline">
-            ログアウト
-          </button>
-        </form>
+        {enforced ? (
+          <form action={signOutFromPending} className="text-center">
+            <button type="submit" className="text-sm text-gray-500 underline">
+              ログアウト
+            </button>
+          </form>
+        ) : (
+          <p className="text-center">
+            <Link href="/" className="text-sm text-gray-500 underline">
+              承認しないで戻る
+            </Link>
+          </p>
+        )}
       </div>
     </main>
   );
