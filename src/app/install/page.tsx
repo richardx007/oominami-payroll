@@ -59,12 +59,16 @@ export default async function InstallPage() {
         アイコンをホーム画面に置いておくと、次回からアプリのようにワンタップで開けます。
         画面下に表示される案内にそって進めてください。
       </p>
-      {loggedIn && (
-        <Link href="/" className="mt-6 text-sm text-blue-600 underline">
-          あとで追加する(このまま使い始める)
-        </Link>
-      )}
-      <AddToHomeScreenBanner />
+      {/* 「あとで追加する」は案内の枠の下に出す(先に目に入って押されないように) */}
+      <AddToHomeScreenBanner
+        below={
+          loggedIn && (
+            <Link href="/" className="mt-6 inline-block text-sm text-blue-600 underline">
+              あとで追加する(このまま使い始める)
+            </Link>
+          )
+        }
+      />
     </main>
   );
 }
