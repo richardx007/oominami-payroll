@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppReloadPrompt } from "./pwa/AppReloadPrompt";
 import { DeviceHint } from "./pwa/DeviceHint";
+import { ZoomHint } from "./pwa/ZoomHint";
 
 export const metadata: Metadata = {
   title: "給与管理システム",
@@ -29,6 +30,7 @@ export default function RootLayout({
         {children}
         {/* 端末承認制: iPad(Mac を名乗るタッチ画面)の目印を付ける */}
         <DeviceHint />
+        <ZoomHint />
         <AppReloadPrompt accentColor="#152449" position="top" />
       </body>
     </html>
