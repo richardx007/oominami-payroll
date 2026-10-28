@@ -80,7 +80,7 @@ begin
   ] loop
     execute format(
       'create policy %I on public.%I as restrictive for all to authenticated '
-      'using (employee_id is null or not (employee_id = any ((select public.dummy_employee_ids()))) '
+      'using (employee_id is null or not (employee_id = any ((select public.dummy_employee_ids())::uuid[])) '
       'or (select public.can_see_dummies()))',
       t || '_hide_dummy', t
     );
@@ -89,13 +89,13 @@ end $$;
 
 create policy activity_logs_hide_dummy on public.activity_logs
   as restrictive for all to authenticated
-  using (actor_id is null or not (actor_id = any ((select public.dummy_employee_ids())))
+  using (actor_id is null or not (actor_id = any ((select public.dummy_employee_ids())::uuid[]))
          or (select public.can_see_dummies()));
 
 -- お知らせ(ダミーあての個別連絡)
 create policy notifications_hide_dummy on public.notifications
   as restrictive for all to authenticated
-  using (recipient_id is null or not (recipient_id = any ((select public.dummy_employee_ids())))
+  using (recipient_id is null or not (recipient_id = any ((select public.dummy_employee_ids())::uuid[]))
          or (select public.can_see_dummies()));
 
 -- 経費管理の表
@@ -104,9 +104,9 @@ create policy expense_entries_hide_dummy on public.expense_entries
   using (
     (select public.can_see_dummies())
     or not (
-      coalesce(staff_id = any ((select public.dummy_employee_ids())), false)
-      or coalesce(advanced_by = any ((select public.dummy_employee_ids())), false)
-      or coalesce(created_by = any ((select public.dummy_auth_ids())), false)
+      coalesce(staff_id = any ((select public.dummy_employee_ids())::uuid[]), false)
+      or coalesce(advanced_by = any ((select public.dummy_employee_ids())::uuid[]), false)
+      or coalesce(created_by = any ((select public.dummy_auth_ids())::uuid[]), false)
     )
   );
 create policy expense_recurring_hide_dummy on public.expense_recurring
@@ -114,17 +114,17 @@ create policy expense_recurring_hide_dummy on public.expense_recurring
   using (
     (select public.can_see_dummies())
     or not (
-      coalesce(staff_id = any ((select public.dummy_employee_ids())), false)
-      or coalesce(created_by = any ((select public.dummy_auth_ids())), false)
+      coalesce(staff_id = any ((select public.dummy_employee_ids())::uuid[]), false)
+      or coalesce(created_by = any ((select public.dummy_auth_ids())::uuid[]), false)
     )
   );
 create policy ops_activity_logs_hide_dummy on public.ops_activity_logs
   as restrictive for all to authenticated
-  using (user_id is null or not (user_id = any ((select public.dummy_auth_ids())))
+  using (user_id is null or not (user_id = any ((select public.dummy_auth_ids())::uuid[]))
          or (select public.can_see_dummies()));
 create policy ops_guide_views_hide_dummy on public.ops_guide_views
   as restrictive for all to authenticated
-  using (user_id is null or not (user_id = any ((select public.dummy_auth_ids())))
+  using (user_id is null or not (user_id = any ((select public.dummy_auth_ids())::uuid[]))
          or (select public.can_see_dummies()));
 
 -- ------------------------------------------------------------
