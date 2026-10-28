@@ -7,6 +7,7 @@ import { fetchOvernightDates, slotsResolver, type WorkTimeSettingRow } from "@/l
 import { TimesheetCalendar } from "@/app/(employee)/timesheet/ui";
 import type { WorkEntry } from "@/app/(employee)/timesheet/page";
 import { adminUpsertWorkEntry, adminDeleteWorkEntry } from "./actions";
+import { WORKING_STATUSES } from "@/lib/employee-status";
 
 export default async function AdminTimesheetPage({
   searchParams,
@@ -25,7 +26,7 @@ export default async function AdminTimesheetPage({
   const { data: employees } = await supabase
     .from("employees")
     .select("id, name, nickname")
-    .eq("status", "active")
+    .in("status", WORKING_STATUSES)
     .eq("is_admin", false)
     .order("employee_no");
 

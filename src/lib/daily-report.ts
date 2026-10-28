@@ -27,6 +27,7 @@ import {
 } from "./period";
 import { breakWindowsResolver, type WorkTimeSettingRow } from "./work-time";
 import { effectiveAt } from "./payroll";
+import { WORKING_STATUSES } from "@/lib/employee-status";
 
 export type DailyRow = {
   workDate: string;
@@ -141,7 +142,7 @@ export async function loadDailyReport(
   // 退職者(複製した仮の退職者を含む)は既定で除外する。7月分実績の付け替えで
   // 作成した仮の退職者(employee_no末尾x)が一覧に混ざって紛らわしいため(2026-08-20)。
   if (!includeRetired) {
-    employeesQuery = employeesQuery.eq("status", "active");
+    employeesQuery = employeesQuery.in("status", WORKING_STATUSES);
   }
   let entriesQuery = supabase
     .from("work_entries")

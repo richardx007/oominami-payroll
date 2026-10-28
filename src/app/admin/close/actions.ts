@@ -16,6 +16,7 @@ import {
 } from "@/lib/email";
 import type { ActionResult } from "../employees/actions";
 import { loadReimbursements } from "@/lib/expense-reimbursement";
+import { isWorkingStatus } from "@/lib/employee-status";
 
 /** 締め処理: 期間をロックし、全員分の給与明細を確定保存する */
 export async function closePeriod(periodKey: string): Promise<ActionResult> {
@@ -313,7 +314,7 @@ export async function emailPayslips(
   const allTargets = (payslips ?? []).filter((p) => {
     if (onlyUnsent && p.emailed_at) return false;
     const emp = p.employees as unknown as { name: string; email: string; status: string };
-    if (emp.status !== "active") return false;
+    if (!isWorkingStatus(emp.status)) return false;
     const email = emp.email?.trim().toLowerCase();
     if (!email) return false;
     if (senderEmail && email === senderEmail) return false;

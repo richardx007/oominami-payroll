@@ -8,6 +8,7 @@ import {
   todayJST,
 } from "@/lib/period";
 import { calculatePeriodPayroll } from "@/lib/payroll-data";
+import { isDummyStatus } from "@/lib/employee-status";
 import { periodStatusBadgeClass, periodStatusLabel } from "@/lib/period-status";
 import { PAYSLIP_ISSUER_KEYS, parsePayslipIssuer } from "@/lib/payslip-issuer";
 import { CloseActions } from "./ui";
@@ -42,6 +43,7 @@ export default async function ClosePage({
   const payrolls = await calculatePeriodPayroll(period, {
     ignoreIncomplete: tentative,
   });
+  const reportPayrolls = payrolls.filter((p) => !isDummyStatus(p.status));
   // 立替の給与精算(2026-10-07)。締め後はこの月度に乗せた立替、締め前は今締めたら乗る見込み。
   // 給与ではない(非課税の実費の払い戻し)ので、差引支給の右に「立替精算」「お振込額」として別に出す
   const reimbursements = await loadReimbursements(supabase, {
@@ -122,9 +124,11 @@ export default async function ClosePage({
       </div>
 
       {/* id は PDFダウンロード(DownloadPdfButton)・税理士へのメール添付のキャプチャ対象。
-          変更する場合は admin/close/ui.tsx の targetId・pdfTargetId も合わせること */}
+          変更する場合は admin/close/ui.tsx の targetId・pdfTargetId も合わせること。
+          ダミー従業員(システム管理者にだけ見える)がいるときは、画面にはダミー込みの表を出し、
+          PDF 用にはダミーを除いた表を画面外に描く(PDF は税理士・オーナーに渡るため) */}
       <PayslipReport
-        id="payslip-report"
+        id={reportPayrolls.length === payrolls.length ? "payslip-report" : "payslip-report-with-dummies"}
         period={period}
         status={status}
         payrolls={payrolls}
@@ -132,6 +136,19 @@ export default async function ClosePage({
         mismatchIds={mismatchIds}
         issuer={issuer}
       />
+      {reportPayrolls.length !== payrolls.length && (
+        <div aria-hidden className="fixed top-0 -left-[10000px]">
+          <PayslipReport
+            id="payslip-report"
+            period={period}
+            status={status}
+            payrolls={reportPayrolls}
+            reimbursements={reimbursements}
+            mismatchIds={mismatchIds}
+            issuer={issuer}
+          />
+        </div>
+      )}
 
       {/* 源泉徴収票(年ごと。?y= で切り替え、既定は今年) */}
       <WithholdingSection

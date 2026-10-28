@@ -11,6 +11,7 @@ import {
   type SlipPayment,
 } from "./withholding-slip";
 import type { WithholdingSlipData } from "@/components/WithholdingSlipButton";
+import { isWorkingStatus } from "./employee-status";
 
 /**
  * 従業員が自分でダウンロードする書類(給与明細PDF・源泉徴収票)の元データ。
@@ -133,13 +134,13 @@ function buildSlips(
   return slipYears(payments).map((year) => ({
     totals: computeWithholdingTotals(payments, year),
     // 退職済みの人は年の途中でも確定(退職後1か月以内に交付する義務があるため)
-    inProgressAsOf: year >= thisYear && subject.status === "active" ? today : null,
+    inProgressAsOf: year >= thisYear && isWorkingStatus(subject.status) ? today : null,
     name: subject.name,
     furigana: subject.furigana,
     postalCode: profile.postalCode,
     address: profile.address,
     birthDate: profile.birthDate,
-    change: midYearChange(year, firstWorkDate, lastWorkDate, subject.status !== "active"),
+    change: midYearChange(year, firstWorkDate, lastWorkDate, !isWorkingStatus(subject.status)),
     employer,
   }));
 }

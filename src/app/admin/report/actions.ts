@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { periodFromKey, type Period } from "@/lib/period";
 import { calculatePeriodPayroll, type EmployeePayroll } from "@/lib/payroll-data";
+import { isDummyStatus } from "@/lib/employee-status";
 import { loadReimbursements, type Reimbursement } from "@/lib/expense-reimbursement";
 import {
   buildTaxGreetingLines,
@@ -70,11 +71,13 @@ async function loadReport(periodKey: string): Promise<LoadedReport> {
     .select(
       `work_days, total_minutes, night_minutes, overtime_minutes, hourly_wage, base_pay, night_pay,
        overtime_pay, transport_total, lunch_total, gross_pay, income_tax, advance_deduction,
-       net_pay, tax_category, expense_reimbursement, employees ( employee_no, name )`
+       net_pay, tax_category, expense_reimbursement, employees ( employee_no, name, status )`
     )
     .eq("pay_period_id", payPeriod.id);
 
   const rows = (payslips ?? [])
+    // ダミー従業員(テスト用)は税理士向けの資料に入れない
+    .filter((r) => !isDummyStatus((r.employees as unknown as { status: string }).status))
     .map((r) => ({
       ...r,
       // payslips テーブルに taxable_amount 列は無いため、payroll.ts の計算式
@@ -306,7 +309,7 @@ export async function previewTaxReportTestRows(
   if (payPeriod && status !== "open") {
     const [loaded, payrolls, reimbursements, companyName] = await Promise.all([
       loadReport(period.key),
-      calculatePeriodPayroll(period),
+      calculatePeriodPayroll(period, { excludeDummies: true }),
       loadReimbursements(supabase, {
         periodId: payPeriod.id,
         status,
@@ -331,7 +334,7 @@ export async function previewTaxReportTestRows(
   }
 
   const [payrolls, companyName] = await Promise.all([
-    calculatePeriodPayroll(period, { ignoreIncomplete: true }),
+    calculatePeriodPayroll(period, { ignoreIncomplete: true, excludeDummies: true }),
     getCompanyName(),
   ]);
   const rows: PayRow[] = payrolls

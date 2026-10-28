@@ -8,6 +8,7 @@ import { sendMail } from "@/lib/email";
 import { logActivity } from "@/lib/log";
 import { parsePersonalInfo } from "@/lib/personal-info";
 import { getSiteUrl } from "@/lib/site-url";
+import { isWorkingStatus } from "@/lib/employee-status";
 
 const employeeSchema = z
   .object({
@@ -652,7 +653,7 @@ export async function inviteEmployee(employeeId: string): Promise<ActionResult> 
   if (employee.auth_user_id) {
     return { ok: false, message: "すでに初回登録が完了しています" };
   }
-  if (employee.status !== "active") {
+  if (!isWorkingStatus(employee.status)) {
     return { ok: false, message: "退職済みの従業員には送信できません" };
   }
 
@@ -708,7 +709,7 @@ export async function resetEmployeePassword(
       message: "まだ初回登録が完了していません。先に「招待」を送ってください。",
     };
   }
-  if (employee.status !== "active") {
+  if (!isWorkingStatus(employee.status)) {
     return { ok: false, message: "退職済みの従業員には送信できません" };
   }
 
@@ -791,9 +792,13 @@ export async function deleteEmployee(
 
 export async function toggleEmployeeStatus(
   employeeId: string,
-  newStatus: "active" | "retired"
+  newStatus: "active" | "retired" | "dummy"
 ): Promise<ActionResult> {
-  await requireAdmin();
+  const me = await requireAdmin();
+  // ダミー(テスト用の見えない従業員)はシステム管理者だけが扱う。オーナーにはダミーが見えないため
+  if (newStatus === "dummy" && me.is_owner) {
+    return { ok: false, message: "ダミーにできるのはシステム管理者だけです" };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -806,7 +811,12 @@ export async function toggleEmployeeStatus(
   revalidatePath("/admin/employees");
   return {
     ok: true,
-    message: newStatus === "retired" ? "退職処理しました" : "在籍に戻しました",
+    message:
+      newStatus === "retired"
+        ? "退職処理しました"
+        : newStatus === "dummy"
+          ? "ダミーにしました(オーナー・従業員からは見えなくなります)"
+          : "在籍に戻しました",
   };
 }
 

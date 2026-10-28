@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { getAdminEmails, sendMail, sendMailToMany } from "@/lib/email";
 import type { ActionResult } from "../employees/actions";
+import { WORKING_STATUSES } from "@/lib/employee-status";
 
 const noticeSchema = z.object({
   recipient_id: z.string(), // "" = 全員
@@ -39,7 +40,7 @@ export async function sendNotice(formData: FormData): Promise<ActionResult> {
       const { data: target } = await supabase
         .from("employees")
         .select("email, name, nickname")
-        .eq("status", "active")
+        .in("status", WORKING_STATUSES)
         .eq("id", d.recipient_id)
         .maybeSingle();
 
@@ -69,7 +70,7 @@ export async function sendNotice(formData: FormData): Promise<ActionResult> {
       const { data: recipients } = await supabase
         .from("employees")
         .select("email")
-        .eq("status", "active")
+        .in("status", WORKING_STATUSES)
         .eq("is_admin", false);
 
       const emails = (recipients ?? []).map((r) => r.email);

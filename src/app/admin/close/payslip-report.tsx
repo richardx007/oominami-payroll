@@ -5,6 +5,8 @@ import type { PayslipIssuer } from "@/lib/payslip-issuer";
 import type { Reimbursement, ReimbursementMap } from "@/lib/expense-reimbursement";
 import { zebraRowClass } from "@/lib/table";
 import { PayslipPdfButton } from "./payslip-pdf";
+import { isDummyStatus } from "@/lib/employee-status";
+import { DummyBadge } from "@/components/DummyBadge";
 
 /** 分を「H:MM」表記にする(単位を省いて数字だけ・改行させない用) */
 function hhmm(minutes: number) {
@@ -74,8 +76,10 @@ export function PayslipReport({
       reimbursementOf(p.employee_id).total > 0
   );
 
+  // ダミー従業員(テスト用)は行には出すが、合計には入れない
   const totals = payrolls.reduce(
     (acc, p) => {
+      if (isDummyStatus(p.status)) return acc;
       if (p.result) {
         acc.gross += p.result.gross_pay;
         acc.tax += p.result.income_tax;
@@ -210,6 +214,7 @@ export function PayslipReport({
                     {/* 固定列は bg-inherit で行の縞の色を引き継ぐ(lib/table.ts 参照) */}
                     <td className="sticky left-0 z-10 whitespace-nowrap bg-inherit px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]">
                       {p.name}
+                      {isDummyStatus(p.status) && <DummyBadge />}
                     </td>
                     <td
                       colSpan={(anyReimbursement ? 17 : 15) + (showPdfCol ? 1 : 0)}
@@ -254,6 +259,7 @@ export function PayslipReport({
                       className="sticky left-0 z-10 whitespace-nowrap bg-inherit px-4 py-3 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.15)]"
                     >
                       {p.name}
+                      {isDummyStatus(p.status) && <DummyBadge />}
                       {/* 仮計算で除外した日を氏名の下に小さく注記(退勤未入力=進行中の勤務など) */}
                       {tentative && result.excluded_dates.length > 0 && (
                         <span className="mt-0.5 block text-xs font-normal text-amber-600">

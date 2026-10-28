@@ -3203,3 +3203,17 @@ Cloudflare Workers は**無料プランのまま続ける**(Paid にはしない
 - **メニューの先読み(Link の prefetch)は止めない**。止めると 1102 は減るかもしれないが、画面の移動が遅く感じる可能性がある(オーナー判断)。
   なお、画面を開くたびにメニューの全画面を先読みしており、リクエストの大半はこれ(管理画面で約15件/回)。
 - 定期アクセスで実行環境を温める仕組み(温まるのが別の拠点になりがちで確実でない)。
+
+## 33. ダミー従業員（本番で使うテスト用の見えない従業員。2026-10-28、オーナー依頼）
+
+- `employees.status` に `'dummy'` を追加（`active` / `retired` / `dummy`）。在籍の判定は `src/lib/employee-status.ts` の `isWorkingStatus`・`WORKING_STATUSES`（ダミーも在籍と同じ）。
+- **見えるのはシステム管理者（オーナー以外の管理者）とダミー本人だけ**。オーナー・一般の従業員には給与管理・経費管理のどの画面にも出ない（シフト表・従業員の選択肢・お知らせ・操作ログ・端末一覧も含む）。ダミーからは他の従業員の情報が通常どおり見える。
+- 守り方（`supabase/migrations/20261028120000_dummy_employees.sql`）:
+  - `public.can_see_dummies()`（システム管理者・ダミー本人なら true）と、`dummy_employee_ids()`・`dummy_auth_ids()`。
+  - 従業員と従業員に紐づく表に RESTRICTIVE ポリシー `*_hide_dummy` を足す（既存のポリシーに「かつ」で掛かる）。経費の `expense_entries`・`expense_recurring`・`ops_activity_logs`・`ops_guide_views` も同じ。
+  - RLS を通らない SECURITY DEFINER の関数（`get_shift_roster`・`get_shift_status`・`get_employee_names`・`ops_staff_list`・`ops_account_names`・`device_list`・`device_enforce_test_list`）は関数の中で絞る。
+  - 管理者あての通知: 端末の承認依頼・初回ログインは、ダミーのことはオーナーに送らない（システム管理者には送る）。未打刻の通知はオーナーも受け取る一括の通知なので、ダミーは対象外。本人あての通知（シフトのリマインド・シフト変更）はダミーにも届く。
+  - **従業員に紐づく新しい表を作るときは、同じ形の `*_hide_dummy` ポリシーを足すこと**。
+- 給与: ダミーも明細を作り、明細を送付する。締め画面の明細一覧ではダミーの行に印を付けるが、**月の合計には入れない**。税理士向けの CSV・メール・明細一覧 PDF には入れない（ダミーがいるときは、PDF 用にダミーを除いた表を画面外に描いて撮る。`admin/close/page.tsx`）。経費の月次集計（税理士に出す PDF・CSV）からも外す（経費の `report-data.ts`）。
+- ダミーにする・やめるのは、従業員管理の詳細の「ダミーにする」（システム管理者だけ）。一覧の「ダミー」タブで一覧できる。
+- 既知の制限: ダミーが他の人のシフトを変えると、その人へのシフト変更通知に変更した人としてダミーの名前が出る。

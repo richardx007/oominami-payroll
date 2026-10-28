@@ -27,6 +27,8 @@ import {
   type ActionResult,
 } from "./actions";
 import { segmentClass, segmentItemClass } from "@/lib/choice-styles";
+import { isDummyStatus } from "@/lib/employee-status";
+import { DummyBadge } from "@/components/DummyBadge";
 
 function TrashIcon({ className }: { className?: string }) {
   return (
@@ -320,8 +322,9 @@ export function EmployeeList({
   const [editing, setEditing] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
-  // 在職者のみ/退職者のみの二択(デフォルトは在職者のみ)。
-  const [statusFilter, setStatusFilter] = useState<"active" | "retired">("active");
+  // 在職者のみ/退職者のみの二択(デフォルトは在職者のみ)。システム管理者にはダミー(テスト用の見えない従業員)も出す
+  // (オーナーには DB の RLS がダミーを返さないので、タブも出さない)
+  const [statusFilter, setStatusFilter] = useState<"active" | "retired" | "dummy">("active");
   const filteredEmployees = employees.filter((e) => e.status === statusFilter);
 
   function run(action: () => Promise<ActionResult>) {
@@ -369,6 +372,16 @@ export function EmployeeList({
             >
               退職者のみ
             </button>
+            {!isOwner && (
+              <button
+                type="button"
+                onClick={() => setStatusFilter("dummy")}
+                aria-pressed={statusFilter === "dummy"}
+                className={`${segmentItemClass(statusFilter === "dummy")} px-3 py-1.5`}
+              >
+                ダミー
+              </button>
+            )}
           </div>
           <span className="inline-flex items-center gap-1 text-xs text-gray-600">
             <LeaderEmblem />
@@ -398,7 +411,9 @@ export function EmployeeList({
                 <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-400">
                   {statusFilter === "active"
                     ? "在職中の従業員はいません"
-                    : "退職済みの従業員はいません"}
+                    : statusFilter === "dummy"
+                      ? "ダミーの従業員はいません"
+                      : "退職済みの従業員はいません"}
                 </td>
               </tr>
             )}
@@ -1200,6 +1215,7 @@ function EmployeeTableRow({
             </span>
           )}
           {emp.is_leader && <LeaderEmblem className="ml-1" />}
+          {isDummyStatus(emp.status) && <DummyBadge />}
         </td>
         <td className="whitespace-nowrap px-4 py-3">
           <span
@@ -1441,20 +1457,39 @@ function EmployeeTableRow({
 
               <div className="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
                 {!emp.is_admin ? (
-                  <button
-                    disabled={pending || deletePending}
-                    onClick={() =>
-                      onRun(() =>
-                        toggleEmployeeStatus(
-                          emp.id,
-                          retired ? "active" : "retired"
+                  <span className="flex flex-wrap items-center gap-4">
+                    <button
+                      disabled={pending || deletePending}
+                      onClick={() =>
+                        onRun(() =>
+                          toggleEmployeeStatus(
+                            emp.id,
+                            retired ? "active" : "retired"
+                          )
                         )
-                      )
-                    }
-                    className="text-sm text-red-600 hover:underline disabled:opacity-50"
-                  >
-                    {retired ? "在籍に戻す" : "退職処理する"}
-                  </button>
+                      }
+                      className="text-sm text-red-600 hover:underline disabled:opacity-50"
+                    >
+                      {retired ? "在籍に戻す" : "退職処理する"}
+                    </button>
+                    {/* ダミー(テスト用の見えない従業員)の切り替えはシステム管理者だけ */}
+                    {!isOwner && (
+                      <button
+                        disabled={pending || deletePending}
+                        onClick={() =>
+                          onRun(() =>
+                            toggleEmployeeStatus(
+                              emp.id,
+                              isDummyStatus(emp.status) ? "active" : "dummy"
+                            )
+                          )
+                        }
+                        className="text-sm text-purple-700 hover:underline disabled:opacity-50"
+                      >
+                        {isDummyStatus(emp.status) ? "ダミーをやめて在籍にする" : "ダミーにする"}
+                      </button>
+                    )}
+                  </span>
                 ) : (
                   <span />
                 )}

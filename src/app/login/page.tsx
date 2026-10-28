@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { requestPasswordReset } from "./actions";
 import { describeClient, formatClientInfo } from "@/lib/client-info";
 import { AccessHelp } from "@/components/AccessHelp";
+import { isWorkingStatus } from "@/lib/employee-status";
 
 /**
  * ログイン後に戻る先(?redirect=)を検証する。オープンリダイレクト対策として
@@ -66,7 +67,8 @@ export default function LoginPage() {
     const { data: status } = signInData.user
       ? await supabase.rpc("login_employee_status")
       : { data: null };
-    if (status !== "active") {
+    // ダミー(テスト用の見えない従業員)も在職と同じくログインできる
+    if (!isWorkingStatus(status)) {
       await supabase.auth.signOut();
       setError("メールアドレスまたはパスワードが正しくありません");
       setLoading(false);

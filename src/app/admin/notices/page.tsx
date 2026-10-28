@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { NoticeForm } from "./ui";
+import { WORKING_STATUSES } from "@/lib/employee-status";
 
 export default async function AdminNoticesPage() {
   await requireAdmin();
@@ -10,7 +11,7 @@ export default async function AdminNoticesPage() {
     supabase
       .from("employees")
       .select("id, name, nickname, employee_no")
-      .eq("status", "active")
+      .in("status", WORKING_STATUSES)
       .eq("is_admin", false)
       .order("employee_no"),
     supabase

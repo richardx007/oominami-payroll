@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { zebraRowClass } from "@/lib/table";
 import { formatJstDate, formatJstDateTime, formatJstDateWeekday, jstYmd } from "@/lib/jst-format";
+import { isDummyStatus, isWorkingStatus } from "@/lib/employee-status";
 
 type LogRow = {
   created_at: string;
@@ -101,10 +102,10 @@ function actorOptions(logs: LogRow[], employees: EmployeeRef[]) {
   const used = new Set(logs.map((l) => actorKey(l, employeeIds)));
   const label = (e: EmployeeRef) => e.nickname?.trim() || e.name;
   const active = employees
-    .filter((e) => e.status === "active" && used.has(`e:${e.id}`))
-    .map((e) => ({ key: `e:${e.id}`, label: label(e) }));
+    .filter((e) => isWorkingStatus(e.status) && used.has(`e:${e.id}`))
+    .map((e) => ({ key: `e:${e.id}`, label: isDummyStatus(e.status) ? `${label(e)}(ダミー)` : label(e) }));
   const retired = employees
-    .filter((e) => e.status !== "active" && used.has(`e:${e.id}`))
+    .filter((e) => !isWorkingStatus(e.status) && used.has(`e:${e.id}`))
     .map((e) => ({ key: `e:${e.id}`, label: `${label(e)}(退職)` }));
   const others = Array.from(used)
     .filter((k) => k.startsWith("n:"))

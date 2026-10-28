@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { WORKING_STATUSES } from "./employee-status";
 import type { Period } from "./period";
 import { breakWindowsResolver, type WorkTimeSettingRow } from "./work-time";
 import {
@@ -15,6 +16,8 @@ export type EmployeePayroll = {
   /** 表示用のニックネーム(未設定なら null)。帳票・明細・メールは name を使い、
    *  担当者向けの画面メッセージ等ではニックネームを優先して使う。 */
   nickname: string | null;
+  /** employees.status。"dummy"(ダミー)は画面に出すが、月の合計・税理士向けの資料には入れない */
+  status: string;
   result: PayslipResult | null;
   error: string | null;
 };
@@ -25,6 +28,8 @@ export async function calculatePeriodPayroll(
   opts?: {
     /** true の場合、退勤未入力の日をエラーにせず除外して計算する(締め前の「税額仮計算」用) */
     ignoreIncomplete?: boolean;
+    /** true の場合、ダミー従業員を外す(税理士向けの資料用)。ダミーは見られる人(システム管理者)にだけ RLS で返る */
+    excludeDummies?: boolean;
   }
 ): Promise<EmployeePayroll[]> {
   const supabase = await createClient();
@@ -42,8 +47,8 @@ export async function calculatePeriodPayroll(
   ] = await Promise.all([
     supabase
       .from("employees")
-      .select("id, employee_no, name, nickname")
-      .eq("status", "active")
+      .select("id, employee_no, name, nickname, status")
+      .in("status", opts?.excludeDummies ? ["active"] : WORKING_STATUSES)
       .eq("is_admin", false)
       .order("employee_no"),
     supabase
@@ -115,6 +120,7 @@ export async function calculatePeriodPayroll(
         employee_no: emp.employee_no,
         name: emp.name,
         nickname: emp.nickname,
+        status: emp.status,
         result,
         error: null,
       };
@@ -124,6 +130,7 @@ export async function calculatePeriodPayroll(
         employee_no: emp.employee_no,
         name: emp.name,
         nickname: emp.nickname,
+        status: emp.status,
         result: null,
         error: e instanceof PayrollError ? e.message : "計算エラー",
       };

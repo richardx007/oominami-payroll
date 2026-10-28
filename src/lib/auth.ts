@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DEVICE_PENDING_PATH } from "@/lib/device";
+import { isWorkingStatus } from "@/lib/employee-status";
 
 export type Employee = {
   id: string;
@@ -54,7 +55,7 @@ export async function requireEmployee(): Promise<Employee> {
   // 退職済みの従業員はここでも弾く(ログイン画面の水際チェックの保険。
   // 例えばログイン後に退職処理された場合、既存セッションが残っていると
   // 通り抜けてしまうため)。ログイン時と同じく通常の認証エラーと同じ扱いにする。
-  if (employee.status !== "active") {
+  if (!isWorkingStatus(employee.status)) {
     await supabase.auth.signOut();
     redirect("/login");
   }
