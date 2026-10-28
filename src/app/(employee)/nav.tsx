@@ -3,7 +3,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "./actions";
 
 const mainItems = [
   { href: "/shifts", label: "シフト", icon: GridIcon },
@@ -364,16 +363,7 @@ export function EmployeeNav({
               経費の入力
               <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
             </a>
-            {/* 区切り線の下にログアウト */}
-            <form action={signOut} className="border-t-4 border-white/15">
-              <button
-                type="submit"
-                className="flex w-full items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
-              >
-                <LogoutIcon className="h-5 w-5 shrink-0" />
-                ログアウト
-              </button>
-            </form>
+            {/* ログアウトはアカウント設定の最下部へ移設(2026-10-28) */}
           </div>
         </div>
       )}
@@ -623,24 +613,6 @@ function DocumentIcon({ className }: { className?: string }) {
     >
       <path d="M6 3h9l3 3v15H6z" />
       <path d="M15 3v3h3M9 12h6M9 16h6M9 8h2" />
-    </svg>
-  );
-}
-
-function LogoutIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <path d="M16 17l5-5-5-5M21 12H9" />
     </svg>
   );
 }

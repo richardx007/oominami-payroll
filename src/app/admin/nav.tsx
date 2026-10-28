@@ -4,7 +4,6 @@ import { Fragment, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { reloadApp } from "@/app/pwa/reloadApp";
-import { signOut } from "./actions";
 
 // スマホの下部タブに常時出す主要メニュー
 const primaryLinks = [
@@ -338,16 +337,7 @@ export function AdminBottomNav() {
               経費へ
               <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
             </a>
-            {/* 区切り線の下にログアウト(ヘッダーから移設) */}
-            <form action={signOut} className="border-t-4 border-white/15">
-              <button
-                type="submit"
-                className="flex w-full touch-manipulation items-center gap-2 px-4 py-3 text-base font-medium text-blue-50 active:opacity-70"
-              >
-                <LogoutIcon className="h-5 w-5 shrink-0" />
-                ログアウト
-              </button>
-            </form>
+            {/* ログアウトはアカウント設定の最下部へ移設(2026-10-28) */}
           </div>
         </div>
       )}
@@ -629,24 +619,6 @@ function MenuIcon({ className }: { className?: string }) {
       aria-hidden="true"
     >
       <path d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  );
-}
-
-function LogoutIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <path d="M16 17l5-5-5-5M21 12H9" />
     </svg>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { zebraRowClass } from "@/lib/table";
-import { formatJstDate, formatJstDateTime, formatJstDateWeekday, jstYmd } from "@/lib/jst-format";
+import { formatJstDate, formatJstDateWeekday, formatJstTime, jstYmd } from "@/lib/jst-format";
 import { isDummyStatus, isWorkingStatus } from "@/lib/employee-status";
 
 type LogRow = {
@@ -12,6 +12,8 @@ type LogRow = {
   actor_name: string | null;
   action: string;
   detail: string | null;
+  /** 実行環境(アプリ / ブラウザ / GitHub / Supabase / Cloudflare / Claude)。不明は null */
+  source: string | null;
 };
 
 /** JSTの暦日でのUTC正午タイムスタンプ(日数差の計算専用。時刻は無視する) */
@@ -74,6 +76,18 @@ function actionClass(action: string) {
 
 const UNKNOWN_ACTOR = "(不明)";
 
+/**
+ * 実行環境の表示。記録が無い(2026-10-28 より前など)ものは、自動処理の実行者の名前から補う。
+ * それでも分からないものはブランク
+ */
+const SOURCE_BY_ACTOR: Record<string, string> = {
+  "システム(自動)": "Supabase",
+  自動バックアップ: "GitHub",
+};
+function sourceOf(l: LogRow): string {
+  return l.source ?? SOURCE_BY_ACTOR[l.actor_name ?? ""] ?? "";
+}
+
 type EmployeeRef = {
   id: string;
   employee_no: string;
@@ -127,7 +141,7 @@ async function fetchAllLogs(): Promise<LogRow[]> {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from("activity_logs")
-      .select("created_at, actor_id, actor_name, action, detail")
+      .select("created_at, actor_id, actor_name, action, detail, source")
       .order("created_at", { ascending: false })
       .range(from, from + PAGE - 1);
     if (error) throw error;
@@ -172,6 +186,16 @@ export function LogsView({ employees }: { employees: EmployeeRef[] }) {
   // 既定で「8日以前」(今日を含め9日目以降)の日は閉じた状態にする。
   // 手動でトグルした日だけを覚えておき、既定の開閉を反転して扱う。
   const [toggledDays, setToggledDays] = useState<Set<string>>(() => new Set());
+  // 詳細を全文表示している行(PC では長い詳細を1行に切り詰めて出し、タップで全文にする)
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  function toggleExpanded(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   const filtered = useMemo(
     () =>
@@ -278,31 +302,55 @@ export function LogsView({ employees }: { employees: EmployeeRef[] }) {
                     <div className="overflow-x-auto">
                       <table className="text-sm">
                         <tbody>
-                          {dayLogs.map((log, i) => (
-                            <tr
-                              key={i}
-                              className={`border-t border-gray-100 ${zebraRowClass(i)}`}
-                            >
-                              <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-gray-500">
-                                {formatJstDateTime(log.created_at)}
-                              </td>
-                              <td className="whitespace-nowrap px-2 py-2.5">
-                                <span
-                                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${actionClass(
-                                    log.action
-                                  )}`}
+                          {dayLogs.map((log, i) => {
+                            const rowKey = `${day}-${i}`;
+                            const open = expanded.has(rowKey);
+                            return (
+                              <tr
+                                key={i}
+                                className={`border-t border-gray-100 ${zebraRowClass(i)}`}
+                              >
+                                {/* 日付は見出しでまとめているので時刻だけ。横スクロールしても固定する
+                                    (固定列は bg-inherit で行の縞の色を引き継ぐ。lib/table.ts 参照) */}
+                                <td className="sticky left-0 z-10 whitespace-nowrap bg-inherit px-3 py-2.5 tabular-nums text-gray-500 shadow-[2px_0_2px_-1px_rgba(0,0,0,0.12)]">
+                                  {formatJstTime(log.created_at)}
+                                </td>
+                                <td className="whitespace-nowrap px-2 py-2.5">
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${actionClass(
+                                      log.action
+                                    )}`}
+                                  >
+                                    {log.action}
+                                  </span>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2.5 text-gray-700">
+                                  {log.actor_name ?? UNKNOWN_ACTOR}
+                                </td>
+                                <td className="whitespace-nowrap px-2 py-2.5 text-xs text-gray-400">
+                                  {sourceOf(log)}
+                                </td>
+                                {/* PC は長い詳細を画面内で切り詰め、タップで全文(折り返し)にする。
+                                    スマホは従来どおり横スクロールで読む */}
+                                <td
+                                  onClick={() => log.detail && toggleExpanded(rowKey)}
+                                  title={open ? undefined : (log.detail ?? undefined)}
+                                  className={`px-3 py-2.5 text-gray-600 ${log.detail ? "cursor-pointer" : ""}`}
                                 >
-                                  {log.action}
-                                </span>
-                              </td>
-                              <td className="whitespace-nowrap px-3 py-2.5 text-gray-700">
-                                {log.actor_name ?? UNKNOWN_ACTOR}
-                              </td>
-                              <td className="whitespace-nowrap px-3 py-2.5 text-gray-600">
-                                {log.detail}
-                              </td>
-                            </tr>
-                          ))}
+                                  {/* 表のセルは max-width が効かないので、中の div で切り詰める */}
+                                  <div
+                                    className={
+                                      open
+                                        ? "max-w-[85vw] whitespace-pre-wrap break-all md:max-w-[36rem]"
+                                        : "whitespace-nowrap md:max-w-[36rem] md:truncate"
+                                    }
+                                  >
+                                    {log.detail}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

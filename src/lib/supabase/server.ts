@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { STANDALONE_COOKIE } from "@/lib/device";
 
 export async function createClient(options?: {
   flowType?: "pkce" | "implicit";
@@ -15,6 +16,11 @@ export async function createClient(options?: {
       // 無いと verifyOtp が失敗する(pkce_ 付き token_hash)。implicit なら
       // 端末非依存の token_hash が発行され、verifyOtp が単独で検証できる。
       auth: options?.flowType ? { flowType: options.flowType } : undefined,
+      // 操作ログの「実行環境」用。ホーム画面アプリの目印(DeviceHint が付ける Cookie)があれば app。
+      // DB の log_activity がこのヘッダーを読む(supabase/migrations/20261028150000_activity_log_source.sql)
+      global: {
+        headers: { "x-oom-source": cookieStore.has(STANDALONE_COOKIE) ? "app" : "browser" },
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();

@@ -83,6 +83,7 @@ export default function LoginPage() {
       await supabase.rpc("log_activity", {
         p_action: "ログイン",
         p_detail: info ? `${email} / ${formatClientInfo(info)}` : email,
+        p_source: info ? (info.mode === "PWA" ? "アプリ" : "ブラウザ") : null,
       });
     } catch {}
 

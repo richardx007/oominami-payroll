@@ -4,6 +4,8 @@ import { AccountSettingsView } from "@/app/account/AccountSettingsView";
 import { getMyCalendarFeedUrl } from "@/lib/calendar-feed-url";
 import { DeviceLinkSection } from "@/app/account/DeviceLinkSection";
 import { PendingDeviceNotice } from "@/app/account/PendingDeviceNotice";
+import { LogoutSection } from "@/app/account/LogoutSection";
+import { signOut } from "../actions";
 
 /**
  * 管理者用アカウント設定画面。プロフィール編集・この端末での通知登録に加え、
@@ -61,6 +63,8 @@ export default async function AdminAccountPage() {
         notifyBusinessCalendarEnabled={settingsMap.get("notify_business_calendar") !== "false"}
       />
       {d?.approved && <DeviceLinkSection />}
+      {/* ログアウトは画面の最下部・右下(メニュー・サイドバーから移設) */}
+      <LogoutSection action={signOut} />
     </div>
   );
 }

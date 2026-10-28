@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { describeClient } from "@/lib/client-info";
 
 function SetPasswordInner() {
   const router = useRouter();
@@ -63,6 +64,7 @@ function SetPasswordInner() {
     try {
       await supabase.rpc("log_activity", {
         p_action: isInitialSetup ? "初回ログイン" : "パスワード設定",
+        p_source: describeClient()?.mode === "PWA" ? "アプリ" : "ブラウザ",
       });
     } catch {}
 

@@ -4,6 +4,8 @@ import { AccountSettingsView } from "@/app/account/AccountSettingsView";
 import { getMyCalendarFeedUrl } from "@/lib/calendar-feed-url";
 import { DeviceLinkSection } from "@/app/account/DeviceLinkSection";
 import { PendingDeviceNotice } from "@/app/account/PendingDeviceNotice";
+import { LogoutSection } from "@/app/account/LogoutSection";
+import { signOut } from "../actions";
 
 /** 従業員用アカウント設定画面。プロフィール編集と、この端末での通知登録ができる。 */
 export default async function EmployeeAccountPage() {
@@ -57,6 +59,8 @@ export default async function EmployeeAccountPage() {
         }}
       />
       {d?.enforced && <DeviceLinkSection />}
+      {/* ログアウトは画面の最下部・右下(メニュー・サイドバーから移設) */}
+      <LogoutSection action={signOut} />
     </div>
   );
 }

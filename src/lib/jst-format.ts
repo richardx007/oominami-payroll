@@ -50,6 +50,11 @@ export function formatJstDateTime(v: DateInput) {
   return dateTimeFmt.format(toDate(v));
 }
 
+/** "09:05"(時刻だけ) */
+export function formatJstTime(v: DateInput) {
+  return formatJstDateTime(v).slice(-5);
+}
+
 /** "2026/07/15" */
 export function formatJstDate(v: DateInput) {
   return dateFmt.format(toDate(v));

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireEmployee } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { EmployeeNav, EmployeeSidebarNav } from "./nav";
-import { signOut } from "./actions";
 import { QrScanButton } from "./QrScanButton";
 import { LogoButton, PersonIcon } from "@/app/admin/nav";
 
@@ -81,11 +80,6 @@ export default async function EmployeeLayout({
               管理画面
             </Link>
           )}
-          <form action={signOut}>
-            <button className="w-full rounded-lg bg-white/15 px-3 py-1.5 text-blue-50 hover:bg-white/25">
-              ログアウト
-            </button>
-          </form>
           <div className="mt-3 text-center text-xs text-blue-200/70">
             ver.{process.env.NEXT_PUBLIC_BUILD_TIME ?? "dev"}
           </div>
