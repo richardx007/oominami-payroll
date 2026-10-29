@@ -83,7 +83,13 @@ export function ZoomHint() {
           <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm leading-relaxed">
             {env.standalone && (
               <li>
-                ホーム画面のアプリでは倍率を変えられないので、<b>Safari</b> で <span className="break-all">{env.host}</span> を開く
+                ホーム画面のアプリでは倍率を変えられないので、<b>Safari</b> で{" "}
+                {/* x-safari-https: は iPhone で「Safari で開く」指定(ふつうのリンクだとアプリの中で開いてしまう)。
+                    開けない環境でも、アドレスを見て Safari に入力できるよう文字として出す */}
+                <a href={`x-safari-https://${env.host}/`} className="break-all text-blue-600 underline">
+                  {env.host}
+                </a>{" "}
+                を開く
               </li>
             )}
             <li>アドレス欄の左の「ぁあ」(または「aA」)をタップ</li>
