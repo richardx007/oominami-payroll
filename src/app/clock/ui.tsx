@@ -68,7 +68,7 @@ export function ClockConfirm({
 }) {
   // ハンバーガーメニューの「管理者へ✉️」と同じ mailto:(件名・本文を自動生成)
   const mailtoHref = `mailto:${adminEmail}?subject=${encodeURIComponent(
-    "給与管理システムより"
+    "給与管理システムについて"
   )}&body=${encodeURIComponent(`${companyName} 管理者様\n${employeeName}です。\n`)}`;
   const isIn = type === "in";
   const [now, setNow] = useState<string>("");

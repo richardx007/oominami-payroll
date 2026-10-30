@@ -79,7 +79,7 @@ function useNoticeUnread(latestNoticeAt: string | null): boolean {
 /** 「管理者へメール」の mailto:。件名・本文(会社名 管理者様 / 氏名です。)を自動で埋める。 */
 function buildMailtoHref(adminEmail: string, companyName: string, employeeName: string) {
   return `mailto:${adminEmail}?subject=${encodeURIComponent(
-    "給与管理システムより"
+    "給与管理システムについて"
   )}&body=${encodeURIComponent(`${companyName} 管理者様\n${employeeName}です。\n`)}`;
 }
 
