@@ -167,20 +167,63 @@ export async function sendMail(params: {
   return { ok: false, message: `メール送信に失敗しました(${lastDetail})` };
 }
 
-/** 複数宛先に順次送信(Gmail無料枠を考慮しシンプルに直列) */
+/**
+ * 複数宛先に1通ずつ順に送信する(Gmail無料枠を考慮しシンプルに直列。配信画面の全員宛て)。
+ *
+ * Cloudflare Workers 無料プランは1回のリクエストで外部への通信(subrequest。DB・SMTP 接続を含む)が
+ * 50回まで。sendMail を宛先ごとに呼ぶと1通あたり4回(送信元・会社名の読み出し、SMTP、操作ログ)使い、
+ * 宛先13人の全員宛てで12通目から通信できず、管理者2人へのメールとアプリ内のお知らせが漏れた(2026-10-30)。
+ * そのため送信元・会社名は最初に1回だけ読み、1通あたりの通信は SMTP の1回だけにする。
+ * 操作ログは最後にまとめて1件(失敗があればエラーも1件)。これで40人程度まで1回で送れる。
+ */
 export async function sendMailToMany(
   recipients: string[],
   subject: string,
   text: string
 ): Promise<{ sent: number; failed: { to: string; reason: string }[] }> {
-  let sent = 0;
   const failed: { to: string; reason: string }[] = [];
-  for (const to of recipients) {
-    const result = await sendMail({ to, subject, text });
-    if (result.ok) sent += 1;
-    else failed.push({ to, reason: result.message });
+  const sentTo: string[] = [];
+  const [user, fromName] = await Promise.all([getSenderEmail(), getCompanyName()]);
+  const password = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !password) {
+    const message = !user
+      ? "送信元Gmailが未設定です(設定画面で登録してください)"
+      : "アプリパスワードが未設定です(CloudflareでGMAIL_APP_PASSWORDをSecret登録してください)";
+    await logActivity("エラー", `メール送信失敗(未設定): ${recipients.length}件 / 件名 ${subject} / ${message}`);
+    return { sent: 0, failed: recipients.map((to) => ({ to, reason: message })) };
   }
-  return { sent, failed };
+
+  for (const to of recipients) {
+    // SMTP接続は一時的に失敗することがあるため最大2回まで試す(sendMail と同じ)
+    let lastDetail = "";
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await smtpSendMail({ host: "smtp.gmail.com", port: 465, username: user, password, fromName, to: [to], cc: [], subject, text });
+        lastDetail = "";
+        break;
+      } catch (e) {
+        lastDetail = e instanceof Error ? e.message : String(e);
+        if (lastDetail.includes("cloudflare")) {
+          lastDetail = "本番環境(Cloudflare)でのみ送信できます";
+          break;
+        }
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
+      }
+    }
+    if (lastDetail) failed.push({ to, reason: `メール送信に失敗しました(${lastDetail})` });
+    else sentTo.push(to);
+  }
+
+  if (sentTo.length > 0) {
+    await logActivity("メール送信", `宛先 ${sentTo.join(",")}(${sentTo.length}件) / 件名 ${subject}`);
+  }
+  if (failed.length > 0) {
+    await logActivity(
+      "エラー",
+      `メール送信失敗: 宛先 ${failed.map((f) => f.to).join(",")}(${failed.length}件) / 件名 ${subject} / ${failed[0].reason}`
+    );
+  }
+  return { sent: sentTo.length, failed };
 }
 
 /** 給与明細メールの本文を生成 */

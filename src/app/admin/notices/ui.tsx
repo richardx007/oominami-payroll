@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { sendNotice } from "./actions";
+import { sendNotice, sendNoticeEmails } from "./actions";
 import type { ActionResult } from "../employees/actions";
 
 const inputClass =
@@ -27,7 +27,40 @@ export function NoticeForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
+  /** 全員宛てのメールの進み具合(送った数 / 全体) */
+  const [mailProgress, setMailProgress] = useState<{ sent: number; total: number } | null>(null);
   const [type, setType] = useState<"individual" | "reminder">("individual");
+
+  /**
+   * 全員宛てのメールを5人ずつ送る(Cloudflare 無料プランの上限対策。給与明細の配信と同じ。actions.ts の sendNoticeEmails)。
+   * 返り値はメッセージの続き(「 / メール13件送信(管理者含む)」など)
+   */
+  async function sendBroadcastMails(noticeId: string): Promise<string> {
+    let offset = 0;
+    let sent = 0;
+    let total = 0;
+    const failed: string[] = [];
+    try {
+      for (;;) {
+        const r = await sendNoticeEmails(noticeId, offset, 5);
+        if (r.error) return ` / ${r.error}`;
+        sent += r.sent;
+        total = r.total;
+        failed.push(...r.failed);
+        setMailProgress({ sent, total });
+        if (!r.hasMore) break;
+        offset += 5;
+      }
+    } catch (e) {
+      // 途中で止まった(通信の切断など)。それまでに送れた分は届いている
+      return ` / メール${sent}/${total}件送信で中断しました(${e instanceof Error ? e.message : String(e)})`;
+    } finally {
+      setMailProgress(null);
+    }
+    return failed.length > 0
+      ? ` / メール${sent}件送信、${failed.length}件失敗(${failed.join("、")})`
+      : ` / メール${sent}件送信(管理者含む)`;
+  }
 
   function applyTemplate() {
     const form = formRef.current;
@@ -45,12 +78,19 @@ export function NoticeForm({
         ref={formRef}
         action={(fd) =>
           startTransition(async () => {
+            setResult(null);
+            setMailProgress(null);
             const res = await sendNotice(fd);
-            setResult(res);
-            if (res.ok) {
-              formRef.current?.reset();
-              router.refresh();
+            if (!res.ok) {
+              setResult(res);
+              return;
             }
+            formRef.current?.reset();
+            setResult({ ok: true, message: res.message });
+            if (res.broadcastMailId) {
+              setResult({ ok: true, message: res.message + await sendBroadcastMails(res.broadcastMailId) });
+            }
+            router.refresh();
           })
         }
         className="mt-4 space-y-3"
@@ -122,7 +162,11 @@ export function NoticeForm({
           disabled={pending}
           className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {pending ? "送信中..." : "送信する"}
+          {pending
+            ? mailProgress
+              ? `メール送信中... ${mailProgress.sent}/${mailProgress.total}`
+              : "送信中..."
+            : "送信する"}
         </button>
       </form>
     </section>

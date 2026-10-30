@@ -320,6 +320,13 @@ export async function emailPayslips(
     if (senderEmail && email === senderEmail) return false;
     return true;
   });
+  // 送る順を決めておく(呼び出しごとに offset で続きを送るので、毎回同じ順でないと送り漏れ・二重送信になる)。
+  // ダミー(テスト用)は最後(2026-10-30 オーナー依頼)。あとは従業員の id 順
+  const isDummy = (p: (typeof allTargets)[number]) =>
+    (p.employees as unknown as { status: string }).status === "dummy";
+  allTargets.sort(
+    (a, b) => Number(isDummy(a)) - Number(isDummy(b)) || a.employee_id.localeCompare(b.employee_id)
+  );
   if (allTargets.length === 0) {
     return {
       ok: false,
