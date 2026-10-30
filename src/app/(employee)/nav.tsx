@@ -364,6 +364,10 @@ export function EmployeeNav({
               <SwapIcon className="ml-auto h-5 w-5 shrink-0 opacity-80" />
             </a>
             {/* ログアウトはアカウント設定の最下部へ移設(2026-10-28) */}
+            {/* 一番下にバージョン(経費管理の「その他」と同じ。サイドバーと同じ表記。2026-10-30 オーナー依頼) */}
+            <div className="border-t border-white/15 px-4 py-2 text-xs text-blue-200/70">
+              ver.{process.env.NEXT_PUBLIC_BUILD_TIME ?? "dev"}
+            </div>
           </div>
         </div>
       )}
