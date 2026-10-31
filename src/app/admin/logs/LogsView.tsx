@@ -153,6 +153,18 @@ async function fetchAllLogs(): Promise<LogRow[]> {
 
 const NO_LOGS: LogRow[] = [];
 
+/** 検索用の正規化(全角/半角・大文字/小文字の違いを無視する) */
+function normalize(text: string) {
+  return text.normalize("NFKC").toLowerCase();
+}
+
+/** フリーワード検索の対象(時刻・カテゴリ・操作者・実行環境・詳細)を1つの文字列にまとめる */
+function searchText(l: LogRow) {
+  return normalize(
+    [formatJstDateWeekday(l.created_at), formatJstTime(l.created_at), l.action, l.actor_name ?? UNKNOWN_ACTOR, sourceOf(l), l.detail ?? ""].join("\n")
+  );
+}
+
 export function LogsView({ employees }: { employees: EmployeeRef[] }) {
   const [loaded, setLoaded] = useState<LogRow[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -183,6 +195,10 @@ export function LogsView({ employees }: { employees: EmployeeRef[] }) {
 
   const [category, setCategory] = useState<string>("all");
   const [actor, setActor] = useState<string>("all");
+  // フリーワード(空白区切りで AND。全角/半角・大文字/小文字は区別しない)
+  const [query, setQuery] = useState("");
+  const terms = useMemo(() => normalize(query).split(/\s+/).filter(Boolean), [query]);
+  const searchTexts = useMemo(() => new Map(logs.map((l) => [l, searchText(l)])), [logs]);
   // 既定で「8日以前」(今日を含め9日目以降)の日は閉じた状態にする。
   // 手動でトグルした日だけを覚えておき、既定の開閉を反転して扱う。
   const [toggledDays, setToggledDays] = useState<Set<string>>(() => new Set());
@@ -202,9 +218,10 @@ export function LogsView({ employees }: { employees: EmployeeRef[] }) {
       logs.filter(
         (l) =>
           (category === "all" || l.action === category) &&
-          (actor === "all" || actorKey(l, employeeIds) === actor)
+          (actor === "all" || actorKey(l, employeeIds) === actor) &&
+          terms.every((t) => searchTexts.get(l)!.includes(t))
       ),
-    [logs, category, actor, employeeIds]
+    [logs, category, actor, employeeIds, terms, searchTexts]
   );
 
   const days = useMemo(() => {
@@ -237,7 +254,7 @@ export function LogsView({ employees }: { employees: EmployeeRef[] }) {
           id="log-category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm"
         >
           <option value="all">すべて</option>
           {categories.map((c) => (
@@ -253,7 +270,7 @@ export function LogsView({ employees }: { employees: EmployeeRef[] }) {
           id="log-actor"
           value={actor}
           onChange={(e) => setActor(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm"
         >
           <option value="all">すべて</option>
           {actors.map((a) => (
@@ -262,6 +279,14 @@ export function LogsView({ employees }: { employees: EmployeeRef[] }) {
             </option>
           ))}
         </select>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="フリーワード(名前・内容)"
+          aria-label="フリーワード"
+          className="min-w-0 flex-1 basis-56 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm"
+        />
       </div>
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -278,7 +303,10 @@ export function LogsView({ employees }: { employees: EmployeeRef[] }) {
         ) : (
           <div className="divide-y divide-gray-100">
             {days.map(([day, dayLogs]) => {
-              const collapsed = (jstDaysAgo(dayLogs[0].created_at) >= 8) !== toggledDays.has(day);
+              // 絞り込み中(カテゴリ・アカウント・フリーワード)は古い日も開いておく(経費の操作ログと同じ)
+              const filtering = category !== "all" || actor !== "all" || terms.length > 0;
+              const closedByDefault = !filtering && jstDaysAgo(dayLogs[0].created_at) >= 8;
+              const collapsed = closedByDefault !== toggledDays.has(day);
               return (
                 <div key={day}>
                   <button
