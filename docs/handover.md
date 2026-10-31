@@ -4110,8 +4110,9 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   vitest の中の vite が esbuild を任意の相手(`^0.27 || ^0.28`)として求め、npm 10 はロックに無い esbuild を足そうとして止まる。
   `c09d344`(wrangler.jsonc に observability を足しただけ)の中身は無関係で、その頃に npm 10 の判定が変わる何かがあったと思われる(未確認)。
 - 修正: `npx npm@10.9.2 install --package-lock-only` でロックを作り直した(足りない項目の追加だけ。既存の版は変わらない)。
-  npm 10・npm 11 の両方で `npm ci --dry-run` が通ることを確認。
-- **今後**: 依存を変えたら `npx npm@10.9.2 ci --ignore-scripts --dry-run` でも確かめる(ビルド環境の npm の版はビルドログの
+  npm 10・npm 11 の両方で `npm ci --dry-run` が通ることを確認。直後の自動ビルドが成功(`1e4455b`、Version ddd12d49)。
+  経費管理のロックも同じ形に直した(経費は自動ビルドにつないでいないが、将来のため)。
+- **今後**: **npm 11 で `npm install` すると、足した項目が消えてまた失敗する**。依存を変えたら `npx npm@10.9.2 install --package-lock-only --ignore-scripts` で作り直し、`npx npm@10.9.2 ci --ignore-scripts --dry-run` でも確かめる(ビルド環境の npm の版はビルドログの
   「Detected the following tools」で分かる)。ビルドログはダッシュボードでしか読めない(手元の API トークンは Builds の権限なし)。
 
 ## 7. すぐ使えるコマンド集
