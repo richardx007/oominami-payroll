@@ -13,6 +13,15 @@ const REMINDER_TEMPLATE = {
   body: "今月度の勤務表が未入力です。締め日(25日)までに入力をお願いします。",
 };
 
+/** 5人分のメールの返事を待つ上限(ふだんは1回10秒弱) */
+const MAIL_BATCH_TIMEOUT_MS = 60_000;
+
+class MailBatchTimeout extends Error {
+  constructor() {
+    super("応答がありません");
+  }
+}
+
 export function NoticeForm({
   employees,
 }: {
@@ -42,7 +51,14 @@ export function NoticeForm({
     const failed: string[] = [];
     try {
       for (;;) {
-        const r = await sendNoticeEmails(noticeId, offset, 5);
+        // 通信が切れると返事が来ないまま待ち続けることがある(2026-10-31。サーバーは送り終えていたのに「送信中... 10/13」で止まった)。
+        // 一定時間で待つのをやめて表示を戻す。続きは自動で送り直さない(その回が届いていれば二重送信になるため)
+        const r = await Promise.race([
+          sendNoticeEmails(noticeId, offset, 5),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new MailBatchTimeout()), MAIL_BATCH_TIMEOUT_MS)
+          ),
+        ]);
         if (r.error) return ` / ${r.error}`;
         sent += r.sent;
         total = r.total;
@@ -53,6 +69,10 @@ export function NoticeForm({
       }
     } catch (e) {
       // 途中で止まった(通信の切断など)。それまでに送れた分は届いている
+      if (e instanceof MailBatchTimeout) {
+        const done = total > 0 ? `メール${sent}/${total}件まで送信を確認。続きの${Math.min(5, total - sent)}件` : "メール";
+        return ` / ${done}は応答がありません(送れたかは「操作ログ」のメール送信で確かめてください。送り直すと二重に届くことがあります)`;
+      }
       return ` / メール${sent}/${total}件送信で中断しました(${e instanceof Error ? e.message : String(e)})`;
     } finally {
       setMailProgress(null);
