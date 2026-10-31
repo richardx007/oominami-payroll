@@ -1165,6 +1165,9 @@ CSS `zoom` で大きくしてふつうの文字の大きさに見せる。ホー
     Cookie `oom_pwa`（`pwa/DeviceHint.tsx` が付け外し）を見てヘッダー `x-oom-source: app|browser` を付け、
     `log_activity` が `request.headers` から読む。ブラウザから直接 `log_activity` を呼ぶ画面（ログイン・パスワード設定）は
     `p_source` で渡す。`log_activity` は3引数（`p_action, p_detail, p_source`）に作り直した（2引数版を残すと呼び出しが曖昧になる）。
+  - **Cookie `oom_pwa` とヘッダー `x-oom-source` は経費管理も使っている**（同じ名前・パス `/` で両方のアプリに共通。
+    経費管理の `pwa/DeviceHint.tsx` が付け外しし、`lib/supabase/server.ts`・`client.ts` がヘッダーを付ける）。
+    名前・値・付け外しの条件を変えるときは経費管理も合わせて直すこと。
   - 自動処理: 記録が無いものは画面側で実行者の名前から補う（「システム(自動)」= Supabase、「自動バックアップ」= GitHub）。
   - Claude が DB で直接ログを書くときは `source = 'Claude'`。
   - 過去分は、詳細の「PWA / ブラウザ」の記載・「DBで直接」・実行者から分かるものだけ埋めた（521件。他はブランク）。
