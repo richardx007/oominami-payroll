@@ -3161,7 +3161,6 @@ VOICEVOX エンジン（`voicevox/engine/`、約1.9GB）は git 管理外。`nod
   ⚠️ iOS 26 以降は User-Agent の OS 版が 18.x で止められている（Apple の仕様）ので、OS 欄は Safari の版で読み替える。
 - **「アプリ」の判定**: `DeviceHint` が、ホーム画面アプリで開いている間は Cookie `oom_pwa` を付け（ブラウザでは外す）、
   middleware が端末名の末尾に「/ アプリ」を付けて登録する（目印 `oom_dvs2` の値にも含め、変わったら登録し直す）。
-  ⚠️ 経費管理の `DeviceHint` は未対応（経費の記録は常にブラウザ名）。
 - **確認コードは「記録だけ」の期間でも使える**: この端末が承認待ちなら、アカウント設定の上に案内
   （`account/PendingDeviceNotice.tsx`）を出し、`/device-pending` でコードを入れられる（「承認しないで戻る」も可）。
   `/device-pending` は「承認済み」か「対象外かつ承認待ちでもない」ときだけトップへ戻す。管理者のアカウント設定には
