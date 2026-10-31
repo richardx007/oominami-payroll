@@ -4045,7 +4045,7 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
   管理者のアカウント設定には常に「別の端末を承認する」。
 - システム管理者の手元の端末がすべて承認待ちだったため、本人依頼で5件を DB で直接承認(操作ログあり)。
   その後、確認コードで管理者同士の承認ができることを確認。古い承認待ち(10/12〜10/22 の Mac Safari・10/18 の経費)は残している。
-- コミット `ae5a4af`。⚠️ **Workers Builds は 10/26 の `da167ac` 以降、毎回開始20秒ほどで失敗している**(ログは API トークンに
+- コミット `ae5a4af`。⚠️ **Workers Builds は 10/18 の `c09d344` 以降、毎回開始20秒ほどで失敗している**(10/31 に原因判明・修正。下の「2026-10-31 その2」。ログは API トークンに
   Builds の読み取り権限が無く未確認。手元の `npm run build` は成功)。今回も `npm run deploy` で反映(Version 966a8347)。
   直すには Cloudflare ダッシュボードのビルドログを確認すること。
 
@@ -4101,6 +4101,18 @@ Googleカレンダー＋旧アプリ `oominami-calendar` での運用を、こ�
 - **修正**: `notices/ui.tsx` の `sendBroadcastMails` で、1回の `sendNoticeEmails` の返事を60秒まで待つ(`Promise.race`)。時間切れなら「メールn/全体件まで送信を確認。続きのm件は応答がありません(操作ログで確認・送り直すと二重に届くことがあります)」と出してボタンを戻す。続きは自動で送り直さない。
 - 10/30「経費システムについて」のアプリ内お知らせは**出し直さない**(オーナー判断。届かなかったのは管理者2人へのメールだけで支障なし)。
 - コミット `9dd26d4`、デプロイ Version 65f9e5f6(`npm run deploy`)。60秒で待ち切る動きは、実際に回線を切らないと確かめられないため未確認。
+
+### 2026-10-31 その2(操作ログのフリーワード検索・自動デプロイの復旧。オーナー依頼)
+- 操作ログにフリーワード検索(`ef42d8e`、設計書§6.2.1)。経費管理の操作ログと同じ形。デプロイ Version 06aa15d0(`npm run deploy`)。
+- **自動デプロイ(Workers Builds)が 10/18 の `c09d344` から全部失敗していた原因**: ビルド前の `npm clean-install` が
+  `EUSAGE`(package.json と package-lock.json の食い違い。`Missing: esbuild@0.28.2 from lock file`)。
+  Cloudflare のビルド環境は **npm 10.9.2**(Node 24.22.1)、手元は npm 11 で、npm 11 では通るため気づかなかった。
+  vitest の中の vite が esbuild を任意の相手(`^0.27 || ^0.28`)として求め、npm 10 はロックに無い esbuild を足そうとして止まる。
+  `c09d344`(wrangler.jsonc に observability を足しただけ)の中身は無関係で、その頃に npm 10 の判定が変わる何かがあったと思われる(未確認)。
+- 修正: `npx npm@10.9.2 install --package-lock-only` でロックを作り直した(足りない項目の追加だけ。既存の版は変わらない)。
+  npm 10・npm 11 の両方で `npm ci --dry-run` が通ることを確認。
+- **今後**: 依存を変えたら `npx npm@10.9.2 ci --ignore-scripts --dry-run` でも確かめる(ビルド環境の npm の版はビルドログの
+  「Detected the following tools」で分かる)。ビルドログはダッシュボードでしか読めない(手元の API トークンは Builds の権限なし)。
 
 ## 7. すぐ使えるコマンド集
 
