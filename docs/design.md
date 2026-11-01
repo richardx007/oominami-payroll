@@ -517,6 +517,8 @@ lib/
   business-calendar-view.ts  営業カレンダーの表示整形（通し営業の帯・週割り付け・区分判定・月の状態。§24.2）
   business-calendar-notify.ts  営業カレンダー自動作成通知の文面（§24.5）
   poster-export.ts       営業カレンダーのポスターの画像化・PDF自前生成（§24.6。pdf-capture.ts とは別方式）
+  input-normalize.ts     時刻・数値欄の文字を整える（全角→半角、「900」→9:00。§34）
+components/TimeInput.tsx / NumericInput.tsx / AsciiInput.tsx  時刻・数値の入力欄の共通部品（§34）
 components/business-calendar/  MonthCalendar.tsx(管理画面の月グリッド) / PublicCalendar.tsx(HP埋め込みの見た目)
 middleware.ts            未認証は /login へ（/calendar/embed 等の公開パスを除く）。認証済みで"/"（PWAのstart_url）のときは
                          is_adminを判定し /admin または /timesheet へ直接振り分ける（2026-08-26追加。
@@ -741,6 +743,8 @@ middleware.ts            未認証は /login へ（/calendar/embed 等の公開�
     送る順は 従業員(社員番号順)→ 管理者 → ダミー。給与明細の配信もダミーを最後にし、順を固定している(offset で続きを送るため)。
     画面は1回の返事を60秒まで待つ。通信が切れると返事が来ないまま待ち続けることがあるため(2026-10-31)。
     時間切れなら「n/全体件まで送信を確認・続きは応答なし」と出してボタンを戻す。続きは自動で送り直さない(その回が届いていれば二重送信になる)。
+    ボタンの「送信中...」は `useTransition` ではなく自前の状態で持ち、`finally` で必ず戻す(2026-11-01。
+    `startTransition` の中で `router.refresh()` を呼んでいたため、メールを送り終えて結果も出たのにボタンが戻らなかった。§11.5)。
   - `sendMailToMany`(一斉用)は送信元・会社名を最初に1回だけ読み、1通あたりの通信は SMTP の1回だけ。
     操作ログは呼び出しごとにまとめて1件(「宛先 a,b,…(n件) / 件名 …」。失敗があればエラーも1件)。
   - **配信メールの冒頭1行（2026-07-29追加）**: `admin/notices/actions.ts` の `sendNotice` が本文の先頭に
@@ -1926,6 +1930,8 @@ foreign key (employee_id, work_date)
   （**保存自体は成功していた**）。自前の `useState` ＋ `finally` で必ず解除し、押下直後にローカル状態で
   表示を切り替える方式に変更（`admin/daily/ui.tsx` の `AdvanceToggle`）。**行単位で並行実行しうるボタンでは
   `useTransition` を使わないこと。**
+  同じ事象は締め処理(`admin/close/ui.tsx`)と配信(`admin/notices/ui.tsx`。2026-11-01)でも起きた。
+  **サーバーアクションを呼ぶボタンでは `useTransition` を使わない**(引継書の「【再発3回目】」も参照)。
 - **固定列がヘッダーを乗り越える**: モバイルヘッダー（`admin/layout.tsx` / `(employee)/layout.tsx`）と
   表の固定列（`sticky left-0 z-10`）が**どちらも `z-10`** で、DOM順で後ろの表セルがヘッダーの上に描画されていた。
   ヘッダーを **`z-30`** に変更して解消（下部タブ `z-40` とハンバーガーのシート `z-30` より下、固定列 `z-10` より上）。
@@ -3308,3 +3314,21 @@ Cloudflare Workers は**無料プランのまま続ける**(Paid にはしない
   `= any ((select f())::uuid[])` と型を明示する（1回目の反映で失敗し、全体が取り消された）。
 - 現在のダミー: バイト太郎（No 2）・バイト次郎（E012）・バイト三郎（E013。招待→登録→ホーム画面追加の流れの試験用。2026-10-28 作成）。
   3人とも端末承認の試験対象（`device_enforce_test`）。
+
+## 34. 時刻・数値の入力欄（2026-11-01、オーナー依頼）
+
+- **時刻は `TimeInput`**（`src/components/TimeInput.tsx`）。`<input type="time">` は使わない。テンキーの数字だけで打てる:
+  1〜2桁は「時」（9→9:00）、3〜4桁は末尾2桁が「分」（900→9:00、2300→23:00、1530→15:30）。欄を出たとき・Enter で整える
+  （Enter はフォーム送信の前に `flushSync` で反映）。読めない値は消さずに残し、保存時のチェックで知らせる。
+  `maxMinutes`（既定 23:59。営業時間は `BUSINESS_TIME_MAX` = 47:59 で翌日の時刻も書ける）、`pad`（「09:00」と2桁にする）。
+  使っている欄: 営業時間・シフト枠・休憩・営業カレンダー・シフト予定表の変則勤務・勤務表の出勤/退勤。
+- **数値は `NumericInput`**（`src/components/NumericInput.tsx`）。`<input type="number">` の代わり。既定は数字だけ、
+  `negative` / `decimal` / `hyphen`（郵便番号）で足せる。min/max/step はブラウザでは効かないので、範囲は保存側で調べる。
+- 土台は `AsciiInput`（`src/components/AsciiInput.tsx`）。PC/Mac で日本語入力（かなモード）のまま打たれたら、変換が始まった時点で
+  確定させて半角に直す。変換中に値を書き換えると「１２３」が「112123」のように二重に入るため、変換中は打った文字をそのまま見せ、
+  確定後に半角にして親へ渡す（家計簿アプリ kakeibo と同じ方式）。確定のため一瞬フォーカスを外す間は親の onBlur/onFocus を呼ばない。
+- 文字の変換は `src/lib/input-normalize.ts`（`toHalfWidthNumeric` / `sanitizeNumeric` / `parseTimeText` / `normalizeTimeText`。
+  テスト `input-normalize.test.ts`）。かなモードの「。」「ー」も . と - に戻す。
+- 勤務表の保存（`timesheet/schema.ts`）は「900」「９：００」もサーバー側で HH:MM に直して受ける。営業カレンダーの
+  `parseTimeInput` も同じ関数で読む。
+- 新しい画面・新しいアプリにも同じ部品を使う（CLAUDE.md・スキル numeric-time-inputs）。
