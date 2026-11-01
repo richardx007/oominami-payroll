@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { isDeviceApproved, redeemPairCode, signOutFromPending } from "./actions";
+import { NumericInput } from "@/components/NumericInput";
 
 const POLL_MS = 5000;
 
@@ -118,9 +119,8 @@ export function DevicePendingView({
                 いつも使っている端末(Safari や前のスマホなど)でこのアプリを開き、
                 <b>アカウント設定 → 別の端末を承認する</b> を押すと、6桁のコードが出ます。
               </p>
-              <input
+              <NumericInput
                 id="pair-code"
-                inputMode="numeric"
                 autoComplete="one-time-code"
                 // maxLength は付けない(「123 456」のように空白入りで貼り付けると、数字を取り出す前に切り詰められるため)
                 value={code}

@@ -6,6 +6,8 @@
  * 時刻は「その日の0:00からの分」（600=10:00、1440=24:00、1740=翌5:00）。
  */
 
+import { parseTimeText } from "./input-normalize";
+
 export type DayType = "weekday" | "fri" | "sat" | "sun" | "holiday" | "pre_holiday";
 export type DayStatus = "open" | "closed" | "temp_closed";
 export type EventColor = "gold" | "blue" | "purple" | "pink" | "orange" | "gray";
@@ -396,14 +398,12 @@ export function layoutWeek(
 // 入力（管理画面）
 // ---------------------------------------------------------------------------
 
-/** "10:00" / "10" / "26:30" → 分。不正は null。0:00〜47:59 を許容（閉店は翌日の時刻も書ける）。 */
+/** 営業時間の入力欄で受け付ける最大(47:59)。閉店は翌日の時刻(26:00 など)も書ける */
+export const BUSINESS_TIME_MAX = 47 * 60 + 59;
+
+/** "10:00" / "10" / "26:30" / "1000"(":" なし) / 全角 → 分。不正は null。0:00〜47:59 を許容（閉店は翌日の時刻も書ける）。 */
 export function parseTimeInput(s: string): number | null {
-  const m = s.trim().replace("：", ":").match(/^(\d{1,2})(?::(\d{2}))?$/);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2] ?? "0");
-  if (h > 47 || min > 59) return null;
-  return h * 60 + min;
+  return parseTimeText(s, BUSINESS_TIME_MAX);
 }
 
 /** 分 → "10:00" / "24:00" / "26:30"（入力欄の初期値） */

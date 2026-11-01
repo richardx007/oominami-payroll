@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   addMonthsYm,
+  BUSINESS_TIME_MAX,
   buildCalendarView,
   classifyDayType,
   dayOfWeek,
@@ -22,6 +23,7 @@ import { workSettingsAt, type WorkTimeSettingRow } from "@/lib/work-time";
 import { deleteHourPatterns, saveHourPatterns } from "../actions";
 import type { ActionResult } from "../../employees/actions";
 import { segmentClass, segmentItemClass } from "@/lib/choice-styles";
+import { TimeInput } from "@/components/TimeInput";
 
 const ORDER: DayType[] = ["weekday", "fri", "sat", "sun", "holiday", "pre_holiday"];
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -355,21 +357,21 @@ export function PatternsForm({
                       定休
                     </button>
                   </div>
-                  <input
+                  <TimeInput
                     value={r.is_open ? r.open : ""}
-                    onChange={(e) => update(i, { open: e.target.value })}
+                    onValueChange={(v) => update(i, { open: v })}
+                    maxMinutes={BUSINESS_TIME_MAX}
                     placeholder={r.is_open ? "10:00" : "—"}
                     disabled={!r.is_open}
-                    inputMode="numeric"
                     aria-label={`${DAY_TYPE_LABELS[r.day_type]}の開店`}
                     className={`${inputClass} ${bad ? "border-red-400" : ""}`}
                   />
-                  <input
+                  <TimeInput
                     value={r.is_open && !r.overnight ? r.close : ""}
-                    onChange={(e) => update(i, { close: e.target.value })}
+                    onValueChange={(v) => update(i, { close: v })}
+                    maxMinutes={BUSINESS_TIME_MAX}
                     placeholder={!r.is_open ? "—" : r.overnight ? "通し" : "24:00"}
                     disabled={!r.is_open || r.overnight}
-                    inputMode="numeric"
                     aria-label={`${DAY_TYPE_LABELS[r.day_type]}の閉店`}
                     className={`${inputClass} ${bad ? "border-red-400" : ""}`}
                   />
@@ -412,20 +414,20 @@ export function PatternsForm({
                     aria-label={`枠${r.key}の名前`}
                     className={`${inputClass} font-bold ${bad ? "border-red-400" : ""}`}
                   />
-                  <input
+                  <TimeInput
                     value={r.start}
-                    onChange={(e) => updateSlot(i, { start: e.target.value })}
+                    onValueChange={(v) => updateSlot(i, { start: v })}
+                    maxMinutes={24 * 60}
                     placeholder="8:00"
-                    inputMode="numeric"
                     aria-label={`${r.label || r.key}の開始`}
                     className={`${inputClass} ${bad ? "border-red-400" : ""}`}
                   />
                   {r.endOvernight == null ? (
-                    <input
+                    <TimeInput
                       value={r.end}
-                      onChange={(e) => updateSlot(i, { end: e.target.value })}
+                      onValueChange={(v) => updateSlot(i, { end: v })}
+                      maxMinutes={24 * 60}
                       placeholder="17:00"
-                      inputMode="numeric"
                       aria-label={`${r.label || r.key}の終了`}
                       className={`${inputClass} ${bad ? "border-red-400" : ""}`}
                     />
@@ -433,20 +435,20 @@ export function PatternsForm({
                     // 遅番: 営業カレンダーで「翌日まで通し」の日と、それ以外の日で終了を分ける
                     <div className="grid grid-cols-[auto_1fr] items-center gap-x-1 gap-y-1">
                       <span className="text-[11px] leading-tight text-gray-600">通しの日</span>
-                      <input
+                      <TimeInput
                         value={r.endOvernight}
-                        onChange={(e) => updateSlot(i, { endOvernight: e.target.value })}
+                        onValueChange={(v) => updateSlot(i, { endOvernight: v })}
+                        maxMinutes={24 * 60}
                         placeholder="0:00"
-                        inputMode="numeric"
                         aria-label={`${r.label || r.key}の終了（翌日まで通しの日）`}
                         className={`${inputClass} ${bad ? "border-red-400" : ""}`}
                       />
                       <span className="text-[11px] leading-tight text-gray-600">それ以外</span>
-                      <input
+                      <TimeInput
                         value={r.end}
-                        onChange={(e) => updateSlot(i, { end: e.target.value })}
+                        onValueChange={(v) => updateSlot(i, { end: v })}
+                        maxMinutes={24 * 60}
                         placeholder="23:00"
-                        inputMode="numeric"
                         aria-label={`${r.label || r.key}の終了（それ以外の日）`}
                         className={`${inputClass} ${bad ? "border-red-400" : ""}`}
                       />
@@ -472,20 +474,18 @@ export function PatternsForm({
               return (
                 <div key={i} className="contents">
                   <span className={`text-sm font-bold ${bad ? "text-red-600" : "text-gray-800"}`}>枠{i + 1}</span>
-                  <input
+                  <TimeInput
                     value={b.start}
-                    onChange={(e) => updateBreak(i, { start: e.target.value })}
+                    onValueChange={(v) => updateBreak(i, { start: v })}
                     placeholder="12:00"
-                    inputMode="numeric"
                     aria-label={`休憩 枠${i + 1}の開始`}
                     className={`${inputClass} ${bad ? "border-red-400" : ""}`}
                   />
                   <span className="text-xs text-gray-400">〜</span>
-                  <input
+                  <TimeInput
                     value={b.end}
-                    onChange={(e) => updateBreak(i, { end: e.target.value })}
+                    onValueChange={(v) => updateBreak(i, { end: v })}
                     placeholder="13:00"
-                    inputMode="numeric"
                     aria-label={`休憩 枠${i + 1}の終了`}
                     className={`${inputClass} ${bad ? "border-red-400" : ""}`}
                   />

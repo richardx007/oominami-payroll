@@ -23,10 +23,12 @@ import {
   type DayType,
   type EventTypeRow,
   type MonthState,
+  BUSINESS_TIME_MAX,
 } from "@/lib/business-calendar-view";
 import { deleteEvent, generateMonth, saveDay, saveEvent, saveFootnote } from "./actions";
 import type { ActionResult } from "../employees/actions";
 import { segmentClass, segmentItemClass } from "@/lib/choice-styles";
+import { TimeInput } from "@/components/TimeInput";
 
 export type DayDetailRow = { day_type: DayType; note: string | null };
 export type EventDetailRow = { is_public: boolean };
@@ -414,16 +416,16 @@ function DayPanel({
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-gray-500">開店</span>
-                  <input value={open} onChange={(e) => setOpen(e.target.value)} placeholder="10:00" inputMode="numeric" className={inputClass} />
+                  <TimeInput value={open} onValueChange={setOpen} maxMinutes={BUSINESS_TIME_MAX} placeholder="10:00" className={inputClass} />
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-gray-500">閉店</span>
-                  <input
+                  <TimeInput
                     value={overnight ? "" : close}
-                    onChange={(e) => setClose(e.target.value)}
+                    onValueChange={setClose}
+                    maxMinutes={BUSINESS_TIME_MAX}
                     placeholder={overnight ? "通し" : "24:00"}
                     disabled={overnight}
-                    inputMode="numeric"
                     className={`${inputClass} disabled:bg-gray-100`}
                   />
                 </label>

@@ -18,6 +18,8 @@ import { effectiveAt } from "@/lib/payroll";
 import type { ShiftInfo } from "@/lib/shifts";
 import type { WorkEntry } from "./page";
 import { type ActionResult } from "./actions";
+import { NumericInput } from "@/components/NumericInput";
+import { TimeInput } from "@/components/TimeInput";
 
 export type TimesheetEmployee = { id: string; name: string };
 export type LunchRate = { lunch_allowance: number; effective_from: string };
@@ -32,8 +34,7 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const inputClass =
   "w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
-// 出勤・退勤・休憩の3カラム用。iOSのtimeコントロールは指定幅より広く描画され
-// 隣と重なるため、フォントをやや小さく・横パディングを詰めて本体幅を抑える。
+// 出勤・退勤の時刻欄(TimeInput)。2カラムに収まるよう横パディングを詰める。
 const timeInputClass =
   "w-full min-w-0 box-border rounded-lg border border-gray-300 bg-white px-1.5 py-2.5 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
@@ -703,8 +704,8 @@ function EntryForm({
         ? ""
         : shift?.endInput ?? init?.end_time ?? "18:00";
 
-  // 退勤欄は空欄で保存できる(退勤未入力扱い)。ネイティブの time 入力は
-  // 空欄化しづらいため「空欄にする」ボタンを用意し、値を state で制御する。
+  // 退勤欄は空欄で保存できる(退勤未入力扱い)。空欄にできることが分かるよう
+  // 「空欄にする」ボタンを用意し、値を state で制御する。
   const [endTime, setEndTime] = useState(endDefault);
   const endBlank = !endTime;
   // 出勤欄も空欄スタートがあり得るため(管理者の新規代理入力)、同様に未入力を警告表示する
@@ -839,8 +840,8 @@ function EntryForm({
         )}
 
         {/* 勤務時間。出勤・退勤を1行(2カラム)に。休憩は標準休憩ルールから自動計算するため
-            入力欄は設けない。iOS Safari の time 入力は内容幅に広がりやすいため、各セルに
-            min-w-0、入力は横パディングを詰めてはみ出し・重なりを防ぐ。 */}
+            入力欄は設けない。時刻はテンキーの数字だけで打てる(TimeInput。「900」→ 09:00)。
+            各セルに min-w-0、入力は横パディングを詰めてはみ出し・重なりを防ぐ。 */}
         <div className="grid grid-cols-2 gap-3">
           <div className="min-w-0">
             <div className="mb-1 flex items-baseline justify-between gap-1">
@@ -860,15 +861,15 @@ function EntryForm({
                 </button>
               )}
             </div>
-            <input
+            <TimeInput
+              pad
               name="start_time"
-              type="time"
-              step={900}
+              placeholder="9:00"
               // 新規日は出勤必須。既存記録は空欄のまま保存でき、取り消し(削除)になる
               required={!entry}
               disabled={timeLocked}
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onValueChange={setStartTime}
               className={`${timeInputClass} ${
                 startBlank
                   ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300"
@@ -894,13 +895,13 @@ function EntryForm({
                 </button>
               )}
             </div>
-            <input
+            <TimeInput
+              pad
               name="end_time"
-              type="time"
-              step={900}
+              placeholder="18:00"
               disabled={timeLocked}
               value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
+              onValueChange={setEndTime}
               className={`${timeInputClass} ${
                 endBlank
                   ? "border-amber-400 bg-amber-50 ring-1 ring-amber-300"
@@ -967,13 +968,9 @@ function EntryForm({
                 <label className="mb-1 block text-sm font-medium text-gray-600">
                   金額(円)
                 </label>
-                <input
+                <NumericInput
                   ref={costRef}
                   name="transport_cost"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={10}
                   defaultValue={init?.transport_cost ?? 0}
                   onInput={() => costRef.current?.setCustomValidity("")}
                   className={inputClass}
@@ -1066,12 +1063,8 @@ function EntryForm({
                     <label className="mb-1 block text-sm font-medium text-gray-600">
                       変更後の金額
                     </label>
-                    <input
+                    <NumericInput
                       name="lunch_change_amount"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      step={10}
                       placeholder="変更なし"
                       value={lunchAmount}
                       onChange={(e) => setLunchAmount(e.target.value)}

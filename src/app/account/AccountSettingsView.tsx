@@ -20,6 +20,7 @@ import {
   unsubscribeThisDevice,
 } from "@/app/pwa/push";
 import type { ActionResult } from "../admin/employees/actions";
+import { NumericInput } from "@/components/NumericInput";
 
 /**
  * アカウント設定画面の本体(管理者・従業員共通)。
@@ -127,10 +128,10 @@ function PersonalInfoForm({ info }: { info: PersonalInfo }) {
       >
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">郵便番号</label>
-          <input
+          <NumericInput
+            hyphen
             name="postal_code"
             defaultValue={info.postalCode}
-            inputMode="numeric"
             autoComplete="postal-code"
             placeholder="123-4567"
             className={input}
@@ -554,13 +555,8 @@ function ShiftReminderForm({
               className="h-4 w-4 rounded border-gray-300"
             />
             出勤予定時間の
-            <input
-              type="number"
+            <NumericInput
               name="shift_reminder_minutes"
-              inputMode="numeric"
-              min={5}
-              max={720}
-              step={5}
               defaultValue={startMinutes ?? 60}
               disabled={!startOn}
               className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-right text-base disabled:bg-gray-100 disabled:text-gray-400"
@@ -579,13 +575,10 @@ function ShiftReminderForm({
               className="h-4 w-4 rounded border-gray-300"
             />
             退勤予定時間の
-            {/* マイナスを入力するため inputMode は付けない(iPhone のテンキーにはマイナスが無い) */}
-            <input
-              type="number"
+            {/* マイナスを入力するため negative(iPhone のテンキーにはマイナスが無いので通常のキーボードになる) */}
+            <NumericInput
+              negative
               name="shift_end_reminder_minutes"
-              min={-720}
-              max={720}
-              step={5}
               defaultValue={endMinutes ?? 10}
               disabled={!endOn}
               className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-right text-base disabled:bg-gray-100 disabled:text-gray-400"

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { punchClock, reportClockError, type ClockResult } from "./actions";
 import { AccessHelp } from "@/components/AccessHelp";
 import { useClientValue } from "@/lib/useClientValue";
+import { NumericInput } from "@/components/NumericInput";
 
 type Coords = { lat: number; lng: number; accuracy: number | null };
 
@@ -285,13 +286,9 @@ export function ClockConfirm({
                         </option>
                       ))}
                     </select>
-                    <input
+                    <NumericInput
                       value={tCost}
                       onChange={(e) => setTCost(e.target.value)}
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      step={10}
                       placeholder="金額(円)"
                       className="w-full rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm"
                     />

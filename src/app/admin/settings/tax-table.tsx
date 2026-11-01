@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { importTaxTable } from "./actions";
 import type { ActionResult } from "../employees/actions";
 import { zebraRowClass } from "@/lib/table";
+import { NumericInput } from "@/components/NumericInput";
 
 export type TaxTableRow = {
   year: number;
@@ -199,8 +200,7 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
             </p>
             <div className="mt-2 flex items-center gap-2">
               <label className="text-sm font-medium">対象年</label>
-              <input
-                type="number"
+              <NumericInput
                 value={previewYear}
                 onChange={(e) =>
                   setPreviewYear(e.target.value === "" ? "" : Number(e.target.value))
@@ -265,9 +265,8 @@ export function TaxTableForm({ rows }: { rows: TaxTableRow[] }) {
           >
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium">対象年</label>
-              <input
+              <NumericInput
                 name="year"
-                type="number"
                 required
                 defaultValue={new Date().getFullYear()}
                 className="w-28 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"

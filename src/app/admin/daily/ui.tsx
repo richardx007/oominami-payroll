@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { adjacentPeriodKey, periodFromKey } from "@/lib/period";
 import { buildDailyReportCsv, setAdvancePayment } from "./actions";
+import { NumericInput } from "@/components/NumericInput";
 
 const LUNCH_REASON_LABELS: Record<string, string> = {
   in_kind: "現物支給",
@@ -313,11 +314,7 @@ export function AdvanceToggle({
       <span className="inline-flex flex-col items-end gap-0.5 print:hidden">
         <span className="inline-flex items-center gap-1">
           <span className="text-xs text-gray-500">¥</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={10}
+          <NumericInput
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}

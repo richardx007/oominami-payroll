@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { standardBreakMinutes } from "@/lib/period";
+import { normalizeTimeText } from "@/lib/input-normalize";
+
+const toHhmm = (v: unknown) => (typeof v === "string" ? normalizeTimeText(v, { pad: true }) : v);
 
 /**
  * 勤務記録の入力スキーマ(従業員・管理者で共用)。
@@ -9,13 +12,17 @@ import { standardBreakMinutes } from "@/lib/period";
 export const entrySchema = z
   .object({
     work_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    start_time: z.string().regex(/^\d{2}:\d{2}$/),
+    // 時刻は「900」「９：００」のような入力も "09:00" に直して受ける(画面でも欄を出た時に直すが念のため)
+    start_time: z.preprocess(toHhmm, z.string().regex(/^\d{2}:\d{2}$/)),
     // 退勤は未入力(空文字)のまま保存できる(打刻の退勤未入力と同様の扱い)
-    end_time: z
-      .string()
-      .regex(/^\d{2}:\d{2}$/)
-      .optional()
-      .or(z.literal("")),
+    end_time: z.preprocess(
+      toHhmm,
+      z
+        .string()
+        .regex(/^\d{2}:\d{2}$/)
+        .optional()
+        .or(z.literal(""))
+    ),
     transport_cost: z.coerce.number().int().min(0).max(100000),
     transport_mode: z.string().max(20).optional(),
     station_from: z.string().max(50).optional(),

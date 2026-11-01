@@ -32,6 +32,10 @@ import {
 import { slotsResolver, type WorkTimeSettingRow } from "@/lib/work-time";
 import type { ActionResult } from "./actions";
 import { choiceState } from "@/lib/choice-styles";
+import { TimeInput } from "@/components/TimeInput";
+
+/** 変則勤務時間の欄の値が「空」か「読める時刻(HH:MM)」か。読めない値は保存しない */
+const isTimeOrBlank = (v: string) => v === "" || /^\d{2}:\d{2}$/.test(v);
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -819,7 +823,7 @@ function EditRow({
     customEnd?: string
   ) => void;
 }) {
-  // <input type="time"> は "HH:MM"(2桁)を要求するため、保存値("8:00"等)を正規化して保持する。
+  // 保存値("8:00"等)を "HH:MM"(2桁)に正規化して保持する(入力欄も "08:00" の形に整える)。
   // 空文字は「変則なし=枠の既定時刻を使う」を意味する。
   const [cs, setCs] = useState(toInputTime(customStart) ?? "");
   const [ce, setCe] = useState(toInputTime(customEnd) ?? "");
@@ -828,7 +832,7 @@ function EditRow({
 
   /**
    * 変則時間を空に戻す(=枠の既定時刻で勤務する)。
-   * iOS のネイティブ時刻ピッカーにも「クリア」はあるが、入力欄を確実に空へ戻せる手段として
+   * 入力欄を確実に空へ戻せる手段として
    * 明示的なボタンを置く。onMouseDown で既定動作を止めているのは、クリックで入力欄が
    * blur して onBlur の保存が先に走り、二重保存になるのを避けるため。
    */
@@ -938,7 +942,7 @@ function EditRow({
         </div>
       </div>
       {/* 変則勤務時間(任意)。枠が割当済みのときだけ表示。変更がある場合のみ保存。
-          時刻はネイティブのダイアル選択(<input type="time">)で入力する。
+          時刻はテンキーの数字だけで入力する(TimeInput。「830」→ 8:30)。
           「変則勤務 [出勤] 〜 [退勤] [×]」が iPhone で1行に収まるよう、
           既定時刻は外に出さず入力欄に重ねて表示し、クリアは×アイコンにしている。 */}
       {cur && (
@@ -948,8 +952,9 @@ function EditRow({
             value={cs}
             defaultTime={slots[cur].start}
             onChange={setCs}
-            onBlur={() => {
-              if (cs !== csSaved) onAssign(m.id, date, cur, cs, ce);
+            onBlur={(v) => {
+              if (!isTimeOrBlank(v)) setCs(csSaved);
+              else if (v !== csSaved) onAssign(m.id, date, cur, v, ce);
             }}
             disabled={readOnly}
             label="変則出勤予定"
@@ -959,13 +964,14 @@ function EditRow({
             value={ce}
             defaultTime={slots[cur].end}
             onChange={setCe}
-            onBlur={() => {
-              if (ce !== ceSaved) onAssign(m.id, date, cur, cs, ce);
+            onBlur={(v) => {
+              if (!isTimeOrBlank(v)) setCe(ceSaved);
+              else if (v !== ceSaved) onAssign(m.id, date, cur, cs, v);
             }}
             disabled={readOnly}
             label="変則退勤予定"
           />
-          {/* iOSのピッカーの「リセット」は効かない端末があるため、確実に空へ戻せる×を必ず置く。
+          {/* 確実に空へ戻せる×を必ず置く。
               レイアウトが動かないよう、未入力でも領域は確保して薄く出す。 */}
           {!readOnly && (
             <button
@@ -987,16 +993,14 @@ function EditRow({
 }
 
 /**
- * 変則勤務時間の入力欄。未入力のときは**枠の既定時刻を薄いグレーで重ねて表示**する。
+ * 変則勤務時間の入力欄。未入力のときは**枠の既定時刻を薄いグレーで表示**する(placeholder)。
  *
  * 🔴 既定時刻を `value` に入れてはいけない。入力欄が常に値を持つことになり、
- * **クリアしても既定時刻が即座に再表示されて空に戻せなくなる**
- * (iOSのピッカーの「リセット」が効かない、という形で表面化。2026-08-01)。
- * かといって既定時刻を欄の外に出すと横幅を食って行が折り返し、見た目が崩れる。
- * そこで **value は空のまま**にして、既定時刻は `pointer-events-none` の
- * オーバーレイで上に重ねる。タップは下の input に素通りするのでダイアルは従来どおり開き、
- * 値が入ればオーバーレイは消える。
- * ※ `<input type="time">` に placeholder は使えない(効かない)ため、この方式にしている。
+ * **クリアしても既定時刻が即座に再表示されて空に戻せなくなる**(2026-08-01)。
+ *
+ * 時刻はテンキーの数字だけで打てる(「830」→ 8:30。TimeInput)。2026-11-01 に
+ * ネイティブのダイアル(<input type="time">)から切り替えた。読めない値(25:00 など)は
+ * 保存せず、元の値に戻す。
  */
 function TimeWithDefault({
   value,
@@ -1010,7 +1014,8 @@ function TimeWithDefault({
   /** 枠の既定時刻("8:00"など)。未入力時に薄く表示する */
   defaultTime: string;
   onChange: (v: string) => void;
-  onBlur: () => void;
+  /** 欄を出たとき。整えた後の値("08:00" / 空)を受け取る */
+  onBlur: (v: string) => void;
   disabled?: boolean;
   label: string;
 }) {
@@ -1025,35 +1030,18 @@ function TimeWithDefault({
           : "border-gray-300 focus-within:border-blue-500"
       }`}
     >
-      <input
-        type="time"
-        // 30分刻み。iOSのネイティブ時刻ダイアルの「分」が 00 / 30 だけになる
-        // (シフトは30分単位で足りるため。勤務表の実績入力は step=900=15分刻み)
-        step={1800}
+      <TimeInput
+        pad
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        // 未入力の欄を開いたときの初期値。指定しないとブラウザが現在時刻を出すため、
-        // 「開いただけで中途半端な時刻(例 23:06)が入ってしまう」事故が起きていた。
-        // 00:00 から始めれば、深夜勤務の 0:00 はそのまま確定でき、他の時刻もダイアルで選びやすい。
-        // 誤って開いた場合は隣の ✕ で消せる(✕は blur を止めるので保存されない)。
-        onFocus={() => {
-          if (!value) onChange("00:00");
-        }}
+        onValueChange={onChange}
         onBlur={onBlur}
+        placeholder={toInputTime(defaultTime) ?? defaultTime}
         disabled={disabled}
         aria-label={label}
-        className={`w-full min-w-0 bg-transparent px-1 py-1 text-center text-sm focus:outline-none ${
+        className={`w-full min-w-0 bg-transparent px-1 py-1 text-center text-sm placeholder:text-gray-400 focus:outline-none ${
           filled ? "font-semibold text-white" : ""
         }`}
       />
-      {!value && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-white text-sm text-gray-400"
-        >
-          {toInputTime(defaultTime) ?? defaultTime}
-        </span>
-      )}
     </span>
   );
 }

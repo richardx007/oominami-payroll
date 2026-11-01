@@ -10,6 +10,7 @@ import type { ActionResult } from "../employees/actions";
 import { PdfPreviewDialog } from "@/components/PdfPreviewDialog";
 import { toPreviewImage } from "@/lib/pdf-capture";
 import { useClientValue } from "@/lib/useClientValue";
+import { NumericInput } from "@/components/NumericInput";
 
 const inputClass =
   "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
@@ -175,9 +176,7 @@ export function ClockSettingsForm({
               <label className="mb-1 block text-sm font-medium">
                 許容半径(メートル)
               </label>
-              <input
-                type="number"
-                min={0}
+              <NumericInput
                 value={radius}
                 onChange={(e) => setRadius(e.target.value)}
                 className={inputClass}
@@ -200,10 +199,7 @@ export function ClockSettingsForm({
               <label className="mb-1 block text-sm font-medium">
                 打刻時刻の丸め(分単位)
               </label>
-              <input
-                type="number"
-                min={0}
-                max={60}
+              <NumericInput
                 value={round}
                 onChange={(e) => setRound(e.target.value)}
                 className={`${inputClass} sm:max-w-[10rem] lg:max-w-none`}

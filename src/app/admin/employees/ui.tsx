@@ -29,6 +29,7 @@ import {
 import { segmentClass, segmentItemClass } from "@/lib/choice-styles";
 import { isDummyStatus } from "@/lib/employee-status";
 import { DummyBadge } from "@/components/DummyBadge";
+import { NumericInput } from "@/components/NumericInput";
 
 function TrashIcon({ className }: { className?: string }) {
   return (
@@ -235,10 +236,8 @@ function AddEmployeePanel() {
                 <>
                   <div>
                     <label className="mb-1 block text-sm font-medium">時給(円)</label>
-                    <input
+                    <NumericInput
                       name="hourly_wage"
-                      type="number"
-                      min={0}
                       required
                       className={inputClass}
                     />
@@ -250,10 +249,8 @@ function AddEmployeePanel() {
                     <label className="mb-1 block text-sm font-medium">
                       昼食補助額(円)
                     </label>
-                    <input
+                    <NumericInput
                       name="lunch_allowance"
-                      type="number"
-                      min={0}
                       required
                       className={inputClass}
                     />
@@ -271,10 +268,8 @@ function AddEmployeePanel() {
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium">扶養親族数</label>
-                    <input
+                    <NumericInput
                       name="dependents"
-                      type="number"
-                      min={0}
                       defaultValue={0}
                       className={inputClass}
                     />
@@ -515,10 +510,8 @@ function WageHistory({
                         aria-label="適用開始日"
                         className={historyDateClass}
                       />
-                      <input
+                      <NumericInput
                         name="hourly_wage"
-                        type="number"
-                        min={0}
                         defaultValue={r.hourly_wage}
                         required
                         aria-label="時給(円)"
@@ -612,10 +605,8 @@ function WageHistory({
             aria-label="適用開始日"
             className={historyDateClass}
           />
-          <input
+          <NumericInput
             name="hourly_wage"
-            type="number"
-            min={0}
             defaultValue={current?.hourly_wage}
             required
             placeholder="時給(円)"
@@ -697,10 +688,8 @@ function LunchHistory({
                         aria-label="適用開始日"
                         className={historyDateClass}
                       />
-                      <input
+                      <NumericInput
                         name="lunch_allowance"
-                        type="number"
-                        min={0}
                         defaultValue={r.lunch_allowance}
                         required
                         aria-label="昼食補助額(円)"
@@ -794,10 +783,8 @@ function LunchHistory({
             aria-label="適用開始日"
             className={historyDateClass}
           />
-          <input
+          <NumericInput
             name="lunch_allowance"
-            type="number"
-            min={0}
             defaultValue={current?.lunch_allowance}
             required
             placeholder="昼食補助額(円)"
@@ -895,10 +882,8 @@ function TaxHistory({
                       <div className="flex flex-wrap items-center gap-2">
                         <label className="flex shrink-0 items-center gap-1 text-xs text-gray-500">
                           扶養
-                          <input
+                          <NumericInput
                             name="dependents"
-                            type="number"
-                            min={0}
                             defaultValue={t.dependents}
                             title="扶養親族数"
                             className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -1003,10 +988,8 @@ function TaxHistory({
           </select>
           <label className="flex shrink-0 items-center gap-1 text-xs text-gray-500">
             扶養
-            <input
+            <NumericInput
               name="dependents"
-              type="number"
-              min={0}
               defaultValue={current?.dependents ?? 0}
               title="扶養親族数"
               className="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"

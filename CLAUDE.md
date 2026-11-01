@@ -45,6 +45,7 @@
 - トークンはコミットしない（この方式ではそもそもトークンを保存しない）。
 - **新しいテーブル・ビューには、同じマイグレーションで権限を明示する**(2026-10-30 から Supabase は public の新テーブルに Data API の権限を自動で付けない。付け忘れると画面で「permission denied」になる。既存のテーブルは影響なし)。形: `grant select, insert, update, delete on public.<表> to authenticated, service_role;`(使わない操作は外してよい)。テーブルを `anon` に直接開けない(ログイン前に見せるものは、これまでどおり関数で出す。例: `public_business_calendar`)。経費管理(oominami-business)と DB を共用しているので、経費の CLAUDE.md にも同じ決まりがある
 - **ダミー従業員**(`employees.status = 'dummy'`。本番で使うテスト用の見えない従業員、2026-10-28): 見えるのはシステム管理者(オーナー以外の管理者)とダミー本人だけ。DB の RESTRICTIVE ポリシー(`*_hide_dummy`)と SECURITY DEFINER の関数が隠す(`supabase/migrations/20261028120000_dummy_employees.sql`)。**従業員に紐づく新しい表を作ったら同じ形の `*_hide_dummy` ポリシーを足し、従業員の一覧を返す SECURITY DEFINER の関数は `public.can_see_dummies()` で絞る**。在籍の判定は `src/lib/employee-status.ts`(ダミーも在籍と同じ)。税理士向けの資料・月の合計からは外す。経費管理の CLAUDE.md にも同じ決まりがある
+- **時刻・数値の入力欄は共通部品を使う**(2026-11-01): 時刻は `TimeInput`(`src/components/TimeInput.tsx`。テンキーで「900」→ 9:00、「2300」→ 23:00。`<input type="time">` は使わない)、金額・人数・分などの数値は `NumericInput`(`src/components/NumericInput.tsx`。`<input type="number">` は使わない)。どちらも PC/Mac で日本語入力のまま打った全角を半角に直す(土台は `src/components/AsciiInput.tsx`、文字の変換は `src/lib/input-normalize.ts`)。min/max/step はブラウザでは効かないので範囲チェックは保存側で行う
 
 ## ⚠️ Cloudflare 無料プランの CPU 上限(Error 1102)
 - 無料プランのまま続ける方針(2026-10-18 オーナー決定)。1回 10ms が上限。詳細は `docs/design.md` §32。
