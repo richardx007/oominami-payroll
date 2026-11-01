@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendNotice, sendNoticeEmails } from "./actions";
 import type { ActionResult } from "../employees/actions";
@@ -35,7 +35,10 @@ export function NoticeForm({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
-  const [pending, startTransition] = useTransition();
+  // useTransition の pending は router.refresh() を挟むと解除されず「送信中...」のまま固まることがある
+  // (2026-11-01。メールは送り終えて結果も出ていたのにボタンが戻らなかった。給与明細の配信 close/ui.tsx と同じ対策)。
+  // 自前の状態を finally で必ず戻す
+  const [pending, setPending] = useState(false);
   /** 全員宛てのメールの進み具合(送った数 / 全体) */
   const [mailProgress, setMailProgress] = useState<{ sent: number; total: number } | null>(null);
   const [type, setType] = useState<"individual" | "reminder">("individual");
@@ -96,10 +99,14 @@ export function NoticeForm({
       <h2 className="border-l-4 border-blue-600 pl-2 font-semibold">新規送信</h2>
       <form
         ref={formRef}
-        action={(fd) =>
-          startTransition(async () => {
-            setResult(null);
-            setMailProgress(null);
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (pending) return;
+          const fd = new FormData(e.currentTarget);
+          setPending(true);
+          setResult(null);
+          setMailProgress(null);
+          try {
             const res = await sendNotice(fd);
             if (!res.ok) {
               setResult(res);
@@ -108,11 +115,15 @@ export function NoticeForm({
             formRef.current?.reset();
             setResult({ ok: true, message: res.message });
             if (res.broadcastMailId) {
-              setResult({ ok: true, message: res.message + await sendBroadcastMails(res.broadcastMailId) });
+              setResult({ ok: true, message: res.message + (await sendBroadcastMails(res.broadcastMailId)) });
             }
             router.refresh();
-          })
-        }
+          } catch (err) {
+            setResult({ ok: false, message: "送信に失敗しました: " + (err instanceof Error ? err.message : String(err)) });
+          } finally {
+            setPending(false);
+          }
+        }}
         className="mt-4 space-y-3"
       >
         <div className="grid gap-3 sm:grid-cols-2">
