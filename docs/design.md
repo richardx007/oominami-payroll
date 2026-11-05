@@ -2398,7 +2398,7 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
   1. **Service Worker の fetch**(2026-10-14 の復帰画面で、画面の読み込みを受けるようになった)。
      fetch を受ける SW は「SW の起動 → 読み込み開始」と直列になる。→ **ナビゲーションプリロード**を
      有効にした(`activate` で `navigationPreload.enable()`、fetch で `event.preloadResponse` を使う)。
-     経費管理の `scripts/generate-sw.mjs` にも同じ復帰画面があるので、直すときは両方(2026-11-05 時点で経費は未対応)。
+     経費管理の `scripts/generate-sw.mjs` にも同じものを入れた(2026-11-05。経費は起動ロゴ `src/app/loading.tsx` も新設)。
   2. **middleware の `auth.getUser()`**(画面を開くたびに Supabase Auth へ問い合わせ。起動時は "/" と
      "/admin" の2回)。→ **`auth.getClaims()`**(署名をその場で検証)に置き換えた。署名鍵は ES256
      (`/auth/v1/.well-known/jwks.json` で確認。Supabase 側の設定変更は不要)。鍵が HS256 のときは
