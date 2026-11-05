@@ -19,6 +19,10 @@ import {
   sessionIdFromAccessToken,
 } from "@/lib/device";
 
+/** "/" の行き先(管理者か)を覚えておく Cookie。値は "ユーザーID:admin" か "ユーザーID:staff" */
+const HOME_COOKIE = "oom_home";
+const HOME_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -43,9 +47,16 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // ログインの確認は getClaims(アクセストークンの署名を手元で検証する。署名の鍵 JWKS は
+  // 一度取ったら Worker の中で使い回す)。以前の getUser は画面を開くたびに Supabase Auth へ
+  // 問い合わせていて、起動時は "/" → "/admin" の2回ぶん、白い画面のまま待たされていた(2026-11-05)。
+  // ここは画面の振り分け(未ログインなら /login へ)だけで、本当の守りは DB の RLS と、
+  // 各画面の requireEmployee(getUser で Supabase Auth に確かめる)。
+  // トークンの期限切れは getClaims の中(getSession)で更新され、Cookie も setAll で書き戻される。
+  // 署名の鍵が HS256(旧方式)のときは getClaims が自動で getUser に切り替わる。
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
+  const user = userId ? { id: userId } : null;
 
   // /install: QRコードからログイン前でも開けるよう公開(ホーム画面追加の案内のみで機密情報なし)
   // /api: 外部(Supabase の pg_cron)から呼ばれる。ログインセッションを持たないため、
@@ -127,6 +138,12 @@ export async function updateSession(request: NextRequest) {
     }
   }
   const withDeviceCookies = (res: NextResponse) => {
+    // リダイレクトの応答にも、更新したログインの Cookie(setAll で supabaseResponse に書いたもの)を載せる。
+    // 載せないと、起動時("/" → "/admin")に "/" で更新したトークンが捨てられ、"/admin" でもう一度
+    // 更新の問い合わせが走っていた(2026-11-05)
+    if (res !== supabaseResponse) {
+      for (const c of supabaseResponse.cookies.getAll()) res.cookies.set(c);
+    }
     for (const c of deviceCookies) {
       res.cookies.set(c.name, c.value, {
         httpOnly: true,
@@ -171,14 +188,32 @@ export async function updateSession(request: NextRequest) {
   // "/"(PWAのstart_url)は行き先を振り分けるだけのページ。ここで判定してしまうことで、
   // src/app/page.tsx 側で同じ auth.getUser()+employees 問い合わせをもう一度行う無駄を無くす
   // (二重問い合わせが起動直後の白画面を長引かせていた)。
+  // 行き先(管理者か)は Cookie(HOME_COOKIE = "ユーザーID:admin|staff")に覚えておき、2回目からは
+  // DB に問い合わせずに振り分ける(起動のたびの待ち時間を減らす。2026-11-05)。ユーザーが違えば問い合わせ直す。
+  // 覚えた後に管理者でなくなった人は /admin の requireAdmin が /timesheet へ移すので、見えてはいけない
+  // 画面が見えることはない。管理者になった人は最長 HOME_COOKIE_MAX_AGE の間、起動先が勤務表のまま。
   if (user && request.nextUrl.pathname === "/") {
-    const { data: employee } = await supabase
-      .from("employees")
-      .select("is_admin")
-      .eq("auth_user_id", user.id)
-      .maybeSingle();
+    const remembered = request.cookies.get(HOME_COOKIE)?.value ?? "";
+    let isAdmin: boolean;
+    if (remembered === `${user.id}:admin` || remembered === `${user.id}:staff`) {
+      isAdmin = remembered.endsWith(":admin");
+    } else {
+      const { data: employee } = await supabase
+        .from("employees")
+        .select("is_admin")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      isAdmin = employee?.is_admin === true;
+      // 従業員が見つからない(承認前の端末など)ときは覚えない
+      if (employee)
+        deviceCookies.push({
+          name: HOME_COOKIE,
+          value: `${user.id}:${isAdmin ? "admin" : "staff"}`,
+          maxAge: HOME_COOKIE_MAX_AGE,
+        });
+    }
     const url = request.nextUrl.clone();
-    url.pathname = employee?.is_admin ? "/admin" : "/timesheet";
+    url.pathname = isAdmin ? "/admin" : "/timesheet";
     return withDeviceCookies(NextResponse.redirect(url));
   }
 

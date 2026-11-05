@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DEVICE_PENDING_PATH } from "@/lib/device";
@@ -17,8 +18,14 @@ export type Employee = {
   status: string;
 };
 
-/** ログイン中の従業員を取得。未連携なら連携を試みる。未ログインは /login へ */
-export async function requireEmployee(): Promise<Employee> {
+/**
+ * ログイン中の従業員を取得。未連携なら連携を試みる。未ログインは /login へ。
+ * 1回の画面の読み込みの中では結果を使い回す(React の cache)。layout と page の両方が呼ぶため、
+ * 以前は Supabase Auth と employees への問い合わせが毎回2回ずつ走っていた(2026-11-05)。
+ */
+export const requireEmployee = cache(requireEmployeeUncached);
+
+async function requireEmployeeUncached(): Promise<Employee> {
   const supabase = await createClient();
   const {
     data: { user },

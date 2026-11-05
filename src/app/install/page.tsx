@@ -48,7 +48,7 @@ export default async function InstallPage() {
     <main className="flex min-h-screen flex-col items-center bg-gray-50 px-6 pb-32 pt-16 text-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/logo.svg"
+        src="/logo-240.png"
         alt="新世界オオミナミ"
         className="h-20 w-20 rounded-full bg-white object-contain shadow"
       />

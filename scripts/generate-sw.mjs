@@ -74,7 +74,9 @@ self.addEventListener("fetch", (event) => {
     (async () => {
       let res;
       try {
-        res = await fetch(req);
+        // ナビゲーションプリロード(activate で有効化)の応答があればそれを使う。SW の起動を待たずに
+        // ブラウザが読み込みを始めているので、起動時の白い画面が短くなる(2026-11-05)
+        res = (await event.preloadResponse) || (await fetch(req));
       } catch (e) {
         return recoveryPage(req.url, 503, "通信できませんでした");
       }
@@ -151,6 +153,14 @@ self.addEventListener("activate", (event) => {
         await Promise.all(keys.map((k) => caches.delete(k)));
       } catch (e) {
         /* 失敗しても続行 */
+      }
+      // ナビゲーションプリロード: 画面の読み込み(navigate)では、SW の起動と並行してブラウザが先に
+      // 通信を始める(結果は fetch の event.preloadResponse)。fetch を受ける SW は、これが無いと
+      // 「SW の起動 → fetch」の順になり、アプリを開くたびに SW の起動ぶん白い画面が長くなる(2026-11-05)。
+      try {
+        if (self.registration.navigationPreload) await self.registration.navigationPreload.enable();
+      } catch (e) {
+        /* 未対応のブラウザでは何もしない(これまでどおり fetch する) */
       }
       // 有効化後すぐ現在のクライアントを制御下に置く。
       await self.clients.claim();

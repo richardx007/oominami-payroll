@@ -64,13 +64,16 @@ function isActive(pathname: string, href: string) {
   );
 }
 
-/** アプリのロゴ(public/logo.svg を表示。差し替えは public/ のファイルを置換) */
+/**
+ * アプリのロゴ(public/logo-240.png を表示)。logo.svg は約 390KB と重いので画面には出さない。
+ * ロゴを差し替えたら public/logo.svg を置き換えて `node scripts/generate-icons.mjs` を実行する
+ */
 export function Logo({ className = "" }: { className?: string }) {
   // Next の Image ではなく素の img。円形ロゴ(白背景)がネイビーのバー上でも映える。
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/logo.svg"
+      src="/logo-240.png"
       alt="新世界オオミナミ"
       className={`h-10 w-10 shrink-0 rounded-full bg-white object-contain ${className}`}
     />

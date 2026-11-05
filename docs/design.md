@@ -2334,7 +2334,7 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
 ロゴのチラつき調査と対応」参照。
 
 ### 16.1 共通`Splash`コンポーネント（2026-09-02更新: 起動時のみに限定）
-- `src/app/Splash.tsx`: ロゴ（`/logo.svg`）+ アプリ名 + スピナーを、ネイビー（`#152449`）背景の
+- `src/app/Splash.tsx`: ロゴ（2026-11-05 から data URI。§16.4）+ アプリ名 + スピナーを、ネイビー（`#152449`）背景の
   `fixed inset-0`（全画面固定）で表示する共通部品。**`src/app/loading.tsx`（ルート）専用**とし、
   アプリ起動直後（ログイン判定・初回データ取得中）にのみ表示する。
 - `src/app/admin/loading.tsx`・`src/app/(employee)/loading.tsx`は、メニュー間のページ遷移のたびに
@@ -2383,6 +2383,37 @@ PDF添付を実装した直後、テスト送信を実行すると「This page c
   （`getClaims()`)に置き換える案があるが、Supabase側の署名鍵方式の変更を伴う認証まわりの
   変更のため、着手前に影響範囲を確認すること。オーナーへは「これ以上はアプリ側のUI実装では
   縮められない領域」と説明し、現状で区切ることに合意済み。
+
+### 16.4 起動の待ち時間の再短縮と起動ロゴの復活（2026-11-05）
+オーナー報告「起動時の白い画面が長くなった気がする」「起動ロゴが効いていない」への対応。
+- **起動ロゴが出ていなかった原因**: `Splash` のロゴ `/logo.svg` は中身が 2000px の PNG を埋め込んだ
+  **約 390KB** の SVG で、しかも `cache-control: max-age=0, must-revalidate`。ルートの `loading.tsx`
+  が出ている短い間に画像が間に合わず、白い丸だけが点滅していた。ファビコン `src/app/icon.svg` も同じ
+  390KB で、起動のたびに読み込まれていた。
+  - 対応: `scripts/generate-icons.mjs` で 240px・約 9KB の PNG を作り、`Splash` は **data URI で埋め込み**
+    (`src/app/splash-logo.ts`。生成物なので手で直さない)、ヘッダーのロゴ・`/install` は
+    `public/logo-240.png`、ファビコンは `src/app/icon.png` にした。`logo.svg` は元画像として残すが画面では使わない。
+    ロゴを差し替えたら `logo.svg` を置き換えて `node scripts/generate-icons.mjs` を実行する。
+- **白い画面が長くなっていた原因と対応**(どれも React の描画が始まる前の区間で、ローディング表示を出せない):
+  1. **Service Worker の fetch**(2026-10-14 の復帰画面で、画面の読み込みを受けるようになった)。
+     fetch を受ける SW は「SW の起動 → 読み込み開始」と直列になる。→ **ナビゲーションプリロード**を
+     有効にした(`activate` で `navigationPreload.enable()`、fetch で `event.preloadResponse` を使う)。
+     経費管理の `scripts/generate-sw.mjs` にも同じ復帰画面があるので、直すときは両方(2026-11-05 時点で経費は未対応)。
+  2. **middleware の `auth.getUser()`**(画面を開くたびに Supabase Auth へ問い合わせ。起動時は "/" と
+     "/admin" の2回)。→ **`auth.getClaims()`**(署名をその場で検証)に置き換えた。署名鍵は ES256
+     (`/auth/v1/.well-known/jwks.json` で確認。Supabase 側の設定変更は不要)。鍵が HS256 のときは
+     getClaims が自動で getUser に切り替わる。middleware は振り分けだけで、守りは RLS と各画面の
+     `requireEmployee`(こちらは getUser のまま)。
+  3. **"/" の振り分けの `employees.is_admin` 問い合わせ**。→ 結果を Cookie `oom_home`
+     (`ユーザーID:admin|staff`、7日)に覚え、2回目から問い合わせない。管理者でなくなった人は
+     `requireAdmin` が `/timesheet` へ移すので安全。管理者になった人は最長7日、起動先が勤務表のまま。
+  4. **リダイレクトの応答にトークン更新の Cookie が載っていなかった**(久しぶりに開くと "/" でトークンを
+     更新しても捨てられ、"/admin" でもう一度更新していた)。→ `withDeviceCookies` で `supabaseResponse`
+     の Cookie をリダイレクトにも写す。
+  5. **`requireEmployee` が layout と page で2回ずつ** getUser + employees を問い合わせていた。→ React の
+     `cache()` で1回の読み込みの中では使い回す。
+- iPhone のホーム画面アプリは、最初の HTML が届くまで OS が白い画面を出す(`apple-touch-startup-image`
+  を機種ごとに用意すれば変えられるが、ホーム画面に追加し直さないと効かず、機種ごとの画像が多いため見送り)。
 
 ---
 
