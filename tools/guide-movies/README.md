@@ -46,6 +46,8 @@ tools/guide-movies/
    - GitHub の VOICEVOX/voicevox_engine の Releases から `voicevox_engine-macos-arm64-<版>.vvpp` を取得し、
      zip として展開した中身を `voicevox/engine/` に置く（`voicevox/engine/run` があればよい。2026-09 は 0.25.2 を使用）。
    - 初回だけ `xattr -dr com.apple.quarantine voicevox/engine` が必要な場合がある。
+   - 🔵 2026-11-10: エンジン本体は Mac の共用フォルダ `/Users/Shared/voicevox/engine` に移し、`voicevox/engine` はそこへのシンボリックリンクにした（他のアカウント・他のアプリと共用するため）。
+     別の Mac で準備するときは、上のとおり `voicevox/engine/` に直接置いてよい。
    - エンジンはビルドの間だけ自動で起動・停止する（既に 50021 番で動いていればそれを使う）。
    - VOICEVOX アプリが入っている Mac なら、代わりに `VOICEVOX_ENGINE=/Applications/VOICEVOX.app/Contents/Resources/vv-engine/run` でアプリ内のエンジンを使える。
 
